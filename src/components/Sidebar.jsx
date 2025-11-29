@@ -48,14 +48,16 @@ export default function Sidebar() {
       {/* -------------------------------------------------- */}
       <aside
         className="
-          fixed bottom-0 left-0 right-0 h-[70px] z-[90]
+          fixed left-0 right-0 h-[75px] z-[90]
           md:hidden
           bg-[#0d0d11]/95 backdrop-blur-lg
           border-t border-indigo-500/10
           shadow-[0_-4px_25px_rgba(0,0,0,0.35)]
-          flex justify-between items-center px-6
+          flex justify-between items-center px-4
+          pb-[env(safe-area-inset-bottom)]
         "
         style={{
+          bottom: "env(safe-area-inset-bottom, 22px)",
           transform: "translate3d(0, 0, 0)",
           WebkitOverflowScrolling: "touch",
           touchAction: "manipulation",
@@ -69,7 +71,7 @@ export default function Sidebar() {
             <Link
               key={i}
               to={item.to}
-              className="flex flex-col items-center justify-center w-full"
+              className="flex flex-col items-center justify-center flex-1 py-2"
             >
               <span
                 className={`${
@@ -81,7 +83,7 @@ export default function Sidebar() {
 
               <span
                 className={`
-                  text-[11px] mt-1 transition
+                  text-[10px] mt-1 transition truncate
                   ${active ? "text-indigo-400" : "text-gray-500"}
                 `}
               >

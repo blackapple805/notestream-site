@@ -35,7 +35,7 @@ import LoginPage from "./pages/Login";
 import SearchPage from "./pages/Search";
 import TermsPage from "./pages/Terms";
 
-// Dashboard Layout + Pages
+// Dashboard Layout & Pages
 import DashboardLayout from "./layouts/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Notes from "./pages/Notes";
@@ -44,10 +44,13 @@ import Documents from "./pages/Documents";
 import Activity from "./pages/Activity";
 import AiLab from "./pages/AiLab";
 import Settings from "./pages/Settings";
+import DocumentViewer from "./pages/DocumentViewer";
+import RewriteDocument from "./pages/RewriteDocument";
+
 
 
 // ----------------------------------------------------------------
-// PUBLIC PAGE TRANSITIONS HANDLER
+// PUBLIC PAGE ANIMATION WRAPPER
 // ----------------------------------------------------------------
 function PublicRoutesFadeWrapper() {
   const location = useLocation();
@@ -55,7 +58,7 @@ function PublicRoutesFadeWrapper() {
 
   useEffect(() => {
     setShowLoader(true);
-    const t = setTimeout(() => setShowLoader(false), 500);
+    const t = setTimeout(() => setShowLoader(false), 450);
     return () => clearTimeout(t);
   }, [location.pathname]);
 
@@ -119,7 +122,7 @@ function PublicRoutesFadeWrapper() {
 
 
 // ----------------------------------------------------------------
-// PUBLIC LANDING PAGE WRAPPER
+// PUBLIC LANDING CONTENT
 // ----------------------------------------------------------------
 function HomeLanding() {
   return (
@@ -133,8 +136,7 @@ function HomeLanding() {
 
 
 // ----------------------------------------------------------------
-// PUBLIC MAIN WRAPPER
-// (Navbar + Footer shown ONLY outside /dashboard/*)
+// PUBLIC SITE WRAPPER WITH CONDITIONAL NAV/FOOTER
 // ----------------------------------------------------------------
 function PublicSiteWrapper() {
   const location = useLocation();
@@ -162,6 +164,23 @@ function PublicSiteWrapper() {
 // ROOT APP
 // ----------------------------------------------------------------
 export default function App() {
+  const [docs, setDocs] = useState([
+    {
+      id: "1",
+      name: "projectRoadmap.pdf",
+      type: "PDF",
+      size: "1.2 MB",
+      updated: "2 days ago",
+      fileUrl: "/docs/projectRoadmap.pdf",
+
+      // NEW Smart Summary Intelligence
+      summary: null,
+    }
+  ]);
+
+
+  const [notes, setNotes] = useState([]);
+  
   return (
     <Router>
       <ScrollToTop />
@@ -170,12 +189,37 @@ export default function App() {
         {/* PUBLIC SITE */}
         <Route path="/*" element={<PublicSiteWrapper />} />
 
-        {/* DASHBOARD */}
+        {/* DASHBOARD PAGES */}
         <Route path="/dashboard" element={<DashboardLayout />}>
           <Route index element={<Dashboard />} />
-          <Route path="notes" element={<Notes />} />
+
+          {/* NOTES */}
+          <Route
+            path="notes"
+            element={<Notes notes={notes} setNotes={setNotes} />}
+          />
+          <Route
+            path="notes/:noteId"
+            element={<Notes notes={notes} setNotes={setNotes} />}
+          />
+
+          {/* DOCUMENTS */}
+          <Route
+            path="documents"
+            element={<Documents docs={docs} setDocs={setDocs} />}
+          />
+          <Route
+            path="documents/view/:id"
+            element={<DocumentViewer docs={docs} />}
+          />
+          
+          <Route
+            path="documents/rewrite/:id"
+            element={<RewriteDocument docs={docs} setDocs={setDocs} />}
+          />
+
+          {/* OTHER SECTIONS */}
           <Route path="summaries" element={<Summaries />} />
-          <Route path="documents" element={<Documents />} />
           <Route path="activity" element={<Activity />} />
           <Route path="ai-lab" element={<AiLab />} />
           <Route path="settings" element={<Settings />} />
@@ -184,5 +228,6 @@ export default function App() {
     </Router>
   );
 }
+
 
 

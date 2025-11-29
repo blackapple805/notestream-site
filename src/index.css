@@ -431,3 +431,60 @@ body::before {
   from { opacity: 0; transform: translate(-50%, -55%) scale(.92); }
   to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
+
+/* --------------------------------------------------------------
+   ❤️ Favorite Heart Pulse Animation
+-------------------------------------------------------------- */
+@keyframes fav-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.3); }
+  60% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+.fav-animate {
+  animation: fav-pulse 0.28s ease-out;
+}
+
+/* --------------------------------------------------------------
+   🔄 Upload Progress Bar Animation
+-------------------------------------------------------------- */
+@keyframes loadbar {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* --------------------------------------------------------------
+   ⚠ Toast-Specific Animations (Safe Names)
+-------------------------------------------------------------- */
+
+@keyframes toastFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes toastFadeOut {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.95);
+  }
+}
+
+.toast-fade-in {
+  animation: toastFadeIn 0.25s ease-out forwards;
+}
+
+.toast-fade-out {
+  animation: toastFadeOut 0.35s ease-in forwards;
+}
+

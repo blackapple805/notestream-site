@@ -154,6 +154,7 @@ const Navbar = () => {
                 <img
                   src="/assets/icons/logo-header-32x32.png"
                   alt="NoteStream"
+                  className="h-7 w-7 sm:h-8 sm:w-8 drop-shadow-[0_0_8px_rgba(99,102,241,0.6)]"
                 />
                 <span className="text-lg sm:text-xl font-semibold tracking-wide">
                   <span className="text-white">Note</span>
@@ -246,16 +247,16 @@ const Navbar = () => {
       </nav>
 
       {/* MOBILE MENU */}
-      {(isMobileOpen || suppressMainLogo) &&  (
+      {isMobileOpen && (
         <div
           ref={mobileMenuRef}
-          className={`
+          className="
             fixed top-0 left-0 right-0 h-screen z-[200] md:hidden
             bg-gradient-to-b from-[#12001f] via-[#0b0016] to-[#05000c]
             backdrop-blur-xl
+            animate-ns-slideDown
             shadow-[inset_0_0_60px_rgba(0,0,0,0.45)]
-            ${isMobileOpen ? "animate-ns-slideDown" : "animate-ns-slideUpClose"}
-          `}
+          "
         >
           {/* Mobile Header */}
           <div className="flex justify-between items-center px-4 h-20 border-b border-white/10">
@@ -335,56 +336,24 @@ const Navbar = () => {
             <div className="my-4 mx-3 h-px bg-white/10 ns-menu-item" />
 
             {/* Buttons */}
-            <div className="space-y-4 px-1 mt-8">
-
-              {/* PRIMARY — identical to Hero “Get Started” */}
+            <div className="space-y-3">
               <button
                 onClick={() => handleMobileNavigate("/signup")}
-                className="
-                  w-full
-                  bg-gradient-to-r from-indigo-500 to-indigo-600
-                  hover:from-indigo-400 hover:to-indigo-500
-                  text-white font-semibold
-                  py-3.5 rounded-full text-lg
-                  shadow-[0_0_30px_rgba(99,102,241,0.28)]
-                  hover:shadow-[0_0_45px_rgba(99,102,241,0.38)]
-                  transition-all duration-300
-                  active:scale-[0.98]
-                "
+                className="w-full bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-3 rounded-xl transition-all font-semibold ns-menu-item"
               >
                 Start Free
               </button>
 
-              {/* SECONDARY — identical to Hero “See How It Works” */}
               <button
                 onClick={() => handleMobileNavigate("/login")}
-                className="
-                  w-full
-                  border border-gray-700
-                  hover:border-indigo-400
-                  text-gray-300 hover:text-indigo-400
-                  py-3.5 rounded-full text-lg
-                  transition-all duration-300
-                  hover:shadow-[0_0_20px_rgba(99,102,241,0.25)]
-                  active:scale-[0.98]
-                "
+                className="w-full border border-white/20 text-white/90 hover:border-white/40 px-6 py-3 rounded-xl transition-all ns-menu-item"
               >
                 Login
               </button>
 
-              {/* SEARCH — translucent pill tile identical vibe */}
               <button
                 onClick={() => handleMobileNavigate("/search")}
-                className="
-                  w-full flex items-center justify-center gap-3
-                  bg-white/5 hover:bg-white/10
-                  text-white/90 hover:text-white
-                  py-3.5 rounded-full text-lg
-                  transition-all duration-300
-                  active:scale-[0.98]
-                  shadow-[0_0_20px_rgba(255,255,255,0.05)]
-                  hover:shadow-[0_0_30px_rgba(255,255,255,0.08)]
-                "
+                className="w-full flex items-center justify-center gap-3 text-white/90 bg-white/10 hover:bg-white/20 px-6 py-3 rounded-xl transition ns-menu-item"
               >
                 <FiSearch className="w-5 h-5" />
                 <span className="font-medium">Search</span>
