@@ -1,0 +1,433 @@
+@import "tailwindcss";
+
+/* --------------------------------------------------------------
+   CSS VARIABLES
+-------------------------------------------------------------- */
+:root {
+  --vh: 1vh;
+  --mobile-nav-height: 90px;
+}
+
+/* --------------------------------------------------------------
+   GLOBAL LAYOUT
+-------------------------------------------------------------- */
+html,
+body,
+#root {
+  min-height: 100%;
+  height: auto !important;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  image-rendering: optimizeQuality;
+}
+
+html {
+  scroll-behavior: smooth;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+body {
+  margin: 0;
+  background-color: #0d0d10;
+  color-scheme: dark;
+  position: relative;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* --------------------------------------------------------------
+   INTERACTION / SELECTION
+-------------------------------------------------------------- */
+
+/* Default: everything interactive */
+a,
+button,
+input,
+textarea,
+select {
+  user-select: auto !important;
+  pointer-events: auto !important;
+  caret-color: auto !important;
+}
+
+/* Utility to explicitly disable selection where needed */
+.disable-select {
+  user-select: none !important;
+}
+
+/* Remove default outlines (you can add custom focus styles with Tailwind) */
+a:focus,
+button:focus {
+  outline: none !important;
+}
+
+/* Navigation pointer UX */
+nav button,
+nav a,
+nav svg,
+nav img,
+nav span {
+  cursor: pointer !important;
+  -webkit-user-drag: none !important;
+}
+
+/* Tap pulse animation for active buttons */
+@keyframes tapPulse {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.96); opacity: 0.7; }
+}
+.active\:pulse:active {
+  animation: tapPulse 0.18s ease-out;
+}
+
+/* --------------------------------------------------------------
+   NAVBAR BASE
+-------------------------------------------------------------- */
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: transparent;
+  border-bottom: 1px solid transparent;
+  transition:
+    background-color 0.35s ease,
+    border-color 0.35s ease,
+    backdrop-filter 0.35s ease;
+  transform: translate3d(0, 0, 0);
+}
+
+nav.scrolled {
+  backdrop-filter: blur(16px);
+  background-color: rgba(13, 13, 16, 0.85);
+  border-bottom-color: rgba(31, 31, 35, 0.7);
+}
+
+/* --------------------------------------------------------------
+   BACKGROUND IMAGE
+-------------------------------------------------------------- */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: url("/assets/images/smooth-bg.png") center top / cover no-repeat;
+  background-attachment: fixed;
+  z-index: -2;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------
+   PAGE ENTRY ANIMATIONS (Landing only)
+-------------------------------------------------------------- */
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeSlide {
+  animation: fadeSlide 0.8s ease-out forwards;
+}
+
+@keyframes heroFadeIn {
+  from { opacity: 0.98; transform: scale(1.01) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-heroFade {
+  animation: heroFadeIn 1.5s ease-out forwards;
+}
+
+/* --------------------------------------------------------------
+   NOTE ACTION SHEET — iPhone Only
+-------------------------------------------------------------- */
+@keyframes slideUp {
+  from { transform: translateY(40px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.animate-slideUp {
+  animation: slideUp 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Prevent bottom sheet / overlay on desktop */
+@media (min-width: 768px) {
+  .note-action-sheet,
+  .note-sheet-overlay {
+    display: none !important;
+  }
+}
+
+/* Overlay base styles (kept light for performance) */
+.note-sheet-overlay {
+  pointer-events: auto;
+  /* If performance is bad on real iPhone hardware, remove blur completely */
+  /* backdrop-filter: blur(8px); */
+}
+
+@keyframes fadeInFloat {
+  0% { opacity: 0; transform: scale(0.88) translateY(12px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.animate-fadeInFloat {
+  animation: fadeInFloat 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* --------------------------------------------------------------
+   MOBILE MENU ANIMATIONS (Top navbar menu)
+-------------------------------------------------------------- */
+@keyframes fadeOverlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Mobile menu slide down */
+@keyframes ns-slideDown {
+  from { transform: translateY(-20px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.animate-ns-slideDown {
+  animation: ns-slideDown 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Hamburger icon rotation */
+.ns-hamburger {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+.ns-hamburger-rotate {
+  transform: rotate(180deg) scale(1.1);
+}
+
+/* Stagger for mobile menu items */
+@keyframes ns-menuItemFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ns-menu-item {
+  opacity: 0;
+  animation: ns-menuItemFade 0.45s ease forwards;
+}
+
+/* --------------------------------------------------------------
+   MOBILE BEHAVIOR / SAFE AREA FIXES
+-------------------------------------------------------------- */
+@supports (-webkit-touch-callout: none) {
+  .fixed {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (max-width: 932px) {
+  :root {
+    --mobile-nav-height: calc(100px + env(safe-area-inset-bottom));
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  .safe-area-inset-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+}
+
+/* --------------------------------------------------------------
+   MOBILE MENU CLOSE ANIMATION
+-------------------------------------------------------------- */
+@keyframes ns-slideUpClose {
+  from { transform: translateY(0); opacity: 1; }
+  to   { transform: translateY(-18px); opacity: 0; }
+}
+.animate-ns-slideUpClose {
+  animation: ns-slideUpClose 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+
+.fab-btn {
+  position: fixed;
+  right: 20px;
+  bottom: calc(env(safe-area-inset-bottom) + var(--mobile-nav-height) + 18px);
+  width: 56px;
+  height: 56px;
+  background: #6c63ff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 12px 26px rgba(0,0,0,0.4);
+  z-index: 200;
+  transition: transform 0.25s ease;
+}
+
+.fab-btn:active {
+  transform: scale(0.92);
+}
+
+/* Action Menu Buttons */
+.action-btn {
+  background: #1c1b22;
+  border-radius: 14px;
+  padding: 10px 16px;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  color: #e7e7ee;
+  border: 1px solid #2e2d35;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  opacity: 0;
+  transform: translateY(12px);
+  animation: menuAppear 0.3s forwards ease-out;
+}
+
+.action-btn:hover {
+  background: #26252f;
+}
+
+/* Menu animation */
+@keyframes menuAppear {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --------------------------------------------------------------
+   💥 New Notes UI Enhancements
+   (Paste below this line, at the very end of the file)
+-------------------------------------------------------------- */
+
+/* --------------------------------------------------------------
+   💥 Notes UI Enhancements — Updated & Improved
+   (Replace the old duplicate section with this)
+-------------------------------------------------------------- */
+
+/* Action button items in context menu */
+.menu-icon-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: white;
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  border-radius: 12px;
+  transition: background 0.15s;
+}
+.menu-icon-btn:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+/* Add sub-action buttons under floating action button */
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #262635;
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: white;
+  letter-spacing: 0.2px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  opacity: 1;
+  transform: translateY(0);
+  transition: transform .25s, opacity .25s;
+}
+
+/* Main floating button */
+.fab-btn {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom) + var(--mobile-nav-height) + 12px);
+  right: 20px;
+  background: #6366f1;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0px 8px 32px rgba(99,102,241,.35);
+  z-index: 220;
+  transition: background .2s, transform .2s;
+}
+.fab-btn:active {
+  transform: scale(.92);
+}
+
+/* Modal Overlay */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(4px);
+  z-index: 300;
+}
+
+/* Note editor modal (centered!) */
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 88%;
+  max-width: 420px;
+  background: #1b1b22;
+  border-radius: 18px;
+  padding: 20px;
+  border: 1px solid #2d2d34;
+  z-index: 301;
+  animation: zoomIn .28s cubic-bezier(.22,1,.36,1);
+}
+
+/* Modal title */
+.modal-title {
+  width: 100%;
+  margin-bottom: 12px;
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+  outline: none;
+}
+
+/* Modal writing area */
+.modal-body {
+  width: 100%;
+  min-height: 140px;
+  padding: 12px;
+  border-radius: 14px;
+  font-size: 14px;
+  background: #101016;
+  color: #cfcfcf;
+  border: 1px solid #26262c;
+  resize: none;
+}
+
+/* Save button */
+.modal-save {
+  margin-top: 14px;
+  width: 100%;
+  padding: 12px;
+  background: #6366f1;
+  border-radius: 14px;
+  color: white;
+  font-weight: 600;
+  font-size: 15px;
+}
+.modal-save:hover {
+  opacity: 0.9;
+}
+
+/* Zoom animation */
+@keyframes zoomIn {
+  from { opacity: 0; transform: translate(-50%, -55%) scale(.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
