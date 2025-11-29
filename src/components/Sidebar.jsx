@@ -3,8 +3,8 @@ import { useState, useEffect } from "react";
 import {
   House,
   Note,
-  Compass,
-  Folder,
+  MagnifyingGlass,
+  Brain,
   Activity,
   BezierCurve,
   Gear,
@@ -16,7 +16,6 @@ export default function Sidebar() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
 
-  // Collapse behavior ONLY for desktop
   useEffect(() => {
     if (window.innerWidth < 768) return;
 
@@ -32,20 +31,18 @@ export default function Sidebar() {
   }, []);
 
   const navItems = [
-    { label: "Home", icon: <House size={22} />, to: "/dashboard" },
-    { label: "My Notes", icon: <Note size={22} />, to: "/dashboard/notes" },
-    { label: "AI Summaries", icon: <Compass size={22} />, to: "/dashboard/summaries" },
-    { label: "Documents", icon: <Folder size={22} />, to: "/dashboard/documents" },
-    { label: "Activity", icon: <Activity size={22} />, to: "/dashboard/activity" },
-    { label: "AI Lab (Pro)", icon: <BezierCurve size={22} />, to: "/dashboard/ai-lab", pro: true },
-    { label: "Settings", icon: <Gear size={22} />, to: "/dashboard/settings" },
+    { label: "Home", icon: <House size={22} weight="duotone" />, to: "/dashboard" },
+    { label: "My Notes", icon: <Note size={22} weight="duotone" />, to: "/dashboard/notes" },
+    { label: "Insights", icon: <MagnifyingGlass size={22} weight="duotone" />, to: "/dashboard/summaries" },
+    { label: "Research", icon: <Brain size={22} weight="duotone" />, to: "/dashboard/documents" },
+    { label: "Activity", icon: <Activity size={22} weight="duotone" />, to: "/dashboard/activity" },
+    { label: "AI Lab (Pro)", icon: <BezierCurve size={22} weight="duotone" />, to: "/dashboard/ai-lab", pro: true },
+    { label: "Settings", icon: <Gear size={22} weight="duotone" />, to: "/dashboard/settings" },
   ];
 
   return (
     <>
-      {/* -------------------------------------------------- */}
-      {/*  MOBILE BOTTOM NAV (clean dock-style bar)           */}
-      {/* -------------------------------------------------- */}
+      {/* MOBILE BOTTOM NAV */}
       <aside
         className="
           fixed left-0 right-0 h-[75px] z-[90]
@@ -57,7 +54,7 @@ export default function Sidebar() {
           pb-[env(safe-area-inset-bottom)]
         "
         style={{
-          bottom: "env(safe-area-inset-bottom, 22px)",
+          bottom: "env(safe-area-inset-bottom, 12px)",
           transform: "translate3d(0, 0, 0)",
           WebkitOverflowScrolling: "touch",
           touchAction: "manipulation",
@@ -73,20 +70,10 @@ export default function Sidebar() {
               to={item.to}
               className="flex flex-col items-center justify-center flex-1 py-2"
             >
-              <span
-                className={`${
-                  active ? "text-indigo-400" : "text-gray-400"
-                } transition`}
-              >
+              <span className={`${active ? "text-indigo-400" : "text-gray-400"} transition`}>
                 {item.icon}
               </span>
-
-              <span
-                className={`
-                  text-[10px] mt-1 transition truncate
-                  ${active ? "text-indigo-400" : "text-gray-500"}
-                `}
-              >
+              <span className={`text-[10px] mt-1 transition truncate ${active ? "text-indigo-400" : "text-gray-500"}`}>
                 {short}
               </span>
             </Link>
@@ -94,9 +81,7 @@ export default function Sidebar() {
         })}
       </aside>
 
-      {/* -------------------------------------------------- */}
-      {/*  DESKTOP SIDEBAR                                   */}
-      {/* -------------------------------------------------- */}
+      {/* DESKTOP SIDEBAR */}
       <aside
         className={`
           hidden md:flex fixed top-0 left-0 h-screen z-[80]
@@ -112,7 +97,6 @@ export default function Sidebar() {
         }}
       >
         <div className="flex flex-col h-full py-6 px-3">
-          {/* Navigation */}
           <nav className="flex flex-col gap-2 mt-2">
             {navItems.map((item, i) => {
               const active = location.pathname === item.to;
@@ -127,23 +111,15 @@ export default function Sidebar() {
                   `}
                 >
                   <span className="text-indigo-300">{item.icon}</span>
-
-                  {/* Label visibility based on collapse */}
                   <span
                     className={`
                       text-gray-300 text-[0.92rem] whitespace-nowrap flex items-center gap-1
                       transition-all duration-500
-                      ${
-                        collapsed
-                          ? "opacity-0 w-0 translate-x-2 overflow-hidden"
-                          : "opacity-100 w-auto translate-x-0"
-                      }
+                      ${collapsed ? "opacity-0 w-0 translate-x-2 overflow-hidden" : "opacity-100 w-auto translate-x-0"}
                     `}
                   >
                     {item.label}
-                    {item.pro && (
-                      <Crown size={14} className="text-indigo-400 opacity-80" />
-                    )}
+                    {item.pro && <Crown size={14} className="text-indigo-400 opacity-80" />}
                   </span>
                 </Link>
               );
@@ -152,13 +128,7 @@ export default function Sidebar() {
 
           <div className="mt-auto px-2">
             <div className="h-[1px] w-full bg-indigo-500/10 mb-3"></div>
-
-            <p
-              className={`
-                text-gray-600 text-xs transition-all duration-500
-                ${collapsed ? "opacity-0 w-0" : "opacity-100 w-auto"}
-              `}
-            >
+            <p className={`text-gray-600 text-xs transition-all duration-500 ${collapsed ? "opacity-0 w-0" : "opacity-100 w-auto"}`}>
               v0.1 • Early Access
             </p>
           </div>
