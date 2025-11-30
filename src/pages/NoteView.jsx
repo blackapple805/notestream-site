@@ -6,8 +6,14 @@ import {
   FiTrash2,
   FiEdit2,
   FiZap,
+  FiCheck,
+  FiCalendar,
+  FiStar,
+  FiFileText,
+  FiExternalLink,
 } from "react-icons/fi";
-import { motion } from "framer-motion";
+import { Sparkle, Lightning } from "phosphor-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useState, useRef, useEffect } from "react";
 
 export default function NoteView({
@@ -24,7 +30,7 @@ export default function NoteView({
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body ?? "");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  
+
   // Local state for smart notes data
   const [smartData, setSmartData] = useState({
     summary: note.summary || null,
@@ -40,18 +46,18 @@ export default function NoteView({
     const diffMins = Math.floor(diffMs / (1000 * 60));
     const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    if (diffMins < 1) return navigator.language.startsWith("fr") ? "À l'instant" : "Just now";
-    if (diffHrs < 1)
-      return navigator.language.startsWith("fr")
-        ? `${diffMins} min`
-        : `${diffMins}m ago`;
-    if (diffDays < 1)
-      return navigator.language.startsWith("fr")
-        ? `${diffHrs} h`
-        : `${diffHrs}h ago`;
-    return navigator.language.startsWith("fr")
-      ? `${diffDays} j`
-      : `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+    if (diffMins < 1) return "Just now";
+    if (diffHrs < 1) return `${diffMins}m ago`;
+    if (diffDays < 1) return `${diffHrs}h ago`;
+    return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+  };
+
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString(navigator.language || "en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   };
 
   const autoResize = () => {
@@ -73,209 +79,446 @@ export default function NoteView({
 
   const fakeSmartNotes = () => {
     setIsAnalyzing(true);
-    
+
     setTimeout(() => {
       const newSmartData = {
-        summary: "Quick focus: UI components must be completed before the meeting tomorrow at 3 PM.",
+        summary:
+          "Quick focus: UI components must be completed before the meeting tomorrow at 3 PM.",
         SmartTasks: ["Finish UI components", "Request updated Figma from Sarah"],
         SmartHighlights: ["Dashboard layout is highest priority"],
         SmartSchedule: ["Meeting tomorrow at 3 PM"],
       };
-      
-      // Update local state
+
       setSmartData(newSmartData);
       setIsAnalyzing(false);
       setShowToast(true);
-      
+
       setTimeout(() => setShowToast(false), 3000);
-      
-      // Save to parent with correct function signature
       onEditSave(note.id, title, body, new Date().toISOString());
     }, 2000);
   };
 
+  const hasSmartData =
+    smartData.SmartTasks ||
+    smartData.SmartHighlights ||
+    smartData.SmartSchedule;
+
   return (
-    <div className="animate-fadeIn min-h-full w-full py-16 px-5 text-gray-200">
-      <div className="flex items-center justify-between mb-6">
-        <button className="text-gray-400 active:scale-90" onClick={onBack}>
-          <FiArrowLeft size={22} />
-        </button>
-        <div className="flex gap-5 items-center">
+    <div className="animate-fadeIn min-h-full w-full pb-[calc(var(--mobile-nav-height)+24px)]">
+      {/* Header */}
+      <div className="sticky top-0 z-50 bg-[#0d0d10]/80 backdrop-blur-xl border-b border-[#1f1f27] px-4 py-3">
+        <div className="flex items-center justify-between">
+          {/* Back Button */}
           <button
-            disabled={isAnalyzing}
-            onClick={() => onFavoriteToggle(note.id, true)}
-            className={`active:scale-90 transition ${note.favorite ? "text-rose-400" : "text-gray-400 hover:text-rose-300"}`}
-            title="Favorite"
+            onClick={onBack}
+            className="h-10 w-10 rounded-xl bg-[#181822] border border-[#26262c] flex items-center justify-center text-gray-400 hover:text-white hover:border-indigo-500/40 transition active:scale-95"
           >
-            <FiHeart size={20} />
+            <FiArrowLeft size={18} />
           </button>
-          <button
-            disabled={isAnalyzing}
-            onClick={fakeSmartNotes}
-            className={`active:scale-90 transition ${isAnalyzing ? "text-indigo-300" : "text-gray-300 hover:text-indigo-400"}`}
-            title="Smart AI Analysis"
-          >
-            <FiZap size={19} />
-          </button>
-          <button
-            disabled={isAnalyzing}
-            onClick={() => onLockToggle(note.id, true)}
-            className={`active:scale-90 transition ${note.locked ? "text-yellow-300" : "text-gray-400 hover:text-white"}`}
-            title={note.locked ? "Unlock" : "Lock"}
-          >
-            <FiLock size={18} />
-          </button>
-          <button
-            disabled={isAnalyzing}
-            onClick={() => setShowDeleteConfirm(true)}
-            className="active:scale-90 text-gray-400 hover:text-rose-400 transition"
-            title="Delete"
-          >
-            <FiTrash2 size={18} />
-          </button>
-          <button
-            disabled={isAnalyzing}
-            onClick={handleEditToggle}
-            title={isEditing ? "Save" : "Edit"}
-            className={`active:scale-90 transition ${isEditing ? "text-indigo-400" : "text-gray-400 hover:text-white"}`}
-          >
-            <FiEdit2 size={18} />
-          </button>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
+            <ActionButton
+              icon={<FiHeart size={16} />}
+              active={note.favorite}
+              activeColor="text-rose-400"
+              onClick={() => onFavoriteToggle(note.id, true)}
+              disabled={isAnalyzing}
+              title="Favorite"
+            />
+            <ActionButton
+              icon={<FiZap size={16} />}
+              active={isAnalyzing}
+              activeColor="text-indigo-400"
+              onClick={fakeSmartNotes}
+              disabled={isAnalyzing}
+              title="AI Analysis"
+              pulse={isAnalyzing}
+            />
+            <ActionButton
+              icon={<FiLock size={16} />}
+              active={note.locked}
+              activeColor="text-amber-400"
+              onClick={() => onLockToggle(note.id, true)}
+              disabled={isAnalyzing}
+              title={note.locked ? "Unlock" : "Lock"}
+            />
+            <ActionButton
+              icon={<FiTrash2 size={16} />}
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={isAnalyzing}
+              hoverColor="hover:text-rose-400 hover:border-rose-500/40"
+              title="Delete"
+            />
+            <ActionButton
+              icon={isEditing ? <FiCheck size={16} /> : <FiEdit2 size={16} />}
+              active={isEditing}
+              activeColor="text-emerald-400"
+              onClick={handleEditToggle}
+              disabled={isAnalyzing}
+              title={isEditing ? "Save" : "Edit"}
+            />
+          </div>
         </div>
       </div>
 
-      <p className="text-[11px] text-gray-500 tracking-wide">
-        {note.updated ? new Date(note.updated).toLocaleDateString(navigator.language || "en-US", { year: "numeric", month: "short", day: "numeric" }) : ""}
-      </p>
-      <p className="text-[11px] text-gray-500 mb-4">
-        {note.updated ? formatRelative(note.updated) : ""}
-      </p>
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {showToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-[400] bg-emerald-900/80 border border-emerald-500/40 text-emerald-200 px-4 py-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2"
+          >
+            <Sparkle size={16} weight="fill" />
+            Smart Notes analysis complete!
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Toast notification */}
-      {showToast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[400] bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn">
-          ✨ Smart Notes analysis complete!
-        </div>
-      )}
+      {/* Analyzing Overlay */}
+      <AnimatePresence>
+        {isAnalyzing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed top-[60px] left-0 right-0 z-[300] bg-gradient-to-b from-[#0d0d10]/95 to-transparent backdrop-blur-xl border-b border-indigo-500/20 flex flex-col items-center justify-center py-5"
+          >
+            <div className="w-12 h-12 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mb-3">
+              <Lightning size={24} weight="fill" className="text-indigo-400 animate-pulse" />
+            </div>
+            <div className="w-40 h-1.5 bg-[#1c1c24] rounded-full overflow-hidden mb-2">
+              <div className="h-full w-full bg-indigo-500 animate-[loadbar_1.2s_infinite]" />
+            </div>
+            <p className="text-xs text-indigo-300 tracking-wide">Analyzing with AI…</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {isAnalyzing && (
-        <div className="fixed top-0 left-0 right-0 z-[300] bg-gradient-to-b from-[#0d0d10]/95 to-[#0d0d10]/70 backdrop-blur-xl border-b border-indigo-500/20 flex flex-col items-center justify-center py-4 animate-fadeIn">
-          <div className="w-40 h-1.5 bg-[#1c1c24] rounded-full overflow-hidden mb-3">
-            <div className="h-full w-full bg-indigo-500 animate-[loadbar_1.2s_infinite]" />
+      {/* Content */}
+      <div className="px-5 pt-6">
+        {/* Date Info */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-8 w-8 rounded-lg bg-[#181822] border border-[#26262c] flex items-center justify-center">
+            <FiCalendar size={14} className="text-gray-500" />
           </div>
-          <p className="text-xs text-indigo-300 tracking-wide">Analyzing with AI…</p>
-        </div>
-      )}
-
-      {note.imageUrl && (
-        <img src={note.imageUrl} alt="Note upload" className="w-full max-h-[62vh] object-contain rounded-xl mb-5" />
-      )}
-
-      {note.pdfUrl && (
-        <div className="w-full flex flex-col items-center gap-4 mb-6 p-4 bg-[#15151d] border border-indigo-500/20 rounded-xl">
-          <p className="text-gray-400 text-sm">PDF Document</p>
-          <a href={note.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">
-            Open PDF
-          </a>
-        </div>
-      )}
-
-      {isEditing ? (
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          maxLength={140}
-          className="w-full bg-transparent border-b border-gray-700 text-white text-2xl font-bold pb-1 focus:outline-none"
-        />
-      ) : (
-        <h1 className="text-2xl font-bold mb-4">{title}</h1>
-      )}
-
-      {!isEditing && (smartData.SmartTasks || smartData.SmartHighlights || smartData.SmartSchedule) && (
-        <span className="inline-flex items-center gap-1 text-[11px] text-indigo-300 font-medium px-2.5 py-[3px] rounded-full bg-indigo-500/10 border border-indigo-500/20 drop-shadow-[0_0_6px_rgba(99,102,241,0.35)] transition ease-out animate-fadeIn mb-3">
-          Enhanced with Smart Notes ✨
-        </span>
-      )}
-
-      {isEditing ? (
-        <textarea
-          ref={textareaRef}
-          rows={4}
-          className="w-full bg-transparent border-b border-gray-700 text-gray-300 text-[15px] resize-none leading-relaxed focus:outline-none whitespace-pre-wrap break-words max-w-full"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-        />
-      ) : (
-        body && (
-          <div className="max-w-full text-[15px] text-gray-300 leading-relaxed whitespace-pre-wrap break-words mb-20 px-[2px]">
-            {body}
+          <div>
+            <p className="text-[11px] text-gray-400">{note.updated ? formatDate(note.updated) : ""}</p>
+            <p className="text-[10px] text-gray-600">{note.updated ? formatRelative(note.updated) : ""}</p>
           </div>
-        )
-      )}
 
-      {!isEditing && (smartData.SmartTasks || smartData.SmartHighlights || smartData.SmartSchedule) && (
-        <motion.div
-          initial={{ width: "0%" }}
-          animate={{ width: "100%" }}
-          transition={{ duration: 0.8 }}
-          className="h-[1px] bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent my-10"
-        />
-      )}
-
-      {!isEditing && note.extractedText && (
-        <div className="mb-6 p-3 bg-[#1a1a21] border border-[#2a2a32] rounded-xl">
-          <h3 className="font-semibold text-white mb-2">Extracted Text</h3>
-          <p className="text-gray-300 text-[14px] whitespace-pre-wrap">{note.extractedText}</p>
-        </div>
-      )}
-
-      {!isEditing && (smartData.SmartTasks || smartData.SmartHighlights || smartData.SmartSchedule) && (
-        <div className="mt-8 space-y-7">
-          {smartData.summary && (
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35 }} className="bg-[#15151d] border border-indigo-500/20 rounded-xl p-4">
-              <h3 className="text-indigo-300 font-medium mb-2">Summary:</h3>
-              <p className="text-gray-300 text-[14px] leading-relaxed">{smartData.summary}</p>
-            </motion.div>
-          )}
-          {smartData.SmartTasks?.length > 0 && (
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35, delay: 0.05 }} className="bg-[#15151d] border border-indigo-500/20 rounded-xl p-4">
-              <p className="text-indigo-300 font-medium mb-2">Tasks:</p>
-              <ul className="list-disc list-inside text-gray-300 text-sm space-y-1">
-                {smartData.SmartTasks.map((task, i) => (<li key={i}>{task}</li>))}
-              </ul>
-            </motion.div>
-          )}
-          {smartData.SmartHighlights?.length > 0 && (
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35, delay: 0.1 }} className="bg-[#15151d] border border-indigo-500/20 rounded-xl p-4">
-              <p className="text-indigo-300 font-medium mb-2">Important:</p>
-              <ul className="list-disc list-inside text-gray-300 text-sm space-y-1">
-                {smartData.SmartHighlights.map((imp, i) => (<li key={i}>{imp}</li>))}
-              </ul>
-            </motion.div>
-          )}
-          {smartData.SmartSchedule?.length > 0 && (
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35, delay: 0.15 }} className="bg-[#15151d] border border-indigo-500/20 rounded-xl p-4">
-              <p className="text-indigo-300 font-medium mb-2">Schedule:</p>
-              <ul className="list-disc list-inside text-gray-300 text-sm space-y-1">
-                {smartData.SmartSchedule.map((date, i) => (<li key={i}>{date}</li>))}
-              </ul>
-            </motion.div>
+          {hasSmartData && (
+            <span className="ml-auto inline-flex items-center gap-1.5 text-[10px] text-indigo-300 font-medium px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20">
+              <Sparkle size={12} weight="fill" />
+              Smart Notes
+            </span>
           )}
         </div>
-      )}
 
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[999] bg-black/50 backdrop-blur-md flex items-center justify-center px-6">
-          <div className="bg-[#111114] border border-[#2b2b34] rounded-2xl w-full max-w-[360px] p-6 shadow-xl animate-fadeIn">
-            <h3 className="text-lg font-semibold text-white mb-3">Delete Note?</h3>
-            <p className="text-gray-400 text-sm mb-6">This action cannot be undone. Are you sure?</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowDeleteConfirm(false)} className="px-4 py-2 rounded-md bg-[#1c1c24] text-gray-300 hover:bg-[#262631] transition">Cancel</button>
-              <button onClick={() => { onDelete(note.id); setShowDeleteConfirm(false); }} className="px-4 py-2 rounded-md bg-rose-600 text-white hover:bg-rose-700 transition">Delete</button>
+        {/* Image Preview */}
+        {note.imageUrl && (
+          <div className="mb-5 rounded-2xl overflow-hidden border border-[#26262c] bg-[#111114]">
+            <img
+              src={note.imageUrl}
+              alt="Note upload"
+              className="w-full max-h-[50vh] object-contain"
+            />
+          </div>
+        )}
+
+        {/* PDF Preview */}
+        {note.pdfUrl && (
+          <div className="mb-5 p-4 bg-[#111114] border border-[#26262c] rounded-2xl">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-xl bg-[#181822] flex items-center justify-center">
+                <FiFileText size={24} className="text-indigo-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-200 font-medium">PDF Document</p>
+                <p className="text-[11px] text-gray-500">Tap to view full document</p>
+              </div>
+              <a
+                href={note.pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-10 w-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 hover:bg-indigo-500/30 transition"
+              >
+                <FiExternalLink size={16} />
+              </a>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Title */}
+        {isEditing ? (
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={140}
+            className="w-full bg-[#111114] border border-[#26262c] rounded-xl text-white text-xl font-bold px-4 py-3 focus:outline-none focus:border-indigo-500/50 mb-4"
+            placeholder="Note title..."
+          />
+        ) : (
+          <h1 className="text-2xl font-bold text-white mb-4">{title}</h1>
+        )}
+
+        {/* Body */}
+        {isEditing ? (
+          <textarea
+            ref={textareaRef}
+            rows={6}
+            className="w-full bg-[#111114] border border-[#26262c] rounded-xl text-gray-300 text-[15px] resize-none leading-relaxed px-4 py-3 focus:outline-none focus:border-indigo-500/50 whitespace-pre-wrap break-words"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Start writing..."
+          />
+        ) : (
+          body && (
+            <div className="text-[15px] text-gray-300 leading-relaxed whitespace-pre-wrap break-words mb-6">
+              {body}
+            </div>
+          )
+        )}
+
+        {/* Extracted Text */}
+        {!isEditing && note.extractedText && (
+          <div className="mb-6 p-4 bg-[#111114] border border-[#26262c] rounded-2xl">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-7 w-7 rounded-lg bg-[#181822] flex items-center justify-center">
+                <FiFileText size={14} className="text-gray-400" />
+              </div>
+              <h3 className="font-semibold text-sm text-white">Extracted Text</h3>
+            </div>
+            <p className="text-gray-400 text-[13px] whitespace-pre-wrap leading-relaxed">{note.extractedText}</p>
+          </div>
+        )}
+
+        {/* Smart Notes Section */}
+        {!isEditing && hasSmartData && (
+          <>
+            {/* Divider */}
+            <motion.div
+              initial={{ width: "0%" }}
+              animate={{ width: "100%" }}
+              transition={{ duration: 0.8 }}
+              className="h-[1px] bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent my-8"
+            />
+
+            <div className="space-y-4">
+              {/* Summary Card */}
+              {smartData.summary && (
+                <SmartCard
+                  icon={<Sparkle size={16} weight="fill" />}
+                  title="AI Summary"
+                  color="indigo"
+                  delay={0}
+                >
+                  <p className="text-gray-300 text-[13px] leading-relaxed">{smartData.summary}</p>
+                </SmartCard>
+              )}
+
+              {/* Tasks Card */}
+              {smartData.SmartTasks?.length > 0 && (
+                <SmartCard
+                  icon={<FiCheck size={14} />}
+                  title="Tasks"
+                  color="emerald"
+                  delay={0.05}
+                >
+                  <ul className="space-y-2">
+                    {smartData.SmartTasks.map((task, i) => (
+                      <li key={i} className="flex items-start gap-2 text-gray-300 text-[13px]">
+                        <div className="h-5 w-5 rounded-md border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <FiCheck size={10} className="text-emerald-400" />
+                        </div>
+                        {task}
+                      </li>
+                    ))}
+                  </ul>
+                </SmartCard>
+              )}
+
+              {/* Highlights Card */}
+              {smartData.SmartHighlights?.length > 0 && (
+                <SmartCard
+                  icon={<FiStar size={14} />}
+                  title="Key Highlights"
+                  color="amber"
+                  delay={0.1}
+                >
+                  <ul className="space-y-2">
+                    {smartData.SmartHighlights.map((item, i) => (
+                      <li key={i} className="flex items-start gap-2 text-gray-300 text-[13px]">
+                        <div className="h-5 w-5 rounded-md border border-amber-500/30 bg-amber-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <FiStar size={10} className="text-amber-400" />
+                        </div>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </SmartCard>
+              )}
+
+              {/* Schedule Card */}
+              {smartData.SmartSchedule?.length > 0 && (
+                <SmartCard
+                  icon={<FiCalendar size={14} />}
+                  title="Schedule"
+                  color="purple"
+                  delay={0.15}
+                >
+                  <ul className="space-y-2">
+                    {smartData.SmartSchedule.map((date, i) => (
+                      <li key={i} className="flex items-start gap-2 text-gray-300 text-[13px]">
+                        <div className="h-5 w-5 rounded-md border border-purple-500/30 bg-purple-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <FiCalendar size={10} className="text-purple-400" />
+                        </div>
+                        {date}
+                      </li>
+                    ))}
+                  </ul>
+                </SmartCard>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-md flex items-center justify-center px-6"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#111114] border border-[#2b2b34] rounded-2xl w-full max-w-[360px] p-6 shadow-xl"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center">
+                  <FiTrash2 size={18} className="text-rose-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-white">Delete Note?</h3>
+              </div>
+              <p className="text-gray-400 text-sm mb-6">
+                This action cannot be undone. Are you sure you want to delete this note?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 px-4 py-3 rounded-xl bg-[#1c1c24] text-gray-300 hover:bg-[#262631] transition font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    onDelete(note.id);
+                    setShowDeleteConfirm(false);
+                  }}
+                  className="flex-1 px-4 py-3 rounded-xl bg-rose-600 text-white hover:bg-rose-500 transition font-medium"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
+/* -----------------------------------------
+   Action Button Component
+----------------------------------------- */
+const ActionButton = ({
+  icon,
+  active,
+  activeColor = "text-indigo-400",
+  onClick,
+  disabled,
+  title,
+  hoverColor = "hover:text-white hover:border-indigo-500/40",
+  pulse,
+}) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    title={title}
+    className={`
+      h-10 w-10 rounded-xl bg-[#181822] border border-[#26262c]
+      flex items-center justify-center transition active:scale-95
+      ${active ? `${activeColor} border-current/30` : `text-gray-400 ${hoverColor}`}
+      ${disabled ? "opacity-50 cursor-not-allowed" : ""}
+      ${pulse ? "animate-pulse" : ""}
+    `}
+  >
+    {icon}
+  </button>
+);
+
+/* -----------------------------------------
+   Smart Card Component
+----------------------------------------- */
+const SmartCard = ({ icon, title, color, children, delay = 0 }) => {
+  const colorMap = {
+    indigo: {
+      border: "border-indigo-500/20",
+      bg: "bg-indigo-500/5",
+      iconBg: "bg-indigo-500/20",
+      iconBorder: "border-indigo-500/30",
+      iconText: "text-indigo-400",
+      titleText: "text-indigo-300",
+    },
+    emerald: {
+      border: "border-emerald-500/20",
+      bg: "bg-emerald-500/5",
+      iconBg: "bg-emerald-500/20",
+      iconBorder: "border-emerald-500/30",
+      iconText: "text-emerald-400",
+      titleText: "text-emerald-300",
+    },
+    amber: {
+      border: "border-amber-500/20",
+      bg: "bg-amber-500/5",
+      iconBg: "bg-amber-500/20",
+      iconBorder: "border-amber-500/30",
+      iconText: "text-amber-400",
+      titleText: "text-amber-300",
+    },
+    purple: {
+      border: "border-purple-500/20",
+      bg: "bg-purple-500/5",
+      iconBg: "bg-purple-500/20",
+      iconBorder: "border-purple-500/30",
+      iconText: "text-purple-400",
+      titleText: "text-purple-300",
+    },
+  };
+
+  const c = colorMap[color] || colorMap.indigo;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.35, delay }}
+      className={`${c.bg} border ${c.border} rounded-2xl p-4`}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <div className={`h-7 w-7 rounded-lg ${c.iconBg} border ${c.iconBorder} flex items-center justify-center ${c.iconText}`}>
+          {icon}
+        </div>
+        <h3 className={`font-semibold text-sm ${c.titleText}`}>{title}</h3>
+      </div>
+      {children}
+    </motion.div>
+  );
+};
