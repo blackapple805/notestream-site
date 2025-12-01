@@ -40,18 +40,18 @@ export default function NoteCard({ note, onMenu, onOpen }) {
   return (
     <div
       className="
-        bg-[#111114]/80 border border-[#26262c]
+        bg-theme-card border border-theme-secondary transition-colors
         rounded-2xl p-4 flex flex-col
         justify-between
         min-h-[220px]
         active:scale-[0.98] transition cursor-pointer
-        backdrop-blur-sm hover:border-indigo-500/40
+        backdrop-blur-sm hover:bg-theme-elevated hover:border-indigo-500/40
       "
       onClick={onOpen}
     >
       {/* Title + Icons */}
       <div className="flex justify-between items-start mb-1">
-        <h3 className="text-[15px] font-semibold text-white leading-snug line-clamp-2 w-[82%]">
+        <h3 className="text-[15px] font-semibold text-theme-primary leading-snug line-clamp-2 w-[82%]">
           {note.title}
         </h3>
 
@@ -62,7 +62,7 @@ export default function NoteCard({ note, onMenu, onOpen }) {
           )}
 
           <button
-            className="text-gray-400 hover:text-white px-1"
+            className="text-theme-muted hover:text-theme-primary px-1"
             onClick={(e) => {
               e.stopPropagation();
               onMenu(e);
@@ -77,8 +77,8 @@ export default function NoteCard({ note, onMenu, onOpen }) {
       <div
         className="
           relative w-full aspect-[5/3]
-          rounded-lg border border-[#2a2a32]
-          bg-[#1c1c22]
+          rounded-lg border border-[var(--border-secondary)]/20
+          border-[var(--border-secondary)]
           flex items-center justify-center
           mt-2 overflow-hidden
         "
@@ -112,18 +112,18 @@ export default function NoteCard({ note, onMenu, onOpen }) {
         {!note.imageUrl && !isPDF && (
           <FiFileText
             size={32}
-            className="text-gray-500 opacity-80"
+            className="text-theme-tertiary"
           />
         )}
       </div>
 
       {/* Footer Meta */}
       <div className="flex justify-between items-center mt-3">
-        <p className="text-[11px] text-gray-500">
+        <p className="text-[11px] text-theme-tertiary">
           {note.tag} • {formatRelative(note.updated)}
         </p>
 
-        <span className="text-[10px] px-2 py-[1px] rounded-md bg-indigo-500/20 text-indigo-300">
+        <span className="text-[10px] px-2 py-[1px] rounded-md bg-indigo-500/20 text-accent-indigo">
           {isPDF ? "PDF" : note.imageUrl ? "Photo" : "Text"}
         </span>
       </div>

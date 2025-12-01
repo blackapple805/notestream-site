@@ -1,7 +1,7 @@
 // src/pages/Terms.jsx
 export default function TermsPage() {
   return (
-    <section className="min-h-screen px-6 py-24 text-gray-300 max-w-4xl mx-auto leading-relaxed">
+    <section className="min-h-screen px-6 py-24 text-[var(--text-secondary)] max-w-4xl mx-auto leading-relaxed">
       <h1 className="text-4xl font-bold text-white mb-6">
         Terms & Conditions
       </h1>
@@ -49,7 +49,7 @@ export default function TermsPage() {
         <span className="text-indigo-400"> support@notestream.app</span>
       </p>
 
-      <p className="text-gray-500 italic">
+      <p className="text-theme-muted italic">
         Last Updated: {new Date().toLocaleDateString()}
       </p>
     </section>

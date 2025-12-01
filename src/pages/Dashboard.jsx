@@ -63,29 +63,20 @@ export default function Dashboard() {
         className="pt-2 px-1 sm:px-0"
       >
         <div className="flex items-center gap-2 mb-1">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-theme-primary">
             {getGreeting()}
           </h1>
           <House className="text-indigo-400" size={28} weight="duotone" />
         </div>
-        <p className="text-gray-400 text-xs sm:text-sm mt-1">
+        <p className="text-theme-tertiary text-xs sm:text-sm mt-1">
           Welcome back — ready to continue where you left off?
         </p>
 
         {/* Quick Stats Row */}
         <div className="flex gap-3 mt-4">
-          <div className="flex-1 bg-[#15151c] border border-[#262632] rounded-xl px-3 py-2.5">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Today</p>
-            <p className="text-lg font-semibold text-white">3 <span className="text-sm font-normal text-gray-400">notes</span></p>
-          </div>
-          <div className="flex-1 bg-[#15151c] border border-[#262632] rounded-xl px-3 py-2.5">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Streak</p>
-            <p className="text-lg font-semibold text-indigo-400">11 <span className="text-sm font-normal text-gray-400">days</span></p>
-          </div>
-          <div className="flex-1 bg-[#15151c] border border-[#262632] rounded-xl px-3 py-2.5">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide">AI Used</p>
-            <p className="text-lg font-semibold text-emerald-400">54 <span className="text-sm font-normal text-gray-400">times</span></p>
-          </div>
+          <QuickStat label="Today" value="3" suffix="notes" />
+          <QuickStat label="Streak" value="11" suffix="days" highlight="indigo" />
+          <QuickStat label="AI Used" value="54" suffix="times" highlight="emerald" />
         </div>
       </motion.div>
 
@@ -115,7 +106,7 @@ export default function Dashboard() {
         animate="visible"
         transition={{ duration: 0.45, delay: 0.15 }}
       >
-        <h3 className="text-sm font-semibold text-gray-300 mb-3 px-1">Quick Actions</h3>
+        <h3 className="text-sm font-semibold text-theme-secondary mb-3 px-1">Quick Actions</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <QuickAction
             icon={<Note size={22} weight="duotone" />}
@@ -155,7 +146,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <FiClock className="text-indigo-400" size={16} />
-              <h3 className="text-base font-semibold text-white">Recent Notes</h3>
+              <h3 className="text-base font-semibold text-theme-primary">Recent Notes</h3>
             </div>
             <button 
               onClick={() => navigate("/dashboard/notes")}
@@ -170,26 +161,37 @@ export default function Dashboard() {
               <button
                 key={note.id}
                 onClick={() => navigate(`/dashboard/notes/${note.id}`)}
-                className="group w-full text-left bg-[#0d0d14] hover:bg-[#131320] px-4 py-3 rounded-xl border border-[#1f1f27] hover:border-indigo-500/30 transition-all flex items-center justify-between"
+                className="group w-full text-left px-4 py-3 rounded-xl border transition-all flex items-center justify-between"
+                style={{
+                  backgroundColor: 'var(--bg-input)',
+                  borderColor: 'var(--border-primary)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                  e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--bg-input)';
+                  e.currentTarget.style.borderColor = 'var(--border-primary)';
+                }}
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-[#181822] flex items-center justify-center">
-                    <FiFileText className="text-indigo-300" size={16} />
+                  <div 
+                    className="h-9 w-9 rounded-lg flex items-center justify-center"
+                    style={{ backgroundColor: 'var(--bg-tertiary)' }}
+                  >
+                    <FiFileText className="text-indigo-400" size={16} />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-100 font-medium group-hover:text-white transition">
+                    <p className="text-sm text-theme-secondary font-medium group-hover:text-theme-primary transition">
                       {note.title}
                     </p>
-                    <p className="text-[11px] text-gray-500">{note.updated}</p>
+                    <p className="text-[11px] text-theme-muted">{note.updated}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {note.hasAI && (
-                    <span className="text-[9px] bg-emerald-900/30 text-emerald-400 px-2 py-0.5 rounded-full">
-                      AI Ready
-                    </span>
-                  )}
-                  <FiChevronRight className="text-gray-500 group-hover:text-indigo-400 transition" size={16} />
+                  {note.hasAI && <StatusTag type="success">AI Ready</StatusTag>}
+                  <FiChevronRight className="text-theme-muted group-hover:text-indigo-400 transition" size={16} />
                 </div>
               </button>
             ))}
@@ -210,7 +212,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <FiFolder className="text-purple-400" size={16} />
-              <h3 className="text-base font-semibold text-white">Recent Documents</h3>
+              <h3 className="text-base font-semibold text-theme-primary">Recent Documents</h3>
             </div>
             <button 
               onClick={() => navigate("/dashboard/documents")}
@@ -231,7 +233,7 @@ export default function Dashboard() {
         <GlassCard>
           <div className="flex items-center gap-2 mb-3">
             <Sparkle className="text-amber-400" size={18} weight="fill" />
-            <h3 className="text-base font-semibold text-white">AI Tools</h3>
+            <h3 className="text-base font-semibold text-theme-primary">AI Tools</h3>
           </div>
 
           <div className="space-y-2">
@@ -267,6 +269,32 @@ export default function Dashboard() {
 }
 
 /* -----------------------------------------
+   Quick Stat - Theme Aware
+----------------------------------------- */
+const QuickStat = ({ label, value, suffix, highlight }) => {
+  const valueColor = highlight === "indigo" 
+    ? "text-indigo-400" 
+    : highlight === "emerald" 
+    ? "text-emerald-400" 
+    : "text-theme-primary";
+
+  return (
+    <div 
+      className="flex-1 rounded-xl px-3 py-2.5 border"
+      style={{
+        backgroundColor: 'var(--bg-elevated)',
+        borderColor: 'var(--border-secondary)',
+      }}
+    >
+      <p className="text-[10px] text-theme-muted uppercase tracking-wide">{label}</p>
+      <p className={`text-lg font-semibold ${valueColor}`}>
+        {value} <span className="text-sm font-normal text-theme-tertiary">{suffix}</span>
+      </p>
+    </div>
+  );
+};
+
+/* -----------------------------------------
    Quick Action Button
 ----------------------------------------- */
 const QuickAction = ({ icon, label, onClick, color = "indigo" }) => {
@@ -290,8 +318,27 @@ const QuickAction = ({ icon, label, onClick, color = "indigo" }) => {
       className={`flex flex-col items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-br ${colorMap[color]} border transition-all active:scale-[0.98]`}
     >
       <span className={iconColorMap[color]}>{icon}</span>
-      <span className="text-xs text-gray-300">{label}</span>
+      <span className="text-xs text-theme-secondary">{label}</span>
     </button>
+  );
+};
+
+/* -----------------------------------------
+   Status Tag - Theme Aware
+----------------------------------------- */
+const StatusTag = ({ children, type = "success" }) => {
+  // Classes that work in both themes
+  const typeStyles = {
+    success: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25",
+    warning: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25",
+    error: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25",
+    info: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/25",
+  };
+
+  return (
+    <span className={`text-[9px] font-medium px-2 py-0.5 rounded-full border ${typeStyles[type]}`}>
+      {children}
+    </span>
   );
 };
 
@@ -301,18 +348,38 @@ const QuickAction = ({ icon, label, onClick, color = "indigo" }) => {
 const DocumentRow = ({ doc, onClick }) => (
   <button
     onClick={onClick}
-    className="group w-full text-left bg-[#0d0d14] hover:bg-[#131320] px-4 py-3 rounded-xl border border-[#1f1f27] hover:border-purple-500/30 transition-all flex items-center justify-between"
+    className="group w-full text-left px-4 py-3 rounded-xl border transition-all flex items-center justify-between"
+    style={{
+      backgroundColor: 'var(--bg-input)',
+      borderColor: 'var(--border-primary)',
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+      e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.3)';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.backgroundColor = 'var(--bg-input)';
+      e.currentTarget.style.borderColor = 'var(--border-primary)';
+    }}
   >
     <div className="flex items-center gap-3">
-      <div className="h-9 w-9 rounded-lg bg-[#181822] flex items-center justify-center">
-        <FiFileText className="text-purple-300" size={16} />
+      <div 
+        className="h-9 w-9 rounded-lg flex items-center justify-center"
+        style={{ backgroundColor: 'var(--bg-tertiary)' }}
+      >
+        <FiFileText className="text-purple-400" size={16} />
       </div>
       <div>
-        <p className="text-sm text-gray-100 font-medium truncate max-w-[180px]">{doc.name}</p>
-        <p className="text-[11px] text-gray-500">{doc.status}</p>
+        <p className="text-sm text-theme-secondary font-medium truncate max-w-[180px]">{doc.name}</p>
+        <p className="text-[11px] text-theme-muted">{doc.status}</p>
       </div>
     </div>
-    <span className="text-[10px] bg-[#1a1a24] text-gray-400 px-2 py-0.5 rounded">{doc.type}</span>
+    <span 
+      className="text-[10px] text-theme-tertiary px-2 py-0.5 rounded"
+      style={{ backgroundColor: 'var(--bg-tertiary)' }}
+    >
+      {doc.type}
+    </span>
   </button>
 );
 
@@ -322,17 +389,32 @@ const DocumentRow = ({ doc, onClick }) => (
 const ToolButton = ({ icon, label, desc, onClick }) => (
   <button
     onClick={onClick}
-    className="group w-full flex items-center justify-between bg-[#0d0d14] hover:bg-[#131320] px-4 py-3 rounded-xl border border-[#1f1f27] hover:border-indigo-500/30 transition-all"
+    className="group w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all"
+    style={{
+      backgroundColor: 'var(--bg-input)',
+      borderColor: 'var(--border-primary)',
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+      e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.backgroundColor = 'var(--bg-input)';
+      e.currentTarget.style.borderColor = 'var(--border-primary)';
+    }}
   >
     <div className="flex items-center gap-3">
-      <div className="h-9 w-9 rounded-lg bg-[#181822] flex items-center justify-center text-indigo-300">
+      <div 
+        className="h-9 w-9 rounded-lg flex items-center justify-center text-indigo-400"
+        style={{ backgroundColor: 'var(--bg-tertiary)' }}
+      >
         {icon}
       </div>
       <div className="text-left">
-        <p className="text-sm text-gray-100 font-medium">{label}</p>
-        <p className="text-[11px] text-gray-500">{desc}</p>
+        <p className="text-sm text-theme-secondary font-medium">{label}</p>
+        <p className="text-[11px] text-theme-muted">{desc}</p>
       </div>
     </div>
-    <FiChevronRight className="text-gray-500 group-hover:text-indigo-400 transition" size={16} />
+    <FiChevronRight className="text-theme-muted group-hover:text-indigo-400 transition" size={16} />
   </button>
 );

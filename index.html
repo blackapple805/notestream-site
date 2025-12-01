@@ -1,12 +1,27 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>notestream-react</title>
+    <meta name="theme-color" content="#0a0a0f" />
+    <title>NoteStream</title>
+
+    <!-- Injected automatically by Vite (do NOT move or override) -->
+    <!-- <script type="module" src="/@vite/client"></script> -->
+
+    <!-- THEME FLASH PREVENTION -->
+    <script>
+      const theme = localStorage.getItem("notestream-theme") || "dark";
+      let resolved = theme === "system"
+        ? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+        : theme;
+
+      document.documentElement.classList.add(resolved);
+      document.documentElement.setAttribute("data-theme", resolved);
+    </script>
   </head>
-  <body>
+
+  <body class="bg-theme-primary text-theme-primary">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

@@ -98,15 +98,21 @@ const AnimatedDot = (props) => {
 };
 
 /* -----------------------------------------
-   Custom Tooltip
+   Custom Tooltip - Theme Aware
 ----------------------------------------- */
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-[#1a1b27] border border-[#2a2a3a] rounded-lg px-3 py-2 shadow-xl">
-        <p className="text-xs text-gray-400 mb-1">{label}</p>
+      <div 
+        className="rounded-lg px-3 py-2 shadow-xl border"
+        style={{
+          backgroundColor: 'var(--bg-elevated)',
+          borderColor: 'var(--border-secondary)',
+        }}
+      >
+        <p className="text-xs text-theme-muted mb-1">{label}</p>
         {payload.map((entry, index) => (
-          <p key={index} className="text-sm" style={{ color: entry.color }}>
+          <p key={index} className="text-sm font-medium" style={{ color: entry.color }}>
             {entry.name}: {entry.value}
           </p>
         ))}
@@ -148,135 +154,124 @@ export default function Activity() {
   // Calculate stats
   const totalNotes = insightsData.reduce((acc, d) => acc + d.notes, 0);
   const totalSummaries = insightsData.reduce((acc, d) => acc + d.summaries, 0);
-  const totalUploads = insightsData.reduce((acc, d) => acc + d.uploads, 0);
-
-  const fadeSlide = {
-    hidden: { opacity: 0, y: 22 },
-    visible: { opacity: 1, y: 0 },
-  };
 
   return (
-    <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
+    <div className="w-full space-y-4 sm:space-y-5 pb-[calc(var(--mobile-nav-height)+24px)]">
       {/* Header */}
-      <motion.header
-        variants={fadeSlide}
-        initial="hidden"
-        animate="visible"
-        transition={{ duration: 0.45 }}
-        className="pt-2 px-1"
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="flex items-center justify-between"
       >
-        <div className="flex items-center gap-2 mb-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Activity</h1>
-          <ActivityIcon className="text-indigo-400" size={24} weight="duotone" />
+        <div className="flex items-center gap-2">
+          <ChartLine size={28} weight="duotone" className="text-indigo-400" />
+          <h1 className="text-xl font-semibold text-theme-primary">Activity</h1>
         </div>
-        <p className="text-gray-400 text-sm mt-1">
-          Track your productivity and workspace activity over time.
-        </p>
-      </motion.header>
+        <span className="text-xs text-theme-muted">
+          {new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+        </span>
+      </motion.div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Stats Row */}
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.05 }}
+        className="grid grid-cols-2 md:grid-cols-4 gap-3"
+      >
         <StatCard 
-          title="Notes Created" 
+          title="Notes This Week" 
           value={totalNotes} 
-          sub="This week"
-          icon={<FiFileText className="text-indigo-400" />}
+          icon={<FiFileText className="text-indigo-400" size={16} />}
           trend="+12%"
           trendUp={true}
         />
         <StatCard 
           title="AI Summaries" 
           value={totalSummaries} 
-          sub="Generated"
-          icon={<FiZap className="text-emerald-400" />}
+          icon={<FiZap className="text-amber-400" size={16} />}
           trend="+8%"
           trendUp={true}
         />
         <StatCard 
-          title="Files Uploaded" 
-          value={totalUploads} 
-          sub="This week"
-          icon={<FiUploadCloud className="text-purple-400" />}
-          trend="+5%"
-          trendUp={true}
+          title="Day Streak" 
+          value="11"
+          sub="Keep it going!"
+          icon={<Fire className="text-orange-400" size={16} weight="fill" />}
+          isStreak
         />
         <StatCard 
-          title="Active Streak" 
-          value="11 days" 
-          sub="Keep it up!"
-          icon={<Fire className="text-orange-400" weight="fill" />}
-          isStreak={true}
+          title="Uploads" 
+          value="8" 
+          icon={<FiUploadCloud className="text-emerald-400" size={16} />}
         />
-      </div>
+      </motion.div>
 
-      {/* Activity Streak Visual */}
-      <GlassCard>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Fire className="text-orange-400" size={20} weight="fill" />
-            <h3 className="font-semibold text-base text-white">Activity Streak</h3>
-          </div>
-          <span className="text-xs text-gray-500">Last 7 days</span>
-        </div>
-        <StreakDots />
-      </GlassCard>
-
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        {/* Main Chart */}
-        <GlassCard className="xl:col-span-2">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+      {/* Streak Indicator */}
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+      >
+        <GlassCard>
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <ChartLine className="text-indigo-400" size={20} weight="duotone" />
-              <div>
-                <h3 className="font-semibold text-base text-white">Workspace Overview</h3>
-                <p className="text-[11px] text-gray-500">Your productivity trends</p>
-              </div>
+              <Fire className="text-orange-400" size={18} weight="fill" />
+              <h3 className="font-semibold text-sm text-theme-primary">Weekly Activity</h3>
             </div>
+            <span className="text-xs text-theme-muted">7-day view</span>
+          </div>
+          <StreakDots />
+        </GlassCard>
+      </motion.div>
 
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Area Chart */}
+        <GlassCard>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div>
+              <h3 className="font-semibold text-base text-theme-primary">Insights Over Time</h3>
+              <p className="text-[11px] text-theme-muted">Track your productivity trends</p>
+            </div>
             <div className="flex gap-2">
-              {/* Time Range */}
-              <div className="flex gap-1 text-[11px] bg-[#101018] rounded-full p-1">
-                {[{ label: "Week", value: "week" }, { label: "Month", value: "month" }].map((r) => (
-                  <button
-                    key={r.value}
-                    onClick={() => setChartRange(r.value)}
-                    className={`px-3 py-1 rounded-full transition-colors ${
-                      chartRange === r.value ? "bg-[#1d1d26] text-white" : "text-gray-400"
-                    }`}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Data Type */}
-              <div className="flex gap-1 text-[11px] bg-[#101018] rounded-full p-1">
-                {["notes", "summaries"].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setChartTab(tab)}
-                    className={`px-3 py-1 rounded-full transition-colors ${
-                      chartTab === tab ? "bg-[#1d1d26] text-white" : "text-gray-400"
-                    }`}
-                  >
-                    {tab === "notes" ? "Notes" : "Summaries"}
-                  </button>
-                ))}
-              </div>
+              {/* Chart Type Tabs */}
+              {["notes", "summaries"].map((tab) => (
+                <ToggleButton
+                  key={tab}
+                  active={chartTab === tab}
+                  onClick={() => setChartTab(tab)}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </ToggleButton>
+              ))}
             </div>
           </div>
 
-          <div className="h-48 sm:h-56">
+          <div className="flex gap-2 mb-4">
+            {["week", "month"].map((r) => (
+              <ToggleButton
+                key={r}
+                active={chartRange === r}
+                onClick={() => setChartRange(r)}
+                size="sm"
+              >
+                {r === "week" ? "This Week" : "This Month"}
+              </ToggleButton>
+            ))}
+          </div>
+
+          <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="activityFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#a5b4fc" stopOpacity="0.28" />
-                    <stop offset="100%" stopColor="#a5b4fc" stopOpacity="0" />
+                    <stop offset="0%" stopColor="#818cf8" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="activityStroke" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#a5b4fc" />
+                    <stop offset="0%" stopColor="#6366f1" />
                     <stop offset="50%" stopColor="#c4b5fd" />
                     <stop offset="100%" stopColor="#f9a8d4" />
                   </linearGradient>
@@ -285,12 +280,12 @@ export default function Activity() {
                   dataKey="name" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: '#6b7280', fontSize: 11 }}
+                  tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
                 />
                 <YAxis 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: '#6b7280', fontSize: 11 }}
+                  tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
                   width={30}
                 />
                 <Tooltip content={<CustomTooltip />} />
@@ -313,22 +308,28 @@ export default function Activity() {
 
         {/* Usage Breakdown */}
         <GlassCard>
-          <h3 className="font-semibold text-base text-white mb-1">Usage Breakdown</h3>
-          <p className="text-[11px] text-gray-500 mb-4">How you use NoteStream</p>
+          <h3 className="font-semibold text-base text-theme-primary mb-1">Usage Breakdown</h3>
+          <p className="text-[11px] text-theme-muted mb-4">How you use NoteStream</p>
 
           <div className="space-y-3">
             {usageBreakdown.map((item, i) => (
               <div key={i}>
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-lg bg-[#181822] flex items-center justify-center text-indigo-300">
+                    <div 
+                      className="h-7 w-7 rounded-lg flex items-center justify-center text-indigo-400"
+                      style={{ backgroundColor: 'var(--bg-tertiary)' }}
+                    >
                       {item.icon}
                     </div>
-                    <span className="text-sm text-gray-200">{item.label}</span>
+                    <span className="text-sm text-theme-secondary">{item.label}</span>
                   </div>
-                  <span className="text-sm text-gray-400">{item.value}%</span>
+                  <span className="text-sm text-theme-muted">{item.value}%</span>
                 </div>
-                <div className="h-1.5 bg-[#1a1a24] rounded-full overflow-hidden">
+                <div 
+                  className="h-1.5 rounded-full overflow-hidden"
+                  style={{ backgroundColor: 'var(--bg-tertiary)' }}
+                >
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${item.value}%` }}
@@ -351,8 +352,8 @@ export default function Activity() {
         <GlassCard>
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-base text-white mb-1">Clarity Score</h3>
-              <p className="text-[11px] text-gray-500">AI-assessed note quality</p>
+              <h3 className="font-semibold text-base text-theme-primary mb-1">Clarity Score</h3>
+              <p className="text-[11px] text-theme-muted">AI-assessed note quality</p>
             </div>
             <ClarityRing value={92} />
           </div>
@@ -365,8 +366,8 @@ export default function Activity() {
 
         {/* Daily Activity Bar Chart */}
         <GlassCard>
-          <h3 className="font-semibold text-base text-white mb-1">Daily Breakdown</h3>
-          <p className="text-[11px] text-gray-500 mb-4">Notes vs Summaries</p>
+          <h3 className="font-semibold text-base text-theme-primary mb-1">Daily Breakdown</h3>
+          <p className="text-[11px] text-theme-muted mb-4">Notes vs Summaries</p>
           <div className="h-36">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={insightsData} barGap={2}>
@@ -374,7 +375,7 @@ export default function Activity() {
                   dataKey="name" 
                   axisLine={false} 
                   tickLine={false}
-                  tick={{ fill: '#6b7280', fontSize: 10 }}
+                  tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="notes" fill="#6366f1" radius={[4, 4, 0, 0]} name="Notes" />
@@ -390,22 +391,18 @@ export default function Activity() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
             <FiCalendar className="text-indigo-400" size={18} />
-            <h3 className="font-semibold text-base text-white">Activity Timeline</h3>
+            <h3 className="font-semibold text-base text-theme-primary">Activity Timeline</h3>
           </div>
 
           <div className="flex gap-2">
             {[7, 30].map((n) => (
-              <button
+              <ToggleButton
                 key={n}
-                className={`px-3 py-1 rounded-full border text-xs transition ${
-                  range === n
-                    ? "bg-indigo-600/20 text-indigo-200 border-indigo-500/40"
-                    : "bg-transparent text-gray-400 border-gray-700 hover:text-white"
-                }`}
+                active={range === n}
                 onClick={() => setRange(n)}
               >
                 {n} days
-              </button>
+              </ToggleButton>
             ))}
           </div>
         </div>
@@ -413,38 +410,40 @@ export default function Activity() {
         {/* Type Filters */}
         <div className="flex flex-wrap gap-2 text-xs mb-4">
           {typeFilters.map((f) => (
-            <button
+            <ToggleButton
               key={f.value}
-              className={`px-3 py-1 rounded-full border transition ${
-                typeFilter === f.value
-                  ? "bg-indigo-600/20 text-indigo-200 border-indigo-500/40"
-                  : "bg-transparent text-gray-400 border-gray-700 hover:text-white"
-              }`}
+              active={typeFilter === f.value}
               onClick={() => setTypeFilter(f.value)}
             >
               {f.label}
-            </button>
+            </ToggleButton>
           ))}
         </div>
 
         {/* Timeline */}
         {Object.keys(grouped).length === 0 ? (
-          <p className="text-gray-500 text-xs text-center py-4">No activity in this view</p>
+          <p className="text-theme-muted text-xs text-center py-4">No activity in this view</p>
         ) : (
           <>
             {Object.entries(grouped).map(([group, items]) => (
               <section key={group} className="mb-6">
-                <h3 className="text-[12px] uppercase tracking-wider text-gray-400 mb-3 ml-1">{group}</h3>
-                <ol className="relative border-l border-[#26262c] ml-4 space-y-5">
+                <h3 className="text-[12px] uppercase tracking-wider text-theme-muted mb-3 ml-1">{group}</h3>
+                <ol 
+                  className="relative ml-4 space-y-5"
+                  style={{ borderLeft: '1px solid var(--border-secondary)' }}
+                >
                   {items.map((e, i) => {
                     const Icon = e.icon;
                     return (
                       <li key={i} className="relative pl-6">
-                        <div className="absolute -left-[14px] mt-1.5 w-7 h-7 rounded-full bg-[#1a1b27] border border-indigo-500/40 flex items-center justify-center shadow-[0_0_10px_rgba(99,102,241,0.25)] transition hover:scale-105">
-                          <Icon size={15} className="text-indigo-300" />
+                        <div 
+                          className="absolute -left-[14px] mt-1.5 w-7 h-7 rounded-full border border-indigo-500/40 flex items-center justify-center shadow-[0_0_10px_rgba(99,102,241,0.25)] transition hover:scale-105"
+                          style={{ backgroundColor: 'var(--bg-elevated)' }}
+                        >
+                          <Icon size={15} className="text-indigo-400" />
                         </div>
-                        <p className="text-gray-200 font-medium text-sm">{e.text}</p>
-                        <p className="text-[11px] text-gray-500">{e.time}</p>
+                        <p className="text-theme-secondary font-medium text-sm">{e.text}</p>
+                        <p className="text-[11px] text-theme-muted">{e.time}</p>
                       </li>
                     );
                   })}
@@ -459,36 +458,70 @@ export default function Activity() {
 }
 
 /* -----------------------------------------
-   Stat Card Component
+   Toggle Button Component - THEME AWARE
+----------------------------------------- */
+const ToggleButton = ({ children, active, onClick, size = "md" }) => {
+  const sizeClasses = size === "sm" ? "px-2.5 py-1 text-[10px]" : "px-3 py-1.5 text-xs";
+  
+  return (
+    <button
+      className={`rounded-full border font-medium transition-all ${sizeClasses} ${
+        active
+          ? "bg-indigo-600 text-white border-indigo-600"
+          : "text-theme-muted border-theme-secondary hover:text-theme-primary hover:border-theme-tertiary"
+      }`}
+      style={!active ? { backgroundColor: 'var(--bg-button)' } : {}}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+};
+
+/* -----------------------------------------
+   Stat Card Component - THEME AWARE
 ----------------------------------------- */
 const StatCard = ({ title, value, sub, icon, trend, trendUp, isStreak }) => (
-  <div className="bg-[#101018] border border-[#262632] rounded-2xl px-3.5 py-3 shadow-[0_12px_26px_rgba(0,0,0,0.65)]">
+  <div 
+    className="rounded-2xl px-3.5 py-3 border"
+    style={{
+      backgroundColor: 'var(--bg-card)',
+      borderColor: 'var(--border-secondary)',
+      boxShadow: 'var(--shadow-lg)',
+    }}
+  >
     <div className="flex items-center justify-between mb-2">
-      <div className="h-8 w-8 rounded-xl bg-[#181822] flex items-center justify-center">
+      <div 
+        className="h-8 w-8 rounded-xl flex items-center justify-center"
+        style={{ backgroundColor: 'var(--bg-tertiary)' }}
+      >
         {icon}
       </div>
       {trend && (
-        <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
-          trendUp ? "bg-emerald-900/30 text-emerald-400" : "bg-rose-900/30 text-rose-400"
+        <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-medium ${
+          trendUp ? "bg-emerald-500/15 text-emerald-500" : "bg-rose-500/15 text-rose-500"
         }`}>
           <FiTrendingUp size={10} className={!trendUp ? "rotate-180" : ""} />
           {trend}
         </span>
       )}
     </div>
-    <h2 className="text-xl font-semibold text-white">{value}</h2>
-    <p className="text-[11px] text-gray-500">{title}</p>
-    {sub && <p className="text-[10px] text-gray-600 mt-0.5">{sub}</p>}
+    <h2 className="text-xl font-semibold text-theme-primary">{value}</h2>
+    <p className="text-[11px] text-theme-muted">{title}</p>
+    {sub && <p className="text-[10px] text-theme-muted mt-0.5">{sub}</p>}
   </div>
 );
 
 /* -----------------------------------------
-   Mini Stat
+   Mini Stat - THEME AWARE (Clarity Score boxes)
 ----------------------------------------- */
 const MiniStat = ({ label, value }) => (
-  <div className="bg-[#0d0d14] rounded-xl px-3 py-2 text-center">
-    <p className="text-lg font-semibold text-white">{value}</p>
-    <p className="text-[10px] text-gray-500">{label}</p>
+  <div 
+    className="rounded-xl px-3 py-3 text-center"
+    style={{ backgroundColor: 'rgba(99, 102, 241, 0.12)' }}
+  >
+    <p className="text-lg font-bold text-theme-primary">{value}</p>
+    <p className="text-[10px] text-theme-muted">{label}</p>
   </div>
 );
 
@@ -502,75 +535,66 @@ const StreakDots = () => {
     { day: "Wed", active: true },
     { day: "Thu", active: true },
     { day: "Fri", active: true },
-    { day: "Sat", active: true },
-    { day: "Sun", active: false },
+    { day: "Sat", active: false },
+    { day: "Sun", active: true },
   ];
 
   return (
-    <div className="flex justify-between sm:justify-center sm:gap-6">
+    <div className="flex items-center justify-between gap-1">
       {days.map((d, i) => (
-        <motion.div
-          key={d.day}
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: i * 0.05 }}
-          className="flex flex-col items-center"
-        >
+        <div key={i} className="flex flex-col items-center gap-1.5">
           <div
-            className={`flex items-center justify-center rounded-full w-8 h-8 sm:w-10 sm:h-10 transition-all ${
+            className={`h-8 w-8 rounded-full flex items-center justify-center transition ${
               d.active
-                ? "bg-gradient-to-br from-indigo-500 to-purple-600 shadow-[0_0_12px_rgba(99,91,255,0.5)]"
-                : "bg-[#1a1a24] border border-[#2a2a3a]"
+                ? "bg-indigo-500 text-white shadow-[0_0_12px_rgba(99,102,241,0.4)]"
+                : ""
             }`}
+            style={!d.active ? { backgroundColor: 'var(--bg-tertiary)' } : {}}
           >
-            {d.active ? (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 13l4 4L19 7" />
-              </svg>
-            ) : (
-              <span className="text-gray-600 text-xs">—</span>
-            )}
+            {d.active && <Fire size={14} weight="fill" />}
           </div>
-          <span className="text-[10px] text-gray-500 mt-1.5">{d.day}</span>
-        </motion.div>
+          <span className="text-[9px] text-theme-muted">{d.day}</span>
+        </div>
       ))}
     </div>
   );
 };
 
 /* -----------------------------------------
-   Clarity Ring
+   Clarity Ring (Donut Chart)
 ----------------------------------------- */
 const ClarityRing = ({ value }) => {
-  const circumferenceOuter = 2 * Math.PI * 40;
+  const circumference = 2 * Math.PI * 36;
+  const strokeDashoffset = circumference - (value / 100) * circumference;
 
   return (
-    <div className="relative">
-      <svg width="90" height="90" viewBox="0 0 100 100">
-        <defs>
-          <linearGradient id="clarityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#6366f1" />
-            <stop offset="100%" stopColor="#a5b4fc" />
-          </linearGradient>
-        </defs>
-        <circle cx="50" cy="50" r="40" stroke="#1a1a24" strokeWidth="8" fill="none" />
+    <div className="relative w-20 h-20">
+      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 80 80">
+        <circle
+          cx="40"
+          cy="40"
+          r="36"
+          stroke="var(--bg-tertiary)"
+          strokeWidth="6"
+          fill="none"
+        />
         <motion.circle
-          cx="50"
-          cy="50"
-          r="40"
-          stroke="url(#clarityGradient)"
-          strokeWidth="8"
+          cx="40"
+          cy="40"
+          r="36"
+          stroke="#6366f1"
+          strokeWidth="6"
           fill="none"
           strokeLinecap="round"
-          initial={{ strokeDasharray: `0 ${circumferenceOuter}` }}
-          animate={{ strokeDasharray: `${(value / 100) * circumferenceOuter} ${circumferenceOuter}` }}
-          transition={{ duration: 1, ease: "easeOut" }}
-          transform="rotate(-90 50 50)"
+          strokeDasharray={circumference}
+          initial={{ strokeDashoffset: circumference }}
+          animate={{ strokeDashoffset }}
+          transition={{ duration: 1.2, ease: "easeOut" }}
         />
-        <text x="50" y="50" textAnchor="middle" dy="0.35em" className="fill-white text-lg font-semibold">
-          {value}%
-        </text>
       </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-lg font-bold text-theme-primary">{value}%</span>
+      </div>
     </div>
   );
 };

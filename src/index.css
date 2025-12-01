@@ -1,12 +1,136 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* --------------------------------------------------------------
-   CSS VARIABLES
+   CSS VARIABLES — THEME SYSTEM (FINALIZED)
 -------------------------------------------------------------- */
 :root {
   --vh: 1vh;
   --mobile-nav-height: 90px;
+
+  /* Default Dark Theme (base fallback) */
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #0d0d14;
+  --bg-tertiary: #111118;
+  --bg-surface: #15151d; /* modals / floating cards */
+  --bg-card: #101018;
+  --bg-card-hover: #131320;
+  --bg-elevated: #1b1b23; /* action buttons, suggestion bubbles */
+  --bg-input: #0d0d14;
+  --bg-button: #1c1c24;
+  --bg-button-hover: #262631;
+  --bg-hover: rgba(99,102,241,0.15);
+  --bg-overlay: rgba(0,0,0,0.45);
+
+  --border-primary: #1f1f27;
+  --border-secondary: #26262c;
+  --border-tertiary: #2d2d36;
+
+  --text-primary: #ffffff;
+  --text-secondary: #e5e5e5;
+  --text-tertiary: #a1a1aa;
+  --text-muted: #71717a;
+  --text-placeholder: #52525b;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.65);
+
+  --accent-indigo: #6366f1;
+  --accent-purple: #a855f7;
+  --accent-emerald: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-rose: #f43f5e;
+  --accent-sky: #0ea5e9;
 }
+
+/* -------------------------------------------------------------- */
+/* Light Theme */
+:root.light,
+[data-theme="light"] {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-tertiary: #e2e8f0;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-elevated: #eef1f6; /* This is the key fix for Insight Explorer */
+  --bg-input: #ffffff;
+  --bg-button: #e2e8f0;
+  --bg-button-hover: #cbd5e1;
+  --bg-hover: rgba(99,102,241,0.08);
+  --bg-overlay: rgba(0,0,0,0.25);
+
+  --border-primary: #cbd5e1;
+  --border-secondary: #b7c4cf;
+  --border-tertiary: #94a3b8;
+
+  --text-primary: #0f172a;
+  --text-secondary: #1e293b;
+  --text-tertiary: #475569;
+  --text-muted: #64748b;
+  --text-placeholder: #94a3b8;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.15);
+}
+
+/* -------------------------------------------------------------- */
+/* Dark Theme Explicit */
+:root.dark,
+[data-theme="dark"] {
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #0d0d14;
+  --bg-tertiary: #111118;
+  --bg-surface: #15151d;
+  --bg-card: #101018;
+  --bg-card-hover: #131320;
+  --bg-elevated: #1b1b23;
+  --bg-input: #0d0d14;
+  --bg-button: #1c1c24;
+  --bg-button-hover: #262631;
+  --bg-hover: rgba(99,102,241,0.15);
+  --bg-overlay: rgba(0,0,0,0.45);
+
+  --border-primary: #1f1f27;
+  --border-secondary: #26262c;
+  --border-tertiary: #2d2d36;
+
+  --text-primary: #ffffff;
+  --text-secondary: #e5e5e5;
+  --text-tertiary: #a1a1aa;
+  --text-muted: #71717a;
+  --text-placeholder: #52525b;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.65);
+}
+
+/* --------------------------------------------------------------
+   UTILITY CLASSES — THEME TOKENS
+-------------------------------------------------------------- */
+.bg-theme-primary { background: var(--bg-primary); }
+.bg-theme-secondary { background: var(--bg-secondary); }
+.bg-theme-tertiary { background: var(--bg-tertiary); }
+.bg-theme-surface { background: var(--bg-surface); }
+.bg-theme-card { background: var(--bg-card); }
+.bg-theme-input { background: var(--bg-input); }
+.bg-theme-button { background: var(--bg-button); }
+.bg-theme-elevated { background: var(--bg-elevated); }
+.bg-theme-hover { background: var(--bg-hover); }
+.bg-theme-overlay { background: var(--bg-overlay); }
+
+.text-theme-primary { color: var(--text-primary); }
+.text-theme-secondary { color: var(--text-secondary); }
+.text-theme-tertiary { color: var(--text-tertiary); }
+.text-theme-muted { color: var(--text-muted); }
+
+.border-theme-primary { border-color: var(--border-primary); }
+.border-theme-secondary { border-color: var(--border-secondary); }
+.border-theme-tertiary { border-color: var(--border-tertiary); }
 
 /* --------------------------------------------------------------
    GLOBAL LAYOUT
@@ -31,11 +155,19 @@ html {
 
 body {
   margin: 0;
-  background-color: #0d0d10;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
   color-scheme: dark;
   position: relative;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Light theme body adjustments */
+:root.light body,
+[data-theme="light"] body {
+  color-scheme: light;
 }
 
 /* --------------------------------------------------------------
@@ -106,6 +238,13 @@ nav.scrolled {
   border-bottom-color: rgba(31, 31, 35, 0.7);
 }
 
+/* Light theme navbar */
+:root.light nav.scrolled,
+[data-theme="light"] nav.scrolled {
+  background-color: rgba(248, 250, 252, 0.85);
+  border-bottom-color: rgba(226, 232, 240, 0.7);
+}
+
 /* --------------------------------------------------------------
    BACKGROUND IMAGE
 -------------------------------------------------------------- */
@@ -117,6 +256,14 @@ body::before {
   background-attachment: fixed;
   z-index: -2;
   pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+/* Hide or dim background in light mode */
+:root.light body::before,
+[data-theme="light"] body::before {
+  opacity: 0.05;
 }
 
 /* --------------------------------------------------------------
@@ -136,6 +283,15 @@ body::before {
 }
 .animate-heroFade {
   animation: heroFadeIn 1.5s ease-out forwards;
+}
+
+/* Fade In animation */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
 }
 
 /* --------------------------------------------------------------
@@ -160,8 +316,6 @@ body::before {
 /* Overlay base styles (kept light for performance) */
 .note-sheet-overlay {
   pointer-events: auto;
-  /* If performance is bad on real iPhone hardware, remove blur completely */
-  /* backdrop-filter: blur(8px); */
 }
 
 @keyframes fadeInFloat {
@@ -270,14 +424,14 @@ body::before {
 
 /* Action Menu Buttons */
 .action-btn {
-  background: #1c1b22;
+  background: var(--bg-button);
   border-radius: 14px;
   padding: 10px 16px;
   font-size: 14px;
   display: inline-flex;
   align-items: center;
-  color: #e7e7ee;
-  border: 1px solid #2e2d35;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-secondary);
   box-shadow: 0 8px 24px rgba(0,0,0,0.35);
   opacity: 0;
   transform: translateY(12px);
@@ -285,7 +439,7 @@ body::before {
 }
 
 .action-btn:hover {
-  background: #26252f;
+  background: var(--bg-button-hover);
 }
 
 /* Menu animation */
@@ -297,13 +451,7 @@ body::before {
 }
 
 /* --------------------------------------------------------------
-   💥 New Notes UI Enhancements
-   (Paste below this line, at the very end of the file)
--------------------------------------------------------------- */
-
-/* --------------------------------------------------------------
-   💥 Notes UI Enhancements — Updated & Improved
-   (Replace the old duplicate section with this)
+   💥 Notes UI Enhancements
 -------------------------------------------------------------- */
 
 /* Action button items in context menu */
@@ -311,7 +459,7 @@ body::before {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: white;
+  color: var(--text-primary);
   width: 100%;
   padding: 10px 14px;
   font-size: 14px;
@@ -322,18 +470,40 @@ body::before {
   background: rgba(255,255,255,0.08);
 }
 
+:root.light .menu-icon-btn:hover,
+[data-theme="light"] .menu-icon-btn:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+/* Cancel button in context menu */
+.menu-cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  border-radius: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  transition: background 0.15s;
+}
+.menu-cancel:hover {
+  background: rgba(255,255,255,0.05);
+}
+
 /* Add sub-action buttons under floating action button */
 .action-btn {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #262635;
+  background: var(--bg-button);
   border-radius: 14px;
   padding: 10px 14px;
   font-size: 14px;
-  color: white;
+  color: var(--text-primary);
   letter-spacing: 0.2px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow-md);
   opacity: 1;
   transform: translateY(0);
   transition: transform .25s, opacity .25s;
@@ -370,6 +540,11 @@ body::before {
   z-index: 300;
 }
 
+:root.light .modal-backdrop,
+[data-theme="light"] .modal-backdrop {
+  background: rgba(0,0,0,.4);
+}
+
 /* Note editor modal (centered!) */
 .modal {
   position: fixed;
@@ -378,10 +553,10 @@ body::before {
   transform: translate(-50%, -50%);
   width: 88%;
   max-width: 420px;
-  background: #1b1b22;
+  background: var(--bg-card);
   border-radius: 18px;
   padding: 20px;
-  border: 1px solid #2d2d34;
+  border: 1px solid var(--border-secondary);
   z-index: 301;
   animation: zoomIn .28s cubic-bezier(.22,1,.36,1);
 }
@@ -392,7 +567,7 @@ body::before {
   margin-bottom: 12px;
   background: transparent;
   border: none;
-  color: white;
+  color: var(--text-primary);
   font-size: 18px;
   font-weight: 600;
   outline: none;
@@ -405,9 +580,9 @@ body::before {
   padding: 12px;
   border-radius: 14px;
   font-size: 14px;
-  background: #101016;
-  color: #cfcfcf;
-  border: 1px solid #26262c;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-secondary);
   resize: none;
 }
 
@@ -487,4 +662,354 @@ body::before {
 .toast-fade-out {
   animation: toastFadeOut 0.35s ease-in forwards;
 }
+
+/* --------------------------------------------------------------
+   SCROLLBAR STYLING
+-------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-tertiary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* --------------------------------------------------------------
+   SMOOTH THEME TRANSITIONS
+-------------------------------------------------------------- */
+*, *::before, *::after {
+  transition: background-color 0.2s ease, 
+              border-color 0.2s ease,
+              box-shadow 0.2s ease;
+}
+
+/* Disable transitions on page load */
+.no-transitions *, 
+.no-transitions *::before, 
+.no-transitions *::after {
+  transition: none !important;
+}
+
+
+
+/* --------------------------------------------------------------
+   🔧 THEME FIXES — Add these to the END of your index.css
+   Fixes blur issues, modal overlays, and component consistency
+-------------------------------------------------------------- */
+
+/* --------------------------------------------------------------
+   BACKDROP BLUR FIX — Ensures blur works in both themes
+-------------------------------------------------------------- */
+
+/* For elements using backdrop-blur, ensure they have a semi-transparent background */
+.backdrop-blur-sm,
+.backdrop-blur,
+.backdrop-blur-md,
+.backdrop-blur-lg,
+.backdrop-blur-xl {
+  /* Light theme needs darker overlay for blur to be visible */
+}
+
+:root.light .backdrop-blur-sm,
+:root.light .backdrop-blur,
+:root.light .backdrop-blur-md,
+:root.light .backdrop-blur-lg,
+:root.light .backdrop-blur-xl,
+[data-theme="light"] .backdrop-blur-sm,
+[data-theme="light"] .backdrop-blur,
+[data-theme="light"] .backdrop-blur-md,
+[data-theme="light"] .backdrop-blur-lg,
+[data-theme="light"] .backdrop-blur-xl {
+  --tw-backdrop-blur: blur(16px);
+}
+
+/* --------------------------------------------------------------
+   MODAL & OVERLAY BACKGROUNDS — Theme-aware
+-------------------------------------------------------------- */
+
+/* Dark theme modal overlay */
+:root.dark .modal-overlay,
+[data-theme="dark"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+/* Light theme modal overlay - needs to be darker to show contrast */
+:root.light .modal-overlay,
+[data-theme="light"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* --------------------------------------------------------------
+   FIXED ELEMENT BACKGROUNDS — Prevent transparency issues
+-------------------------------------------------------------- */
+
+/* Ensure fixed elements have solid backgrounds in both themes */
+.fixed-element-bg {
+  background-color: var(--bg-elevated);
+  border-color: var(--border-secondary);
+}
+
+/* --------------------------------------------------------------
+   INPUT FOCUS STATES — Consistent across themes
+-------------------------------------------------------------- */
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent-indigo) !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+/* --------------------------------------------------------------
+   BUTTON HOVER STATES — Theme-aware
+-------------------------------------------------------------- */
+
+/* Primary buttons stay consistent */
+.btn-primary {
+  background: var(--accent-indigo);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #5558e8;
+}
+
+/* Secondary/ghost buttons adapt to theme */
+.btn-secondary {
+  background: var(--bg-button);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-secondary);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-button-hover);
+  border-color: var(--border-tertiary);
+}
+
+/* --------------------------------------------------------------
+   CARD HOVER EFFECTS — Theme-aware
+-------------------------------------------------------------- */
+
+.card-hover:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-indigo);
+  border-opacity: 0.4;
+}
+
+/* --------------------------------------------------------------
+   TOAST NOTIFICATIONS — Fixed backgrounds
+-------------------------------------------------------------- */
+
+.toast-success {
+  background: rgba(16, 185, 129, 0.9);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: white;
+}
+
+.toast-error {
+  background: rgba(244, 63, 94, 0.9);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  color: white;
+}
+
+/* --------------------------------------------------------------
+   SIDEBAR & NAV — Theme-aware backgrounds
+-------------------------------------------------------------- */
+
+.sidebar-bg {
+  background: var(--bg-secondary);
+  border-color: var(--border-primary);
+}
+
+/* Mobile bottom nav */
+.mobile-nav-bg {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-primary);
+}
+
+/* --------------------------------------------------------------
+   DROPDOWN & CONTEXT MENUS — Solid backgrounds
+-------------------------------------------------------------- */
+
+.dropdown-menu,
+.context-menu {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-secondary);
+  box-shadow: var(--shadow-lg);
+}
+
+/* --------------------------------------------------------------
+   LOADING STATES — Theme-aware
+-------------------------------------------------------------- */
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-tertiary) 0%,
+    var(--bg-secondary) 50%,
+    var(--bg-tertiary) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* --------------------------------------------------------------
+   ACCENT COLOR CLASSES — For consistent branding
+-------------------------------------------------------------- */
+
+.text-accent-indigo { color: var(--accent-indigo); }
+.text-accent-purple { color: var(--accent-purple); }
+.text-accent-emerald { color: var(--accent-emerald); }
+.text-accent-amber { color: var(--accent-amber); }
+.text-accent-rose { color: var(--accent-rose); }
+.text-accent-sky { color: var(--accent-sky); }
+
+.bg-accent-indigo { background: var(--accent-indigo); }
+.bg-accent-purple { background: var(--accent-purple); }
+.bg-accent-emerald { background: var(--accent-emerald); }
+.bg-accent-amber { background: var(--accent-amber); }
+.bg-accent-rose { background: var(--accent-rose); }
+.bg-accent-sky { background: var(--accent-sky); }
+
+/* --------------------------------------------------------------
+   CHARTS & GRAPHS — Theme-aware colors
+-------------------------------------------------------------- */
+
+.chart-axis-text {
+  fill: var(--text-tertiary);
+}
+
+.chart-grid-line {
+  stroke: var(--border-secondary);
+}
+
+/* --------------------------------------------------------------
+   FORM LABELS — Consistent styling
+-------------------------------------------------------------- */
+
+.form-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+  display: block;
+}
+
+/* --------------------------------------------------------------
+   DIVIDERS — Theme-aware
+-------------------------------------------------------------- */
+
+.divider {
+  height: 1px;
+  background: var(--border-secondary);
+  margin: 16px 0;
+}
+
+.divider-vertical {
+  width: 1px;
+  background: var(--border-secondary);
+  margin: 0 12px;
+}
+
+/* --------------------------------------------------------------
+   FIX: Prevent color transition on text (can cause flickering)
+-------------------------------------------------------------- */
+
+h1, h2, h3, h4, h5, h6, p, span, a, li {
+  transition: none;
+}
+
+/* Only transition backgrounds and borders */
+*, *::before, *::after {
+  transition-property: background-color, border-color, box-shadow;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
+}
+
+/* --------------------------------------------------------------
+   FIX: Ensure proper stacking for fixed elements
+-------------------------------------------------------------- */
+
+/* Search bar in Insight Explorer */
+.search-bar-fixed {
+  position: fixed;
+  z-index: 50;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-secondary);
+  box-shadow: var(--shadow-md);
+}
+
+/* Sticky headers */
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--bg-surface);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+:root.light .sticky-header,
+[data-theme="light"] .sticky-header {
+  background: rgba(248, 250, 252, 0.9);
+}
+
+:root.dark .sticky-header,
+[data-theme="dark"] .sticky-header {
+  background: rgba(21, 21, 29, 0.9);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

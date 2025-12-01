@@ -27,7 +27,7 @@ export default function DocumentViewer({ docs, setDocs }) {
 
   if (!currentDoc) {
     return (
-      <div className="p-6 text-gray-400">
+      <div className="p-6 text-theme-muted">
         Document not found.
         <button
           className="block mt-4 text-indigo-400"
@@ -66,11 +66,11 @@ export default function DocumentViewer({ docs, setDocs }) {
   const hasSummary = !!currentDoc.smartSummary;
 
   return (
-    <div className="animate-fadeIn min-h-screen w-full py-12 px-5 text-gray-200">
+    <div className="animate-fadeIn min-h-screen w-full py-12 px-5 text-theme-primary">
       {/* Top Bar */}
       <div className="flex items-center justify-between mb-6">
         <button
-          className="text-gray-400 hover:text-white"
+          className="text-theme-muted hover:text-theme-primary"
           onClick={() => navigate(-1)}
         >
           <FiArrowLeft size={22} />
@@ -78,7 +78,7 @@ export default function DocumentViewer({ docs, setDocs }) {
 
         <div className="flex gap-5">
           <button
-            className="text-gray-400 hover:text-rose-300 active:scale-95"
+            className="text-theme-muted hover:text-rose-300 active:scale-95"
             onClick={() => downloadDocument(currentDoc)}
             title="Download"
           >
@@ -86,7 +86,7 @@ export default function DocumentViewer({ docs, setDocs }) {
           </button>
 
           <button
-            className="text-gray-400 hover:text-yellow-300 active:scale-95"
+            className="text-theme-muted hover:text-yellow-300 active:scale-95"
             onClick={() =>
               navigate(`/dashboard/documents/rewrite/${currentDoc.id}`)
             }
@@ -96,7 +96,7 @@ export default function DocumentViewer({ docs, setDocs }) {
           </button>
 
           <button
-            className="text-gray-400 hover:text-indigo-300 active:scale-95"
+            className="text-theme-muted hover:text-indigo-500 active:scale-95"
             onClick={handleSummarizeViewer}
             title="AI Summary & Action Plan"
           >
@@ -116,17 +116,17 @@ export default function DocumentViewer({ docs, setDocs }) {
         <iframe
           src={viewerUrl}
           title={currentDoc.name}
-          className="w-full h-[60vh] rounded-xl border border-[#26262c] bg-black"
+          className="w-full h-[60vh] rounded-xl border border-[var(--border-secondary)]/20 bg-theme-elevated"
         />
       ) : isOffice ? (
         // Google Docs viewer for DOCX/XLSX
         <iframe
           src={viewerUrl}
           title={currentDoc.name}
-          className="w-full h-[60vh] rounded-xl border border-[#26262c] bg-black"
+          className="w-full h-[60vh] rounded-xl border border-[var(--border-secondary)]/20 bg-theme-elevated"
         />
       ) : (
-        <div className="bg-[#1b1b22] border border-[#26262c] p-8 rounded-xl text-center">
+        <div className="bg-[#1b1b22] border border-[var(--border-secondary)]/20 p-8 rounded-xl text-center">
           Preview not supported for this file type
         </div>
       )}
@@ -134,12 +134,12 @@ export default function DocumentViewer({ docs, setDocs }) {
       {/* Summary Panel */}
       <div
         id="smart-summary-panel"
-        className="mt-8 bg-[#101016] border border-[#26262c] rounded-2xl p-6 space-y-6"
+        className="mt-8 bg-theme-input border border-theme-secondary0 rounded-2xl p-6 space-y-6"
       >
         {!hasSummary ? (
-          <p className="text-[13px] text-gray-400">
+          <p className="text-[13px] text-theme-muted">
             Click{" "}
-            <span className="inline-flex items-center gap-1 text-indigo-300">
+            <span className="inline-flex items-center gap-1 text-indigo-500">
               <FiFileText size={13} /> AI Summary
             </span>{" "}
             to generate insights from this document.
@@ -147,21 +147,21 @@ export default function DocumentViewer({ docs, setDocs }) {
         ) : (
           <>
             {/* Takeaway */}
-            <div className="border-l-4 border-indigo-400 pl-3 text-sm text-indigo-200 font-semibold">
+            <div className="border-l-4 border-indigo-400 pl-3 text-sm text-indigo-600 font-semibold">
               {currentDoc.smartSummary.highlightTakeaway}
             </div>
 
             {/* Summary */}
-            <p className="text-[13px] text-gray-200 leading-relaxed">
+            <p className="text-[13px] text-theme-primary leading-relaxed">
               {currentDoc.smartSummary.summaryText}
             </p>
 
             {/* Insights */}
             <section>
-              <h2 className="text-sm font-semibold text-indigo-300 mb-2">
+              <h2 className="text-sm font-semibold text-indigo-500 mb-2">
                 Key Insights
               </h2>
-              <ul className="space-y-1 text-[12px] text-gray-300 list-disc list-inside">
+              <ul className="space-y-1 text-[12px] text-[var(--text-secondary)] list-disc list-inside">
                 {currentDoc.smartSummary.keyInsights.map((item, i) => (
                   <li key={i}>{item}</li>
                 ))}
@@ -170,26 +170,26 @@ export default function DocumentViewer({ docs, setDocs }) {
 
             {/* Action Plan */}
             <section>
-              <h2 className="text-sm font-semibold text-indigo-300 mb-2">
+              <h2 className="text-sm font-semibold text-indigo-500 mb-2">
                 Action Plan
               </h2>
               <div className="space-y-3">
                 {currentDoc.smartSummary.actionPlan.map((item, idx) => (
                   <div
                     key={idx}
-                    className="px-3 py-2.5 rounded-xl bg-[#15151d] border border-[#26262c]"
+                    className="px-3 py-2.5 rounded-xl bg-theme-input border border-theme-secondary0"
                   >
-                    <p className="text-[13px] text-gray-100 font-medium">
+                    <p className="text-[13px] text-[var(--text-secondary)] font-medium">
                       {item.title}
                     </p>
                     <div className="flex gap-3 text-[11px] mt-1">
                       <span className="px-2 py-[1px] bg-rose-900/40 text-rose-200 rounded-full">
                         {item.priority}
                       </span>
-                      <span className="px-2 py-[1px] bg-gray-700 text-gray-200 rounded-full">
+                      <span className="px-2 py-[1px] bg-gray-700 text-theme-primary rounded-full">
                         {item.effort}
                       </span>
-                      <span className="px-2 py-[1px] bg-indigo-900/40 text-indigo-200 rounded-full">
+                      <span className="px-2 py-[1px] bg-indigo-900/40 text-indigo-600 rounded-full">
                         {item.dueHint}
                       </span>
                     </div>
@@ -204,7 +204,7 @@ export default function DocumentViewer({ docs, setDocs }) {
                 <h2 className="text-sm font-semibold text-rose-300 mb-2 flex items-center gap-1">
                   <FiAlertTriangle size={14} /> Risks
                 </h2>
-                <ul className="space-y-1 text-[12px] text-gray-300 list-disc list-inside">
+                <ul className="space-y-1 text-[12px] text-[var(--text-secondary)] list-disc list-inside">
                   {currentDoc.smartSummary.risks.map((risk, i) => (
                     <li key={i}>{risk}</li>
                   ))}

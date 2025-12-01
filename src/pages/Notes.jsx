@@ -334,49 +334,47 @@ export default function Notes() {
       {/* Header */}
       <header className="pt-2 px-1">
         <div className="flex items-center gap-2 mb-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-white">My Notes</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">My Notes</h1>
           <Note className="text-indigo-400" size={24} weight="duotone" />
         </div>
-        <p className="text-gray-400 text-sm">Organized. Searchable. Intelligent.</p>
+        <p className="text-theme-muted text-sm">Organized. Searchable. Intelligent.</p>
       </header>
 
       {/* Search Bar */}
       <GlassCard className="p-3">
         <div className="relative">
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted" size={16} />
           <input
             type="text"
             placeholder="Search notes..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full bg-[#0d0d14] border border-[#26262c] rounded-xl pl-10 pr-4 py-2.5 text-sm text-gray-200 placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50 transition"
+            className="w-full bg-theme-input border border-theme-secondary rounded-xl pl-10 pr-4 py-2.5 text-sm text-theme-primary placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 transition"
           />
         </div>
       </GlassCard>
 
       {/* View Toggle & Count */}
       <div className="flex items-center justify-between px-1">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-theme-muted">
           {filteredNotes.length} note{filteredNotes.length !== 1 ? "s" : ""}
         </p>
-        <div className="flex gap-1 bg-[#111118] border border-[#26262c] rounded-xl p-1">
+        <div className="flex gap-1 bg-theme-input border border-theme-secondary rounded-xl p-1">
           <button
             onClick={() => setGridView(true)}
-            className={`p-2 rounded-lg transition ${
-              gridView
-                ? "bg-[#1d1d26] text-white"
-                : "text-gray-500 hover:text-gray-300"
-            }`}
+            className={`p-2 rounded-lg transition ${gridView
+              ? "bg-theme-button text-theme-primary"
+              : "text-theme-muted hover:text-[var(--text-secondary)]"
+              }`}
           >
             <FiGrid size={16} />
           </button>
           <button
             onClick={() => setGridView(false)}
-            className={`p-2 rounded-lg transition ${
-              !gridView
-                ? "bg-[#1d1d26] text-white"
-                : "text-gray-500 hover:text-gray-300"
-            }`}
+            className={`p-2 rounded-lg transition ${!gridView
+              ? "bg-theme-button text-theme-primary"
+              : "text-theme-muted hover:text-[var(--text-secondary)]"
+              }`}
           >
             <FiList size={16} />
           </button>
@@ -385,17 +383,16 @@ export default function Notes() {
 
       {/* Notes Grid/List */}
       <div
-        className={`grid gap-4 transition-all ${
-          gridView ? "grid-cols-2" : "grid-cols-1"
-        }`}
+        className={`grid gap-4 transition-all ${gridView ? "grid-cols-2" : "grid-cols-1"
+          }`}
       >
         {filteredNotes.length === 0 ? (
           <div className="col-span-2 text-center py-12">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#181822] border border-[#26262c] flex items-center justify-center">
-              <Note size={32} weight="duotone" className="text-gray-600" />
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[var(--bg-secondary)]/10 border border-[var(--border-secondary)]/20 flex items-center justify-center">
+              <Note size={32} weight="duotone" className="text-theme-muted" />
             </div>
-            <p className="text-gray-500 text-sm">No notes found</p>
-            <p className="text-gray-600 text-xs mt-1">Create your first note!</p>
+            <p className="text-theme-muted text-sm">No notes found</p>
+            <p className="text-theme-muted text-xs mt-1">Create your first note!</p>
           </div>
         ) : (
           filteredNotes.map((note) => (
@@ -424,14 +421,14 @@ export default function Notes() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[90]"
+              className="fixed inset-0 bg-theme-elevated/40 backdrop-blur-sm z-[90]"
               onClick={() => setActiveMenuId(null)}
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: -10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
-              className="fixed bg-[#151519] p-2 rounded-2xl border border-[#2d2d32] shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-1 z-[200] min-w-[180px]"
+              className="fixed bg-theme-elevated p-2 rounded-2xl border border-[var(--border-secondary)] shadow-lg flex flex-col gap-1 z-[200] min-w-[180px]"
               style={{ top: menuPos.y, left: menuPos.x }}
             >
               <MenuButton
@@ -542,9 +539,8 @@ export default function Notes() {
       <motion.button
         whileTap={{ scale: 0.95 }}
         onClick={() => setShowAddMenu(!showAddMenu)}
-        className={`fab-btn fixed bottom-[calc(env(safe-area-inset-bottom)+var(--mobile-nav-height)+16px)] right-5 w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-[0_8px_24px_rgba(99,102,241,0.4)] flex items-center justify-center z-[140] transition-transform ${
-          showAddMenu ? "rotate-45" : ""
-        }`}
+        className={`fab-btn fixed bottom-[calc(env(safe-area-inset-bottom)+var(--mobile-nav-height)+16px)] right-5 w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 text-theme-primary shadow-[0_8px_24px_rgba(99,102,241,0.4)] flex items-center justify-center z-[140] transition-transform ${showAddMenu ? "rotate-45" : ""
+          }`}
       >
         <FiPlus size={26} strokeWidth={2.5} />
       </motion.button>
@@ -557,14 +553,14 @@ export default function Notes() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-md z-[200]"
+              className="fixed inset-0 bg-theme-elevated/60 backdrop-blur-md z-[200]"
               onClick={() => setEditorOpen(false)}
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-x-4 top-1/2 -translate-y-1/2 bg-[#111114] border border-[#2b2b34] rounded-2xl p-5 shadow-xl z-[201] max-w-md mx-auto"
+              className="fixed inset-x-4 top-1/2 -translate-y-1/2 bg-theme-elevated border border-[var(--border-secondary)] rounded-2xl p-5 shadow-xl z-[201] max-w-md mx-auto"
             >
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
@@ -572,11 +568,11 @@ export default function Notes() {
                   <div className="h-10 w-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
                     <FilePlus size={20} weight="duotone" className="text-indigo-400" />
                   </div>
-                  <h3 className="text-lg font-semibold text-white">New Note</h3>
+                  <h3 className="text-lg font-semibold text-theme-primary">New Note</h3>
                 </div>
                 <button
                   onClick={() => setEditorOpen(false)}
-                  className="h-8 w-8 rounded-lg bg-[#1c1c24] flex items-center justify-center text-gray-400 hover:text-white transition"
+                  className="h-8 w-8 rounded-lgbg-theme-button flex items-center justify-center text-theme-muted hover:text-theme-primary transition"
                 >
                   <FiX size={16} />
                 </button>
@@ -584,7 +580,7 @@ export default function Notes() {
 
               {/* Form */}
               <input
-                className="w-full bg-[#0d0d14] border border-[#26262c] rounded-xl px-4 py-3 text-white text-base font-medium placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50 mb-3"
+                className="w-full bg-theme-input border border-theme-secondary rounded-xl px-4 py-3 text-theme-primary text-base font-medium placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 mb-3"
                 placeholder="Note title..."
                 maxLength={80}
                 value={newNote.title}
@@ -592,7 +588,7 @@ export default function Notes() {
                 autoFocus
               />
               <textarea
-                className="w-full bg-[#0d0d14] border border-[#26262c] rounded-xl px-4 py-3 text-gray-300 text-sm placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50 resize-none mb-4"
+                className="w-full bg-theme-input border border-theme-secondary rounded-xl px-4 py-3 text-[var(--text-secondary)] text-sm placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 resize-none mb-4"
                 placeholder="Start writing..."
                 rows={5}
                 value={newNote.body}
@@ -600,7 +596,7 @@ export default function Notes() {
               />
               <button
                 onClick={createNote}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-medium transition hover:opacity-90 active:scale-[0.98]"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 text-theme-primary font-medium transition hover:opacity-90 active:scale-[0.98]"
               >
                 Create Note
               </button>
@@ -617,7 +613,7 @@ export default function Notes() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-md z-[200]"
+              className="fixed inset-0 bg-theme-elevated/60 backdrop-blur-md z-[200]"
               onClick={() => {
                 setPinModalOpen(false);
                 setPinInput("");
@@ -629,16 +625,15 @@ export default function Notes() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-x-4 top-1/2 -translate-y-1/2 bg-[#111114] border border-[#2b2b34] rounded-2xl p-5 shadow-xl z-[201] max-w-sm mx-auto"
+              className="fixed inset-x-4 top-1/2 -translate-y-1/2 bg-theme-elevated border border-[var(--border-secondary)] rounded-2xl p-5 shadow-xl z-[201] max-w-sm mx-auto"
             >
               {/* Header */}
               <div className="flex items-center gap-3 mb-4">
                 <div
-                  className={`h-10 w-10 rounded-xl flex items-center justify-center ${
-                    pinMode === "set"
-                      ? "bg-indigo-500/20 border border-indigo-500/30"
-                      : "bg-amber-500/20 border border-amber-500/30"
-                  }`}
+                  className={`h-10 w-10 rounded-xl flex items-center justify-center ${pinMode === "set"
+                    ? "bg-indigo-500/20 border border-indigo-500/30"
+                    : "bg-amber-500/20 border border-amber-500/30"
+                    }`}
                 >
                   <FiLock
                     size={18}
@@ -646,10 +641,10 @@ export default function Notes() {
                   />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">
+                  <h3 className="text-lg font-semibold text-theme-primary">
                     {pinMode === "set" ? "Set PIN" : "Enter PIN"}
                   </h3>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-theme-muted">
                     {pinMode === "set"
                       ? "Create a 4-digit PIN to lock notes"
                       : "Enter your PIN to unlock"}
@@ -659,7 +654,7 @@ export default function Notes() {
 
               {/* PIN Input */}
               <input
-                className="w-full bg-[#0d0d14] border border-[#26262c] rounded-xl px-4 py-4 text-center tracking-[0.5em] text-xl text-white font-mono placeholder:text-gray-600 focus:outline-none focus:border-indigo-500/50 mb-4"
+                className="w-full bg-theme-input border border-theme-secondary rounded-xl px-4 py-4 text-center tracking-[0.5em] text-xl text-theme-primary font-mono placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 mb-4"
                 type="password"
                 maxLength={4}
                 value={pinInput}
@@ -669,11 +664,10 @@ export default function Notes() {
               />
               <button
                 onClick={handlePinSubmit}
-                className={`w-full py-3 rounded-xl font-medium transition hover:opacity-90 active:scale-[0.98] ${
-                  pinMode === "set"
-                    ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white"
-                    : "bg-gradient-to-r from-amber-500 to-orange-500 text-white"
-                }`}
+                className={`w-full py-3 rounded-xl font-medium transition hover:opacity-90 active:scale-[0.98] ${pinMode === "set"
+                  ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-theme-primary"
+                  : "bg-gradient-to-r from-amber-500 to-orange-500 text-theme-primary"
+                  }`}
               >
                 {pinMode === "set" ? "Save PIN" : "Unlock"}
               </button>
@@ -713,7 +707,7 @@ export default function Notes() {
                 className="text-indigo-400 animate-bounce"
               />
             </div>
-            <div className="w-48 h-1.5 bg-[#1c1c24] rounded-full overflow-hidden mb-3">
+            <div className="w-48 h-1.5bg-theme-button rounded-full overflow-hidden mb-3">
               <motion.div
                 initial={{ x: "-100%" }}
                 animate={{ x: "100%" }}
@@ -721,8 +715,8 @@ export default function Notes() {
                 className="h-full w-1/2 bg-gradient-to-r from-transparent via-indigo-500 to-transparent"
               />
             </div>
-            <p className="text-sm text-indigo-300 font-medium">Uploading...</p>
-            <p className="text-xs text-gray-500 mt-1">Please wait a moment</p>
+            <p className="text-sm text-accent-indigo font-medium">Uploading...</p>
+            <p className="text-xs text-theme-muted mt-1">Please wait a moment</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -736,11 +730,10 @@ export default function Notes() {
 const MenuButton = ({ icon, label, onClick, danger }) => (
   <button
     onClick={onClick}
-    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition text-left w-full ${
-      danger
-        ? "text-rose-400 hover:bg-rose-500/10"
-        : "text-gray-300 hover:bg-[#1d1d26] hover:text-white"
-    }`}
+    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition text-left w-full ${danger
+      ? "text-rose-400 hover:bg-rose-500/10"
+      : "text-[var(--text-secondary)] hover:bg-theme-button hover:text-theme-primary"
+      }`}
   >
     <span className="flex-shrink-0">{icon}</span>
     <span className="text-sm font-medium">{label}</span>
@@ -757,7 +750,13 @@ const FABAction = ({ icon, label, onClick, delay = 0 }) => (
     exit={{ opacity: 0, x: 20 }}
     transition={{ delay }}
     onClick={onClick}
-    className="action-btn flex items-center gap-3 bg-[#1a1a22] border border-[#2d2d36] px-4 py-3 rounded-xl text-white shadow-lg hover:bg-[#222230] transition active:scale-95"
+    className="
+    action-btn flex items-center gap-3
+    bg-theme-button border border-[var(--border-secondary)]
+    px-4 py-3 rounded-xl text-theme-primary
+    hover:bg-theme-button-hover hover:border-indigo-500/30
+    transition active:scale-95
+    "
   >
     <span className="text-indigo-400">{icon}</span>
     <span className="text-sm font-medium">{label}</span>

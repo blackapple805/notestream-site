@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
+import { useTheme } from "../context/ThemeContext";
 import {
   FiUser,
   FiLock,
@@ -28,22 +29,34 @@ import {
 } from "phosphor-react";
 
 export default function Settings() {
+  // Theme from context (persists to localStorage)
+  const { theme, setTheme, resolvedTheme } = useTheme();
+
   // Profile state
-  const [displayName, setDisplayName] = useState("Eric Angel");
-  const [email, setEmail] = useState("you@example.com");
+  const [displayName, setDisplayName] = useState(() => {
+    return localStorage.getItem("notestream-displayName") || "Eric Angel";
+  });
+  const [email, setEmail] = useState(() => {
+    return localStorage.getItem("notestream-email") || "you@example.com";
+  });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
-  // Appearance
-  const [theme, setTheme] = useState("dark");
-
-  // Workspace
-  const [autoSummarize, setAutoSummarize] = useState(true);
-  const [weeklyDigest, setWeeklyDigest] = useState(false);
-  const [smartNotifications, setSmartNotifications] = useState(true);
+  // Workspace settings (persisted)
+  const [autoSummarize, setAutoSummarize] = useState(() => {
+    return localStorage.getItem("notestream-autoSummarize") !== "false";
+  });
+  const [weeklyDigest, setWeeklyDigest] = useState(() => {
+    return localStorage.getItem("notestream-weeklyDigest") === "true";
+  });
+  const [smartNotifications, setSmartNotifications] = useState(() => {
+    return localStorage.getItem("notestream-smartNotifications") !== "false";
+  });
 
   // Security
   const [showPinModal, setShowPinModal] = useState(false);
-  const [pinEnabled, setPinEnabled] = useState(false);
+  const [pinEnabled, setPinEnabled] = useState(() => {
+    return localStorage.getItem("ns-note-pin") !== null;
+  });
 
   // Modals
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -59,6 +72,8 @@ export default function Settings() {
   };
 
   const handleSaveProfile = () => {
+    localStorage.setItem("notestream-displayName", displayName);
+    localStorage.setItem("notestream-email", email);
     setIsEditingProfile(false);
     showToast("Profile updated successfully!");
   };
@@ -66,6 +81,22 @@ export default function Settings() {
   const handleExportData = () => {
     setShowExportModal(false);
     showToast("Data export started. Check your email!");
+  };
+
+  // Save workspace settings to localStorage
+  const handleAutoSummarizeChange = (value) => {
+    setAutoSummarize(value);
+    localStorage.setItem("notestream-autoSummarize", value.toString());
+  };
+
+  const handleWeeklyDigestChange = (value) => {
+    setWeeklyDigest(value);
+    localStorage.setItem("notestream-weeklyDigest", value.toString());
+  };
+
+  const handleSmartNotificationsChange = (value) => {
+    setSmartNotifications(value);
+    localStorage.setItem("notestream-smartNotifications", value.toString());
   };
 
   const themeOptions = [
@@ -94,52 +125,52 @@ export default function Settings() {
       {/* Header */}
       <header className="pt-2 px-1">
         <div className="flex items-center gap-2 mb-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Settings</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">Settings</h1>
           <Gear className="text-indigo-400" size={24} weight="duotone" />
         </div>
-        <p className="text-gray-400 text-sm">Control how NoteStream behaves across your workspace.</p>
+        <p className="text-theme-muted text-sm">Control how NoteStream behaves across your workspace.</p>
       </header>
 
       {/* Profile Section */}
       <GlassCard>
         <div className="flex items-center gap-2 mb-4">
-          <div className="h-8 w-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+          <div className="h-8 w-8 rounded-lg bg-indigo-500/20 border border-indigo-500/25 flex items-center justify-center">
             <UserCircle size={18} weight="duotone" className="text-indigo-400" />
           </div>
-          <h2 className="text-sm font-semibold text-indigo-300">Profile</h2>
+          <h2 className="text-sm font-semibold text-accent-indigo">Profile</h2>
         </div>
 
         <div className="space-y-4">
           {/* Display Name */}
           <div>
-            <label className="text-xs text-gray-500 mb-1.5 block">Display name</label>
+            <label className="text-xs text-theme-muted mb-1.5 block">Display name</label>
             {isEditingProfile ? (
               <input
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full bg-[#0d0d14] border border-[#26262c] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50"
+                className="w-full bg-[var(--bg-input)] border border-[var(--border-secondary)] rounded-xl px-4 py-2.5 text-theme-primary text-sm focus:outline-none focus:border-indigo-500/50"
               />
             ) : (
-              <div className="flex items-center justify-between bg-[#0d0d14] border border-[#26262c] rounded-xl px-4 py-2.5">
-                <span className="text-white text-sm">{displayName}</span>
+              <div className="flex items-center justify-between bg-[var(--bg-input)] border border-[var(--border-secondary)] rounded-xl px-4 py-2.5">
+                <span className="text-theme-primary text-sm">{displayName}</span>
               </div>
             )}
           </div>
 
           {/* Email */}
           <div>
-            <label className="text-xs text-gray-500 mb-1.5 block">Email</label>
+            <label className="text-xs text-theme-muted mb-1.5 block">Email</label>
             {isEditingProfile ? (
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-[#0d0d14] border border-[#26262c] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50"
+                className="w-full bg-[var(--bg-input)] border border-[var(--border-secondary)] rounded-xl px-4 py-2.5 text-theme-primary text-sm focus:outline-none focus:border-indigo-500/50"
               />
             ) : (
-              <div className="flex items-center justify-between bg-[#0d0d14] border border-[#26262c] rounded-xl px-4 py-2.5">
-                <span className="text-white text-sm">{email}</span>
+              <div className="flex items-center justify-between bg-[var(--bg-input)] border border-[var(--border-secondary)] rounded-xl px-4 py-2.5">
+                <span className="text-theme-primary text-sm">{email}</span>
               </div>
             )}
           </div>
@@ -149,13 +180,13 @@ export default function Settings() {
             <div className="flex gap-2">
               <button
                 onClick={() => setIsEditingProfile(false)}
-                className="flex-1 py-2.5 rounded-xl bg-[#1c1c24] text-gray-300 text-sm font-medium hover:bg-[#262631] transition"
+                className="flex-1 py-2.5 rounded-xl bg-theme-button text-theme-tertiary text-sm font-medium hover:bg-theme-button-hover transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveProfile}
-                className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 transition"
+                className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-theme-primary text-sm font-medium hover:bg-indigo-500 transition"
               >
                 Save Changes
               </button>
@@ -163,7 +194,7 @@ export default function Settings() {
           ) : (
             <button
               onClick={() => setIsEditingProfile(true)}
-              className="w-full py-2.5 rounded-xl bg-[#1c1c24] text-gray-300 text-sm font-medium hover:bg-[#262631] transition flex items-center justify-center gap-2"
+              className="w-full py-2.5 rounded-xl bg-theme-button text-theme-tertiary text-sm font-medium hover:bg-theme-button-hover transition flex items-center justify-center gap-2"
             >
               <FiUser size={14} />
               Edit Profile
@@ -182,7 +213,12 @@ export default function Settings() {
         </div>
 
         <div>
-          <label className="text-xs text-gray-500 mb-2 block">Theme</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs text-theme-muted">Theme</label>
+            <span className="text-[10px] text-theme-muted px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)]">
+              {resolvedTheme === "dark" ? "🌙 Dark" : "☀️ Light"}
+            </span>
+          </div>
           <div className="flex gap-2">
             {themeOptions.map((option) => {
               const Icon = option.icon;
@@ -193,8 +229,8 @@ export default function Settings() {
                   onClick={() => setTheme(option.value)}
                   className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition ${
                     isActive
-                      ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-300"
-                      : "bg-[#0d0d14] border-[#26262c] text-gray-400 hover:text-white hover:border-[#3a3a44]"
+                      ? "bg-indigo-500/20 border-indigo-500/40 text-accent-indigo"
+                      : "bg-[var(--bg-input)] border-[var(--border-secondary)] text-theme-muted hover:text-theme-primary hover:border-theme-tertiary"
                   }`}
                 >
                   <Icon size={14} />
@@ -203,6 +239,11 @@ export default function Settings() {
               );
             })}
           </div>
+          <p className="text-[11px] text-theme-muted mt-2">
+            {theme === "system" 
+              ? "Theme will match your device settings" 
+              : `${theme.charAt(0).toUpperCase() + theme.slice(1)} mode is active`}
+          </p>
         </div>
       </GlassCard>
 
@@ -214,26 +255,26 @@ export default function Settings() {
           </div>
           <h2 className="text-sm font-semibold text-emerald-300">Workspace</h2>
         </div>
-        <p className="text-xs text-gray-500 mb-4">Configure how NoteStream uses AI across your workspace.</p>
+        <p className="text-xs text-theme-muted mb-4">Configure how NoteStream uses AI across your workspace.</p>
 
         <div className="space-y-3">
           <ToggleSetting
             label="Auto-summarize new uploads"
             description="Automatically generate AI summaries for uploaded files"
             enabled={autoSummarize}
-            onChange={setAutoSummarize}
+            onChange={handleAutoSummarizeChange}
           />
           <ToggleSetting
             label="Smart notifications"
             description="Get AI-powered reminders based on your notes"
             enabled={smartNotifications}
-            onChange={setSmartNotifications}
+            onChange={handleSmartNotificationsChange}
           />
           <ToggleSetting
             label="Email me weekly digests"
             description="Receive a summary of your activity every Monday"
             enabled={weeklyDigest}
-            onChange={setWeeklyDigest}
+            onChange={handleWeeklyDigestChange}
           />
         </div>
       </GlassCard>
@@ -256,6 +297,7 @@ export default function Settings() {
               if (v) {
                 setShowPinModal(true);
               } else {
+                localStorage.removeItem("ns-note-pin");
                 setPinEnabled(false);
                 showToast("PIN lock disabled");
               }
@@ -264,18 +306,18 @@ export default function Settings() {
 
           <button
             onClick={() => setShowExportModal(true)}
-            className="w-full flex items-center justify-between bg-[#0d0d14] border border-[#26262c] rounded-xl px-4 py-3 hover:border-[#3a3a44] transition group"
+            className="w-full flex items-center justify-between bg-[var(--bg-input)] border border-[var(--border-secondary)] rounded-xl px-4 py-3 hover:border-theme-tertiary transition group"
           >
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 rounded-lg bg-sky-500/20 flex items-center justify-center">
                 <Export size={16} weight="duotone" className="text-sky-400" />
               </div>
               <div className="text-left">
-                <p className="text-sm text-gray-200">Export my data</p>
-                <p className="text-[11px] text-gray-500">Download all your notes and files</p>
+                <p className="text-sm text-[var(--text-secondary)]">Export my data</p>
+                <p className="text-[11px] text-theme-muted">Download all your notes and files</p>
               </div>
             </div>
-            <FiChevronRight className="text-gray-500 group-hover:text-gray-300 transition" />
+            <FiChevronRight className="text-theme-muted group-hover:text-theme-tertiary transition" />
           </button>
         </div>
       </GlassCard>
@@ -317,19 +359,19 @@ export default function Settings() {
           </div>
           <h2 className="text-sm font-semibold text-rose-300">Danger Zone</h2>
         </div>
-        <p className="text-xs text-gray-500 mb-4">These actions are destructive and cannot be undone.</p>
+        <p className="text-xs text-theme-muted mb-4">These actions are destructive and cannot be undone.</p>
 
         <div className="space-y-2">
           <button
             onClick={() => setShowLogoutModal(true)}
-            className="w-full flex items-center gap-3 bg-[#0d0d14] border border-[#26262c] rounded-xl px-4 py-3 hover:border-rose-500/30 transition text-left"
+            className="w-full flex items-center gap-3 bg-[var(--bg-input)] border border-[var(--border-secondary)] rounded-xl px-4 py-3 hover:border-rose-500/30 transition text-left"
           >
             <div className="h-8 w-8 rounded-lg bg-gray-500/20 flex items-center justify-center">
-              <FiLogOut size={16} className="text-gray-400" />
+              <FiLogOut size={16} className="text-theme-muted" />
             </div>
             <div>
-              <p className="text-sm text-gray-200">Log out</p>
-              <p className="text-[11px] text-gray-500">Sign out of your account</p>
+              <p className="text-sm text-[var(--text-secondary)]">Log out</p>
+              <p className="text-[11px] text-theme-muted">Sign out of your account</p>
             </div>
           </button>
 
@@ -342,7 +384,7 @@ export default function Settings() {
             </div>
             <div>
               <p className="text-sm text-rose-300">Delete account</p>
-              <p className="text-[11px] text-gray-500">Permanently delete all data</p>
+              <p className="text-[11px] text-theme-muted">Permanently delete all data</p>
             </div>
           </button>
         </div>
@@ -350,8 +392,8 @@ export default function Settings() {
 
       {/* App Version */}
       <div className="text-center py-4">
-        <p className="text-xs text-gray-600">NoteStream v1.0.0</p>
-        <p className="text-[10px] text-gray-700 mt-1">Made with ❤️ for productivity</p>
+        <p className="text-xs text-theme-muted">NoteStream v1.0.0</p>
+        <p className="text-[10px] text-theme-muted mt-1">Made with ❤️ for productivity</p>
       </div>
 
       {/* Delete Account Modal */}
@@ -364,6 +406,8 @@ export default function Settings() {
             confirmColor="rose"
             icon={<FiTrash2 size={20} className="text-rose-400" />}
             onConfirm={() => {
+              // Clear all localStorage
+              localStorage.clear();
               setShowDeleteModal(false);
               showToast("Account deletion requested");
             }}
@@ -380,7 +424,7 @@ export default function Settings() {
             description="You'll need to sign in again to access your notes."
             confirmLabel="Log Out"
             confirmColor="gray"
-            icon={<FiLogOut size={20} className="text-gray-400" />}
+            icon={<FiLogOut size={20} className="text-theme-muted" />}
             onConfirm={() => {
               setShowLogoutModal(false);
               showToast("Logged out successfully");
@@ -409,7 +453,8 @@ export default function Settings() {
       <AnimatePresence>
         {showPinModal && (
           <PinModal
-            onSave={() => {
+            onSave={(pin) => {
+              localStorage.setItem("ns-note-pin", pin);
               setPinEnabled(true);
               setShowPinModal(false);
               showToast("PIN lock enabled!");
@@ -427,15 +472,15 @@ export default function Settings() {
 ----------------------------------------- */
 function ToggleSetting({ label, description, enabled, onChange }) {
   return (
-    <div className="flex items-center justify-between bg-[#0d0d14] border border-[#26262c] rounded-xl px-4 py-3">
+    <div className="flex items-center justify-between bg-[var(--bg-input)] border border-[var(--border-secondary)] rounded-xl px-4 py-3">
       <div className="pr-4">
-        <p className="text-sm text-gray-200">{label}</p>
-        {description && <p className="text-[11px] text-gray-500 mt-0.5">{description}</p>}
+        <p className="text-sm text-[var(--text-secondary)]">{label}</p>
+        {description && <p className="text-[11px] text-theme-muted mt-0.5">{description}</p>}
       </div>
       <button
         onClick={() => onChange(!enabled)}
         className={`relative w-11 h-6 rounded-full transition-colors ${
-          enabled ? "bg-indigo-600" : "bg-[#2a2a34]"
+         enabled ? "bg-indigo-600" : "bg-[var(--bg-button)]"
         }`}
       >
         <motion.div
@@ -455,18 +500,18 @@ function SupportLink({ icon, label, badge, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center justify-between bg-[#0d0d14] border border-[#26262c] rounded-xl px-4 py-3 hover:border-[#3a3a44] transition group"
+      className="w-full flex items-center justify-between bg-[var(--bg-input)] border border-[var(--border-secondary)] rounded-xl px-4 py-3 hover:border-theme-tertiary transition group"
     >
       <div className="flex items-center gap-3">
-        <span className="text-gray-400">{icon}</span>
-        <span className="text-sm text-gray-200">{label}</span>
+        <span className="text-theme-muted">{icon}</span>
+        <span className="text-sm text-[var(--text-secondary)]">{label}</span>
         {badge && (
-          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">
+          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-accent-indigo">
             {badge}
           </span>
         )}
       </div>
-      <FiChevronRight className="text-gray-500 group-hover:text-gray-300 transition" />
+      <FiChevronRight className="text-theme-muted group-hover:text-theme-tertiary transition" />
     </button>
   );
 }
@@ -486,31 +531,31 @@ function ConfirmModal({ title, description, confirmLabel, confirmColor, icon, on
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-md flex items-center justify-center px-4"
+      className="fixed inset-0 z-[999] bg-theme-elevated/60 backdrop-blur-md flex items-center justify-center px-4"
     >
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-[#111114] border border-[#26262c] rounded-2xl p-5 max-w-sm w-full"
+        className="bg-theme-elevated border border-[var(--border-secondary)] rounded-2xl p-5 max-w-sm w-full"
       >
         <div className="flex items-center gap-3 mb-4">
-          <div className="h-10 w-10 rounded-xl bg-[#1c1c24] flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-theme-button flex items-center justify-center">
             {icon}
           </div>
-          <h3 className="text-lg font-semibold text-white">{title}</h3>
+          <h3 className="text-lg font-semibold text-theme-primary">{title}</h3>
         </div>
-        <p className="text-sm text-gray-400 mb-5">{description}</p>
+        <p className="text-sm text-theme-muted mb-5">{description}</p>
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl bg-[#1c1c24] text-gray-300 text-sm font-medium hover:bg-[#262631] transition"
+            className="flex-1 py-2.5 rounded-xl bg-theme-button text-theme-tertiary text-sm font-medium hover:bg-theme-button-hover transition"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className={`flex-1 py-2.5 rounded-xl text-white text-sm font-medium transition ${colorMap[confirmColor]}`}
+            className={`flex-1 py-2.5 rounded-xl text-theme-primary text-sm font-medium transition ${colorMap[confirmColor]}`}
           >
             {confirmLabel}
           </button>
@@ -552,23 +597,23 @@ function PinModal({ onSave, onCancel }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-md flex items-center justify-center px-4"
+      className="fixed inset-0 z-[999] bg-theme-elevated/60 backdrop-blur-md flex items-center justify-center px-4"
     >
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-[#111114] border border-[#26262c] rounded-2xl p-5 max-w-sm w-full"
+        className="bg-theme-elevated border border-[var(--border-secondary)] rounded-2xl p-5 max-w-sm w-full"
       >
         <div className="flex items-center gap-3 mb-4">
-          <div className="h-10 w-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-indigo-500/20 border border-indigo-500/25 flex items-center justify-center">
             <FiLock size={18} className="text-indigo-400" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="text-lg font-semibold text-theme-primary">
               {step === 1 ? "Create PIN" : "Confirm PIN"}
             </h3>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-theme-muted">
               {step === 1 ? "Enter a 4-digit PIN" : "Re-enter your PIN"}
             </p>
           </div>
@@ -593,7 +638,7 @@ function PinModal({ onSave, onCancel }) {
             }
             setError("");
           }}
-          className="w-full bg-[#0d0d14] border border-[#26262c] rounded-xl px-4 py-4 text-center tracking-[0.5em] text-xl text-white font-mono placeholder:text-gray-600 focus:outline-none focus:border-indigo-500/50 mb-4"
+          className="w-full bg-[var(--bg-input)] border border-[var(--border-secondary)] rounded-xl px-4 py-4 text-center tracking-[0.5em] text-xl text-theme-primary font-mono placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 mb-4"
           placeholder="••••"
           autoFocus
         />
@@ -601,13 +646,13 @@ function PinModal({ onSave, onCancel }) {
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl bg-[#1c1c24] text-gray-300 text-sm font-medium hover:bg-[#262631] transition"
+            className="flex-1 py-2.5 rounded-xl bg-theme-button text-theme-tertiary text-sm font-medium hover:bg-theme-button-hover transition"
           >
             Cancel
           </button>
           <button
             onClick={step === 1 ? handleNext : handleConfirm}
-            className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 transition"
+            className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-theme-primary text-sm font-medium hover:bg-indigo-500 transition"
           >
             {step === 1 ? "Next" : "Save PIN"}
           </button>

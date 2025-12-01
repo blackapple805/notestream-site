@@ -144,7 +144,7 @@ export default function HowItWorks() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.45, delay: i * 0.1 }}
-              className="p-6 bg-[#0f0f12] border border-[#1e1e24] rounded-2xl hover:border-indigo-500/40 hover:shadow-[0_0_35px_rgba(99,102,241,0.25)] transition-all duration-300"
+              className="p-6 bg-[#0f0f12] border border-[#1e1e24] rounded-2xl hover:bg-theme-elevated hover:border-indigo-500/40 hover:shadow-[0_0_35px_rgba(99,102,241,0.25)] transition-all duration-300"
             >
               <div className="mb-4">{f.icon}</div>
               <h3 className="text-xl font-semibold mb-2">{f.title}</h3>
@@ -182,7 +182,7 @@ export default function HowItWorks() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.45, delay: i * 0.1 }}
-              className="p-7 bg-[#111114]/70 border border-[#1e1e24] rounded-2xl hover:border-indigo-500/40 hover:shadow-[0_0_40px_rgba(99,102,241,0.3)] transition-all duration-300"
+              className="p-7 bg-[#111114]/70 border border-[#1e1e24] rounded-2xl hover:bg-theme-elevated hover:border-indigo-500/40 hover:shadow-[0_0_40px_rgba(99,102,241,0.3)] transition-all duration-300"
             >
               <h3 className="text-xl font-semibold mb-3 text-indigo-300">{item.title}</h3>
               <p className="text-gray-400">{item.desc}</p>

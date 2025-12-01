@@ -47,7 +47,7 @@ export default function AISummary() {
 
   return (
     <section
-      className="relative min-h-screen text-white px-6 py-[18vh] overflow-hidden"
+      className="relative min-h-screen text-theme-primary px-6 py-[18vh] overflow-hidden"
       style={{
         backgroundColor: "#0d0d10",
         backgroundImage: "url('/assets/images/smooth-bg.png')",
@@ -64,12 +64,12 @@ export default function AISummary() {
       <ScrollReveal>
         <h1 className="text-4xl md:text-6xl font-extrabold text-center mb-6">
           Smarter <span className="text-indigo-400">Summaries</span> Powered by{" "}
-          <span className="text-indigo-300">AI</span>
+          <span className="text-accent-indigo">AI</span>
         </h1>
       </ScrollReveal>
 
       <ScrollReveal delay={0.1}>
-        <p className="text-gray-400 text-lg max-w-2xl mx-auto text-center mb-20">
+        <p className="text-theme-muted text-lg max-w-2xl mx-auto text-center mb-20">
           Turn long, messy notes into clear insights. NoteStream’s AI doesn’t just summarize —
           it understands, rewrites, and highlights what actually matters.
         </p>
@@ -81,7 +81,7 @@ export default function AISummary() {
           {features.map((f, i) => (
             <div
               key={i}
-              className="group bg-[#111114]/70 border border-[#1f1f25] rounded-2xl p-8 
+              className="group bg-theme-elevated/70 border border-[#1f1f25] rounded-2xl p-8 
               backdrop-blur-md hover:-translate-y-2 hover:border-indigo-500/50 
               shadow-[0_0_25px_rgba(99,102,241,0.08)] hover:shadow-[0_0_50px_rgba(99,102,241,0.25)] 
               transition-all duration-500"
@@ -90,10 +90,10 @@ export default function AISummary() {
               group-hover:bg-indigo-500/20 transition-all duration-300">
                 {f.icon}
               </div>
-              <h3 className="text-xl font-semibold text-white mb-3 group-hover:text-indigo-400 transition">
+              <h3 className="text-xl font-semibold text-theme-primary mb-3 group-hover:text-indigo-400 transition">
                 {f.title}
               </h3>
-              <p className="text-gray-400 text-[0.95rem] leading-relaxed">{f.desc}</p>
+              <p className="text-theme-muted text-[0.95rem] leading-relaxed">{f.desc}</p>
             </div>
           ))}
         </div>
@@ -101,7 +101,7 @@ export default function AISummary() {
 
       {/* BEFORE → AFTER TRANSFORMATION */}
       <ScrollReveal delay={0.2}>
-        <div className="max-w-5xl mx-auto bg-[#111114]/70 border border-[#1f1f25] rounded-2xl p-10 
+        <div className="max-w-5xl mx-auto bg-theme-elevated/70 border border-[#1f1f25] rounded-2xl p-10 
         shadow-[0_0_40px_rgba(99,102,241,0.18)] backdrop-blur-md mb-20">
           <h2 className="text-3xl font-bold text-indigo-400 mb-8">
             See AI Summary Transform Your Notes
@@ -110,8 +110,8 @@ export default function AISummary() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
             {/* BEFORE BOX */}
             <div className="bg-[#0e0e12]/60 p-6 rounded-xl border border-[#1f1f25]">
-              <h3 className="text-indigo-300 text-lg font-semibold mb-3">Before</h3>
-              <p className="text-gray-400 whitespace-pre-line text-sm leading-relaxed">
+              <h3 className="text-accent-indigo text-lg font-semibold mb-3">Before</h3>
+              <p className="text-theme-muted whitespace-pre-line text-sm leading-relaxed">
                 {beforeText}
               </p>
             </div>
@@ -123,8 +123,8 @@ export default function AISummary() {
               transition={{ duration: 0.7, ease: "easeOut" }}
               className="bg-[#0e0e12]/60 p-6 rounded-xl border border-[#1f1f25]"
             >
-              <h3 className="text-indigo-300 text-lg font-semibold mb-3">After</h3>
-              <ul className="text-gray-300 text-sm space-y-2">
+              <h3 className="text-accent-indigo text-lg font-semibold mb-3">After</h3>
+              <ul className="text-[var(--text-secondary)] text-sm space-y-2">
                 {afterText.map((line, index) => (
                   <li key={index} className="flex items-start gap-2">
                     <FiZap className="text-indigo-400 mt-[2px]" />
@@ -141,10 +141,10 @@ export default function AISummary() {
       <ScrollReveal delay={0.25}>
         <div className="text-center mt-10">
           <button className="bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 
-          hover:to-indigo-500 text-white px-10 py-4 rounded-full font-semibold text-lg 
+          hover:to-indigo-500 text-theme-primary px-10 py-4 rounded-full font-semibold text-lg 
           shadow-[0_0_30px_rgba(99,102,241,0.3)] hover:shadow-[0_0_45px_rgba(99,102,241,0.4)] 
           transition-all duration-300 hover:scale-[1.05] flex items-center gap-2 mx-auto">
-            Try AI Summary <FiZap className="w-5 h-5 text-white" />
+            Try AI Summary <FiZap className="w-5 h-5 text-theme-primary" />
           </button>
         </div>
       </ScrollReveal>

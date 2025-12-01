@@ -25,23 +25,28 @@ export default function DashboardLayout() {
       className="
         w-full 
         min-h-[100dvh]
-        flex 
-        bg-[#0b0b0e] 
-        text-gray-200 
+        flex
+        bg-theme-primary
+        text-theme-primary
         relative
+        transition-colors duration-300
       "
     >
-      {/* Sidebar - renders both desktop sidebar AND mobile bottom nav */}
+      {/* Sidebar (desktop + mobile) */}
       <Sidebar />
 
       {/* Main Scroll Area */}
       <div
         className="
-          flex-grow w-full min-h-[100dvh]
+          flex-grow
+          w-full
+          min-h-[100dvh]
           md:ml-[220px]
-          relative z-[10]
+          relative
+          z-[10]
           overflow-y-visible md:overflow-y-auto
           pb-[90px] md:pb-12
+          transition-colors duration-300
         "
       >
         <div className="flex w-full justify-center">
@@ -64,11 +69,8 @@ export default function DashboardLayout() {
         </div>
       </div>
 
-      {/* GLOBAL TOAST TARGET */}
-      <div
-        id="global-toast"
-        className="hidden opacity-0 pointer-events-none"
-      />
+      {/* Global Toast Target */}
+      <div id="global-toast" className="hidden opacity-0 pointer-events-none" />
     </div>
   );
 }

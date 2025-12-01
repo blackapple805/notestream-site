@@ -16,10 +16,10 @@ export default function NoteRow({ note, onArchive, onDelete, onOpen, onLongPress
   const longPressTimer = useRef(null);
 
   const tagIcon = {
-    Work: <FiClipboard className="text-indigo-300" />,
-    Study: <FiBookOpen className="text-indigo-300" />,
-    Ideas: <FiZap className="text-indigo-300" />,
-  }[note.tag] || <FiFileText className="text-indigo-300" />;
+    Work: <FiClipboard className="text-accent-indigo" />,
+    Study: <FiBookOpen className="text-accent-indigo" />,
+    Ideas: <FiZap className="text-accent-indigo" />,
+  }[note.tag] || <FiFileText className="text-accent-indigo" />;
 
   const handleTouchStart = (e) => {
     const touch = e.touches[0];
@@ -62,7 +62,7 @@ export default function NoteRow({ note, onArchive, onDelete, onOpen, onLongPress
       {/* Swipe Actions */}
       <div className="absolute inset-y-0 right-0 flex items-center gap-[2px] pr-2">
         <button
-          className="w-10 h-10 bg-[#1e2233] text-indigo-300 border border-indigo-500/40 rounded-lg active:scale-95 transition"
+          className="w-10 h-10 bg-[#1e2233] text-accent-indigo border border-indigo-500/40 rounded-lg active:scale-95 transition"
           onClick={(e) => {
             e.stopPropagation();
             onArchive(note);
@@ -84,7 +84,7 @@ export default function NoteRow({ note, onArchive, onDelete, onOpen, onLongPress
 
       {/* Row Content */}
       <button
-        className="w-full px-4 py-3 text-left flex items-center gap-3 bg-[#101016] border border-[#26262c] rounded-xl hover:border-indigo-500/40 transition active:scale-[0.99]"
+        className="w-full px-4 py-3 text-left flex items-center gap-3 bg-theme-input border border-theme-secondary0 rounded-xl hover:bg-theme-elevated hover:border-indigo-500/40 transition active:scale-[0.99]"
         style={{ transform: `translateX(${translateX}px)` }}
         onClick={() => onOpen(note)}
         onTouchStart={handleTouchStart}
@@ -93,14 +93,14 @@ export default function NoteRow({ note, onArchive, onDelete, onOpen, onLongPress
         onTouchCancel={handleTouchEnd}
       >
         {/* Icon column – matching Dashboard */}
-        <div className="h-10 w-10 rounded-xl bg-[#181822] flex items-center justify-center">
+        <div className="h-10 w-10 rounded-xl bg-[var(--bg-secondary)]/10 flex items-center justify-center">
           {tagIcon}
         </div>
 
         {/* Text */}
         <div className="min-w-0 flex-1">
-          <span className="text-gray-100 text-[14px] font-medium block truncate">{note.title}</span>
-          <span className="text-[11px] text-gray-500 block truncate">Last updated {note.updated}</span>
+          <span className="text-[var(--text-secondary)] text-[14px] font-medium block truncate">{note.title}</span>
+          <span className="text-[11px] text-theme-muted block truncate">Last updated {note.updated}</span>
         </div>
       </button>
     </div>

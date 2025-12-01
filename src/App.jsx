@@ -7,6 +7,9 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
+// Theme Provider
+import { ThemeProvider } from "./context/ThemeContext";
+
 // Global Components
 import Navbar from "./components/Navbar";
 import ScrollToTop from "./components/ScrollToTop";
@@ -46,7 +49,6 @@ import AiLab from "./pages/AiLab";
 import Settings from "./pages/Settings";
 import DocumentViewer from "./pages/DocumentViewer";
 import RewriteDocument from "./pages/RewriteDocument";
-
 
 
 // ----------------------------------------------------------------
@@ -161,7 +163,7 @@ function PublicSiteWrapper() {
 
 
 // ----------------------------------------------------------------
-// ROOT APP
+// ROOT APP - Wrapped with ThemeProvider
 // ----------------------------------------------------------------
 export default function App() {
   const [docs, setDocs] = useState([
@@ -172,62 +174,59 @@ export default function App() {
       size: "1.2 MB",
       updated: "2 days ago",
       fileUrl: "/docs/projectRoadmap.pdf",
-
-      // NEW Smart Summary Intelligence
       summary: null,
     }
   ]);
 
-
   const [notes, setNotes] = useState([]);
   
   return (
-    <Router>
-      <ScrollToTop />
+    // Wrap entire app with ThemeProvider for global theme state
+    <ThemeProvider>
+      <Router>
+        <ScrollToTop />
 
-      <Routes>
-        {/* PUBLIC SITE */}
-        <Route path="/*" element={<PublicSiteWrapper />} />
+        <Routes>
+          {/* PUBLIC SITE */}
+          <Route path="/*" element={<PublicSiteWrapper />} />
 
-        {/* DASHBOARD PAGES */}
-        <Route path="/dashboard" element={<DashboardLayout />}>
-          <Route index element={<Dashboard />} />
+          {/* DASHBOARD PAGES */}
+          <Route path="/dashboard" element={<DashboardLayout />}>
+            <Route index element={<Dashboard />} />
 
-          {/* NOTES */}
-          <Route
-            path="notes"
-            element={<Notes notes={notes} setNotes={setNotes} />}
-          />
-          <Route
-            path="notes/:noteId"
-            element={<Notes notes={notes} setNotes={setNotes} />}
-          />
+            {/* NOTES */}
+            <Route
+              path="notes"
+              element={<Notes notes={notes} setNotes={setNotes} />}
+            />
+            <Route
+              path="notes/:noteId"
+              element={<Notes notes={notes} setNotes={setNotes} />}
+            />
 
-          {/* DOCUMENTS */}
-          <Route
-            path="documents"
-            element={<Documents docs={docs} setDocs={setDocs} />}
-          />
-          <Route
-            path="documents/view/:id"
-            element={<DocumentViewer docs={docs} />}
-          />
-          
-          <Route
-            path="documents/rewrite/:id"
-            element={<RewriteDocument docs={docs} setDocs={setDocs} />}
-          />
+            {/* DOCUMENTS */}
+            <Route
+              path="documents"
+              element={<Documents docs={docs} setDocs={setDocs} />}
+            />
+            <Route
+              path="documents/view/:id"
+              element={<DocumentViewer docs={docs} />}
+            />
+            
+            <Route
+              path="documents/rewrite/:id"
+              element={<RewriteDocument docs={docs} setDocs={setDocs} />}
+            />
 
-          {/* OTHER SECTIONS */}
-          <Route path="summaries" element={<Summaries />} />
-          <Route path="activity" element={<Activity />} />
-          <Route path="ai-lab" element={<AiLab />} />
-          <Route path="settings" element={<Settings />} />
-        </Route>
-      </Routes>
-    </Router>
+            {/* OTHER SECTIONS */}
+            <Route path="summaries" element={<Summaries />} />
+            <Route path="activity" element={<Activity />} />
+            <Route path="ai-lab" element={<AiLab />} />
+            <Route path="settings" element={<Settings />} />
+          </Route>
+        </Routes>
+      </Router>
+    </ThemeProvider>
   );
 }
-
-
-

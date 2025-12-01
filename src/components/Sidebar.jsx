@@ -47,7 +47,7 @@ export default function Sidebar() {
         className="
           fixed left-0 right-0 h-[75px] z-[90]
           md:hidden
-          bg-[#0d0d11]/95 backdrop-blur-lg
+          bg-theme-elevated backdrop-blur-lg
           border-t border-indigo-500/10
           shadow-[0_-4px_25px_rgba(0,0,0,0.35)]
           flex justify-between items-center px-4
@@ -70,10 +70,10 @@ export default function Sidebar() {
               to={item.to}
               className="flex flex-col items-center justify-center flex-1 py-2"
             >
-              <span className={`${active ? "text-indigo-400" : "text-gray-400"} transition`}>
+              <span className={`${active ? "text-indigo-400" : "text-theme-tertiary"} transition`}>
                 {item.icon}
               </span>
-              <span className={`text-[10px] mt-1 transition truncate ${active ? "text-indigo-400" : "text-gray-500"}`}>
+              <span className={`text-[10px] mt-1 transition truncate ${active ? "text-indigo-400" : "text-theme-muted"}`}>
                 {short}
               </span>
             </Link>
@@ -85,7 +85,7 @@ export default function Sidebar() {
       <aside
         className={`
           hidden md:flex fixed top-0 left-0 h-screen z-[80]
-          bg-[#0e0e13]/80 backdrop-blur-xl
+          bg-theme-primary backdrop-blur-xl
           border-r border-indigo-500/10
           shadow-[0_0_30px_rgba(99,102,241,0.25)]
           overflow-hidden
@@ -110,10 +110,10 @@ export default function Sidebar() {
                     ${active ? "bg-indigo-500/20 border-indigo-500/40" : ""}
                   `}
                 >
-                  <span className="text-indigo-300">{item.icon}</span>
+                  <span className="text-accent-indigo">{item.icon}</span>
                   <span
                     className={`
-                      text-gray-300 text-[0.92rem] whitespace-nowrap flex items-center gap-1
+                      text-[var(--text-secondary)] text-[0.92rem] whitespace-nowrap flex items-center gap-1
                       transition-all duration-500
                       ${collapsed ? "opacity-0 w-0 translate-x-2 overflow-hidden" : "opacity-100 w-auto translate-x-0"}
                     `}
@@ -128,7 +128,7 @@ export default function Sidebar() {
 
           <div className="mt-auto px-2">
             <div className="h-[1px] w-full bg-indigo-500/10 mb-3"></div>
-            <p className={`text-gray-600 text-xs transition-all duration-500 ${collapsed ? "opacity-0 w-0" : "opacity-100 w-auto"}`}>
+            <p className={`text-theme-muted text-xs transition-all duration-500 ${collapsed ? "opacity-0 w-0" : "opacity-100 w-auto"}`}>
               v0.1 • Early Access
             </p>
           </div>

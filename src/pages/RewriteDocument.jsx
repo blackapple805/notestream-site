@@ -20,11 +20,11 @@ export default function RewriteDocument({ docs }) {
   };
 
   return (
-    <div className="min-h-full w-full py-12 px-5 text-gray-200 animate-fadeIn">
+    <div className="min-h-full w-full py-12 px-5 text-theme-primary animate-fadeIn">
       {/* Top Bar */}
       <div className="flex items-center mb-6">
         <button
-          className="text-gray-400 active:scale-90"
+          className="text-theme-muted active:scale-90"
           onClick={() => navigate(-1)}
         >
           <FiArrowLeft size={22} />
@@ -35,7 +35,7 @@ export default function RewriteDocument({ docs }) {
         Rewrite with AI — {doc.name}
       </h1>
 
-      <p className="text-gray-400 text-sm mb-6">
+      <p className="text-theme-muted text-sm mb-6">
         Choose a rewrite style below
       </p>
 
@@ -60,9 +60,9 @@ export default function RewriteDocument({ docs }) {
         </button>
       </div>
 
-      <div className="bg-[#1b1b22] border border-[#26262c] p-6 rounded-xl min-h-[30vh]">
+      <div className="bg-[#1b1b22] border border-[var(--border-secondary)]/20 p-6 rounded-xl min-h-[30vh]">
         {output || (
-          <p className="text-gray-500 text-sm">
+          <p className="text-theme-muted text-sm">
             Select a style to generate rewritten text
           </p>
         )}

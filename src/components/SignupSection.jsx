@@ -140,7 +140,7 @@ export default function Signup() {
                 transition={{ duration: 0.4, ease: "easeOut" }}
                 className="flex flex-col items-center"
               >
-                <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-[#1a1a22] mb-3 border border-gray-800 hover:border-indigo-500/60 transition-all">
+                <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-theme-button mb-3 border border-gray-800 hover:border-indigo-500/60 transition-all">
                   {f.icon}
                 </div>
                 <p className="text-sm text-gray-400">{f.label}</p>
