@@ -15,6 +15,30 @@ import {
 } from "react-icons/fi";
 import { Brain, Sparkle, FilePlus } from "phosphor-react";
 
+/* -----------------------------------------
+   Priority Tag Component - Theme Aware
+----------------------------------------- */
+function PriorityTag({ priority, children }) {
+  const baseClasses = "text-[10px] font-semibold px-2.5 py-1 rounded-full border";
+  
+  const styles = {
+    critical: "bg-rose-500/20 text-rose-600 border-rose-500/40 dark:text-rose-400",
+    high: "bg-rose-500/20 text-rose-600 border-rose-500/40 dark:text-rose-400",
+    medium: "bg-amber-500/20 text-amber-600 border-amber-500/40 dark:text-amber-400",
+    low: "bg-emerald-500/20 text-emerald-600 border-emerald-500/40 dark:text-emerald-400",
+    info: "bg-purple-500/20 text-purple-600 border-purple-500/40 dark:text-purple-400",
+  };
+
+  const priorityKey = priority?.toLowerCase() || "medium";
+  const style = styles[priorityKey] || styles.medium;
+
+  return (
+    <span className={`${baseClasses} ${style}`}>
+      {children}
+    </span>
+  );
+}
+
 export default function Documents({ docs = [], setDocs }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
@@ -27,14 +51,10 @@ export default function Documents({ docs = [], setDocs }) {
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [synthesisResult, setSynthesisResult] = useState(null);
   
-  // Saved briefs state
   const [savedBriefs, setSavedBriefs] = useState([]);
   const [viewingBrief, setViewingBrief] = useState(null);
-  
-  // Toast state
   const [toast, setToast] = useState(null);
 
-  // Show toast helper
   const showToast = (message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
@@ -133,7 +153,6 @@ export default function Documents({ docs = [], setDocs }) {
     setIsSynthesizing(false);
     setSynthesizeMode(false);
     
-    // Mark documents as synthesized
     const docIds = selectedDocs.map(d => d.id);
     setDocs((prev) => prev.map((d) => 
       docIds.includes(d.id) ? { ...d, synthesized: true, synthesizedAt: new Date().toISOString() } : d
@@ -206,9 +225,6 @@ export default function Documents({ docs = [], setDocs }) {
     [query, filterType, docs]
   );
 
-  // Get synthesized docs
-  const synthesizedDocs = docs.filter(d => d.synthesized);
-
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
       {/* Toast Notification */}
@@ -218,10 +234,10 @@ export default function Documents({ docs = [], setDocs }) {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-4 left-1/2 -translate-x-1/2 z-[10000] px-4 py-3 rounded-xl text-sm font-medium shadow-xl backdrop-blur-md ${
+            className={`fixed top-4 left-1/2 -translate-x-1/2 z-[10000] px-4 py-3 rounded-xl text-sm font-medium shadow-xl ${
               toast.type === "error"
-                ? "bg-rose-900/80 text-rose-200 border border-rose-500/40"
-                : "bg-emerald-900/80 text-emerald-200 border border-emerald-500/40"
+                ? "bg-rose-500 text-white"
+                : "bg-emerald-500 text-white"
             }`}
           >
             {toast.message}
@@ -232,13 +248,13 @@ export default function Documents({ docs = [], setDocs }) {
       <header className="pt-2 px-1">
         <div className="flex items-center gap-2 mb-1">
           <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">Research Synthesizer</h1>
-          <Brain className="text-indigo-400" size={24} weight="duotone" />
+          <Brain className="text-indigo-500" size={24} weight="duotone" />
         </div>
         <p className="text-theme-muted text-sm mt-1 mb-5">Merge multiple documents into one clean, actionable brief.</p>
 
         <div className="flex flex-col sm:flex-row gap-3 mt-1 mb-2">
           <button
-            className="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-theme-primary font-medium shadow-lg flex-1 py-3 rounded-full"
+            className="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-medium shadow-lg flex-1 py-3 rounded-full"
             onClick={() => { setShowUploader(true); handleUploadButton(); }}
           >
             <FilePlus size={20} weight="bold" />
@@ -247,7 +263,7 @@ export default function Documents({ docs = [], setDocs }) {
 
           <button
             className={`flex items-center justify-center gap-2 font-medium shadow-lg flex-1 py-3 rounded-full transition-all ${
-              synthesizeMode ? "bg-rose-600 hover:bg-rose-500 text-theme-primary" : "bg-gradient-to-r from-purple-500 to-indigo-500 text-theme-primary"
+              synthesizeMode ? "bg-rose-600 hover:bg-rose-500 text-white" : "bg-gradient-to-r from-purple-500 to-indigo-500 text-white"
             }`}
             onClick={synthesizeMode ? cancelSynthesizeMode : startSynthesizeMode}
           >
@@ -257,16 +273,22 @@ export default function Documents({ docs = [], setDocs }) {
 
         <AnimatePresence>
           {synthesizeMode && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mt-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }} 
+              animate={{ opacity: 1, height: "auto" }} 
+              exit={{ opacity: 0, height: 0 }} 
+              className="mt-4 p-4 rounded-xl border border-purple-500/30"
+              style={{ backgroundColor: 'var(--bg-card)' }}
+            >
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-2">
-                  <FiLayers className="text-purple-400" size={18} />
-                  <span className="text-sm text-purple-200">
+                  <FiLayers className="text-purple-500" size={18} />
+                  <span className="text-sm text-theme-secondary">
                     Select {selectedDocs.length < 2 ? `at least 2 documents` : `${selectedDocs.length} selected`}
                   </span>
                 </div>
                 {selectedDocs.length >= 2 && (
-                  <button onClick={runSynthesis} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-theme-primary text-sm px-4 py-2 rounded-full transition">
+                  <button onClick={runSynthesis} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white text-sm px-4 py-2 rounded-full transition">
                     <Sparkle size={16} weight="fill" /> Generate Brief
                   </button>
                 )}
@@ -274,9 +296,9 @@ export default function Documents({ docs = [], setDocs }) {
               {selectedDocs.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3">
                   {selectedDocs.map((doc) => (
-                    <span key={doc.id} className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full border border-purple-500/30 flex items-center gap-1">
+                    <span key={doc.id} className="text-xs bg-purple-500/20 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-full border border-purple-500/30 flex items-center gap-1">
                       {doc.name}
-                      <button onClick={() => toggleDocSelection(doc)} className="hover:text-theme-primary">×</button>
+                      <button onClick={() => toggleDocSelection(doc)} className="hover:text-purple-800 dark:hover:text-purple-200 ml-1">×</button>
                     </span>
                   ))}
                 </div>
@@ -290,38 +312,31 @@ export default function Documents({ docs = [], setDocs }) {
       {savedBriefs.length > 0 && (
         <GlassCard className="border-purple-500/30">
           <div className="flex items-center gap-2 mb-4">
-            <FiBookOpen className="text-purple-400" size={18} />
-            <h2 className="text-sm font-semibold text-purple-300">Saved Research Briefs</h2>
-            <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">{savedBriefs.length}</span>
+            <FiBookOpen className="text-purple-500" size={18} />
+            <h2 className="text-sm font-semibold text-purple-600 dark:text-purple-400">Saved Research Briefs</h2>
+            <span className="text-xs bg-purple-500/20 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full">{savedBriefs.length}</span>
           </div>
           <div className="space-y-2">
             {savedBriefs.map((brief) => (
               <div
                 key={brief.id}
-                className="flex items-center justify-between bg-theme-elevated border border-purple-500/20 rounded-xl px-4 py-3 hover:border-purple-500/40 transition"
+                className="flex items-center justify-between rounded-xl px-4 py-3 border border-purple-500/20 hover:border-purple-500/40 transition"
+                style={{ backgroundColor: 'var(--bg-elevated)' }}
               >
                 <div className="flex-1 min-w-0 pr-4">
                   <div className="flex items-center gap-2">
-                    <Brain size={16} weight="duotone" className="text-purple-400 flex-shrink-0" />
-                    <p className="text-[var(--text-secondary)] text-sm font-medium truncate">{brief.title}</p>
+                    <Brain size={16} weight="duotone" className="text-purple-500 flex-shrink-0" />
+                    <p className="text-theme-secondary text-sm font-medium truncate">{brief.title}</p>
                   </div>
                   <p className="text-[11px] text-theme-muted mt-1">
                     {brief.sourceCount} sources • {new Date(brief.generatedAt).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => viewBrief(brief)}
-                    className="text-purple-400 hover:text-purple-300 p-2 transition"
-                    title="View Brief"
-                  >
+                  <button onClick={() => viewBrief(brief)} className="text-purple-500 hover:text-purple-600 dark:hover:text-purple-400 p-2 transition" title="View Brief">
                     <FiEye size={18} />
                   </button>
-                  <button
-                    onClick={() => deleteBrief(brief.id)}
-                    className="text-theme-muted hover:text-rose-400 p-2 transition"
-                    title="Delete"
-                  >
+                  <button onClick={() => deleteBrief(brief.id)} className="text-theme-muted hover:text-rose-500 p-2 transition" title="Delete">
                     <FiTrash2 size={18} />
                   </button>
                 </div>
@@ -339,16 +354,23 @@ export default function Documents({ docs = [], setDocs }) {
             placeholder="Search documents…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full md:w-80 bg-theme-input border border-theme-secondary0 rounded-xl px-3 py-2 text-sm text-theme-primary placeholder:text-theme-muted focus:border-indigo-500/70 focus:outline-none"
+            className="w-full md:w-80 rounded-xl px-3 py-2 text-sm text-theme-primary placeholder:text-theme-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/50 border"
+            style={{
+              backgroundColor: 'var(--bg-input)',
+              borderColor: 'var(--border-secondary)',
+            }}
           />
           <div className="flex gap-2 text-xs">
             {["ALL", "PDF", "DOCX", "XLSX"].map((t) => (
               <button
                 key={t}
                 onClick={() => setFilterType(t)}
-                className={`px-3 py-[6px] rounded-full border transition ${
-                  filterType === t ? "bg-indigo-500/25 text-indigo-600 border-indigo-500/40" : "bg-transparent text-theme-muted border-gray-700 hover:text-theme-primary"
+                className={`px-3 py-[6px] rounded-full border transition font-medium ${
+                  filterType === t 
+                    ? "bg-indigo-600 text-white border-indigo-600" 
+                    : "text-theme-muted hover:text-theme-primary border-gray-300 dark:border-gray-600"
                 }`}
+                style={filterType !== t ? { backgroundColor: 'var(--bg-button)' } : {}}
               >
                 {t === "ALL" ? "All" : t}
               </button>
@@ -364,25 +386,30 @@ export default function Documents({ docs = [], setDocs }) {
               <div
                 key={doc.id}
                 onClick={synthesizeMode ? () => toggleDocSelection(doc) : undefined}
-                className={`flex items-center justify-between bg-theme-elevated border rounded-xl px-4 py-3 transition cursor-pointer ${
-                  synthesizeMode
-                    ? isSelected ? "border-purple-500/60 bg-purple-500/10" : "border-[var(--border-secondary)]/20 hover:border-purple-500/40"
-                    : "border-[var(--border-secondary)]/20 hover:bg-theme-elevated hover:border-indigo-500/40"
+                className={`flex items-center justify-between rounded-xl px-4 py-3 transition cursor-pointer border ${
+                  synthesizeMode && isSelected ? "border-purple-500/60" : "hover:border-indigo-500/40"
                 }`}
+                style={{ 
+                  backgroundColor: isSelected ? 'rgba(168, 85, 247, 0.1)' : 'var(--bg-elevated)',
+                  borderColor: isSelected ? 'rgba(168, 85, 247, 0.6)' : 'var(--border-secondary)',
+                }}
               >
                 <div className="flex items-center gap-3 flex-1 pr-6 min-w-0">
                   {synthesizeMode && (
-                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition ${isSelected ? "bg-purple-500 border-purple-500" : "border-gray-600"}`}>
-                      {isSelected && <FiCheck size={14} className="text-theme-primary" />}
+                    <div 
+                      className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition ${
+                        isSelected ? "bg-purple-500 border-purple-500" : ""
+                      }`}
+                      style={!isSelected ? { borderColor: 'var(--text-muted)' } : {}}
+                    >
+                      {isSelected && <FiCheck size={14} className="text-white" />}
                     </div>
                   )}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-[var(--text-secondary)] text-[14px] font-medium truncate">{doc.name}</p>
+                      <p className="text-theme-secondary text-[14px] font-medium truncate">{doc.name}</p>
                       {doc.synthesized && (
-                        <span className="text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded-full border border-purple-500/30 flex-shrink-0">
-                          Synthesized
-                        </span>
+                        <PriorityTag priority="info">Synthesized</PriorityTag>
                       )}
                     </div>
                     <p className="text-[11px] text-theme-muted mt-0.5 truncate">{doc.type} · {doc.size} · Updated {doc.updated}</p>
@@ -392,7 +419,7 @@ export default function Documents({ docs = [], setDocs }) {
                   <div className="flex gap-3 items-center">
                     <button className="text-theme-muted hover:text-indigo-500 active:scale-95 transition" onClick={(e) => { e.stopPropagation(); handlePreview(doc); }} title="Preview"><FiEye size={22} /></button>
                     <button className="text-theme-muted hover:text-indigo-500 active:scale-95 transition" onClick={(e) => { e.stopPropagation(); handleSummarize(doc); }} title="AI Summary"><FiFileText size={22} /></button>
-                    <button className="text-theme-muted hover:text-rose-300 active:scale-95 transition" onClick={(e) => { e.stopPropagation(); handleDownload(doc); }} title="Download"><FiDownload size={22} /></button>
+                    <button className="text-theme-muted hover:text-rose-500 active:scale-95 transition" onClick={(e) => { e.stopPropagation(); handleDownload(doc); }} title="Download"><FiDownload size={22} /></button>
                   </div>
                 )}
               </div>
@@ -402,19 +429,31 @@ export default function Documents({ docs = [], setDocs }) {
       </GlassCard>
 
       <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={handleFileSelected} />
-      {showUploader && <div className="fixed inset-0 z-[9998] bg-theme-elevated/40" onClick={() => setShowUploader(false)} />}
+      {showUploader && <div className="fixed inset-0 z-[9998]" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowUploader(false)} />}
 
       {/* Synthesizing Overlay */}
       <AnimatePresence>
         {isSynthesizing && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] bg-theme-elevated/70 backdrop-blur-md flex items-center justify-center">
-            <div className="text-center">
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[9999] flex items-center justify-center"
+            style={{ backgroundColor: 'var(--bg-overlay)' }}
+          >
+            <div 
+              className="text-center p-8 rounded-2xl border shadow-2xl"
+              style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-secondary)' }}
+            >
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
-                <Sparkle size={32} weight="fill" className="text-purple-400 animate-pulse" />
+                <Sparkle size={32} weight="fill" className="text-purple-500 animate-pulse" />
               </div>
               <h3 className="text-lg text-theme-primary mb-2">Synthesizing Documents...</h3>
               <p className="text-sm text-theme-muted">Analyzing {selectedDocs.length} documents</p>
-              <div className="w-48 h-1.5bg-theme-button rounded-full overflow-hidden mt-4 mx-auto">
+              <div 
+                className="w-48 h-1.5 rounded-full overflow-hidden mt-4 mx-auto"
+                style={{ backgroundColor: 'var(--bg-tertiary)' }}
+              >
                 <div className="h-full w-full bg-purple-500 animate-[loadbar_1.2s_infinite]" />
               </div>
             </div>
@@ -422,21 +461,23 @@ export default function Documents({ docs = [], setDocs }) {
         )}
       </AnimatePresence>
 
-      {/* Synthesis Result Modal / Viewing Brief Modal */}
+      {/* Synthesis Result Modal / Viewing Brief Modal - SOLID BACKGROUND */}
       <AnimatePresence>
         {(synthesisResult || viewingBrief) && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] bg-theme-elevated/90 overflow-y-auto"
+            className="fixed inset-0 z-[9999] overflow-y-auto"
+            style={{ backgroundColor: 'var(--bg-primary)' }}
           >
             <div className="min-h-full px-4 py-6">
               <div className="max-w-3xl mx-auto">
                 <div className="flex justify-end mb-4">
                   <button
                     onClick={() => { closeSynthesisResult(); setViewingBrief(null); }}
-                    className="text-theme-muted hover:text-theme-primary p-2bg-theme-button rounded-full"
+                    className="text-theme-muted hover:text-theme-primary p-2 rounded-full transition"
+                    style={{ backgroundColor: 'var(--bg-tertiary)' }}
                   >
                     <FiX size={20} />
                   </button>
@@ -448,7 +489,7 @@ export default function Documents({ docs = [], setDocs }) {
                     <>
                       <div className="flex items-center gap-3 mb-6">
                         <div className="w-12 h-12 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
-                          <Brain size={28} weight="duotone" className="text-purple-400" />
+                          <Brain size={28} weight="duotone" className="text-purple-500" />
                         </div>
                         <div>
                           <h2 className="text-xl font-semibold text-theme-primary">{brief.title}</h2>
@@ -457,92 +498,130 @@ export default function Documents({ docs = [], setDocs }) {
                       </div>
 
                       <div className="space-y-4">
-                        <GlassCard className="p-4">
-                          <h3 className="text-sm font-semibold text-indigo-500 mb-2">Sources Analyzed</h3>
+                        {/* Sources Analyzed */}
+                        <SectionCard title="Sources Analyzed" color="indigo">
                           <div className="flex flex-wrap gap-2">
                             {brief.sources.map((source, i) => (
-                              <span key={i} className="text-xs bg-theme-elevated text-theme-muted px-2 py-1 rounded border border-[var(--border-secondary)]/20">{source}</span>
+                              <span 
+                                key={i} 
+                                className="text-xs text-theme-secondary px-3 py-1.5 rounded-lg border"
+                                style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
+                              >
+                                {source}
+                              </span>
                             ))}
                           </div>
-                        </GlassCard>
+                        </SectionCard>
 
-                        <GlassCard className="p-4">
-                          <h3 className="text-sm font-semibold text-indigo-500 mb-2">Executive Summary</h3>
-                          <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{brief.executiveSummary}</p>
-                        </GlassCard>
+                        {/* Executive Summary */}
+                        <SectionCard title="Executive Summary" color="indigo">
+                          <p className="text-sm text-theme-secondary leading-relaxed">{brief.executiveSummary}</p>
+                        </SectionCard>
 
-                        <GlassCard className="p-4">
-                          <h3 className="text-sm font-semibold text-indigo-500 mb-3">Key Themes Identified</h3>
+                        {/* Key Themes */}
+                        <SectionCard title="Key Themes Identified" color="indigo">
                           <div className="space-y-3">
                             {brief.keyThemes.map((theme, i) => (
-                              <div key={i} className="bg-theme-input border border-theme-secondary0 rounded-xl p-3">
-                                <div className="flex items-center justify-between mb-1">
+                              <div 
+                                key={i} 
+                                className="rounded-xl p-4 border"
+                                style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border-secondary)' }}
+                              >
+                                <div className="flex items-center justify-between mb-2">
                                   <span className="text-sm font-medium text-theme-primary">{theme.theme}</span>
-                                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${theme.frequency === "High" ? "bg-rose-900/40 text-rose-300" : "bg-amber-900/40 text-amber-300"}`}>
+                                  <PriorityTag priority={theme.frequency}>
                                     {theme.frequency}
-                                  </span>
+                                  </PriorityTag>
                                 </div>
                                 <p className="text-xs text-theme-muted">{theme.insight}</p>
                               </div>
                             ))}
                           </div>
-                        </GlassCard>
+                        </SectionCard>
 
-                        <GlassCard className="p-4">
-                          <h3 className="text-sm font-semibold text-indigo-500 mb-2">Consolidated Insights</h3>
-                          <ul className="space-y-1 text-sm text-[var(--text-secondary)] list-disc list-inside">
-                            {brief.consolidatedInsights.map((insight, i) => <li key={i}>{insight}</li>)}
+                        {/* Consolidated Insights */}
+                        <SectionCard title="Consolidated Insights" color="indigo">
+                          <ul className="space-y-2 text-sm text-theme-secondary">
+                            {brief.consolidatedInsights.map((insight, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-indigo-500 mt-0.5">•</span>
+                                {insight}
+                              </li>
+                            ))}
                           </ul>
-                        </GlassCard>
+                        </SectionCard>
 
-                        <GlassCard className="p-4">
-                          <h3 className="text-sm font-semibold text-indigo-500 mb-3">Unified Action Plan</h3>
+                        {/* Unified Action Plan */}
+                        <SectionCard title="Unified Action Plan" color="indigo">
                           <div className="space-y-3">
                             {brief.unifiedActionPlan.map((action, i) => (
-                              <div key={i} className="bg-theme-input border border-theme-secondary0 rounded-xl p-3">
-                                <p className="text-sm font-medium text-theme-primary mb-2">{action.action}</p>
-                                <div className="flex flex-wrap gap-2 text-[10px]">
-                                  <span className={`px-2 py-0.5 rounded-full ${action.priority === "Critical" ? "bg-rose-900/40 text-rose-300" : action.priority === "High" ? "bg-orange-900/40 text-orange-300" : "bg-indigo-900/40 text-indigo-500"}`}>{action.priority}</span>
-                                  <span className="px-2 py-0.5 bg-gray-700 text-[var(--text-secondary)] rounded-full">{action.owners}</span>
-                                  <span className="px-2 py-0.5 bg-purple-900/40 text-purple-300 rounded-full">{action.deadline}</span>
+                              <div 
+                                key={i} 
+                                className="rounded-xl p-4 border"
+                                style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border-secondary)' }}
+                              >
+                                <p className="text-sm font-medium text-theme-primary mb-3">{action.action}</p>
+                                <div className="flex flex-wrap gap-2">
+                                  <PriorityTag priority={action.priority}>
+                                    {action.priority}
+                                  </PriorityTag>
+                                  <span 
+                                    className="text-[10px] font-medium px-2.5 py-1 rounded-full text-theme-secondary border"
+                                    style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
+                                  >
+                                    {action.owners}
+                                  </span>
+                                  <span className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/30">
+                                    {action.deadline}
+                                  </span>
                                 </div>
                               </div>
                             ))}
                           </div>
-                        </GlassCard>
+                        </SectionCard>
 
+                        {/* Contradictions */}
                         {brief.contradictions.length > 0 && (
-                          <GlassCard className="p-4 border-amber-500/30">
-                            <h3 className="text-sm font-semibold text-amber-300 mb-2">⚠️ Contradictions Found</h3>
+                          <SectionCard title="⚠️ Contradictions Found" color="amber">
                             {brief.contradictions.map((c, i) => (
-                              <div key={i} className="bg-amber-900/10 border border-amber-500/20 rounded-lg p-3 text-sm">
-                                <p className="text-amber-200 font-medium">{c.topic}</p>
-                                <p className="text-theme-muted text-xs mt-1">{c.conflict}</p>
-                                <p className="text-amber-300 text-xs mt-1">→ {c.recommendation}</p>
+                              <div 
+                                key={i} 
+                                className="rounded-xl p-4 text-sm border"
+                                style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', borderColor: 'rgba(245, 158, 11, 0.3)' }}
+                              >
+                                <p className="text-amber-600 dark:text-amber-400 font-semibold">{c.topic}</p>
+                                <p className="text-theme-secondary text-xs mt-1">{c.conflict}</p>
+                                <p className="text-amber-600 dark:text-amber-400 text-xs mt-2 font-medium">→ {c.recommendation}</p>
                               </div>
                             ))}
-                          </GlassCard>
+                          </SectionCard>
                         )}
 
-                        <GlassCard className="p-4">
-                          <h3 className="text-sm font-semibold text-rose-300 mb-2">📋 Information Gaps</h3>
-                          <ul className="space-y-1 text-sm text-theme-muted list-disc list-inside">
-                            {brief.gaps.map((gap, i) => <li key={i}>{gap}</li>)}
+                        {/* Information Gaps */}
+                        <SectionCard title="📋 Information Gaps" color="rose">
+                          <ul className="space-y-2 text-sm text-theme-muted">
+                            {brief.gaps.map((gap, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-rose-500 mt-0.5">•</span>
+                                {gap}
+                              </li>
+                            ))}
                           </ul>
-                        </GlassCard>
+                        </SectionCard>
 
                         {/* Action Buttons */}
                         <div className="flex gap-3 pt-4 pb-24">
                           <button
                             onClick={() => { closeSynthesisResult(); setViewingBrief(null); }}
-                            className="flex-1 py-4 rounded-fullbg-theme-button text-[var(--text-secondary)] hover:bg-[#262631] transition font-medium text-base"
+                            className="flex-1 py-4 rounded-full text-theme-secondary hover:text-theme-primary transition font-medium text-base border"
+                            style={{ backgroundColor: 'var(--bg-button)', borderColor: 'var(--border-secondary)' }}
                           >
                             Close
                           </button>
                           {synthesisResult && !viewingBrief && (
                             <button
                               onClick={saveBrief}
-                              className="flex-1 py-4 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 text-theme-primary transition font-medium text-base"
+                              className="flex-1 py-4 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white transition font-medium text-base"
                             >
                               Save Brief
                             </button>
@@ -557,6 +636,28 @@ export default function Documents({ docs = [], setDocs }) {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+/* -----------------------------------------
+   Section Card Component
+----------------------------------------- */
+function SectionCard({ title, color = "indigo", children }) {
+  const colorMap = {
+    indigo: "text-indigo-600 dark:text-indigo-400",
+    purple: "text-purple-600 dark:text-purple-400",
+    amber: "text-amber-600 dark:text-amber-400",
+    rose: "text-rose-600 dark:text-rose-400",
+  };
+
+  return (
+    <div 
+      className="rounded-2xl p-5 border"
+      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-secondary)' }}
+    >
+      <h3 className={`text-sm font-semibold ${colorMap[color]} mb-3`}>{title}</h3>
+      {children}
     </div>
   );
 }

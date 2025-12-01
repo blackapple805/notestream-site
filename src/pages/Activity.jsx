@@ -1,5 +1,5 @@
 // src/pages/Activity.jsx
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import GlassCard from "../components/GlassCard";
 import { motion } from "framer-motion";
 import {
@@ -130,6 +130,13 @@ export default function Activity() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [chartTab, setChartTab] = useState("notes");
   const [chartRange, setChartRange] = useState("week");
+  const [chartsReady, setChartsReady] = useState(false);
+
+  // Delay chart rendering to prevent -1 width/height warnings
+  useEffect(() => {
+    const timer = setTimeout(() => setChartsReady(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const filteredEvents = useMemo(() => {
     return allEvents.filter(
@@ -262,47 +269,53 @@ export default function Activity() {
             ))}
           </div>
 
-          <div className="h-44">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="activityFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#818cf8" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="activityStroke" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#6366f1" />
-                    <stop offset="50%" stopColor="#c4b5fd" />
-                    <stop offset="100%" stopColor="#f9a8d4" />
-                  </linearGradient>
-                </defs>
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                  width={30}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey={chartTab}
-                  stroke="url(#activityStroke)"
-                  strokeWidth={2.3}
-                  fill="url(#activityFill)"
-                  dot={(props) => {
-                    const isLast = props.index === chartData.length - 1;
-                    return isLast ? <AnimatedDot {...props} /> : null;
-                  }}
-                  activeDot={{ r: 6, fill: "#a5b4fc", stroke: "#fff", strokeWidth: 2 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div style={{ width: '100%', height: 176, minHeight: 176 }}>
+            {chartsReady ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={200}>
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="activityFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#818cf8" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="activityStroke" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#6366f1" />
+                      <stop offset="50%" stopColor="#c4b5fd" />
+                      <stop offset="100%" stopColor="#f9a8d4" />
+                    </linearGradient>
+                  </defs>
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                    width={30}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area
+                    type="monotone"
+                    dataKey={chartTab}
+                    stroke="url(#activityStroke)"
+                    strokeWidth={2.3}
+                    fill="url(#activityFill)"
+                    dot={(props) => {
+                      const isLast = props.index === chartData.length - 1;
+                      return isLast ? <AnimatedDot {...props} /> : null;
+                    }}
+                    activeDot={{ r: 6, fill: "#a5b4fc", stroke: "#fff", strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+              </div>
+            )}
           </div>
         </GlassCard>
 
@@ -368,20 +381,26 @@ export default function Activity() {
         <GlassCard>
           <h3 className="font-semibold text-base text-theme-primary mb-1">Daily Breakdown</h3>
           <p className="text-[11px] text-theme-muted mb-4">Notes vs Summaries</p>
-          <div className="h-36">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={insightsData} barGap={2}>
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false}
-                  tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="notes" fill="#6366f1" radius={[4, 4, 0, 0]} name="Notes" />
-                <Bar dataKey="summaries" fill="#a5b4fc" radius={[4, 4, 0, 0]} name="Summaries" />
-              </BarChart>
-            </ResponsiveContainer>
+          <div style={{ width: '100%', height: 144, minHeight: 144 }}>
+            {chartsReady ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={200}>
+                <BarChart data={insightsData} barGap={2}>
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false}
+                    tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="notes" fill="#6366f1" radius={[4, 4, 0, 0]} name="Notes" />
+                  <Bar dataKey="summaries" fill="#a5b4fc" radius={[4, 4, 0, 0]} name="Summaries" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+              </div>
+            )}
           </div>
         </GlassCard>
       </div>

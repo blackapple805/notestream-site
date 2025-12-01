@@ -974,6 +974,541 @@ h1, h2, h3, h4, h5, h6, p, span, a, li {
   background: rgba(21, 21, 29, 0.9);
 }
 
+/* ==============================================================
+   🎨 GLOBAL LIGHT MODE FIXES
+   Add this to the END of your index.css
+   Fixes: tags, toggle buttons, stat boxes, overlays
+============================================================== */
+
+/* --------------------------------------------------------------
+   TAG COLOR VARIABLES — Adjust per theme
+-------------------------------------------------------------- */
+:root {
+  --tag-success-text: #34d399;
+  --tag-warning-text: #fbbf24;
+  --tag-error-text: #fb7185;
+  --tag-info-text: #818cf8;
+}
+
+:root.light,
+[data-theme="light"] {
+  --tag-success-text: #059669;
+  --tag-warning-text: #d97706;
+  --tag-error-text: #e11d48;
+  --tag-info-text: #4f46e5;
+}
+
+/* --------------------------------------------------------------
+   1. TAGS & BADGES — Ensure visibility in both themes
+-------------------------------------------------------------- */
+
+/* AI Ready / Status Tags - Dark mode (default) */
+.tag-success,
+.badge-success,
+[class*="bg-emerald"][class*="text-emerald"] {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Light mode - darker backgrounds for contrast */
+:root.light .tag-success,
+:root.light .badge-success,
+[data-theme="light"] .tag-success,
+[data-theme="light"] .badge-success {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+/* Priority Tags (High, Medium, Low) */
+.tag-high {
+  background: rgba(244, 63, 94, 0.2);
+  color: #fb7185;
+}
+.tag-medium {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+.tag-low {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+:root.light .tag-high,
+[data-theme="light"] .tag-high {
+  background: rgba(244, 63, 94, 0.12);
+  color: #e11d48;
+}
+:root.light .tag-medium,
+[data-theme="light"] .tag-medium {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+:root.light .tag-low,
+[data-theme="light"] .tag-low {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+
+/* --------------------------------------------------------------
+   2. TOGGLE BUTTONS — Selected state visibility
+-------------------------------------------------------------- */
+
+/* Base toggle button */
+.toggle-btn {
+  background: var(--bg-button);
+  color: var(--text-muted);
+  border: 1px solid var(--border-secondary);
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+/* Selected/Active state */
+.toggle-btn.active,
+.toggle-btn[data-active="true"],
+.toggle-btn-active {
+  background: var(--accent-indigo);
+  color: white !important;
+  border-color: var(--accent-indigo);
+}
+
+/* Hover state (non-active) */
+.toggle-btn:not(.active):not([data-active="true"]):hover {
+  background: var(--bg-button-hover);
+  color: var(--text-secondary);
+}
+
+/* --------------------------------------------------------------
+   3. STAT BOXES — Text on colored backgrounds
+-------------------------------------------------------------- */
+
+/* For boxes with colored backgrounds, text should ALWAYS be white */
+.stat-box-indigo,
+.stat-box-purple,
+.stat-box-emerald,
+.stat-box-amber {
+  color: white !important;
+}
+
+.stat-box-indigo { background: rgba(99, 102, 241, 0.9); }
+.stat-box-purple { background: rgba(168, 85, 247, 0.9); }
+.stat-box-emerald { background: rgba(16, 185, 129, 0.9); }
+.stat-box-amber { background: rgba(245, 158, 11, 0.9); }
+
+/* For subtle stat boxes that should adapt to theme */
+.stat-box-subtle {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Clarity score specific - ensure white text on purple bg */
+.clarity-stat {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--text-primary);
+}
+
+:root.light .clarity-stat,
+[data-theme="light"] .clarity-stat {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--text-primary);
+}
+
+/* If you want white text on solid color bg regardless of theme */
+.stat-solid-bg {
+  color: white !important;
+}
+
+/* --------------------------------------------------------------
+   4. MODAL & OVERLAY BACKGROUNDS — Solid backgrounds
+-------------------------------------------------------------- */
+
+/* Research Synthesizer / Any overlay result panel */
+.result-panel,
+.overlay-panel,
+.synthesis-result {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-secondary);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Full-screen overlay backdrop */
+.overlay-backdrop {
+  background: var(--bg-overlay);
+  backdrop-filter: blur(8px);
+}
+
+/* --------------------------------------------------------------
+   5. FILTER CHIPS — Like "Uploads", "Summaries", "Notes"
+-------------------------------------------------------------- */
+
+.filter-chip {
+  background: var(--bg-button);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-secondary);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.filter-chip:hover:not(.active) {
+  background: var(--bg-button-hover);
+  border-color: var(--border-tertiary);
+}
+
+.filter-chip.active {
+  background: var(--accent-indigo);
+  color: white;
+  border-color: var(--accent-indigo);
+}
+
+/* --------------------------------------------------------------
+   6. INLINE TAILWIND OVERRIDES — For existing components
+-------------------------------------------------------------- */
+
+/* Fix emerald/green tags that use Tailwind classes */
+:root.light [class*="bg-emerald-900"],
+[data-theme="light"] [class*="bg-emerald-900"] {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+:root.light [class*="text-emerald-400"],
+[data-theme="light"] [class*="text-emerald-400"] {
+  color: #059669 !important;
+}
+
+/* Fix indigo backgrounds in light mode */
+:root.light [class*="bg-indigo-500/20"],
+:root.light [class*="bg-indigo-500/15"],
+:root.light [class*="bg-indigo-500/10"],
+[data-theme="light"] [class*="bg-indigo-500/20"],
+[data-theme="light"] [class*="bg-indigo-500/15"],
+[data-theme="light"] [class*="bg-indigo-500/10"] {
+  background-color: rgba(99, 102, 241, 0.12) !important;
+}
+
+/* Fix purple backgrounds */
+:root.light [class*="bg-purple-500/20"],
+:root.light [class*="bg-purple-500/15"],
+[data-theme="light"] [class*="bg-purple-500/20"],
+[data-theme="light"] [class*="bg-purple-500/15"] {
+  background-color: rgba(168, 85, 247, 0.12) !important;
+}
+
+/* --------------------------------------------------------------
+   7. TEXT ON COLORED STAT CARDS — Universal fix
+-------------------------------------------------------------- */
+
+/* When a card has a semi-transparent colored background,
+   ensure the large number text is visible */
+   
+/* Dark mode: light text on dark-ish colored bg */
+.stat-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* For solid colored backgrounds, always white */
+[class*="bg-indigo-"][class*="/90"] .stat-value,
+[class*="bg-purple-"][class*="/90"] .stat-value,
+[class*="bg-emerald-"][class*="/90"] .stat-value {
+  color: white !important;
+}
+
+/* --------------------------------------------------------------
+   8. SPECIFIC COMPONENT FIXES
+-------------------------------------------------------------- */
+
+/* Activity Timeline toggle buttons */
+.timeline-filter-btn {
+  background: var(--bg-button);
+  color: var(--text-muted);
+  border: 1px solid var(--border-secondary);
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.timeline-filter-btn.selected {
+  background: var(--accent-indigo);
+  color: white;
+  border-color: var(--accent-indigo);
+}
+
+/* Activity type pills (Uploads, Summaries, Notes, etc.) */
+.activity-pill {
+  background: var(--bg-button);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-secondary);
+}
+
+.activity-pill.active {
+  background: var(--accent-indigo);
+  color: white;
+  border-color: transparent;
+}
+
+/* --------------------------------------------------------------
+   9. RESEARCH SYNTHESIZER MODAL FIX
+-------------------------------------------------------------- */
+
+.synthesizer-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-secondary);
+}
+
+.synthesizer-result {
+  background: var(--bg-card);
+  border: 1px solid var(--border-secondary);
+  border-radius: 16px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.synthesizer-section {
+  background: var(--bg-input);
+  border: 1px solid var(--border-secondary);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.synthesizer-section-title {
+  color: var(--accent-indigo);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+/* Theme cards in synthesizer */
+.theme-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border-secondary);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.theme-card-priority {
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.theme-card-priority.high {
+  background: rgba(244, 63, 94, 0.15);
+  color: #f43f5e;
+}
+
+.theme-card-priority.medium {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+:root.light .theme-card-priority.high,
+[data-theme="light"] .theme-card-priority.high {
+  background: rgba(244, 63, 94, 0.12);
+  color: #e11d48;
+}
+
+:root.light .theme-card-priority.medium,
+[data-theme="light"] .theme-card-priority.medium {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+/* --------------------------------------------------------------
+   10. UNIVERSAL BUTTON TEXT COLOR FIX
+-------------------------------------------------------------- */
+
+/* Any button with indigo/purple solid bg should have white text */
+button[class*="bg-indigo-500"],
+button[class*="bg-indigo-600"],
+button[class*="bg-purple-500"],
+button[class*="bg-purple-600"],
+[class*="bg-gradient-to-r"][class*="from-indigo"] {
+  color: white !important;
+}
+
+/* --------------------------------------------------------------
+   11. CLARITY SCORE BOXES - SPECIFIC FIX
+-------------------------------------------------------------- */
+
+/* The stat boxes showing 94%, 89%, 93% */
+.clarity-score-box {
+  background: rgba(99, 102, 241, 0.15);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.clarity-score-box .score-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.clarity-score-box .score-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* If using solid indigo background */
+.clarity-score-box-solid {
+  background: rgba(99, 102, 241, 0.9);
+}
+
+.clarity-score-box-solid .score-value,
+.clarity-score-box-solid .score-label {
+  color: white !important;
+}
+
+/* --------------------------------------------------------------
+   12. RESEARCH SYNTHESIZER RESULT SECTIONS
+   Ensure all result sections have proper backgrounds
+-------------------------------------------------------------- */
+
+/* Main result container */
+.synthesis-results,
+.research-results,
+[class*="synthesizer-result"] {
+  background: var(--bg-card);
+  border: 1px solid var(--border-secondary);
+  border-radius: 16px;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+/* Individual section cards */
+.synthesis-section,
+.result-section,
+[class*="executive-summary"],
+[class*="key-themes"],
+[class*="consolidated-insights"] {
+  background: var(--bg-input);
+  border: 1px solid var(--border-secondary);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+/* Section headers in synthesizer */
+.section-header,
+.synthesis-title {
+  color: var(--accent-indigo);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+/* Source tags */
+.source-tag {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-secondary);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+/* Theme/priority cards in results */
+.theme-result-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border-secondary);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+}
+
+.theme-result-card:hover {
+  border-color: var(--accent-indigo);
+  border-opacity: 0.4;
+}
+
+/* Priority indicators */
+.priority-high {
+  background: rgba(244, 63, 94, 0.12);
+  color: var(--tag-error-text);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+}
+
+.priority-medium {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--tag-warning-text);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.priority-low {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--tag-success-text);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+/* --------------------------------------------------------------
+   13. MODAL/OVERLAY PANEL BACKGROUNDS
+-------------------------------------------------------------- */
+
+/* Any modal content panel */
+.modal-panel,
+.modal-content,
+.overlay-content {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-secondary);
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+}
+
+/* Scrollable areas within modals */
+.modal-scroll,
+.panel-scroll {
+  background: var(--bg-primary);
+}
+
+/* --------------------------------------------------------------
+   14. FIX FOR TAILWIND DARK: PREFIX
+   Some components may use dark: prefix incorrectly
+-------------------------------------------------------------- */
+
+/* Override dark: prefixed text colors in light mode */
+:root.light .dark\:text-emerald-400,
+[data-theme="light"] .dark\:text-emerald-400 {
+  color: #059669 !important;
+}
+
+:root.light .dark\:text-indigo-400,
+[data-theme="light"] .dark\:text-indigo-400 {
+  color: #4f46e5 !important;
+}
+
+:root.light .dark\:text-purple-400,
+[data-theme="light"] .dark\:text-purple-400 {
+  color: #9333ea !important;
+}
+
+:root.light .dark\:text-amber-400,
+[data-theme="light"] .dark\:text-amber-400 {
+  color: #d97706 !important;
+}
+
+:root.light .dark\:text-rose-400,
+[data-theme="light"] .dark\:text-rose-400 {
+  color: #e11d48 !important;
+}
+
+/* --------------------------------------------------------------
+   15. ENSURE MODAL BACKGROUNDS HAVE SOLID COLOR
+-------------------------------------------------------------- */
+
+/* Override any transparent backgrounds in modals */
+.modal-wrapper > div,
+[role="dialog"] > div {
+  background-color: var(--bg-surface);
+}
 
 
 
