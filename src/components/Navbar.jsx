@@ -141,9 +141,13 @@ const Navbar = () => {
       <nav
         className={`fixed top-0 left-0 right-0 z-[120] transition-all duration-300 ${
           isScrolled
-            ? "backdrop-blur-xl bg-[#0d0d10]/90 border-b border-gray-800 shadow-lg"
-            : "bg-[#0d0d10]"
+            ? "backdrop-blur-xl shadow-lg"
+            : ""
         }`}
+        style={{ 
+          backgroundColor: isScrolled ? 'var(--bg-primary-alpha, var(--bg-primary))' : 'var(--bg-primary)',
+          borderBottom: isScrolled ? '1px solid var(--border-secondary)' : 'none'
+        }}
       >
         <div className="w-full px-4 sm:px-6 md:px-8 lg:px-16 xl:px-24">
           <div className="flex items-center justify-between h-20">
@@ -157,8 +161,8 @@ const Navbar = () => {
                   className="h-7 w-7 sm:h-8 sm:w-8 drop-shadow-[0_0_8px_rgba(99,102,241,0.6)]"
                 />
                 <span className="text-lg sm:text-xl font-semibold tracking-wide">
-                  <span className="text-white">Note</span>
-                  <span className="text-indigo-400">Stream</span>
+                  <span className="text-theme-primary">Note</span>
+                  <span className="text-indigo-500">Stream</span>
                 </span>
               </Link>
             )}
@@ -174,7 +178,12 @@ const Navbar = () => {
                 >
                   {link.dropdown ? (
                     <>
-                      <button className="flex items-center text-gray-300 hover:text-indigo-400 px-4 py-2 rounded-full hover:bg-[#1a1a1f] transition-all">
+                      <button 
+                        className="flex items-center text-theme-secondary hover:text-indigo-500 px-4 py-2 rounded-full transition-all"
+                        style={{ backgroundColor: 'transparent' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-elevated)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
                         {link.name}
                         <FiChevronDown
                           className={`ml-1 w-4 h-4 transition-transform ${
@@ -184,12 +193,21 @@ const Navbar = () => {
                       </button>
 
                       {desktopDropdown === link.name && (
-                        <div className="absolute left-0 top-full mt-2 bg-[#121216] border border-gray-800 rounded-xl shadow-xl py-2 w-48 animate-fadeIn z-[140]">
+                        <div 
+                          className="absolute left-0 top-full mt-2 rounded-xl shadow-xl py-2 w-48 animate-fadeIn z-[140] border"
+                          style={{ 
+                            backgroundColor: 'var(--bg-surface)', 
+                            borderColor: 'var(--border-secondary)' 
+                          }}
+                        >
                           {link.dropdown.map((item) => (
                             <Link
                               key={item.label}
                               to={item.to}
-                              className="block px-4 py-2 text-gray-300 hover:text-indigo-400 hover:bg-[#1a1a1f] transition"
+                              className="block px-4 py-2 text-theme-secondary hover:text-indigo-500 transition"
+                              style={{ backgroundColor: 'transparent' }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-elevated)'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             >
                               {item.label}
                             </Link>
@@ -200,7 +218,10 @@ const Navbar = () => {
                   ) : (
                     <Link
                       to={link.to}
-                      className="text-gray-300 hover:text-indigo-400 px-4 py-2 rounded-full hover:bg-[#1a1a1f] transition-all"
+                      className="text-theme-secondary hover:text-indigo-500 px-4 py-2 rounded-full transition-all"
+                      style={{ backgroundColor: 'transparent' }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-elevated)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                     >
                       {link.name}
                     </Link>
@@ -217,14 +238,17 @@ const Navbar = () => {
 
               <Link
                 to="/login"
-                className="border border-gray-700 hover:border-indigo-400 text-gray-300 hover:text-indigo-400 px-6 py-2 rounded-full transition"
+                className="text-theme-secondary hover:text-indigo-500 px-6 py-2 rounded-full transition border"
+                style={{ borderColor: 'var(--border-secondary)' }}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgb(99, 102, 241)'}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-secondary)'}
               >
                 Login
               </Link>
 
               <Link
                 to="/search"
-                className="text-gray-400 hover:text-indigo-400 p-2"
+                className="text-theme-muted hover:text-indigo-500 p-2 transition"
               >
                 <FiSearch className="w-5 h-5" />
               </Link>
@@ -234,7 +258,7 @@ const Navbar = () => {
             <button
               onClick={handleHamburgerClick}
               data-hamburger-button
-              className="md:hidden text-gray-300 hover:text-indigo-400 p-2"
+              className="md:hidden text-theme-secondary hover:text-indigo-500 p-2"
             >
               {isMobileOpen ? (
                 <FiX className="h-6 w-6 ns-hamburger ns-hamburger-rotate" />
@@ -250,24 +274,25 @@ const Navbar = () => {
       {isMobileOpen && (
         <div
           ref={mobileMenuRef}
-          className="
-            fixed top-0 left-0 right-0 h-screen z-[200] md:hidden
-            bg-gradient-to-b from-[#12001f] via-[#0b0016] to-[#05000c]
-            backdrop-blur-xl
-            animate-ns-slideDown
-            shadow-[inset_0_0_60px_rgba(0,0,0,0.45)]
-          "
+          className="fixed top-0 left-0 right-0 h-screen z-[200] md:hidden backdrop-blur-xl animate-ns-slideDown"
+          style={{ 
+            backgroundColor: 'var(--bg-primary)',
+            boxShadow: 'inset 0 0 60px rgba(99, 102, 241, 0.05)'
+          }}
         >
           {/* Mobile Header */}
-          <div className="flex justify-between items-center px-4 h-20 border-b border-white/10">
+          <div 
+            className="flex justify-between items-center px-4 h-20"
+            style={{ borderBottom: '1px solid var(--border-secondary)' }}
+          >
             <div className="flex items-center gap-2 ns-menu-item">
               <img
                 src="/assets/icons/logo-header-32x32.png"
                 alt="NoteStream Logo"
                 className="h-7 w-7 drop-shadow-[0_0_8px_rgba(99,102,241,0.6)]"
               />
-              <span className="text-lg font-semibold tracking-wide text-white">
-                Note<span className="text-indigo-400">Stream</span>
+              <span className="text-lg font-semibold tracking-wide text-theme-primary">
+                Note<span className="text-indigo-500">Stream</span>
               </span>
             </div>
 
@@ -276,7 +301,10 @@ const Navbar = () => {
                 setIsMobileOpen(false);
                 setSuppressMainLogo(false);
               }}
-              className="p-2 text-gray-200 hover:text-white hover:bg-white/10 rounded-lg transition ns-menu-item"
+              className="p-2 text-theme-secondary hover:text-theme-primary rounded-lg transition ns-menu-item"
+              style={{ backgroundColor: 'transparent' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-elevated)'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
               <FiX className="h-6 w-6" />
             </button>
@@ -291,13 +319,16 @@ const Navbar = () => {
                     <>
                       <button
                         onClick={() => toggleMobileDropdown(link.name)}
-                        className="w-full flex items-center justify-between text-white px-4 py-2.5 rounded-xl hover:bg-white/10 transition-all"
+                        className="w-full flex items-center justify-between text-theme-primary px-4 py-2.5 rounded-xl transition-all"
+                        style={{ backgroundColor: 'transparent' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-elevated)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                       >
                         <span className="text-[16px] font-medium">
                           {link.name}
                         </span>
                         <FiChevronDown
-                          className={`w-5 h-5 transition-transform ${
+                          className={`w-5 h-5 text-theme-muted transition-transform ${
                             mobileDropdown === link.name ? "rotate-180" : ""
                           }`}
                         />
@@ -313,7 +344,10 @@ const Navbar = () => {
                             <button
                               key={item.label}
                               onClick={() => handleMobileNavigate(item.to)}
-                              className="w-full text-left text-white/80 px-4 py-2 rounded-lg hover:bg-white/10 transition-all ns-menu-item"
+                              className="w-full text-left text-theme-secondary px-4 py-2 rounded-lg transition-all ns-menu-item"
+                              style={{ backgroundColor: 'transparent' }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-elevated)'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             >
                               {item.label}
                             </button>
@@ -324,7 +358,10 @@ const Navbar = () => {
                   ) : (
                     <button
                       onClick={() => handleMobileNavigate(link.to)}
-                      className="w-full text-left text-white px-4 py-2.5 rounded-xl hover:bg-white/10 transition ns-menu-item"
+                      className="w-full text-left text-theme-primary px-4 py-2.5 rounded-xl transition ns-menu-item"
+                      style={{ backgroundColor: 'transparent' }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-elevated)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                     >
                       {link.name}
                     </button>
@@ -333,7 +370,10 @@ const Navbar = () => {
               ))}
             </div>
 
-            <div className="my-4 mx-3 h-px bg-white/10 ns-menu-item" />
+            <div 
+              className="my-4 mx-3 h-px ns-menu-item"
+              style={{ backgroundColor: 'var(--border-secondary)' }}
+            />
 
             {/* Buttons */}
             <div className="space-y-3">
@@ -346,14 +386,18 @@ const Navbar = () => {
 
               <button
                 onClick={() => handleMobileNavigate("/login")}
-                className="w-full border border-white/20 text-white/90 hover:border-white/40 px-6 py-3 rounded-xl transition-all ns-menu-item"
+                className="w-full text-theme-primary px-6 py-3 rounded-xl transition-all ns-menu-item border"
+                style={{ borderColor: 'var(--border-secondary)' }}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--border-primary)'}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-secondary)'}
               >
                 Login
               </button>
 
               <button
                 onClick={() => handleMobileNavigate("/search")}
-                className="w-full flex items-center justify-center gap-3 text-white/90 bg-white/10 hover:bg-white/20 px-6 py-3 rounded-xl transition ns-menu-item"
+                className="w-full flex items-center justify-center gap-3 text-theme-secondary px-6 py-3 rounded-xl transition ns-menu-item"
+                style={{ backgroundColor: 'var(--bg-elevated)' }}
               >
                 <FiSearch className="w-5 h-5" />
                 <span className="font-medium">Search</span>
