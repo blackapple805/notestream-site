@@ -26,16 +26,19 @@ export default function FAQ() {
   const [open, setOpen] = useState(null);
 
   return (
-    <section className="min-h-screen bg-[#0d0d10] text-white px-6 py-24 relative">
+    <section 
+      className="min-h-screen text-theme-primary px-6 py-24 relative"
+      style={{ backgroundColor: 'var(--bg-primary)' }}
+    >
       {/* Background glows */}
-      <div className="absolute top-[15%] left-[5%] w-[240px] h-[240px] bg-indigo-600/20 blur-[150px] rounded-full"></div>
-      <div className="absolute bottom-[10%] right-[5%] w-[200px] h-[200px] bg-purple-600/15 blur-[130px] rounded-full"></div>
+      <div className="absolute top-[15%] left-[5%] w-[240px] h-[240px] bg-indigo-500/20 blur-[150px] rounded-full pointer-events-none"></div>
+      <div className="absolute bottom-[10%] right-[5%] w-[200px] h-[200px] bg-purple-500/15 blur-[130px] rounded-full pointer-events-none"></div>
 
       <div className="relative z-10 max-w-4xl mx-auto">
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-5xl font-extrabold text-center mb-10"
+          className="text-5xl font-extrabold text-center mb-10 text-theme-primary"
         >
           Frequently Asked Questions
         </motion.h1>
@@ -48,20 +51,24 @@ export default function FAQ() {
             return (
               <div
                 key={index}
-                className="bg-[#111114]/70 border border-[#1f1f25] rounded-2xl p-6 backdrop-blur-md hover:border-indigo-500/50 transition-all duration-300"
+                className="rounded-2xl p-6 backdrop-blur-md hover:border-indigo-500/40 transition-all duration-300 border"
+                style={{ 
+                  backgroundColor: 'var(--bg-card)', 
+                  borderColor: 'var(--border-secondary)' 
+                }}
               >
                 {/* Header */}
                 <button
                   className="flex justify-between items-center w-full text-left"
                   onClick={() => setOpen(isOpen ? null : index)}
                 >
-                  <span className="text-lg font-semibold text-white">
+                  <span className="text-lg font-semibold text-theme-primary">
                     {item.q}
                   </span>
 
                   <FiChevronDown
-                    className={`w-6 h-6 text-gray-400 transition-transform duration-300 ${
-                      isOpen ? "rotate-180 text-indigo-400" : ""
+                    className={`w-6 h-6 transition-transform duration-300 ${
+                      isOpen ? "rotate-180 text-indigo-500" : "text-theme-muted"
                     }`}
                   />
                 </button>
@@ -83,7 +90,7 @@ export default function FAQ() {
                     >
                       <div
                         ref={contentRef}
-                        className="text-gray-400 mt-4 text-sm leading-relaxed pb-2"
+                        className="text-theme-muted mt-4 text-sm leading-relaxed pb-2"
                       >
                         {item.a}
                       </div>

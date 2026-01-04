@@ -1,11 +1,13 @@
 // src/pages/AISummary.jsx
 import { FiZap, FiEdit3, FiFeather, FiList, FiArrowRight } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 import ScrollReveal from "../components/ScrollReveal";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { Sparkle, Lightning, Brain } from "phosphor-react";
 
 export default function AISummary() {
+  const navigate = useNavigate();
   const [animateText, setAnimateText] = useState(false);
 
   useEffect(() => {
@@ -290,10 +292,13 @@ export default function AISummary() {
             <p className="text-theme-muted mb-6">
               Try AI Summary free and see the difference.
             </p>
-            <button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:opacity-90 
+            <button 
+              onClick={() => navigate("/signup")}
+              className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:opacity-90 
             text-white px-10 py-4 rounded-full font-semibold text-lg 
             shadow-lg shadow-indigo-500/25 transition-all duration-300 hover:scale-[1.02] 
-            flex items-center gap-2 mx-auto">
+            flex items-center gap-2 mx-auto"
+            >
               Try AI Summary <FiZap className="w-5 h-5" />
             </button>
           </div>

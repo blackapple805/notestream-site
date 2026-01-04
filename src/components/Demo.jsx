@@ -17,6 +17,20 @@ export default function Demo() {
   const [data, setData] = useState([]);
   const [showChart, setShowChart] = useState(false);
   const [uploadTimer, setUploadTimer] = useState(null);
+  const [isDark, setIsDark] = useState(true);
+
+  // Detect theme changes
+  useEffect(() => {
+    const checkTheme = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+    checkTheme();
+    
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -32,9 +46,12 @@ export default function Demo() {
     if (files.length >= 3) {
       const toast = document.createElement("div");
       toast.className =
-        "fixed top-6 right-6 bg-[#0d0d10]/95 border border-indigo-500/40 text-indigo-200 text-sm px-6 py-3 rounded-xl shadow-[0_0_40px_rgba(99,102,241,0.4)] backdrop-blur-xl z-[9999] transition-all duration-300";
+        "fixed top-6 right-6 text-sm px-6 py-3 rounded-xl shadow-lg backdrop-blur-xl z-[9999] transition-all duration-300 border";
+      toast.style.backgroundColor = 'var(--bg-surface)';
+      toast.style.borderColor = 'rgba(99, 102, 241, 0.4)';
+      toast.style.boxShadow = '0 0 40px rgba(99,102,241,0.3)';
       toast.innerHTML =
-        `<strong class='text-white/90'>Demo Limit Reached</strong><br/><span class='text-gray-400'>Upgrade to <span class='text-indigo-400 font-semibold'>NoteStream Pro</span> for unlimited uploads.</span>`;
+        `<strong style="color: var(--text-primary)">Demo Limit Reached</strong><br/><span style="color: var(--text-muted)">Upgrade to <span style="color: rgb(99, 102, 241); font-weight: 600;">NoteStream Pro</span> for unlimited uploads.</span>`;
       document.body.appendChild(toast);
       setTimeout(() => {
         toast.style.opacity = "0";
@@ -83,17 +100,27 @@ export default function Demo() {
   const upload = useScrollFade();
   const chart = useScrollFade();
 
+  // Theme-aware colors for chart
+  const chartColors = {
+    grid: isDark ? "rgba(80,80,90,0.25)" : "rgba(0,0,0,0.1)",
+    tick: isDark ? "#9ca3af" : "#6b7280",
+    tooltipBg: isDark ? "#111114" : "#ffffff",
+    tooltipBorder: "rgba(99,102,241,0.4)",
+    cursor: "rgba(99,102,241,0.08)",
+  };
+
   return (
     <>
       <section
         id="demo"
-        className="relative flex flex-col items-center justify-center text-center py-[16vh] px-6 select-none overflow-hidden bg-[#0d0d10] text-white"
+        className="relative flex flex-col items-center justify-center text-center py-[16vh] px-6 select-none overflow-hidden text-theme-primary"
+        style={{ backgroundColor: 'var(--bg-primary)' }}
       >
         {/* === Background Glows === */}
-        <div className="absolute top-[10%] left-[5%] w-[280px] h-[280px] bg-indigo-600/20 blur-[140px] rounded-full"></div>
-        <div className="absolute bottom-[5%] right-[5%] w-[220px] h-[220px] bg-blue-500/15 blur-[120px] rounded-full"></div>
+        <div className="absolute top-[10%] left-[5%] w-[280px] h-[280px] bg-indigo-500/20 blur-[140px] rounded-full pointer-events-none"></div>
+        <div className="absolute bottom-[5%] right-[5%] w-[220px] h-[220px] bg-blue-500/15 blur-[120px] rounded-full pointer-events-none"></div>
 
-        {/* === Heading (no divider above anymore) === */}
+        {/* === Heading === */}
         <motion.div
           ref={heading.ref}
           variants={heading.variants}
@@ -102,16 +129,19 @@ export default function Demo() {
           transition={{ duration: 0.7, ease: "easeOut" }}
           className="relative z-10"
         >
-          <h2 className="text-4xl md:text-5xl font-extrabold mb-6">
-            Experience <span className="text-indigo-400">NoteStream</span> in Action
+          <h2 className="text-4xl md:text-5xl font-extrabold mb-6 text-theme-primary">
+            Experience <span className="text-indigo-500">NoteStream</span> in Action
           </h2>
-          <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-12 leading-relaxed">
+          <p className="text-theme-muted text-lg md:text-xl max-w-2xl mx-auto mb-12 leading-relaxed">
             Upload a receipt, watch it analyze in real time, and see your spending come alive.
           </p>
         </motion.div>
 
         {/* === Divider ABOVE upload box ONLY === */}
-        <div className="w-full border-t border-[#1f1f25] my-[6vh] block md:hidden" />
+        <div 
+          className="w-full my-[6vh] block md:hidden"
+          style={{ borderTop: '1px solid var(--border-secondary)' }}
+        />
 
         {/* === Upload Box === */}
         <motion.div
@@ -120,12 +150,22 @@ export default function Demo() {
           initial="hidden"
           animate={upload.inView ? "visible" : "hidden"}
           transition={{ duration: 0.8, ease: "easeOut" }}
-          className="relative w-[90%] max-w-5xl bg-[#0d0d10]/70 border border-[#1f1f25] rounded-2xl backdrop-blur-md shadow-[0_0_60px_rgba(99,102,241,0.25)] overflow-hidden transition-all duration-700"
-          style={{ minHeight: "55vh" }}
+          className="relative w-[90%] max-w-5xl rounded-2xl backdrop-blur-md overflow-hidden transition-all duration-700 border"
+          style={{ 
+            backgroundColor: 'var(--bg-card)', 
+            borderColor: 'var(--border-secondary)',
+            boxShadow: '0 0 60px rgba(99,102,241,0.15)',
+            minHeight: "55vh" 
+          }}
         >
           {/* Upload UI */}
           {!analyzing && (
-            <label className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-[#14141b]/60 transition-all duration-500">
+            <label 
+              className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer transition-all duration-500"
+              style={{ backgroundColor: 'transparent' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-elevated)'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
               <div className="flex flex-col items-center justify-center text-center">
                 <div className="relative mb-6 flex items-center justify-center">
                   <motion.div
@@ -133,16 +173,16 @@ export default function Demo() {
                     transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
                     className="absolute inset-0 blur-3xl bg-indigo-500/30 rounded-full"
                   />
-                  <FiUploadCloud className="relative text-indigo-400 w-20 h-20 drop-shadow-[0_0_16px_rgba(99,102,241,0.6)]" />
+                  <FiUploadCloud className="relative text-indigo-500 w-20 h-20 drop-shadow-[0_0_16px_rgba(99,102,241,0.6)]" />
                 </div>
 
-                <span className="text-xl text-gray-200 font-semibold tracking-wide mb-2">
+                <span className="text-xl text-theme-primary font-semibold tracking-wide mb-2">
                   Upload Your Receipts
                 </span>
-                <p className="text-sm text-gray-500 font-light">
+                <p className="text-sm text-theme-muted font-light">
                   Drag & drop a photo or click to browse
                 </p>
-                <p className="text-xs text-indigo-400/70 mt-2">(max 3 uploads in demo)</p>
+                <p className="text-xs text-indigo-500/70 mt-2">(max 3 uploads in demo)</p>
               </div>
               <input type="file" accept="image/*" className="hidden" onChange={handleUpload} tabIndex={-1} />
             </label>
@@ -156,16 +196,17 @@ export default function Demo() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 flex flex-col items-center justify-center bg-[#0d0d10]/90 rounded-2xl z-10"
+                className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl z-10"
+                style={{ backgroundColor: 'var(--bg-overlay)' }}
               >
                 <motion.div
                   animate={{ rotate: 360 }}
                   transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-                  className="p-6 rounded-full bg-indigo-500/10 border border-indigo-400/40 shadow-[0_0_25px_rgba(99,102,241,0.5)]"
+                  className="p-6 rounded-full bg-indigo-500/10 border border-indigo-500/40 shadow-[0_0_25px_rgba(99,102,241,0.5)]"
                 >
-                  <FiRotateCw className="w-12 h-12 text-indigo-400" />
+                  <FiRotateCw className="w-12 h-12 text-indigo-500" />
                 </motion.div>
-                <p className="text-gray-400 mt-6 text-sm animate-pulse">Analyzing receipt data...</p>
+                <p className="text-theme-muted mt-6 text-sm animate-pulse">Analyzing receipt data...</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -176,15 +217,24 @@ export default function Demo() {
               {files.map((f) => (
                 <div
                   key={f.id}
-                  className="relative w-[150px] h-[130px] rounded-2xl overflow-hidden border border-indigo-500/20 bg-gradient-to-b from-[#1a1a25]/70 to-[#0e0e12]/90 shadow-[0_0_40px_rgba(99,102,241,0.25)] hover:scale-105 hover:border-indigo-400/30 transition-all duration-300"
+                  className="relative w-[150px] h-[130px] rounded-2xl overflow-hidden border border-indigo-500/20 
+                  shadow-[0_0_40px_rgba(99,102,241,0.2)] hover:scale-105 hover:border-indigo-500/40 transition-all duration-300"
+                  style={{ backgroundColor: 'var(--bg-elevated)' }}
                 >
                   <img
                     src={f.preview}
                     alt="receipt"
                     className="object-cover w-full h-full opacity-80 pointer-events-none select-none"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d10]/90 to-transparent" />
-                  <div className="absolute bottom-2 left-0 right-0 text-xs text-indigo-300 py-1 text-center font-medium">
+                  <div 
+                    className="absolute inset-0"
+                    style={{ 
+                      background: isDark 
+                        ? 'linear-gradient(to top, rgba(13,13,16,0.9), transparent)' 
+                        : 'linear-gradient(to top, rgba(255,255,255,0.9), transparent)'
+                    }}
+                  />
+                  <div className="absolute bottom-2 left-0 right-0 text-xs text-indigo-500 py-1 text-center font-medium">
                     {f.category}: ${f.spend}
                   </div>
                 </div>
@@ -194,7 +244,12 @@ export default function Demo() {
         </motion.div>
 
         {/* Divider before chart */}
-        {showChart && <div className="w-full border-t border-[#1f1f25] my-[8vh] block md:hidden" />}
+        {showChart && (
+          <div 
+            className="w-full my-[8vh] block md:hidden"
+            style={{ borderTop: '1px solid var(--border-secondary)' }}
+          />
+        )}
 
         {/* Chart */}
         <AnimatePresence>
@@ -206,14 +261,25 @@ export default function Demo() {
               animate={chart.inView ? "visible" : "hidden"}
               transition={{ duration: 0.9, ease: "easeOut" }}
               key="chart"
-              className="relative z-10 mt-[6vh] w-[90%] max-w-4xl bg-[#0d0d10]/90 border border-indigo-500/20 rounded-xl shadow-[0_0_40px_rgba(99,102,241,0.25)] p-6"
+              className="relative z-10 mt-[6vh] w-[90%] max-w-4xl rounded-xl p-6 border"
+              style={{ 
+                backgroundColor: 'var(--bg-card)', 
+                borderColor: 'rgba(99, 102, 241, 0.2)',
+                boxShadow: '0 0 40px rgba(99,102,241,0.15)'
+              }}
             >
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-indigo-400 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-indigo-500 flex items-center gap-2">
                   <FiDollarSign /> Spending Overview
                 </h3>
-                <div className="flex items-center gap-2 text-gray-500 text-sm border border-gray-800 px-3 py-1.5 rounded-lg backdrop-blur-sm bg-[#141418]/60 cursor-not-allowed hover:brightness-110 transition">
-                  <FiLock className="text-indigo-400" />
+                <div 
+                  className="flex items-center gap-2 text-theme-muted text-sm px-3 py-1.5 rounded-lg backdrop-blur-sm cursor-not-allowed hover:brightness-110 transition border"
+                  style={{ 
+                    backgroundColor: 'var(--bg-tertiary)', 
+                    borderColor: 'var(--border-secondary)' 
+                  }}
+                >
+                  <FiLock className="text-indigo-500" />
                   <span>Weekly View (Pro)</span>
                 </div>
               </div>
@@ -221,27 +287,27 @@ export default function Demo() {
               <div className="h-[300px] select-none pointer-events-none">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 50 }}>
-                    <CartesianGrid stroke="rgba(80,80,90,0.25)" strokeDasharray="3 3" />
+                    <CartesianGrid stroke={chartColors.grid} strokeDasharray="3 3" />
                     <XAxis
                       dataKey="category"
-                      tick={{ fill: "#9ca3af", fontSize: 13 }}
+                      tick={{ fill: chartColors.tick, fontSize: 13 }}
                       axisLine={false}
                       tickLine={false}
                     />
                     <YAxis
-                      tick={{ fill: "#9ca3af", fontSize: 13 }}
+                      tick={{ fill: chartColors.tick, fontSize: 13 }}
                       axisLine={false}
                       tickLine={false}
                       tickFormatter={(v) => `$${v}`}
                     />
                     <Tooltip
                       contentStyle={{
-                        backgroundColor: "#111114",
-                        border: "1px solid rgba(99,102,241,0.4)",
+                        backgroundColor: chartColors.tooltipBg,
+                        border: `1px solid ${chartColors.tooltipBorder}`,
                         borderRadius: "0.75rem",
-                        color: "#fff",
+                        color: isDark ? "#fff" : "#1f2937",
                       }}
-                      cursor={{ fill: "rgba(99,102,241,0.08)" }}
+                      cursor={{ fill: chartColors.cursor }}
                     />
                     <Bar dataKey="total" fill="url(#barGradient)" radius={[6, 6, 0, 0]} barSize={50} />
                     <defs>
@@ -259,7 +325,10 @@ export default function Demo() {
       </section>
 
       {/* Bottom divider */}
-      <div className="w-full border-t border-[#1f1f25] " />
+      <div 
+        className="w-full"
+        style={{ borderTop: '1px solid var(--border-secondary)' }}
+      />
     </>
   );
 }

@@ -26,17 +26,17 @@ export default function SearchPage() {
 
   const placeholderResults = [
     {
-      icon: <FiBookOpen className="text-indigo-300 w-6 h-6" />,
+      icon: <FiBookOpen className="text-indigo-500 w-6 h-6" />,
       title: "Project Strategy Meeting Notes",
       desc: "AI summary and extracted action points",
     },
     {
-      icon: <FiFileText className="text-indigo-300 w-6 h-6" />,
+      icon: <FiFileText className="text-indigo-500 w-6 h-6" />,
       title: "Uploaded Screenshot: dashboard.png",
       desc: "Converted into structured summary",
     },
     {
-      icon: <FiZap className="text-indigo-300 w-6 h-6" />,
+      icon: <FiZap className="text-indigo-500 w-6 h-6" />,
       title: "Weekly Insight Report",
       desc: "Trends detected across your workspace",
     },
@@ -45,11 +45,12 @@ export default function SearchPage() {
   return (
     <section
       ref={sectionRef}
-      className="relative min-h-screen w-full bg-[#0d0d10] text-white px-6 py-[12vh] overflow-hidden"
+      className="relative min-h-screen w-full text-theme-primary px-6 py-[12vh] overflow-hidden"
+      style={{ backgroundColor: 'var(--bg-primary)' }}
     >
       {/* Background glows */}
-      <div className="absolute top-[10%] left-[5%] w-[260px] h-[260px] bg-indigo-600/25 blur-[150px] rounded-full"></div>
-      <div className="absolute bottom-[8%] right-[8%] w-[220px] h-[220px] bg-purple-600/20 blur-[150px] rounded-full"></div>
+      <div className="absolute top-[10%] left-[5%] w-[260px] h-[260px] bg-indigo-500/20 blur-[150px] rounded-full pointer-events-none"></div>
+      <div className="absolute bottom-[8%] right-[8%] w-[220px] h-[220px] bg-purple-500/15 blur-[150px] rounded-full pointer-events-none"></div>
 
       <div className="relative z-10 max-w-4xl mx-auto">
 
@@ -59,9 +60,9 @@ export default function SearchPage() {
           initial="hidden"
           animate={sectionInView ? "visible" : "hidden"}
           transition={{ duration: 0.7 }}
-          className="text-4xl md:text-6xl font-extrabold text-center mb-6"
+          className="text-4xl md:text-6xl font-extrabold text-center mb-6 text-theme-primary"
         >
-          Search Your <span className="text-indigo-400">Workspace</span>
+          Search Your <span className="text-indigo-500">Workspace</span>
         </motion.h1>
 
         <motion.p
@@ -69,7 +70,7 @@ export default function SearchPage() {
           initial="hidden"
           animate={sectionInView ? "visible" : "hidden"}
           transition={{ duration: 0.85 }}
-          className="text-gray-400 text-lg text-center max-w-2xl mx-auto mb-12"
+          className="text-theme-muted text-lg text-center max-w-2xl mx-auto mb-12"
         >
           Instantly find summaries, notes, insights, screenshots, meeting decisions, and more.
         </motion.p>
@@ -83,15 +84,19 @@ export default function SearchPage() {
           className="relative w-full max-w-3xl mx-auto mb-10"
         >
           <div
-            className={`flex items-center w-full bg-[#111114]/80 border 
-              ${query ? "border-indigo-500 shadow-[0_0_35px_rgba(99,102,241,0.45)]" : "border-[#1f1f25]"} 
-              rounded-full px-6 py-4 transition-all duration-300`}
+            className={`flex items-center w-full rounded-full px-6 py-4 transition-all duration-300 border ${
+              query ? "border-indigo-500 shadow-[0_0_35px_rgba(99,102,241,0.3)]" : ""
+            }`}
+            style={{ 
+              backgroundColor: 'var(--bg-input)', 
+              borderColor: query ? 'rgb(99, 102, 241)' : 'var(--border-secondary)' 
+            }}
           >
-            <FiSearch className="text-gray-400 w-6 h-6 mr-3" />
+            <FiSearch className="text-theme-muted w-6 h-6 mr-3" />
             <input
               type="text"
               placeholder="Search notes, summaries, uploads…"
-              className="w-full bg-transparent text-gray-200 placeholder-gray-500 placeholder:text-[1rem] text-[1.1rem] outline-none"
+              className="w-full bg-transparent text-theme-primary placeholder:text-theme-muted text-[1.1rem] outline-none"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -113,9 +118,12 @@ export default function SearchPage() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setQuery(s)}
-                className="px-5 py-2 rounded-full bg-[#1a1a22] border border-[#1f1f25] 
-                           hover:border-indigo-500/50 hover:text-indigo-400 
-                           text-gray-300 transition-all text-sm shadow"
+                className="px-5 py-2 rounded-full hover:border-indigo-500/50 hover:text-indigo-500 
+                           text-theme-secondary transition-all text-sm shadow border"
+                style={{ 
+                  backgroundColor: 'var(--bg-tertiary)', 
+                  borderColor: 'var(--border-secondary)' 
+                }}
               >
                 {s}
               </motion.button>
@@ -132,7 +140,7 @@ export default function SearchPage() {
             transition={{ duration: 1.2 }}
             className="mb-16"
           >
-            <h3 className="text-gray-400 text-sm mb-3 flex items-center gap-2">
+            <h3 className="text-theme-muted text-sm mb-3 flex items-center gap-2">
               <FiClock /> Recent Searches
             </h3>
 
@@ -141,9 +149,12 @@ export default function SearchPage() {
                 <button
                   key={i}
                   onClick={() => setQuery(item)}
-                  className="px-4 py-2 rounded-xl bg-[#111114] border border-[#1f1f25] 
-                             hover:border-indigo-500/60 hover:text-indigo-400 
-                             text-gray-400 text-sm transition"
+                  className="px-4 py-2 rounded-xl hover:border-indigo-500/50 hover:text-indigo-500 
+                             text-theme-muted text-sm transition border"
+                  style={{ 
+                    backgroundColor: 'var(--bg-card)', 
+                    borderColor: 'var(--border-secondary)' 
+                  }}
                 >
                   {item}
                 </button>
@@ -160,24 +171,32 @@ export default function SearchPage() {
             transition={{ duration: 0.6 }}
             className="mt-12 space-y-6"
           >
-            <h3 className="text-indigo-400 text-lg font-semibold mb-4">
-              Results for “{query}”
+            <h3 className="text-indigo-500 text-lg font-semibold mb-4">
+              Results for "{query}"
             </h3>
 
             {placeholderResults.map((res, i) => (
               <div
                 key={i}
-                className="bg-[#111114]/70 border border-[#1f1f25] rounded-2xl p-6 
-                           hover:-translate-y-1 hover:border-indigo-500/50 
-                           shadow-[0_0_20px_rgba(99,102,241,0.15)] 
-                           hover:shadow-[0_0_40px_rgba(99,102,241,0.3)]
-                           transition-all duration-300 cursor-pointer"
+                className="rounded-2xl p-6 hover:-translate-y-1 hover:border-indigo-500/40 
+                           shadow-[0_0_20px_rgba(99,102,241,0.08)] 
+                           hover:shadow-[0_0_40px_rgba(99,102,241,0.15)]
+                           transition-all duration-300 cursor-pointer border"
+                style={{ 
+                  backgroundColor: 'var(--bg-card)', 
+                  borderColor: 'var(--border-secondary)' 
+                }}
               >
                 <div className="flex items-start gap-4">
-                  {res.icon}
+                  <div 
+                    className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: 'var(--bg-tertiary)' }}
+                  >
+                    {res.icon}
+                  </div>
                   <div>
-                    <h4 className="text-white font-semibold">{res.title}</h4>
-                    <p className="text-gray-400 text-sm mt-1">{res.desc}</p>
+                    <h4 className="text-theme-primary font-semibold">{res.title}</h4>
+                    <p className="text-theme-muted text-sm mt-1">{res.desc}</p>
                   </div>
                 </div>
               </div>

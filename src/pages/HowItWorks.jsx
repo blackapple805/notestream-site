@@ -1,4 +1,5 @@
 // src/pages/HowItWorks.jsx
+import { useNavigate } from "react-router-dom";
 import { 
   FiUploadCloud, 
   FiCpu, 
@@ -21,6 +22,8 @@ import { motion } from "framer-motion";
 import { Brain, Sparkle, Lightning, ListChecks, Tag } from "phosphor-react";
 
 export default function HowItWorks() {
+  const navigate = useNavigate();
+
   return (
     <section 
       className="relative min-h-screen text-theme-primary px-6 pt-32 pb-32 overflow-hidden"
@@ -386,7 +389,10 @@ export default function HowItWorks() {
           <p className="text-theme-muted mb-8 max-w-lg mx-auto">
             Join thousands of users who have transformed how they capture and understand information.
           </p>
-          <button className="px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg shadow-indigo-500/25 text-lg">
+          <button 
+            onClick={() => navigate("/signup")}
+            className="px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg shadow-indigo-500/25 text-lg"
+          >
             Start Free Trial
           </button>
         </div>

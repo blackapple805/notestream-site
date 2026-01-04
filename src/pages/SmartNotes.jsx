@@ -1,8 +1,11 @@
 // src/pages/SmartNotes.jsx
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { FiZap, FiTag, FiSearch, FiLayers, FiCpu } from "react-icons/fi";
 
 export default function SmartNotes() {
+  const navigate = useNavigate();
+
   const features = [
     {
       icon: <FiTag className="text-indigo-500 w-7 h-7" />,
@@ -303,7 +306,10 @@ export default function SmartNotes() {
             <p className="text-theme-muted mb-6 max-w-lg mx-auto">
               Start using Smart Notes today and experience the future of note-taking.
             </p>
-            <button className="px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg shadow-indigo-500/25">
+            <button 
+              onClick={() => navigate("/signup")}
+              className="px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg shadow-indigo-500/25"
+            >
               Get Started Free
             </button>
           </div>
