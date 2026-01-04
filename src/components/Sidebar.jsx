@@ -9,6 +9,7 @@ import {
   BezierCurve,
   Gear,
   Crown,
+  Plugs,
 } from "phosphor-react";
 import { Link, useLocation } from "react-router-dom";
 
@@ -36,6 +37,7 @@ export default function Sidebar() {
     { label: "Insights", icon: MagnifyingGlass, to: "/dashboard/summaries" },
     { label: "Research", icon: Brain, to: "/dashboard/documents" },
     { label: "Activity", icon: Activity, to: "/dashboard/activity" },
+    { label: "Integrations", icon: Plugs, to: "/dashboard/integrations" },
     { label: "AI Lab (Pro)", icon: BezierCurve, to: "/dashboard/ai-lab", pro: true },
     { label: "Settings", icon: Gear, to: "/dashboard/settings" },
   ];

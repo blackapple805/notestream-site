@@ -246,30 +246,31 @@ export default function Integrations() {
       {/* Integration Detail Modal */}
       <AnimatePresence>
         {selectedIntegration && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            onClick={() => setSelectedIntegration(null)}
-          >
+          <>
             {/* Backdrop */}
-            <div 
-              className="absolute inset-0 backdrop-blur-sm"
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] backdrop-blur-sm"
               style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+              onClick={() => setSelectedIntegration(null)}
             />
             
-            {/* Modal */}
+            {/* Modal - Positioned higher and centered */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.9, y: -20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-md rounded-2xl p-8 border z-10"
+              exit={{ opacity: 0, scale: 0.9, y: -20 }}
+              transition={{ type: "spring", duration: 0.4 }}
+              className="fixed z-[101] w-[calc(100%-2rem)] max-w-md rounded-2xl p-8 border"
               style={{ 
                 backgroundColor: 'var(--bg-surface)', 
                 borderColor: 'var(--border-secondary)',
-                boxShadow: '0 25px 50px rgba(0,0,0,0.25)'
+                boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+                top: '12%',
+                left: '42%',
+                transform: 'translateX(-50%)',
               }}
             >
               {/* Close Button */}
@@ -342,7 +343,7 @@ export default function Integrations() {
                 Requires a free NoteStream account
               </p>
             </motion.div>
-          </motion.div>
+          </>
         )}
       </AnimatePresence>
     </section>
