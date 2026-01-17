@@ -1,8 +1,9 @@
 // src/pages/Documents.jsx - "Research Synthesizer"
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
+import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
 import { 
   FiEye, 
   FiFileText, 
@@ -11,7 +12,8 @@ import {
   FiX,
   FiLayers,
   FiTrash2,
-  FiBookOpen
+  FiBookOpen,
+  FiZap
 } from "react-icons/fi";
 import { Brain, Sparkle, FilePlus } from "phosphor-react";
 
@@ -41,6 +43,8 @@ function PriorityTag({ priority, children }) {
 
 export default function Documents({ docs = [], setDocs }) {
   const navigate = useNavigate();
+  const { settings } = useWorkspaceSettings();
+  
   const [query, setQuery] = useState("");
   const [filterType, setFilterType] = useState("ALL");
   const [showUploader, setShowUploader] = useState(false);
@@ -50,6 +54,9 @@ export default function Documents({ docs = [], setDocs }) {
   const [selectedDocs, setSelectedDocs] = useState([]);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [synthesisResult, setSynthesisResult] = useState(null);
+  
+  // Auto-summarize state
+  const [autoSummarizing, setAutoSummarizing] = useState(null); // doc id being summarized
   
   const [savedBriefs, setSavedBriefs] = useState([]);
   const [viewingBrief, setViewingBrief] = useState(null);
@@ -81,13 +88,25 @@ export default function Documents({ docs = [], setDocs }) {
 
   const handlePreview = (doc) => navigate(`/dashboard/documents/view/${doc.id}`);
 
-  const runSmartSummary = async (doc) => {
+  const runSmartSummary = async (doc, isAutomatic = false) => {
+    if (isAutomatic) {
+      setAutoSummarizing(doc.id);
+    }
+    
+    // Simulate AI processing time
+    await new Promise((r) => setTimeout(r, isAutomatic ? 1500 : 800));
+    
     const summary = buildSmartSummary(doc);
     setDocs((prev) => prev.map((d) => d.id === doc.id ? { ...d, smartSummary: summary } : d));
+    
+    if (isAutomatic) {
+      setAutoSummarizing(null);
+      showToast(`AI summary generated for "${doc.name}"`, "success");
+    }
   };
 
   const handleSummarize = async (doc) => {
-    await runSmartSummary(doc);
+    await runSmartSummary(doc, false);
     navigate(`/dashboard/documents/view/${doc.id}`, { state: { scrollToSummary: true } });
   };
 
@@ -106,9 +125,10 @@ export default function Documents({ docs = [], setDocs }) {
     }
   };
 
-  const handleFileSelected = (e) => {
+  const handleFileSelected = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
     const extension = file.name.split(".").pop()?.toUpperCase() || "FILE";
     const type = ["PDF", "DOCX", "XLSX"].includes(extension) ? extension : "FILE";
     const newDoc = {
@@ -119,9 +139,18 @@ export default function Documents({ docs = [], setDocs }) {
       updated: "Just now",
       fileUrl: URL.createObjectURL(file),
     };
+    
     setDocs((prev) => [newDoc, ...prev]);
     setShowUploader(false);
     showToast(`Uploaded: ${file.name}`, "success");
+    
+    // ✅ Auto-summarize if setting is enabled
+    if (settings.autoSummarize) {
+      // Small delay to let the UI update first
+      setTimeout(() => {
+        runSmartSummary(newDoc, true);
+      }, 500);
+    }
   };
 
   const toggleDocSelection = (doc) => {
@@ -234,12 +263,13 @@ export default function Documents({ docs = [], setDocs }) {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-4 left-1/2 -translate-x-1/2 z-[10000] px-4 py-3 rounded-xl text-sm font-medium shadow-xl ${
+            className={`fixed top-4 left-1/2 -translate-x-1/2 z-[10000] px-4 py-3 rounded-xl text-sm font-medium shadow-xl flex items-center gap-2 ${
               toast.type === "error"
                 ? "bg-rose-500 text-white"
                 : "bg-emerald-500 text-white"
             }`}
           >
+            {toast.type === "success" && <FiCheck size={16} />}
             {toast.message}
           </motion.div>
         )}
@@ -250,7 +280,16 @@ export default function Documents({ docs = [], setDocs }) {
           <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">Research Synthesizer</h1>
           <Brain className="text-indigo-500" size={24} weight="duotone" />
         </div>
-        <p className="text-theme-muted text-sm mt-1 mb-5">Merge multiple documents into one clean, actionable brief.</p>
+        <p className="text-theme-muted text-sm mt-1 mb-3">Merge multiple documents into one clean, actionable brief.</p>
+        
+        {/* Auto-summarize indicator */}
+        {settings.autoSummarize && (
+          <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10">
+            <FiZap className="text-emerald-400" size={14} />
+            <span className="text-xs text-emerald-400">Auto-summarize is enabled</span>
+            <span className="text-xs text-theme-muted">• New uploads will be summarized automatically</span>
+          </div>
+        )}
 
         <div className="flex flex-col sm:flex-row gap-3 mt-1 mb-2">
           <button
@@ -382,6 +421,8 @@ export default function Documents({ docs = [], setDocs }) {
           {filteredDocs.length === 0 && <p className="text-theme-muted text-xs text-center py-4">No matching documents</p>}
           {filteredDocs.map((doc) => {
             const isSelected = selectedDocs.find((d) => d.id === doc.id);
+            const isAutoSummarizing = autoSummarizing === doc.id;
+            
             return (
               <div
                 key={doc.id}
@@ -406,10 +447,21 @@ export default function Documents({ docs = [], setDocs }) {
                     </div>
                   )}
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-theme-secondary text-[14px] font-medium truncate">{doc.name}</p>
                       {doc.synthesized && (
                         <PriorityTag priority="info">Synthesized</PriorityTag>
+                      )}
+                      {doc.smartSummary && (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                          AI Summary
+                        </span>
+                      )}
+                      {isAutoSummarizing && (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 flex items-center gap-1">
+                          <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
+                          Summarizing...
+                        </span>
                       )}
                     </div>
                     <p className="text-[11px] text-theme-muted mt-0.5 truncate">{doc.type} · {doc.size} · Updated {doc.updated}</p>
@@ -418,7 +470,14 @@ export default function Documents({ docs = [], setDocs }) {
                 {!synthesizeMode && (
                   <div className="flex gap-3 items-center">
                     <button className="text-theme-muted hover:text-indigo-500 active:scale-95 transition" onClick={(e) => { e.stopPropagation(); handlePreview(doc); }} title="Preview"><FiEye size={22} /></button>
-                    <button className="text-theme-muted hover:text-indigo-500 active:scale-95 transition" onClick={(e) => { e.stopPropagation(); handleSummarize(doc); }} title="AI Summary"><FiFileText size={22} /></button>
+                    <button 
+                      className="text-theme-muted hover:text-indigo-500 active:scale-95 transition disabled:opacity-50" 
+                      onClick={(e) => { e.stopPropagation(); handleSummarize(doc); }} 
+                      title="AI Summary"
+                      disabled={isAutoSummarizing}
+                    >
+                      <FiFileText size={22} />
+                    </button>
                     <button className="text-theme-muted hover:text-rose-500 active:scale-95 transition" onClick={(e) => { e.stopPropagation(); handleDownload(doc); }} title="Download"><FiDownload size={22} /></button>
                   </div>
                 )}

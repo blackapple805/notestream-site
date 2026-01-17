@@ -1,5 +1,5 @@
 // src/pages/AiLab.jsx
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
 import {
@@ -16,8 +16,15 @@ import {
   CheckCircle,
   CreditCard,
   ShieldCheck,
+  Stop,
+  Play,
+  Pause,
+  FileText,
+  FilePdf,
+  FileDoc,
+  Cursor,
 } from "phosphor-react";
-import { FiX, FiCheck, FiLock, FiCreditCard, FiCalendar } from "react-icons/fi";
+import { FiX, FiCheck, FiLock, FiCreditCard, FiCalendar, FiDownload } from "react-icons/fi";
 import { useSubscription } from "../hooks/useSubscription";
 
 const proFeatures = [
@@ -123,7 +130,7 @@ export default function AiLab() {
   } = useSubscription();
 
   const [showPricing, setShowPricing] = useState(false);
-  const [showCheckout, setShowCheckout] = useState(null); // null or plan object
+  const [showCheckout, setShowCheckout] = useState(null);
   const [showDemo, setShowDemo] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
@@ -159,13 +166,11 @@ export default function AiLab() {
       });
       setPaymentSuccess(true);
       
-      // Reset form
       setCardNumber("");
       setCardExpiry("");
       setCardCvc("");
       setCardName("");
       
-      // Close after showing success
       setTimeout(() => {
         setShowCheckout(null);
         setPaymentSuccess(false);
@@ -730,7 +735,7 @@ export default function AiLab() {
         )}
       </AnimatePresence>
 
-      {/* Demo Modal */}
+      {/* Demo Modal - Enhanced with Interactive Demos */}
       <AnimatePresence>
         {showDemo && (
           <motion.div
@@ -771,68 +776,15 @@ export default function AiLab() {
               </div>
 
               <div 
-                className="rounded-xl p-4 mb-4 min-h-[200px] flex items-center justify-center border"
+                className="rounded-xl p-4 mb-4 min-h-[280px] border overflow-hidden"
                 style={{
                   backgroundColor: 'var(--bg-input)',
                   borderColor: 'var(--border-secondary)',
                 }}
               >
-                {showDemo.id === "voice" && (
-                  <div className="text-center">
-                    <div className="h-16 w-16 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center mx-auto mb-3">
-                      <Microphone size={32} weight="duotone" className="text-purple-400" />
-                    </div>
-                    <p className="text-sm text-theme-secondary">Tap to start recording</p>
-                    <p className="text-xs text-theme-muted mt-1">Voice demo is simulated</p>
-                  </div>
-                )}
-                {showDemo.id === "collab" && (
-                  <div className="text-center">
-                    <div className="flex -space-x-3 justify-center mb-3">
-                      {[1, 2, 3].map((i) => (
-                        <div
-                          key={i}
-                          className="h-10 w-10 rounded-full border-2 flex items-center justify-center text-xs font-medium"
-                          style={{
-                            backgroundColor: `hsl(${i * 100}, 60%, 50%)`,
-                            borderColor: 'var(--bg-surface)',
-                            color: 'white',
-                          }}
-                        >
-                          U{i}
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-sm text-theme-secondary">3 team members online</p>
-                    <p className="text-xs text-theme-muted mt-1">Collaboration demo</p>
-                  </div>
-                )}
-                {showDemo.id === "export" && (
-                  <div className="text-center">
-                    <div className="flex gap-2 justify-center mb-3">
-                      <div 
-                        className="px-3 py-2 rounded-lg text-xs font-medium text-rose-400"
-                        style={{ backgroundColor: 'var(--bg-tertiary)' }}
-                      >
-                        PDF
-                      </div>
-                      <div 
-                        className="px-3 py-2 rounded-lg text-xs font-medium text-blue-400"
-                        style={{ backgroundColor: 'var(--bg-tertiary)' }}
-                      >
-                        DOCX
-                      </div>
-                      <div 
-                        className="px-3 py-2 rounded-lg text-xs font-medium text-theme-secondary"
-                        style={{ backgroundColor: 'var(--bg-tertiary)' }}
-                      >
-                        Notion
-                      </div>
-                    </div>
-                    <p className="text-sm text-theme-secondary">Export to any format</p>
-                    <p className="text-xs text-theme-muted mt-1">Export demo</p>
-                  </div>
-                )}
+                {showDemo.id === "voice" && <VoiceNotesDemo />}
+                {showDemo.id === "collab" && <CollaborationDemo />}
+                {showDemo.id === "export" && <ExportDemo />}
               </div>
 
               <button
@@ -849,6 +801,398 @@ export default function AiLab() {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+/* -----------------------------------------
+   Voice Notes Demo Component
+----------------------------------------- */
+function VoiceNotesDemo() {
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [transcription, setTranscription] = useState("");
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [waveformBars, setWaveformBars] = useState(Array(20).fill(0.2));
+  const intervalRef = useRef(null);
+  const waveformRef = useRef(null);
+
+  const sampleTranscriptions = [
+    "Meeting notes for Q4 planning session...",
+    "Remember to follow up with the design team about the new dashboard layout.",
+    "Key insights: User engagement increased by 23% after implementing the new onboarding flow.",
+  ];
+
+  useEffect(() => {
+    if (isRecording) {
+      // Timer
+      intervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+      
+      // Waveform animation
+      waveformRef.current = setInterval(() => {
+        setWaveformBars(prev => 
+          prev.map(() => Math.random() * 0.8 + 0.2)
+        );
+      }, 100);
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (waveformRef.current) clearInterval(waveformRef.current);
+    }
+    
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (waveformRef.current) clearInterval(waveformRef.current);
+    };
+  }, [isRecording]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleToggleRecording = () => {
+    if (isRecording) {
+      setIsRecording(false);
+      setIsTranscribing(true);
+      setWaveformBars(Array(20).fill(0.2));
+      
+      // Simulate transcription
+      setTimeout(() => {
+        setIsTranscribing(false);
+        const randomTranscription = sampleTranscriptions[Math.floor(Math.random() * sampleTranscriptions.length)];
+        setTranscription(randomTranscription);
+      }, 2000);
+    } else {
+      setIsRecording(true);
+      setRecordingTime(0);
+      setTranscription("");
+    }
+  };
+
+  const handleReset = () => {
+    setIsRecording(false);
+    setRecordingTime(0);
+    setTranscription("");
+    setIsTranscribing(false);
+    setWaveformBars(Array(20).fill(0.2));
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full space-y-4">
+      {/* Waveform Visualization */}
+      <div className="flex items-center justify-center gap-1 h-16 w-full">
+        {waveformBars.map((height, i) => (
+          <motion.div
+            key={i}
+            className={`w-1.5 rounded-full ${isRecording ? 'bg-purple-500' : 'bg-purple-500/30'}`}
+            animate={{ height: `${height * 100}%` }}
+            transition={{ duration: 0.1 }}
+            style={{ minHeight: '8px', maxHeight: '64px' }}
+          />
+        ))}
+      </div>
+
+      {/* Timer */}
+      <div className="text-2xl font-mono text-theme-primary">
+        {formatTime(recordingTime)}
+      </div>
+
+      {/* Recording Button */}
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={handleToggleRecording}
+        disabled={isTranscribing}
+        className={`h-16 w-16 rounded-full flex items-center justify-center transition-all ${
+          isRecording 
+            ? 'bg-rose-500 shadow-lg shadow-rose-500/40' 
+            : 'bg-purple-500 shadow-lg shadow-purple-500/40'
+        } ${isTranscribing ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        {isRecording ? (
+          <Stop size={28} weight="fill" className="text-white" />
+        ) : (
+          <Microphone size={28} weight="fill" className="text-white" />
+        )}
+      </motion.button>
+
+      <p className="text-xs text-theme-muted">
+        {isRecording ? "Tap to stop recording" : isTranscribing ? "Transcribing..." : "Tap to start recording"}
+      </p>
+
+      {/* Transcription Result */}
+      {isTranscribing && (
+        <div className="w-full p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-theme-muted">AI is transcribing...</span>
+          </div>
+        </div>
+      )}
+
+      {transcription && !isTranscribing && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full p-3 rounded-lg border border-emerald-500/30"
+          style={{ backgroundColor: 'var(--bg-tertiary)' }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle size={14} weight="fill" className="text-emerald-500" />
+            <span className="text-xs font-medium text-emerald-500">Transcribed</span>
+          </div>
+          <p className="text-sm text-theme-secondary">{transcription}</p>
+          <button 
+            onClick={handleReset}
+            className="mt-2 text-xs text-purple-400 hover:text-purple-300 transition"
+          >
+            Record another →
+          </button>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+/* -----------------------------------------
+   Collaboration Demo Component
+----------------------------------------- */
+function CollaborationDemo() {
+  const [cursors, setCursors] = useState([
+    { id: 1, name: "Alex", color: "#8b5cf6", x: 60, y: 45 },
+    { id: 2, name: "Sarah", color: "#10b981", x: 180, y: 90 },
+    { id: 3, name: "Mike", color: "#f59e0b", x: 120, y: 140 },
+  ]);
+  const [text, setText] = useState("Project Brief: Q4 Marketing Strategy\n\nObjectives:\n• Increase brand awareness by 25%\n• Launch 3 new campaigns\n• ");
+  const [typingUser, setTypingUser] = useState(null);
+
+  const additions = [
+    { user: "Alex", text: "Expand social media presence" },
+    { user: "Sarah", text: "Partner with influencers" },
+    { user: "Mike", text: "Optimize ad spend ROI" },
+  ];
+
+  useEffect(() => {
+    // Animate cursors
+    const cursorInterval = setInterval(() => {
+      setCursors(prev => prev.map(cursor => ({
+        ...cursor,
+        x: Math.max(20, Math.min(280, cursor.x + (Math.random() - 0.5) * 40)),
+        y: Math.max(20, Math.min(180, cursor.y + (Math.random() - 0.5) * 30)),
+      })));
+    }, 1500);
+
+    // Simulate typing
+    let additionIndex = 0;
+    const typingInterval = setInterval(() => {
+      const addition = additions[additionIndex % additions.length];
+      setTypingUser(addition.user);
+      
+      setTimeout(() => {
+        setText(prev => prev + addition.text + "\n• ");
+        setTypingUser(null);
+        additionIndex++;
+      }, 1500);
+    }, 4000);
+
+    return () => {
+      clearInterval(cursorInterval);
+      clearInterval(typingInterval);
+    };
+  }, []);
+
+  return (
+    <div className="relative h-full">
+      {/* Document Preview */}
+      <div 
+        className="h-full rounded-lg p-3 text-xs font-mono relative overflow-hidden"
+        style={{ backgroundColor: 'var(--bg-surface)' }}
+      >
+        <pre className="text-theme-secondary whitespace-pre-wrap">{text}</pre>
+        
+        {typingUser && (
+          <motion.span
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="inline-flex items-center gap-1"
+          >
+            <span 
+              className="w-2 h-4 animate-pulse rounded-sm"
+              style={{ backgroundColor: cursors.find(c => c.name === typingUser)?.color }}
+            />
+            <span className="text-[10px] text-theme-muted">{typingUser} is typing...</span>
+          </motion.span>
+        )}
+
+        {/* Cursors */}
+        {cursors.map(cursor => (
+          <motion.div
+            key={cursor.id}
+            className="absolute pointer-events-none"
+            animate={{ x: cursor.x, y: cursor.y }}
+            transition={{ type: "spring", stiffness: 100, damping: 15 }}
+          >
+            <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+              <path 
+                d="M0 0L16 12L8 12L4 20L0 0Z" 
+                fill={cursor.color}
+              />
+            </svg>
+            <span 
+              className="absolute left-4 top-3 text-[9px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap text-white"
+              style={{ backgroundColor: cursor.color }}
+            >
+              {cursor.name}
+            </span>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Online Users */}
+      <div className="absolute bottom-3 right-3 flex items-center gap-2">
+        <div className="flex -space-x-2">
+          {cursors.map(cursor => (
+            <div
+              key={cursor.id}
+              className="h-6 w-6 rounded-full border-2 flex items-center justify-center text-[8px] font-bold text-white"
+              style={{ 
+                backgroundColor: cursor.color,
+                borderColor: 'var(--bg-surface)',
+              }}
+            >
+              {cursor.name[0]}
+            </div>
+          ))}
+        </div>
+        <span className="text-[10px] text-theme-muted">3 editing</span>
+      </div>
+
+      {/* Activity Indicator */}
+      <div 
+        className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px]"
+        style={{ backgroundColor: 'var(--bg-tertiary)' }}
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="text-emerald-400">Live</span>
+      </div>
+    </div>
+  );
+}
+
+/* -----------------------------------------
+   Export Demo Component
+----------------------------------------- */
+function ExportDemo() {
+  const [selectedFormat, setSelectedFormat] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportComplete, setExportComplete] = useState(false);
+
+  const formats = [
+    { id: "pdf", name: "PDF", icon: FilePdf, color: "text-rose-400", bgColor: "bg-rose-500/10", borderColor: "border-rose-500/30" },
+    { id: "docx", name: "Word", icon: FileDoc, color: "text-blue-400", bgColor: "bg-blue-500/10", borderColor: "border-blue-500/30" },
+    { id: "md", name: "Markdown", icon: FileText, color: "text-slate-400", bgColor: "bg-slate-500/10", borderColor: "border-slate-500/30" },
+    { id: "notion", name: "Notion", icon: FileText, color: "text-theme-secondary", bgColor: "bg-white/5", borderColor: "border-white/20" },
+  ];
+
+  const handleExport = (format) => {
+    setSelectedFormat(format);
+    setIsExporting(true);
+    setExportComplete(false);
+
+    setTimeout(() => {
+      setIsExporting(false);
+      setExportComplete(true);
+    }, 2000);
+  };
+
+  const handleReset = () => {
+    setSelectedFormat(null);
+    setExportComplete(false);
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Preview Area */}
+      <div 
+        className="flex-1 rounded-lg p-3 mb-4 relative"
+        style={{ backgroundColor: 'var(--bg-surface)' }}
+      >
+        {/* Document Preview */}
+        <div className="space-y-2">
+          <div className="h-3 w-3/4 rounded bg-theme-muted/20" />
+          <div className="h-2 w-full rounded bg-theme-muted/10" />
+          <div className="h-2 w-5/6 rounded bg-theme-muted/10" />
+          <div className="h-2 w-full rounded bg-theme-muted/10" />
+          <div className="h-6 w-1/2 rounded bg-theme-muted/5 mt-4" />
+          <div className="h-2 w-full rounded bg-theme-muted/10" />
+          <div className="h-2 w-4/5 rounded bg-theme-muted/10" />
+        </div>
+
+        {/* Export Overlay */}
+        <AnimatePresence>
+          {(isExporting || exportComplete) && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 rounded-lg flex items-center justify-center"
+              style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+            >
+              {isExporting ? (
+                <div className="text-center">
+                  <div className="w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                  <p className="text-sm text-theme-primary">Exporting to {selectedFormat?.name}...</p>
+                </div>
+              ) : exportComplete ? (
+                <motion.div 
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="text-center"
+                >
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-3">
+                    <CheckCircle size={28} weight="fill" className="text-emerald-500" />
+                  </div>
+                  <p className="text-sm text-theme-primary mb-1">Export Complete!</p>
+                  <p className="text-xs text-theme-muted mb-3">note_export.{selectedFormat?.id}</p>
+                  <button
+                    onClick={handleReset}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1 mx-auto"
+                  >
+                    <FiDownload size={12} />
+                    Try another format
+                  </button>
+                </motion.div>
+              ) : null}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Format Selection */}
+      <div>
+        <p className="text-xs text-theme-muted mb-2">Choose export format:</p>
+        <div className="grid grid-cols-4 gap-2">
+          {formats.map((format) => {
+            const Icon = format.icon;
+            return (
+              <motion.button
+                key={format.id}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleExport(format)}
+                disabled={isExporting}
+                className={`p-3 rounded-xl border ${format.bgColor} ${format.borderColor} flex flex-col items-center gap-1.5 transition disabled:opacity-50`}
+              >
+                <Icon size={20} weight="duotone" className={format.color} />
+                <span className={`text-[10px] font-medium ${format.color}`}>{format.name}</span>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

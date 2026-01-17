@@ -1510,6 +1510,25 @@ button[class*="bg-purple-600"],
   background-color: var(--bg-surface);
 }
 
+/* --------------------------------------------------------------
+   NO-ANIMATE CLASS — Prevents ALL animations/transitions
+-------------------------------------------------------------- */
+
+.no-animate,
+.no-animate *,
+.no-animate *::before,
+.no-animate *::after {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* But allow specific transitions we DO want (like button hover) */
+.no-animate button {
+  transition: background-color 0.15s ease, color 0.15s ease !important;
+}
 
 
 

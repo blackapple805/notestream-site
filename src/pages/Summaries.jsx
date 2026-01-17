@@ -27,15 +27,8 @@ export default function Summaries() {
   const [conversations, setConversations] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [showFileSelector, setShowFileSelector] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
   const inputRef = useRef(null);
   const chatEndRef = useRef(null);
-
-  // Prevent animation glitch - wait for mount
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoaded(true), 50);
-    return () => clearTimeout(timer);
-  }, []);
 
   // Auto-scroll to bottom when new messages appear
   useEffect(() => {
@@ -137,7 +130,7 @@ export default function Summaries() {
 
   return (
     <div className="space-y-6 pb-40">
-      {/* Header - NO animation here to prevent fixed element glitch */}
+      {/* Header */}
       <header>
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-semibold text-theme-primary">Insight Explorer</h1>
@@ -342,44 +335,48 @@ export default function Summaries() {
         )}
       </div>
 
-      {/* Input Area - Fixed at bottom - NO ANIMATION to prevent glitch */}
-      {isLoaded && (
-        <div className="fixed bottom-[90px] md:bottom-6 left-0 right-0 md:left-[220px] px-4 md:px-8 z-50">
-          <div className="max-w-[1200px] mx-auto">
-            <form onSubmit={handleSearch}>
-              <div 
-                className="flex items-center gap-2 rounded-2xl px-4 py-3 shadow-lg border transition-colors"
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-secondary)',
-                }}
+      {/* 
+        Input Area - Fixed at bottom
+        Uses 'no-animate' class to prevent any CSS animations/transitions
+        Always visible, no React state needed
+      */}
+      <div 
+        className="no-animate fixed bottom-[90px] md:bottom-6 left-0 right-0 md:left-[220px] px-4 md:px-8 z-50"
+      >
+        <div className="max-w-[1200px] mx-auto">
+          <form onSubmit={handleSearch}>
+            <div 
+              className="no-animate flex items-center gap-2 rounded-2xl px-4 py-3 shadow-lg border"
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                borderColor: 'var(--border-secondary)',
+              }}
+            >
+              <FiSearch className="text-theme-muted flex-shrink-0" size={18} />
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Ask a question about your workspace..."
+                className="flex-1 bg-transparent text-sm text-theme-primary placeholder:text-theme-muted focus:outline-none"
+                disabled={isSearching}
+              />
+              <button
+                type="submit"
+                disabled={!query.trim() || isSearching}
+                className={`p-2 rounded-xl transition-colors flex-shrink-0 ${
+                  query.trim() && !isSearching
+                    ? "bg-indigo-600 hover:bg-indigo-500 text-white"
+                    : "bg-theme-button text-theme-muted"
+                }`}
               >
-                <FiSearch className="text-theme-muted flex-shrink-0" size={18} />
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Ask a question about your workspace..."
-                  className="flex-1 bg-transparent text-sm text-theme-primary placeholder:text-theme-muted focus:outline-none"
-                  disabled={isSearching}
-                />
-                <button
-                  type="submit"
-                  disabled={!query.trim() || isSearching}
-                  className={`p-2 rounded-xl transition flex-shrink-0 ${
-                    query.trim() && !isSearching
-                      ? "bg-indigo-600 hover:bg-indigo-500 text-white"
-                      : "bg-theme-button text-theme-muted"
-                  }`}
-                >
-                  <FiSend size={16} />
-                </button>
-              </div>
-            </form>
-          </div>
+                <FiSend size={16} />
+              </button>
+            </div>
+          </form>
         </div>
-      )}
+      </div>
     </div>
   );
 }

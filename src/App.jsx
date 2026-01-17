@@ -16,6 +16,9 @@ import { IntegrationsProvider } from "./hooks/useIntegrations";
 // Subscription Provider
 import { SubscriptionProvider } from "./hooks/useSubscription";
 
+// Workspace Settings Provider
+import { WorkspaceProvider } from "./hooks/useWorkspaceSettings";
+
 // Global Components
 import Navbar from "./components/Navbar";
 import ScrollToTop from "./components/ScrollToTop";
@@ -173,7 +176,7 @@ function PublicSiteWrapper() {
 
 
 // ----------------------------------------------------------------
-// ROOT APP - Wrapped with ThemeProvider & IntegrationsProvider
+// ROOT APP - Wrapped with all Providers
 // ----------------------------------------------------------------
 export default function App() {
   const [docs, setDocs] = useState([
@@ -191,57 +194,59 @@ export default function App() {
   const [notes, setNotes] = useState([]);
   
   return (
-    // Wrap entire app with ThemeProvider, IntegrationsProvider, and SubscriptionProvider
+    // Wrap entire app with all providers
     <ThemeProvider>
       <IntegrationsProvider>
         <SubscriptionProvider>
-          <Router>
-          <ScrollToTop />
+          <WorkspaceProvider>
+            <Router>
+              <ScrollToTop />
 
-          <Routes>
-            {/* PUBLIC SITE */}
-            <Route path="/*" element={<PublicSiteWrapper />} />
+              <Routes>
+                {/* PUBLIC SITE */}
+                <Route path="/*" element={<PublicSiteWrapper />} />
 
-            {/* DASHBOARD PAGES */}
-            <Route path="/dashboard" element={<DashboardLayout />}>
-              <Route index element={<Dashboard />} />
+                {/* DASHBOARD PAGES */}
+                <Route path="/dashboard" element={<DashboardLayout />}>
+                  <Route index element={<Dashboard />} />
 
-              {/* NOTES */}
-              <Route
-                path="notes"
-                element={<Notes notes={notes} setNotes={setNotes} />}
-              />
-              <Route
-                path="notes/:noteId"
-                element={<Notes notes={notes} setNotes={setNotes} />}
-              />
+                  {/* NOTES */}
+                  <Route
+                    path="notes"
+                    element={<Notes notes={notes} setNotes={setNotes} />}
+                  />
+                  <Route
+                    path="notes/:noteId"
+                    element={<Notes notes={notes} setNotes={setNotes} />}
+                  />
 
-              {/* DOCUMENTS */}
-              <Route
-                path="documents"
-                element={<Documents docs={docs} setDocs={setDocs} />}
-              />
-              <Route
-                path="documents/view/:id"
-                element={<DocumentViewer docs={docs} />}
-              />
-              <Route
-                path="documents/rewrite/:id"
-                element={<RewriteDocument docs={docs} setDocs={setDocs} />}
-              />
+                  {/* DOCUMENTS */}
+                  <Route
+                    path="documents"
+                    element={<Documents docs={docs} setDocs={setDocs} />}
+                  />
+                  <Route
+                    path="documents/view/:id"
+                    element={<DocumentViewer docs={docs} />}
+                  />
+                  <Route
+                    path="documents/rewrite/:id"
+                    element={<RewriteDocument docs={docs} setDocs={setDocs} />}
+                  />
 
-              {/* INTEGRATIONS */}
-              <Route path="integrations" element={<IntegrationSettings />} />
-              <Route path="integrations/connect/:integrationId" element={<IntegrationConnect />} />
+                  {/* INTEGRATIONS */}
+                  <Route path="integrations" element={<IntegrationSettings />} />
+                  <Route path="integrations/connect/:integrationId" element={<IntegrationConnect />} />
 
-              {/* OTHER SECTIONS */}
-              <Route path="summaries" element={<Summaries />} />
-              <Route path="activity" element={<Activity />} />
-              <Route path="ai-lab" element={<AiLab />} />
-              <Route path="settings" element={<Settings />} />
-            </Route>
-          </Routes>
-        </Router>
+                  {/* OTHER SECTIONS */}
+                  <Route path="summaries" element={<Summaries />} />
+                  <Route path="activity" element={<Activity />} />
+                  <Route path="ai-lab" element={<AiLab />} />
+                  <Route path="settings" element={<Settings />} />
+                </Route>
+              </Routes>
+            </Router>
+          </WorkspaceProvider>
         </SubscriptionProvider>
       </IntegrationsProvider>
     </ThemeProvider>

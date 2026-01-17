@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
 import { useTheme } from "../context/ThemeContext";
+import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
 import {
   FiUser,
   FiLock,
@@ -15,6 +16,7 @@ import {
   FiChevronRight,
   FiCheck,
   FiHelpCircle,
+  FiZap,
 } from "react-icons/fi";
 import {
   Gear,
@@ -35,6 +37,9 @@ export default function Settings() {
   // Theme from context (persists to localStorage)
   const { theme, setTheme, resolvedTheme } = useTheme();
 
+  // Workspace settings from shared context
+  const { settings, updateSetting } = useWorkspaceSettings();
+
   // Profile state
   const [displayName, setDisplayName] = useState(() => {
     return localStorage.getItem("notestream-displayName") || "Eric Angel";
@@ -43,17 +48,6 @@ export default function Settings() {
     return localStorage.getItem("notestream-email") || "you@example.com";
   });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-
-  // Workspace settings (persisted)
-  const [autoSummarize, setAutoSummarize] = useState(() => {
-    return localStorage.getItem("notestream-autoSummarize") !== "false";
-  });
-  const [weeklyDigest, setWeeklyDigest] = useState(() => {
-    return localStorage.getItem("notestream-weeklyDigest") === "true";
-  });
-  const [smartNotifications, setSmartNotifications] = useState(() => {
-    return localStorage.getItem("notestream-smartNotifications") !== "false";
-  });
 
   // Security
   const [showPinModal, setShowPinModal] = useState(false);
@@ -86,20 +80,20 @@ export default function Settings() {
     showToast("Data export started. Check your email!");
   };
 
-  // Save workspace settings to localStorage
+  // Workspace settings handlers using shared context
   const handleAutoSummarizeChange = (value) => {
-    setAutoSummarize(value);
-    localStorage.setItem("notestream-autoSummarize", value.toString());
+    updateSetting("autoSummarize", value);
+    showToast(value ? "Auto-summarize enabled" : "Auto-summarize disabled");
   };
 
   const handleWeeklyDigestChange = (value) => {
-    setWeeklyDigest(value);
-    localStorage.setItem("notestream-weeklyDigest", value.toString());
+    updateSetting("weeklyDigest", value);
+    showToast(value ? "Weekly digest enabled" : "Weekly digest disabled");
   };
 
   const handleSmartNotificationsChange = (value) => {
-    setSmartNotifications(value);
-    localStorage.setItem("notestream-smartNotifications", value.toString());
+    updateSetting("smartNotifications", value);
+    showToast(value ? "Smart notifications enabled" : "Smart notifications disabled");
   };
 
   const themeOptions = [
@@ -250,7 +244,7 @@ export default function Settings() {
         </div>
       </GlassCard>
 
-      {/* Workspace Section */}
+      {/* Workspace Section - Using shared context */}
       <GlassCard>
         <div className="flex items-center gap-2 mb-4">
           <div className="h-8 w-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
@@ -264,21 +258,46 @@ export default function Settings() {
           <ToggleSetting
             label="Auto-summarize new uploads"
             description="Automatically generate AI summaries for uploaded files"
-            enabled={autoSummarize}
+            enabled={settings.autoSummarize}
             onChange={handleAutoSummarizeChange}
           />
           <ToggleSetting
             label="Smart notifications"
             description="Get AI-powered reminders based on your notes"
-            enabled={smartNotifications}
+            enabled={settings.smartNotifications}
             onChange={handleSmartNotificationsChange}
           />
           <ToggleSetting
             label="Email me weekly digests"
             description="Receive a summary of your activity every Monday"
-            enabled={weeklyDigest}
+            enabled={settings.weeklyDigest}
             onChange={handleWeeklyDigestChange}
           />
+        </div>
+
+        {/* Settings status indicator */}
+        <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border-secondary)' }}>
+          <p className="text-[11px] text-theme-muted mb-2">Active features:</p>
+          <div className="flex flex-wrap gap-2">
+            {settings.autoSummarize && (
+              <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                <FiZap size={10} /> Auto-summarize
+              </span>
+            )}
+            {settings.smartNotifications && (
+              <span className="text-[10px] px-2 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                <FiZap size={10} /> Smart notifications
+              </span>
+            )}
+            {settings.weeklyDigest && (
+              <span className="text-[10px] px-2 py-1 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center gap-1">
+                <FiZap size={10} /> Weekly digest
+              </span>
+            )}
+            {!settings.autoSummarize && !settings.smartNotifications && !settings.weeklyDigest && (
+              <span className="text-[10px] text-theme-muted">No AI features enabled</span>
+            )}
+          </div>
         </div>
       </GlassCard>
 
@@ -349,7 +368,7 @@ export default function Settings() {
             icon={<Crown size={16} weight="duotone" />}
             label="Upgrade to Pro"
             badge="NEW"
-            onClick={() => alert("Navigate to AI Lab")}
+            onClick={() => navigate("/dashboard/ai-lab")}
           />
         </div>
       </GlassCard>
@@ -409,7 +428,6 @@ export default function Settings() {
             confirmColor="rose"
             icon={<FiTrash2 size={20} className="text-rose-400" />}
             onConfirm={() => {
-              // Clear all localStorage
               localStorage.clear();
               setShowDeleteModal(false);
               showToast("Account deletion requested");
@@ -430,10 +448,8 @@ export default function Settings() {
             icon={<FiLogOut size={20} className="text-gray-400" />}
             onConfirm={() => {
               setShowLogoutModal(false);
-              // Clear any auth tokens/session data here if needed
               localStorage.removeItem("notestream-session");
               showToast("Logged out successfully");
-              // Navigate to landing page
               setTimeout(() => navigate("/"), 500);
             }}
             onCancel={() => setShowLogoutModal(false)}
