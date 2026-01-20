@@ -24,7 +24,7 @@ import {
   FiTrendingUp,
   FiCalendar,
 } from "react-icons/fi";
-import { Activity as ActivityIcon, ChartLine, Fire } from "phosphor-react";
+import { ChartLine, Fire } from "phosphor-react";
 
 /* -----------------------------------------
    Activity Data
@@ -47,10 +47,10 @@ const monthlyData = [
 ];
 
 const usageBreakdown = [
-  { label: "Meeting Notes", value: 42, icon: <FiEdit3 className="h-4 w-4" /> },
-  { label: "Study / Research", value: 31, icon: <FiBookOpen className="h-4 w-4" /> },
-  { label: "Projects & Tasks", value: 19, icon: <FiClipboard className="h-4 w-4" /> },
-  { label: "Personal", value: 8, icon: <FiUser className="h-4 w-4" /> },
+  { label: "Meeting Notes", value: 42, icon: <FiEdit3 className="h-4 w-4" />, color: "#6366f1" },
+  { label: "Study / Research", value: 31, icon: <FiBookOpen className="h-4 w-4" />, color: "#8b5cf6" },
+  { label: "Projects & Tasks", value: 19, icon: <FiClipboard className="h-4 w-4" />, color: "#06b6d4" },
+  { label: "Personal", value: 8, icon: <FiUser className="h-4 w-4" />, color: "#10b981" },
 ];
 
 const allEvents = [
@@ -86,9 +86,9 @@ const AnimatedDot = (props) => {
     <motion.circle
       cx={cx}
       cy={cy}
-      r={4}
+      r={5}
       fill="#fff"
-      stroke="#a5b4fc"
+      stroke="#6366f1"
       strokeWidth={2}
       initial={{ scale: 0.5, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
@@ -104,17 +104,23 @@ const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
       <div 
-        className="rounded-lg px-3 py-2 shadow-xl border"
+        className="rounded-xl px-3 py-2.5 shadow-xl border backdrop-blur-sm"
         style={{
           backgroundColor: 'var(--bg-elevated)',
           borderColor: 'var(--border-secondary)',
         }}
       >
-        <p className="text-xs text-theme-muted mb-1">{label}</p>
+        <p className="text-xs font-medium text-theme-primary mb-1.5">{label}</p>
         {payload.map((entry, index) => (
-          <p key={index} className="text-sm font-medium" style={{ color: entry.color }}>
-            {entry.name}: {entry.value}
-          </p>
+          <div key={index} className="flex items-center gap-2">
+            <div 
+              className="w-2 h-2 rounded-full" 
+              style={{ backgroundColor: entry.color }}
+            />
+            <p className="text-xs text-theme-secondary">
+              {entry.name}: <span className="font-semibold text-theme-primary">{entry.value}</span>
+            </p>
+          </div>
         ))}
       </div>
     );
@@ -171,11 +177,13 @@ export default function Activity() {
         transition={{ duration: 0.4 }}
         className="flex items-center justify-between"
       >
-        <div className="flex items-center gap-2">
-          <ChartLine size={28} weight="duotone" className="text-indigo-400" />
+        <div className="flex items-center gap-2.5">
+          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center">
+            <ChartLine size={20} weight="duotone" className="text-indigo-400" />
+          </div>
           <h1 className="text-xl font-semibold text-theme-primary">Activity</h1>
         </div>
-        <span className="text-xs text-theme-muted">
+        <span className="text-xs text-theme-muted px-3 py-1.5 rounded-full bg-theme-tertiary border border-theme-secondary">
           {new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
         </span>
       </motion.div>
@@ -190,14 +198,16 @@ export default function Activity() {
         <StatCard 
           title="Notes This Week" 
           value={totalNotes} 
-          icon={<FiFileText className="text-indigo-400" size={16} />}
+          icon={<FiFileText size={18} />}
+          iconColor="indigo"
           trend="+12%"
           trendUp={true}
         />
         <StatCard 
           title="AI Summaries" 
           value={totalSummaries} 
-          icon={<FiZap className="text-amber-400" size={16} />}
+          icon={<FiZap size={18} />}
+          iconColor="amber"
           trend="+8%"
           trendUp={true}
         />
@@ -205,13 +215,14 @@ export default function Activity() {
           title="Day Streak" 
           value="11"
           sub="Keep it going!"
-          icon={<Fire className="text-orange-400" size={16} weight="fill" />}
-          isStreak
+          icon={<Fire size={18} weight="fill" />}
+          iconColor="orange"
         />
         <StatCard 
           title="Uploads" 
           value="8" 
-          icon={<FiUploadCloud className="text-emerald-400" size={16} />}
+          icon={<FiUploadCloud size={18} />}
+          iconColor="emerald"
         />
       </motion.div>
 
@@ -222,12 +233,14 @@ export default function Activity() {
         transition={{ duration: 0.4, delay: 0.1 }}
       >
         <GlassCard>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Fire className="text-orange-400" size={18} weight="fill" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-orange-500/20 to-amber-500/20 border border-orange-500/30 flex items-center justify-center">
+                <Fire className="text-orange-400" size={16} weight="fill" />
+              </div>
               <h3 className="font-semibold text-sm text-theme-primary">Weekly Activity</h3>
             </div>
-            <span className="text-xs text-theme-muted">7-day view</span>
+            <span className="text-[10px] text-theme-muted px-2 py-1 rounded-full bg-theme-tertiary">7-day view</span>
           </div>
           <StreakDots />
         </GlassCard>
@@ -243,7 +256,6 @@ export default function Activity() {
               <p className="text-[11px] text-theme-muted">Track your productivity trends</p>
             </div>
             <div className="flex gap-2">
-              {/* Chart Type Tabs */}
               {["notes", "summaries"].map((tab) => (
                 <ToggleButton
                   key={tab}
@@ -275,13 +287,13 @@ export default function Activity() {
                 <AreaChart data={chartData}>
                   <defs>
                     <linearGradient id="activityFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#818cf8" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
+                      <stop offset="0%" stopColor="#818cf8" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="#818cf8" stopOpacity={0.05} />
                     </linearGradient>
                     <linearGradient id="activityStroke" x1="0" y1="0" x2="1" y2="0">
                       <stop offset="0%" stopColor="#6366f1" />
-                      <stop offset="50%" stopColor="#c4b5fd" />
-                      <stop offset="100%" stopColor="#f9a8d4" />
+                      <stop offset="50%" stopColor="#a78bfa" />
+                      <stop offset="100%" stopColor="#c4b5fd" />
                     </linearGradient>
                   </defs>
                   <XAxis 
@@ -301,13 +313,13 @@ export default function Activity() {
                     type="monotone"
                     dataKey={chartTab}
                     stroke="url(#activityStroke)"
-                    strokeWidth={2.3}
+                    strokeWidth={2.5}
                     fill="url(#activityFill)"
                     dot={(props) => {
                       const isLast = props.index === chartData.length - 1;
                       return isLast ? <AnimatedDot {...props} /> : null;
                     }}
-                    activeDot={{ r: 6, fill: "#a5b4fc", stroke: "#fff", strokeWidth: 2 }}
+                    activeDot={{ r: 6, fill: "#6366f1", stroke: "#fff", strokeWidth: 2 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -324,33 +336,34 @@ export default function Activity() {
           <h3 className="font-semibold text-base text-theme-primary mb-1">Usage Breakdown</h3>
           <p className="text-[11px] text-theme-muted mb-4">How you use NoteStream</p>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             {usageBreakdown.map((item, i) => (
               <div key={i}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2.5">
                     <div 
-                      className="h-7 w-7 rounded-lg flex items-center justify-center text-indigo-400"
-                      style={{ backgroundColor: 'var(--bg-tertiary)' }}
+                      className="h-8 w-8 rounded-lg flex items-center justify-center"
+                      style={{ 
+                        backgroundColor: `${item.color}15`,
+                        color: item.color,
+                      }}
                     >
                       {item.icon}
                     </div>
-                    <span className="text-sm text-theme-secondary">{item.label}</span>
+                    <span className="text-sm text-theme-secondary font-medium">{item.label}</span>
                   </div>
-                  <span className="text-sm text-theme-muted">{item.value}%</span>
+                  <span className="text-sm font-semibold text-theme-primary">{item.value}%</span>
                 </div>
                 <div 
-                  className="h-1.5 rounded-full overflow-hidden"
+                  className="h-2 rounded-full overflow-hidden"
                   style={{ backgroundColor: 'var(--bg-tertiary)' }}
                 >
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${item.value}%` }}
-                    transition={{ duration: 0.8, delay: i * 0.1 }}
+                    transition={{ duration: 0.8, delay: i * 0.1, ease: "easeOut" }}
                     className="h-full rounded-full"
-                    style={{
-                      background: `linear-gradient(90deg, #6366f1 0%, #a5b4fc ${item.value}%)`,
-                    }}
+                    style={{ backgroundColor: item.color }}
                   />
                 </div>
               </div>
@@ -371,9 +384,9 @@ export default function Activity() {
             <ClarityRing value={92} />
           </div>
           <div className="mt-4 grid grid-cols-3 gap-3">
-            <MiniStat label="Readability" value="94%" />
-            <MiniStat label="Structure" value="89%" />
-            <MiniStat label="Completeness" value="93%" />
+            <MiniStat label="Readability" value="94%" color="indigo" />
+            <MiniStat label="Structure" value="89%" color="purple" />
+            <MiniStat label="Completeness" value="93%" color="emerald" />
           </div>
         </GlassCard>
 
@@ -384,7 +397,7 @@ export default function Activity() {
           <div style={{ width: '100%', height: 144, minHeight: 144 }}>
             {chartsReady ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={200}>
-                <BarChart data={insightsData} barGap={2}>
+                <BarChart data={insightsData} barGap={4}>
                   <XAxis 
                     dataKey="name" 
                     axisLine={false} 
@@ -392,8 +405,18 @@ export default function Activity() {
                     tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
                   />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="notes" fill="#6366f1" radius={[4, 4, 0, 0]} name="Notes" />
-                  <Bar dataKey="summaries" fill="#a5b4fc" radius={[4, 4, 0, 0]} name="Summaries" />
+                  <Bar 
+                    dataKey="notes" 
+                    fill="#6366f1" 
+                    radius={[4, 4, 0, 0]} 
+                    name="Notes"
+                  />
+                  <Bar 
+                    dataKey="summaries" 
+                    fill="#c4b5fd" 
+                    radius={[4, 4, 0, 0]} 
+                    name="Summaries"
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -408,8 +431,10 @@ export default function Activity() {
       {/* Activity Timeline */}
       <GlassCard>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2">
-            <FiCalendar className="text-indigo-400" size={18} />
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500/20 to-sky-500/20 border border-indigo-500/30 flex items-center justify-center">
+              <FiCalendar className="text-indigo-400" size={16} />
+            </div>
             <h3 className="font-semibold text-base text-theme-primary">Activity Timeline</h3>
           </div>
 
@@ -427,7 +452,7 @@ export default function Activity() {
         </div>
 
         {/* Type Filters */}
-        <div className="flex flex-wrap gap-2 text-xs mb-4">
+        <div className="flex flex-wrap gap-2 text-xs mb-5">
           {typeFilters.map((f) => (
             <ToggleButton
               key={f.value}
@@ -441,29 +466,42 @@ export default function Activity() {
 
         {/* Timeline */}
         {Object.keys(grouped).length === 0 ? (
-          <p className="text-theme-muted text-xs text-center py-4">No activity in this view</p>
+          <div className="text-center py-8">
+            <div className="h-12 w-12 rounded-full bg-theme-tertiary flex items-center justify-center mx-auto mb-3">
+              <FiActivity className="text-theme-muted" size={20} />
+            </div>
+            <p className="text-theme-muted text-sm">No activity in this view</p>
+          </div>
         ) : (
           <>
             {Object.entries(grouped).map(([group, items]) => (
-              <section key={group} className="mb-6">
-                <h3 className="text-[12px] uppercase tracking-wider text-theme-muted mb-3 ml-1">{group}</h3>
+              <section key={group} className="mb-6 last:mb-0">
+                <h3 className="text-[11px] uppercase tracking-wider font-semibold text-theme-muted mb-3 ml-1">{group}</h3>
                 <ol 
-                  className="relative ml-4 space-y-5"
-                  style={{ borderLeft: '1px solid var(--border-secondary)' }}
+                  className="relative ml-4 space-y-4"
+                  style={{ borderLeft: '2px solid var(--border-secondary)' }}
                 >
                   {items.map((e, i) => {
                     const Icon = e.icon;
                     return (
-                      <li key={i} className="relative pl-6">
+                      <motion.li 
+                        key={i} 
+                        className="relative pl-6"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                      >
                         <div 
-                          className="absolute -left-[14px] mt-1.5 w-7 h-7 rounded-full border border-indigo-500/40 flex items-center justify-center shadow-[0_0_10px_rgba(99,102,241,0.25)] transition hover:scale-105"
+                          className="absolute -left-[15px] mt-0.5 w-7 h-7 rounded-full border-2 border-indigo-500/40 flex items-center justify-center transition-all hover:scale-110 hover:border-indigo-500"
                           style={{ backgroundColor: 'var(--bg-elevated)' }}
                         >
-                          <Icon size={15} className="text-indigo-400" />
+                          <Icon size={13} className="text-indigo-400" />
                         </div>
-                        <p className="text-theme-secondary font-medium text-sm">{e.text}</p>
-                        <p className="text-[11px] text-theme-muted">{e.time}</p>
-                      </li>
+                        <div className="pt-0.5">
+                          <p className="text-theme-primary font-medium text-sm">{e.text}</p>
+                          <p className="text-[11px] text-theme-muted mt-0.5">{e.time}</p>
+                        </div>
+                      </motion.li>
                     );
                   })}
                 </ol>
@@ -480,14 +518,14 @@ export default function Activity() {
    Toggle Button Component - THEME AWARE
 ----------------------------------------- */
 const ToggleButton = ({ children, active, onClick, size = "md" }) => {
-  const sizeClasses = size === "sm" ? "px-2.5 py-1 text-[10px]" : "px-3 py-1.5 text-xs";
+  const sizeClasses = size === "sm" ? "px-3 py-1.5 text-[11px]" : "px-3.5 py-1.5 text-xs";
   
   return (
     <button
       className={`rounded-full border font-medium transition-all ${sizeClasses} ${
         active
-          ? "bg-indigo-600 text-white border-indigo-600"
-          : "text-theme-muted border-theme-secondary hover:text-theme-primary hover:border-theme-tertiary"
+          ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25"
+          : "text-theme-muted border-theme-secondary hover:text-theme-primary hover:border-theme-tertiary hover:bg-theme-tertiary"
       }`}
       style={!active ? { backgroundColor: 'var(--bg-button)' } : {}}
       onClick={onClick}
@@ -498,54 +536,80 @@ const ToggleButton = ({ children, active, onClick, size = "md" }) => {
 };
 
 /* -----------------------------------------
-   Stat Card Component - THEME AWARE
+   Stat Card Component - ENHANCED
 ----------------------------------------- */
-const StatCard = ({ title, value, sub, icon, trend, trendUp, isStreak }) => (
-  <div 
-    className="rounded-2xl px-3.5 py-3 border"
-    style={{
-      backgroundColor: 'var(--bg-card)',
-      borderColor: 'var(--border-secondary)',
-      boxShadow: 'var(--shadow-lg)',
-    }}
-  >
-    <div className="flex items-center justify-between mb-2">
-      <div 
-        className="h-8 w-8 rounded-xl flex items-center justify-center"
-        style={{ backgroundColor: 'var(--bg-tertiary)' }}
-      >
-        {icon}
+const StatCard = ({ title, value, sub, icon, iconColor, trend, trendUp }) => {
+  const colorClasses = {
+    indigo: { bg: "from-indigo-500/20 to-indigo-600/10", border: "border-indigo-500/30", text: "text-indigo-400" },
+    amber: { bg: "from-amber-500/20 to-amber-600/10", border: "border-amber-500/30", text: "text-amber-400" },
+    orange: { bg: "from-orange-500/20 to-orange-600/10", border: "border-orange-500/30", text: "text-orange-400" },
+    emerald: { bg: "from-emerald-500/20 to-emerald-600/10", border: "border-emerald-500/30", text: "text-emerald-400" },
+  };
+
+  const colors = colorClasses[iconColor] || colorClasses.indigo;
+
+  return (
+    <motion.div 
+      className="rounded-2xl px-4 py-3.5 border transition-all hover:scale-[1.02]"
+      style={{
+        backgroundColor: 'var(--bg-card)',
+        borderColor: 'var(--border-secondary)',
+      }}
+      whileHover={{ 
+        boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)',
+        borderColor: 'rgba(99, 102, 241, 0.3)',
+      }}
+    >
+      <div className="flex items-center justify-between mb-2.5">
+        <div className={`h-9 w-9 rounded-xl bg-gradient-to-br ${colors.bg} ${colors.border} border flex items-center justify-center ${colors.text}`}>
+          {icon}
+        </div>
+        {trend && (
+          <span className={`text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-semibold ${
+            trendUp 
+              ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/25" 
+              : "bg-rose-500/15 text-rose-500 border border-rose-500/25"
+          }`}>
+            <FiTrendingUp size={10} className={!trendUp ? "rotate-180" : ""} />
+            {trend}
+          </span>
+        )}
       </div>
-      {trend && (
-        <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-medium ${
-          trendUp ? "bg-emerald-500/15 text-emerald-500" : "bg-rose-500/15 text-rose-500"
-        }`}>
-          <FiTrendingUp size={10} className={!trendUp ? "rotate-180" : ""} />
-          {trend}
-        </span>
-      )}
-    </div>
-    <h2 className="text-xl font-semibold text-theme-primary">{value}</h2>
-    <p className="text-[11px] text-theme-muted">{title}</p>
-    {sub && <p className="text-[10px] text-theme-muted mt-0.5">{sub}</p>}
-  </div>
-);
+      <h2 className="text-2xl font-bold text-theme-primary">{value}</h2>
+      <p className="text-[11px] text-theme-muted mt-0.5">{title}</p>
+      {sub && <p className="text-[10px] text-theme-muted mt-0.5 opacity-75">{sub}</p>}
+    </motion.div>
+  );
+};
 
 /* -----------------------------------------
-   Mini Stat - THEME AWARE (Clarity Score boxes)
+   Mini Stat - ENHANCED with colors
 ----------------------------------------- */
-const MiniStat = ({ label, value }) => (
-  <div 
-    className="rounded-xl px-3 py-3 text-center"
-    style={{ backgroundColor: 'rgba(99, 102, 241, 0.12)' }}
-  >
-    <p className="text-lg font-bold text-theme-primary">{value}</p>
-    <p className="text-[10px] text-theme-muted">{label}</p>
-  </div>
-);
+const MiniStat = ({ label, value, color }) => {
+  const colorStyles = {
+    indigo: { bg: "rgba(99, 102, 241, 0.15)", border: "rgba(99, 102, 241, 0.25)", accent: "#6366f1" },
+    purple: { bg: "rgba(139, 92, 246, 0.15)", border: "rgba(139, 92, 246, 0.25)", accent: "#8b5cf6" },
+    emerald: { bg: "rgba(16, 185, 129, 0.15)", border: "rgba(16, 185, 129, 0.25)", accent: "#10b981" },
+  };
+
+  const colors = colorStyles[color] || colorStyles.indigo;
+
+  return (
+    <div 
+      className="rounded-xl px-3 py-3.5 text-center border transition-all hover:scale-[1.02]"
+      style={{ 
+        backgroundColor: colors.bg,
+        borderColor: colors.border,
+      }}
+    >
+      <p className="text-xl font-bold text-theme-primary">{value}</p>
+      <p className="text-[10px] text-theme-muted mt-0.5">{label}</p>
+    </div>
+  );
+};
 
 /* -----------------------------------------
-   Activity Streak Dots
+   Activity Streak Dots - ENHANCED
 ----------------------------------------- */
 const StreakDots = () => {
   const days = [
@@ -561,26 +625,37 @@ const StreakDots = () => {
   return (
     <div className="flex items-center justify-between gap-1">
       {days.map((d, i) => (
-        <div key={i} className="flex flex-col items-center gap-1.5">
+        <motion.div 
+          key={i} 
+          className="flex flex-col items-center gap-2"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.05 }}
+        >
           <div
-            className={`h-8 w-8 rounded-full flex items-center justify-center transition ${
+            className={`h-10 w-10 rounded-full flex items-center justify-center transition-all ${
               d.active
-                ? "bg-indigo-500 text-white shadow-[0_0_12px_rgba(99,102,241,0.4)]"
-                : ""
+                ? "bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/30"
+                : "border-2 border-dashed"
             }`}
-            style={!d.active ? { backgroundColor: 'var(--bg-tertiary)' } : {}}
+            style={!d.active ? { 
+              backgroundColor: 'var(--bg-tertiary)',
+              borderColor: 'var(--border-tertiary)',
+            } : {}}
           >
-            {d.active && <Fire size={14} weight="fill" />}
+            {d.active && <Fire size={16} weight="fill" />}
           </div>
-          <span className="text-[9px] text-theme-muted">{d.day}</span>
-        </div>
+          <span className={`text-[10px] font-medium ${d.active ? 'text-theme-secondary' : 'text-theme-muted'}`}>
+            {d.day}
+          </span>
+        </motion.div>
       ))}
     </div>
   );
 };
 
 /* -----------------------------------------
-   Clarity Ring (Donut Chart)
+   Clarity Ring (Donut Chart) - ENHANCED
 ----------------------------------------- */
 const ClarityRing = ({ value }) => {
   const circumference = 2 * Math.PI * 36;
@@ -597,11 +672,17 @@ const ClarityRing = ({ value }) => {
           strokeWidth="6"
           fill="none"
         />
+        <defs>
+          <linearGradient id="clarityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#6366f1" />
+            <stop offset="100%" stopColor="#a78bfa" />
+          </linearGradient>
+        </defs>
         <motion.circle
           cx="40"
           cy="40"
           r="36"
-          stroke="#6366f1"
+          stroke="url(#clarityGradient)"
           strokeWidth="6"
           fill="none"
           strokeLinecap="round"

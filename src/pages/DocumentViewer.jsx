@@ -16,9 +16,20 @@ import {
   FiList,
   FiSearch,
   FiMoreHorizontal,
-  FiX,
+  FiFile,
 } from "react-icons/fi";
-import { Sparkle, PencilSimple, Lightning } from "phosphor-react";
+import { Sparkle, PencilSimple, Lightning, FileDoc, FilePdf, FileXls } from "phosphor-react";
+
+/* File Type Icon */
+function FileTypeIcon({ type, size = 20 }) {
+  const iconProps = { size, weight: "duotone" };
+  switch (type?.toUpperCase()) {
+    case "PDF": return <FilePdf {...iconProps} className="text-rose-500" />;
+    case "DOCX": case "DOC": return <FileDoc {...iconProps} className="text-blue-500" />;
+    case "XLSX": case "XLS": return <FileXls {...iconProps} className="text-emerald-500" />;
+    default: return <FiFile size={size} className="text-theme-muted" />;
+  }
+}
 
 export default function DocumentViewer({ docs = [] }) {
   const { id } = useParams();
@@ -41,14 +52,12 @@ export default function DocumentViewer({ docs = [] }) {
   const [rewrittenText, setRewrittenText] = useState("");
   const [isRewriting, setIsRewriting] = useState(false);
 
-  // Check if we should scroll to summary on mount
   useEffect(() => {
     if (location.state?.scrollToSummary && doc?.smartSummary) {
       setShowSummary(true);
     }
   }, [location.state, doc]);
 
-  // Mock page count based on file type
   useEffect(() => {
     if (doc) {
       const pages = doc.type === "PDF" ? Math.floor(Math.random() * 10) + 1 : 1;
@@ -60,10 +69,13 @@ export default function DocumentViewer({ docs = [] }) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
+          <div className="h-16 w-16 rounded-full bg-theme-tertiary flex items-center justify-center mx-auto mb-4">
+            <FiFile className="text-theme-muted" size={28} />
+          </div>
           <p className="text-theme-muted mb-4">Document not found</p>
           <button
             onClick={() => navigate("/dashboard/documents")}
-            className="text-indigo-500 hover:text-indigo-400"
+            className="text-indigo-500 hover:text-indigo-400 font-medium"
           >
             ← Back to Documents
           </button>
@@ -124,42 +136,62 @@ export default function DocumentViewer({ docs = [] }) {
       <div className="flex items-center justify-between">
         <button
           onClick={() => navigate("/dashboard/documents")}
-          className="text-theme-muted hover:text-theme-primary transition"
+          className="flex items-center gap-2 text-theme-muted hover:text-theme-primary transition"
         >
-          <FiArrowLeft size={24} />
+          <FiArrowLeft size={20} />
+          <span className="text-sm font-medium">Back</span>
         </button>
         
         <div className="flex items-center gap-2">
           <button
             onClick={handleDownload}
-            className="p-2 rounded-lg text-theme-muted hover:text-theme-primary transition"
-            style={{ backgroundColor: 'var(--bg-tertiary)' }}
+            className="p-2.5 rounded-xl text-theme-muted hover:text-emerald-500 transition border hover:border-emerald-500/30 hover:bg-emerald-500/10"
+            style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
             title="Download"
           >
-            <FiDownload size={20} />
+            <FiDownload size={18} />
           </button>
           <button
             onClick={() => setShowRewrite(true)}
-            className="p-2 rounded-lg text-theme-muted hover:text-indigo-500 transition"
-            style={{ backgroundColor: 'var(--bg-tertiary)' }}
+            className="p-2.5 rounded-xl text-theme-muted hover:text-purple-500 transition border hover:border-purple-500/30 hover:bg-purple-500/10"
+            style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
             title="Rewrite with AI"
           >
-            <PencilSimple size={20} weight="duotone" />
+            <PencilSimple size={18} weight="duotone" />
           </button>
           <button
             onClick={handleGenerateSummary}
             disabled={isGenerating}
-            className="p-2 rounded-lg text-theme-muted hover:text-indigo-500 transition"
-            style={{ backgroundColor: 'var(--bg-tertiary)' }}
+            className="p-2.5 rounded-xl text-theme-muted hover:text-indigo-500 transition border hover:border-indigo-500/30 hover:bg-indigo-500/10"
+            style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
             title="AI Summary"
           >
-            <FiFileText size={20} />
+            <FiFileText size={18} />
           </button>
         </div>
       </div>
 
-      {/* Document Title */}
-      <h1 className="text-xl font-semibold text-theme-primary">{doc.name}</h1>
+      {/* Document Title Card */}
+      <div 
+        className="rounded-xl p-4 border flex items-center gap-3"
+        style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-secondary)' }}
+      >
+        <div 
+          className="h-12 w-12 rounded-xl flex items-center justify-center border"
+          style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
+        >
+          <FileTypeIcon type={doc.type} size={28} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-semibold text-theme-primary truncate">{doc.name}</h1>
+          <p className="text-xs text-theme-muted">{doc.type} · {doc.size} · Updated {doc.updated}</p>
+        </div>
+        {doc.smartSummary && (
+          <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+            <FiCheck size={10} /> AI Summary
+          </span>
+        )}
+      </div>
 
       {/* Document Viewer */}
       <div 
@@ -168,23 +200,23 @@ export default function DocumentViewer({ docs = [] }) {
       >
         {/* Toolbar */}
         <div 
-          className="flex items-center justify-between px-4 py-2 border-b"
+          className="flex items-center justify-between px-4 py-2.5 border-b"
           style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
         >
           {/* Page Navigation */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setShowPageList(!showPageList)}
-              className={`p-1.5 rounded transition ${showPageList ? 'text-indigo-500' : 'text-theme-muted hover:text-theme-primary'}`}
+              className={`p-2 rounded-lg transition ${showPageList ? 'text-indigo-500 bg-indigo-500/10' : 'text-theme-muted hover:text-theme-primary hover:bg-theme-tertiary'}`}
               title="Page list"
             >
-              <FiList size={18} />
+              <FiList size={16} />
             </button>
             <button
-              className="p-1.5 rounded text-theme-muted hover:text-theme-primary transition"
+              className="p-2 rounded-lg text-theme-muted hover:text-theme-primary hover:bg-theme-tertiary transition"
               title="More options"
             >
-              <FiMoreHorizontal size={18} />
+              <FiMoreHorizontal size={16} />
             </button>
           </div>
 
@@ -193,18 +225,18 @@ export default function DocumentViewer({ docs = [] }) {
             <button
               onClick={() => goToPage(currentPage - 1)}
               disabled={currentPage <= 1}
-              className="p-1.5 rounded text-theme-muted hover:text-theme-primary disabled:opacity-30 transition"
+              className="p-1.5 rounded-lg text-theme-muted hover:text-theme-primary disabled:opacity-30 transition hover:bg-theme-tertiary"
             >
               <FiChevronLeft size={18} />
             </button>
             
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <input
                 type="number"
                 value={currentPage}
                 onChange={(e) => goToPage(parseInt(e.target.value) || 1)}
-                className="w-10 text-center text-sm rounded py-1 text-theme-primary focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                style={{ backgroundColor: 'var(--bg-input)', border: '1px solid var(--border-secondary)' }}
+                className="w-10 text-center text-sm rounded-lg py-1.5 text-theme-primary focus:outline-none focus:ring-2 focus:ring-indigo-500/50 border"
+                style={{ backgroundColor: 'var(--bg-input)', borderColor: 'var(--border-secondary)' }}
                 min={1}
                 max={totalPages}
               />
@@ -214,45 +246,40 @@ export default function DocumentViewer({ docs = [] }) {
             <button
               onClick={() => goToPage(currentPage + 1)}
               disabled={currentPage >= totalPages}
-              className="p-1.5 rounded text-theme-muted hover:text-theme-primary disabled:opacity-30 transition"
+              className="p-1.5 rounded-lg text-theme-muted hover:text-theme-primary disabled:opacity-30 transition hover:bg-theme-tertiary"
             >
               <FiChevronRight size={18} />
             </button>
           </div>
 
           {/* Zoom & Search */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setZoom(Math.max(50, zoom - 25))}
-              className="p-1.5 rounded text-theme-muted hover:text-theme-primary transition"
+              className="p-2 rounded-lg text-theme-muted hover:text-theme-primary transition hover:bg-theme-tertiary"
               title="Zoom out"
             >
-              <FiZoomOut size={18} />
+              <FiZoomOut size={16} />
             </button>
-            <span className="text-xs text-theme-muted w-10 text-center">{zoom}%</span>
+            <span className="text-xs text-theme-muted w-10 text-center font-medium">{zoom}%</span>
             <button
               onClick={() => setZoom(Math.min(200, zoom + 25))}
-              className="p-1.5 rounded text-theme-muted hover:text-theme-primary transition"
+              className="p-2 rounded-lg text-theme-muted hover:text-theme-primary transition hover:bg-theme-tertiary"
               title="Zoom in"
             >
-              <FiZoomIn size={18} />
+              <FiZoomIn size={16} />
             </button>
+            <div className="w-px h-5 mx-1" style={{ backgroundColor: 'var(--border-secondary)' }} />
             <button
-              className="p-1.5 rounded text-theme-muted hover:text-theme-primary transition ml-2"
+              className="p-2 rounded-lg text-theme-muted hover:text-theme-primary transition hover:bg-theme-tertiary"
               title="Search"
             >
-              <FiSearch size={18} />
-            </button>
-            <button
-              className="p-1.5 rounded text-theme-muted hover:text-theme-primary transition"
-              title="More options"
-            >
-              <FiMoreHorizontal size={18} />
+              <FiSearch size={16} />
             </button>
           </div>
         </div>
 
-        {/* Page List Dropdown - FIXED */}
+        {/* Page List Dropdown */}
         <AnimatePresence>
           {showPageList && (
             <motion.div
@@ -262,22 +289,19 @@ export default function DocumentViewer({ docs = [] }) {
               className="border-b overflow-hidden"
               style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border-secondary)' }}
             >
-              <div className="p-3">
-                <p className="text-xs text-theme-muted mb-2">Jump to page:</p>
+              <div className="p-4">
+                <p className="text-xs text-theme-muted mb-3 font-medium">Jump to page</p>
                 <div className="flex flex-wrap gap-2">
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                     <button
                       key={page}
                       onClick={() => goToPage(page)}
-                      className={`w-10 h-10 rounded-lg text-sm font-medium transition border ${
+                      className={`w-10 h-10 rounded-xl text-sm font-medium transition border ${
                         currentPage === page
-                          ? "bg-indigo-600 text-white border-indigo-600"
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25"
                           : "text-theme-secondary hover:border-indigo-500/50"
                       }`}
-                      style={currentPage !== page ? { 
-                        backgroundColor: 'var(--bg-input)', 
-                        borderColor: 'var(--border-secondary)' 
-                      } : {}}
+                      style={currentPage !== page ? { backgroundColor: 'var(--bg-input)', borderColor: 'var(--border-secondary)' } : {}}
                     >
                       {page}
                     </button>
@@ -290,14 +314,14 @@ export default function DocumentViewer({ docs = [] }) {
 
         {/* Document Content */}
         <div 
-          className="min-h-[60vh] flex items-center justify-center p-4"
+          className="min-h-[60vh] flex items-center justify-center p-6"
           style={{ backgroundColor: 'var(--bg-secondary)' }}
         >
           {doc.fileUrl ? (
             doc.type === "PDF" ? (
               <iframe
                 src={doc.fileUrl}
-                className="w-full h-[70vh] rounded-lg border"
+                className="w-full h-[70vh] rounded-xl border shadow-lg"
                 style={{ 
                   transform: `scale(${zoom / 100})`, 
                   transformOrigin: 'top center',
@@ -306,11 +330,13 @@ export default function DocumentViewer({ docs = [] }) {
               />
             ) : (
               <div className="text-center">
-                <FiFileText className="mx-auto text-theme-muted mb-4" size={64} />
-                <p className="text-theme-muted">Preview not available for {doc.type} files</p>
+                <div className="h-20 w-20 rounded-2xl bg-theme-tertiary flex items-center justify-center mx-auto mb-4 border" style={{ borderColor: 'var(--border-secondary)' }}>
+                  <FileTypeIcon type={doc.type} size={48} />
+                </div>
+                <p className="text-theme-muted mb-4">Preview not available for {doc.type} files</p>
                 <button
                   onClick={handleDownload}
-                  className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition"
+                  className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-500 transition font-medium shadow-lg shadow-indigo-500/25"
                 >
                   Download to View
                 </button>
@@ -318,7 +344,9 @@ export default function DocumentViewer({ docs = [] }) {
             )
           ) : (
             <div className="text-center">
-              <FiFileText className="mx-auto text-theme-muted mb-4" size={64} />
+              <div className="h-20 w-20 rounded-2xl bg-theme-tertiary flex items-center justify-center mx-auto mb-4 border" style={{ borderColor: 'var(--border-secondary)' }}>
+                <FiFile className="text-theme-muted" size={40} />
+              </div>
               <p className="text-theme-muted">No preview available</p>
             </div>
           )}
@@ -327,34 +355,43 @@ export default function DocumentViewer({ docs = [] }) {
 
       {/* AI Summary Prompt */}
       {!showSummary && !doc.smartSummary && (
-        <div 
-          className="rounded-2xl p-4 border"
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl p-4 border flex items-center gap-3"
           style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-secondary)' }}
         >
-          <p className="text-theme-secondary text-sm">
-            Click <FiFileText className="inline text-indigo-500 mx-1" size={16} /> 
-            <span className="text-indigo-500 font-medium">AI Summary</span> to generate insights from this document.
-          </p>
-        </div>
+          <div className="h-10 w-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center">
+            <Sparkle size={20} weight="fill" className="text-indigo-400" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-theme-primary">Generate AI Summary</p>
+            <p className="text-xs text-theme-muted">Click the summary button above to extract key insights</p>
+          </div>
+        </motion.div>
       )}
 
       {/* Generating State */}
       <AnimatePresence>
         {isGenerating && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <GlassCard>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-                  <Lightning size={20} weight="fill" className="text-indigo-500 animate-pulse" />
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center">
+                  <Lightning size={24} weight="fill" className="text-indigo-500 animate-pulse" />
                 </div>
                 <div>
-                  <p className="text-theme-primary font-medium">Generating AI Summary...</p>
+                  <p className="text-theme-primary font-semibold">Generating AI Summary...</p>
                   <p className="text-xs text-theme-muted">Analyzing document content</p>
                 </div>
+              </div>
+              <div className="mt-4 h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                <motion.div 
+                  className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
+                  initial={{ width: "0%" }}
+                  animate={{ width: "100%" }}
+                  transition={{ duration: 2, ease: "easeInOut" }}
+                />
               </div>
             </GlassCard>
           </motion.div>
@@ -364,36 +401,39 @@ export default function DocumentViewer({ docs = [] }) {
       {/* AI Summary Panel */}
       <AnimatePresence>
         {(showSummary || doc.smartSummary) && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}>
             <GlassCard>
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Sparkle size={20} weight="fill" className="text-indigo-500" />
-                  <h3 className="font-semibold text-theme-primary">AI Summary</h3>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center">
+                    <Sparkle size={20} weight="fill" className="text-indigo-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-theme-primary">AI Summary</h3>
+                    <p className="text-[11px] text-theme-muted">Generated from document content</p>
+                  </div>
                 </div>
                 <button
                   onClick={() => handleCopy(doc.smartSummary?.summaryText || "Summary text")}
-                  className="text-theme-muted hover:text-theme-primary transition"
+                  className="text-theme-muted hover:text-theme-primary p-2 rounded-lg hover:bg-theme-tertiary transition"
                 >
                   {copied ? <FiCheck size={18} className="text-emerald-500" /> : <FiCopy size={18} />}
                 </button>
               </div>
 
-              <p className="text-sm text-theme-secondary leading-relaxed mb-4">
+              <p className="text-sm text-theme-secondary leading-relaxed mb-5">
                 {doc.smartSummary?.summaryText || "This document has been analyzed. Key insights and action items have been identified based on the content."}
               </p>
 
               {/* Key Insights */}
-              <div className="mb-4">
-                <h4 className="text-xs font-semibold text-theme-muted mb-2 uppercase tracking-wide">Key Insights</h4>
-                <ul className="space-y-1">
+              <div className="mb-5">
+                <h4 className="text-xs font-semibold text-theme-muted mb-3 uppercase tracking-wide">Key Insights</h4>
+                <ul className="space-y-2">
                   {(doc.smartSummary?.keyInsights || ["Main objective identified", "Notable constraints found", "Timeline impacts noted"]).map((insight, i) => (
-                    <li key={i} className="text-sm text-theme-secondary flex items-start gap-2">
-                      <span className="text-indigo-500 mt-1">•</span>
+                    <li key={i} className="text-sm text-theme-secondary flex items-start gap-3">
+                      <span className="h-5 w-5 rounded-full bg-indigo-500/15 text-indigo-500 flex items-center justify-center flex-shrink-0 text-xs font-semibold">
+                        {i + 1}
+                      </span>
                       {insight}
                     </li>
                   ))}
@@ -403,18 +443,18 @@ export default function DocumentViewer({ docs = [] }) {
               {/* Action Plan */}
               {doc.smartSummary?.actionPlan && (
                 <div>
-                  <h4 className="text-xs font-semibold text-theme-muted mb-2 uppercase tracking-wide">Action Items</h4>
+                  <h4 className="text-xs font-semibold text-theme-muted mb-3 uppercase tracking-wide">Action Items</h4>
                   <div className="space-y-2">
                     {doc.smartSummary.actionPlan.map((action, i) => (
                       <div 
                         key={i}
-                        className="rounded-lg p-3 border"
+                        className="rounded-xl p-4 border"
                         style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border-secondary)' }}
                       >
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between mb-2">
                           <span className="text-sm text-theme-primary font-medium">{action.title}</span>
                           <span 
-                            className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
+                            className={`text-[10px] px-2.5 py-1 rounded-full font-semibold border ${
                               action.priority === "High" 
                                 ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30" 
                                 : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
@@ -423,7 +463,7 @@ export default function DocumentViewer({ docs = [] }) {
                             {action.priority}
                           </span>
                         </div>
-                        <p className="text-xs text-theme-muted mt-1">{action.ownerHint} • {action.effort}</p>
+                        <p className="text-xs text-theme-muted">{action.ownerHint} · {action.effort}</p>
                       </div>
                     ))}
                   </div>
@@ -434,14 +474,14 @@ export default function DocumentViewer({ docs = [] }) {
         )}
       </AnimatePresence>
 
-      {/* Rewrite Modal - FIXED INPUT BOX */}
+      {/* Rewrite Modal */}
       <AnimatePresence>
         {showRewrite && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] flex items-start justify-center pt-12 px-4 overflow-y-auto"
+            className="fixed inset-0 z-[9999] flex items-start justify-center pt-12 px-4 overflow-y-auto backdrop-blur-sm"
             style={{ backgroundColor: 'var(--bg-overlay)' }}
             onClick={() => setShowRewrite(false)}
           >
@@ -450,7 +490,7 @@ export default function DocumentViewer({ docs = [] }) {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg rounded-2xl p-6 border relative mb-12"
+              className="w-full max-w-lg rounded-2xl p-6 border relative mb-12 shadow-2xl"
               style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-secondary)' }}
             >
               <button
@@ -461,9 +501,13 @@ export default function DocumentViewer({ docs = [] }) {
               </button>
 
               <div className="mt-8">
-                <h2 className="text-xl font-semibold text-theme-primary mb-1">Rewrite with AI —</h2>
-                <p className="text-theme-secondary mb-1">{doc.name}</p>
-                <p className="text-sm text-theme-muted mb-6">Choose a rewrite style below</p>
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border border-purple-500/30 flex items-center justify-center">
+                    <PencilSimple size={20} weight="duotone" className="text-purple-500" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-theme-primary">Rewrite with AI</h2>
+                </div>
+                <p className="text-theme-muted text-sm mb-6 ml-[52px]">{doc.name}</p>
 
                 {/* Style Buttons */}
                 <div className="flex gap-3 mb-6">
@@ -472,18 +516,19 @@ export default function DocumentViewer({ docs = [] }) {
                       key={style}
                       onClick={() => handleRewrite(style)}
                       disabled={isRewriting}
-                      className={`flex-1 py-3 px-4 rounded-xl font-medium transition ${
+                      className={`flex-1 py-3 px-4 rounded-xl font-medium transition border ${
                         rewriteStyle === style && !isRewriting
-                          ? "bg-indigo-700 text-white"
-                          : "bg-indigo-600 hover:bg-indigo-500 text-white"
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/25"
+                          : "text-theme-secondary hover:text-theme-primary hover:border-indigo-500/50"
                       }`}
+                      style={rewriteStyle !== style ? { backgroundColor: 'var(--bg-button)', borderColor: 'var(--border-secondary)' } : {}}
                     >
                       {style}
                     </button>
                   ))}
                 </div>
 
-                {/* Output Area - FIXED: Theme-aware background */}
+                {/* Output Area */}
                 <div 
                   className="rounded-xl p-4 min-h-[200px] border"
                   style={{ backgroundColor: 'var(--bg-input)', borderColor: 'var(--border-secondary)' }}
@@ -501,7 +546,7 @@ export default function DocumentViewer({ docs = [] }) {
                       <div className="flex gap-2 mt-4">
                         <button
                           onClick={() => handleCopy(rewrittenText)}
-                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-theme-secondary hover:text-theme-primary transition border"
+                          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-theme-secondary hover:text-theme-primary transition border hover:border-indigo-500/50"
                           style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
                         >
                           {copied ? <FiCheck size={14} className="text-emerald-500" /> : <FiCopy size={14} />}
@@ -510,7 +555,9 @@ export default function DocumentViewer({ docs = [] }) {
                       </div>
                     </div>
                   ) : (
-                    <p className="text-theme-muted text-sm">Select a style to generate rewritten text</p>
+                    <div className="flex items-center justify-center h-[180px]">
+                      <p className="text-theme-muted text-sm">Select a style to generate rewritten text</p>
+                    </div>
                   )}
                 </div>
               </div>

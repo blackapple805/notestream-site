@@ -76,8 +76,97 @@ export default function Settings() {
   };
 
   const handleExportData = () => {
-    setShowExportModal(false);
-    showToast("Data export started. Check your email!");
+    try {
+      // Gather all user data from localStorage
+      const exportData = {
+        exportDate: new Date().toISOString(),
+        version: "1.0.0",
+        profile: {
+          displayName: localStorage.getItem("notestream-displayName") || "Unknown",
+          email: localStorage.getItem("notestream-email") || "Unknown",
+        },
+        settings: {
+          theme: localStorage.getItem("notestream-theme") || "dark",
+          autoSummarize: localStorage.getItem("notestream-autoSummarize") === "true",
+          smartNotifications: localStorage.getItem("notestream-smartNotifications") === "true",
+          weeklyDigest: localStorage.getItem("notestream-weeklyDigest") === "true",
+          pinEnabled: localStorage.getItem("ns-note-pin") !== null,
+        },
+        notes: [],
+        documents: [],
+        integrations: {},
+      };
+
+      // Gather notes (check common localStorage keys)
+      const notesData = localStorage.getItem("notestream-notes");
+      if (notesData) {
+        try {
+          exportData.notes = JSON.parse(notesData);
+        } catch (e) {
+          exportData.notes = [];
+        }
+      }
+
+      // Gather documents
+      const docsData = localStorage.getItem("notestream-documents");
+      if (docsData) {
+        try {
+          exportData.documents = JSON.parse(docsData);
+        } catch (e) {
+          exportData.documents = [];
+        }
+      }
+
+      // Gather integrations
+      const integrationsData = localStorage.getItem("notestream-integrations");
+      if (integrationsData) {
+        try {
+          exportData.integrations = JSON.parse(integrationsData);
+        } catch (e) {
+          exportData.integrations = {};
+        }
+      }
+
+      // Gather any other NoteStream related data
+      const allKeys = Object.keys(localStorage);
+      const otherData = {};
+      allKeys.forEach(key => {
+        if (key.startsWith("notestream-") || key.startsWith("ns-")) {
+          // Skip already processed keys and sensitive data like PIN
+          if (!["notestream-displayName", "notestream-email", "notestream-theme", 
+               "notestream-autoSummarize", "notestream-smartNotifications", 
+               "notestream-weeklyDigest", "notestream-notes", "notestream-documents",
+               "notestream-integrations", "ns-note-pin"].includes(key)) {
+            try {
+              otherData[key] = JSON.parse(localStorage.getItem(key));
+            } catch {
+              otherData[key] = localStorage.getItem(key);
+            }
+          }
+        }
+      });
+      exportData.otherData = otherData;
+
+      // Create and download the file
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([dataStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `notestream-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setShowExportModal(false);
+      showToast("Data exported successfully!");
+    } catch (error) {
+      console.error("Export failed:", error);
+      setShowExportModal(false);
+      showToast("Export failed. Please try again.");
+    }
   };
 
   // Workspace settings handlers using shared context
@@ -226,7 +315,7 @@ export default function Settings() {
                   onClick={() => setTheme(option.value)}
                   className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition ${
                     isActive
-                      ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-300"
+                      ? "bg-indigo-600 border-indigo-600 text-white"
                       : "bg-theme-input border-theme-secondary text-theme-muted hover:text-theme-primary hover:border-theme-tertiary"
                   }`}
                 >
@@ -462,8 +551,8 @@ export default function Settings() {
         {showExportModal && (
           <ConfirmModal
             title="Export Your Data"
-            description="We'll email you a download link with all your notes, documents, and settings in a ZIP file."
-            confirmLabel="Request Export"
+            description="Download all your notes, documents, and settings as a JSON file. This file can be used for backup or to import your data elsewhere."
+            confirmLabel="Download Export"
             confirmColor="indigo"
             icon={<Export size={20} weight="duotone" className="text-sky-400" />}
             onConfirm={handleExportData}
