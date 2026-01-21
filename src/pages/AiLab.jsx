@@ -115,9 +115,12 @@ const colorMap = {
   },
 };
 
-// NEW: route map for features that have real pages
+
 const featureRoutes = {
   custom: "/dashboard/ai-lab/training",
+  cloud: "/dashboard/ai-lab/cloud-sync", 
+  export: "/dashboard/notes",            
+  voice: "/dashboard/ai-lab/voice-notes", 
 };
 
 export default function AiLab() {
@@ -199,7 +202,7 @@ export default function AiLab() {
     setShowDemo({ ...feature, unlocked });
   };
 
-  // NEW: for unlocked features that have a real route, navigate instead of demo modal
+ 
   const openFeature = (feature, unlocked) => {
     if (unlocked) {
       const route = featureRoutes[feature.id];
@@ -211,11 +214,9 @@ export default function AiLab() {
         navigate(route);
         return;
       }
-      // If no route, keep old behavior: show demo modal
+      if (feature.demo !== true) return;
       return handleDemo(feature, true);
     }
-
-    // Not unlocked: keep old behavior
     if (feature.demo === true) return handleDemo(feature, false);
     return handleUpgrade();
   };
@@ -374,16 +375,23 @@ export default function AiLab() {
                 <p className="text-xs text-theme-muted leading-relaxed mb-3">{feature.desc}</p>
 
                 {unlocked ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openFeature(feature, true);
-                    }}
-                    className={`text-xs px-3 py-1.5 rounded-full ${colors.button} transition`}
-                  >
-                    Open
-                  </button>
+                  // If feature has a route, show Open. Otherwise show Active (ex: Unlimited AI).
+                  featureRoutes[feature.id] ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openFeature(feature, true);
+                      }}
+                      className={`text-xs px-3 py-1.5 rounded-full ${colors.button} transition`}
+                    >
+                      Open
+                    </button>
+                  ) : (
+                    <span className="text-[10px] px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">
+                      Active
+                    </span>
+                  )
                 ) : canPreview ? (
                   <button
                     type="button"

@@ -55,7 +55,9 @@ import Summaries from "./pages/Summaries";
 import Documents from "./pages/Documents";
 import Activity from "./pages/Activity";
 import AiLab from "./pages/AiLab";
-import CustomTraining from "./pages/CustomTraining"; // NEW: Custom AI Training page
+import CustomTraining from "./pages/CustomTraining";
+import CloudSync from "./pages/CloudSync";
+import VoiceNotes from "./pages/VoiceNotes"; // NEW: Voice Notes page
 import Settings from "./pages/Settings";
 import DocumentViewer from "./pages/DocumentViewer";
 import RewriteDocument from "./pages/RewriteDocument";
@@ -243,9 +245,11 @@ export default function App() {
                   <Route path="summaries" element={<Summaries />} />
                   <Route path="activity" element={<Activity />} />
                   
-                  {/* AI LAB & CUSTOM TRAINING */}
+                  {/* AI LAB & SUB-PAGES */}
                   <Route path="ai-lab" element={<AiLab />} />
                   <Route path="ai-lab/training" element={<CustomTraining />} />
+                  <Route path="ai-lab/cloud-sync" element={<CloudSync />} />
+                  <Route path="ai-lab/voice-notes" element={<VoiceNotes />} /> {/* NEW: Voice Notes route */}
                   
                   {/* SETTINGS */}
                   <Route path="settings" element={<Settings />} />
