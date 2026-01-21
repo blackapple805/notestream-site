@@ -1,5 +1,6 @@
 // src/pages/AiLab.jsx
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
 import {
@@ -114,7 +115,13 @@ const colorMap = {
   },
 };
 
+// NEW: route map for features that have real pages
+const featureRoutes = {
+  custom: "/dashboard/ai-lab/training",
+};
+
 export default function AiLab() {
+  const navigate = useNavigate();
   const {
     subscription,
     usage,
@@ -190,6 +197,27 @@ export default function AiLab() {
 
   const handleDemo = (feature, unlocked) => {
     setShowDemo({ ...feature, unlocked });
+  };
+
+  // NEW: for unlocked features that have a real route, navigate instead of demo modal
+  const openFeature = (feature, unlocked) => {
+    if (unlocked) {
+      const route = featureRoutes[feature.id];
+      if (route) {
+        setShowDemo(null);
+        setShowPricing(false);
+        setShowCheckout(null);
+        setShowManage(false);
+        navigate(route);
+        return;
+      }
+      // If no route, keep old behavior: show demo modal
+      return handleDemo(feature, true);
+    }
+
+    // Not unlocked: keep old behavior
+    if (feature.demo === true) return handleDemo(feature, false);
+    return handleUpgrade();
   };
 
   const formatCardNumber = (value) => {
@@ -312,10 +340,8 @@ export default function AiLab() {
             const unlocked = isFeatureUnlocked(feature.id);
             const canPreview = feature.demo === true;
 
-            const onClick = () => {
-              if (unlocked || canPreview) return handleDemo(feature, unlocked);
-              return handleUpgrade();
-            };
+            // UPDATED: route to real page for unlocked features that have routes
+            const onClick = () => openFeature(feature, unlocked);
 
             return (
               <motion.div
@@ -331,7 +357,10 @@ export default function AiLab() {
                       <FiCheck size={12} className="text-emerald-400" />
                     </div>
                   ) : (
-                    <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ backgroundColor: "var(--bg-overlay)" }}>
+                    <div
+                      className="h-6 w-6 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: "var(--bg-overlay)" }}
+                    >
                       <Lock size={12} weight="fill" className="text-theme-muted" />
                     </div>
                   )}
@@ -345,9 +374,27 @@ export default function AiLab() {
                 <p className="text-xs text-theme-muted leading-relaxed mb-3">{feature.desc}</p>
 
                 {unlocked ? (
-                  <button className={`text-xs px-3 py-1.5 rounded-full ${colors.button} transition`}>Open</button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openFeature(feature, true);
+                    }}
+                    className={`text-xs px-3 py-1.5 rounded-full ${colors.button} transition`}
+                  >
+                    Open
+                  </button>
                 ) : canPreview ? (
-                  <button className={`text-xs px-3 py-1.5 rounded-full ${colors.button} transition`}>Preview</button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openFeature(feature, false);
+                    }}
+                    className={`text-xs px-3 py-1.5 rounded-full ${colors.button} transition`}
+                  >
+                    Preview
+                  </button>
                 ) : (
                   <span className="text-[10px] text-theme-muted">Requires Pro</span>
                 )}
@@ -568,7 +615,8 @@ export default function AiLab() {
                     <div className="rounded-xl p-3 text-xs text-theme-muted" style={{ backgroundColor: "var(--bg-tertiary)" }}>
                       <p className="font-medium text-theme-secondary mb-1">🧪 Test Mode</p>
                       <p>
-                        Use card number <span className="font-mono text-indigo-400">4242 4242 4242 4242</span> with any future expiry and CVC.
+                        Use card number <span className="font-mono text-indigo-400">4242 4242 4242 4242</span> with any
+                        future expiry and CVC.
                       </p>
                     </div>
                   </div>
@@ -631,11 +679,16 @@ export default function AiLab() {
                   </button>
                 </div>
 
-                <div className="rounded-xl p-4 mb-6 border" style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}>
+                <div
+                  className="rounded-xl p-4 mb-6 border"
+                  style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}
+                >
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <h3 className="font-semibold text-theme-primary">{currentPlan.name} Plan</h3>
-                      <p className="text-sm text-theme-muted">${currentPlan.price}/{currentPlan.period}</p>
+                      <p className="text-sm text-theme-muted">
+                        ${currentPlan.price}/{currentPlan.period}
+                      </p>
                     </div>
                     <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">Active</span>
                   </div>
@@ -694,7 +747,11 @@ export default function AiLab() {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   {showDemo.icon && (
-                    <div className={`h-8 w-8 rounded-lg ${colorMap[showDemo.color]?.bg} border ${colorMap[showDemo.color]?.border} flex items-center justify-center`}>
+                    <div
+                      className={`h-8 w-8 rounded-lg ${colorMap[showDemo.color]?.bg} border ${
+                        colorMap[showDemo.color]?.border
+                      } flex items-center justify-center`}
+                    >
                       <showDemo.icon size={18} weight="duotone" className={colorMap[showDemo.color]?.icon} />
                     </div>
                   )}
@@ -712,7 +769,10 @@ export default function AiLab() {
                 </button>
               </div>
 
-              <div className="rounded-xl p-4 mb-4 min-h-[280px] border overflow-hidden" style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}>
+              <div
+                className="rounded-xl p-4 mb-4 min-h-[280px] border overflow-hidden"
+                style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}
+              >
                 {showDemo.id === "voice" && <VoiceNotesDemo />}
                 {showDemo.id === "collab" && <CollaborationDemo />}
                 {showDemo.id === "export" && <ExportDemo />}
@@ -1213,7 +1273,11 @@ function CloudSyncDemo({ unlocked }) {
 
         <div className="space-y-2">
           {devices.map((d) => (
-            <div key={d.id} className="flex items-center justify-between rounded-lg px-3 py-2 border" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-input)" }}>
+            <div
+              key={d.id}
+              className="flex items-center justify-between rounded-lg px-3 py-2 border"
+              style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-input)" }}
+            >
               <div className="min-w-0">
                 <p className="text-sm text-theme-primary truncate">{d.name}</p>
                 <p className="text-[11px] text-theme-muted">Last: {formatTime(d.last)}</p>
@@ -1472,5 +1536,6 @@ function UsageBar({ label, used, max, isPro }) {
     </div>
   );
 }
+
 
 

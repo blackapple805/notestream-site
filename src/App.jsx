@@ -55,6 +55,7 @@ import Summaries from "./pages/Summaries";
 import Documents from "./pages/Documents";
 import Activity from "./pages/Activity";
 import AiLab from "./pages/AiLab";
+import CustomTraining from "./pages/CustomTraining"; // NEW: Custom AI Training page
 import Settings from "./pages/Settings";
 import DocumentViewer from "./pages/DocumentViewer";
 import RewriteDocument from "./pages/RewriteDocument";
@@ -241,7 +242,12 @@ export default function App() {
                   {/* OTHER SECTIONS */}
                   <Route path="summaries" element={<Summaries />} />
                   <Route path="activity" element={<Activity />} />
+                  
+                  {/* AI LAB & CUSTOM TRAINING */}
                   <Route path="ai-lab" element={<AiLab />} />
+                  <Route path="ai-lab/training" element={<CustomTraining />} />
+                  
+                  {/* SETTINGS */}
                   <Route path="settings" element={<Settings />} />
                 </Route>
               </Routes>
