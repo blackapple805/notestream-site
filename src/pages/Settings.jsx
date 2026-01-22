@@ -210,11 +210,15 @@ export default function Settings() {
 
       {/* Header */}
       <header className="pt-2 px-1">
-        <div className="flex items-center gap-2 mb-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">Settings</h1>
-          <Gear className="text-indigo-400" size={24} weight="duotone" />
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center">
+            <Gear size={18} weight="duotone" className="text-indigo-400" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">Settings</h1>
+            <p className="text-theme-muted text-sm">Control how NoteStream behaves across your workspace.</p>
+          </div>
         </div>
-        <p className="text-theme-muted text-sm">Control how NoteStream behaves across your workspace.</p>
       </header>
 
       {/* Profile Section */}
@@ -446,12 +450,12 @@ export default function Settings() {
           <SupportLink
             icon={<FiHelpCircle size={16} />}
             label="Help Center"
-            onClick={() => window.open("#", "_blank")}
+            onClick={() => navigate("/dashboard/help-center")}
           />
           <SupportLink
             icon={<ChatCircle size={16} weight="duotone" />}
             label="Contact Support"
-            onClick={() => window.open("mailto:support@notestream.app", "_blank")}
+            onClick={() => navigate("/dashboard/contact-support")}
           />
           <SupportLink
             icon={<Crown size={16} weight="duotone" />}

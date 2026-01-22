@@ -1,11 +1,13 @@
 // src/pages/Summaries.jsx - "Insight Explorer"
 // Fixes:
-// 1) No “double search bar” glitch while typing:
+// 1) No "double search bar" glitch while typing:
 //    - Suggestions only show after MIN_SUGGEST_CHARS
 //    - Suggestions UI is a compact dropdown list (does not look like a second bar)
 //    - Input disables browser UI that often looks like a second bar (autoComplete/spellcheck/etc)
 // 2) **bold** (and *italic*) render properly without showing *** characters:
 //    - Simple inline formatter that converts **text** -> <strong>, *text* -> <em>
+// 3) Icon style matches Research Synthesizer (rounded-xl instead of rounded-2xl)
+// 4) Mobile helper row commented out to test for visual glitches
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FiSend, FiFile, FiSearch, FiZap, FiTrash2, FiX, FiChevronDown } from "react-icons/fi";
@@ -348,11 +350,12 @@ export default function Summaries() {
 
   return (
     <div className="space-y-6 pb-44">
-      {/* Header */}
+      {/* Header - FIXED: Icon style now matches Research Synthesizer */}
       <header className="relative">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-2xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center">
+            {/* FIXED: Changed from rounded-2xl to rounded-xl to match Research Synthesizer */}
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center">
               <FiZap className="text-indigo-400" size={16} />
             </div>
             <div>
@@ -491,7 +494,8 @@ export default function Summaries() {
         {conversations.length === 0 ? (
           <GlassCard className="p-6">
             <div className="text-center mb-6">
-              <div className="mx-auto w-12 h-12 rounded-3xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center mb-3">
+              {/* FIXED: Changed from rounded-3xl to rounded-xl to match header icon */}
+              <div className="mx-auto w-12 h-12 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center mb-3">
                 <FiSearch className="text-indigo-400" size={22} />
               </div>
               <h3 className="text-lg text-theme-primary mb-2">Ask anything about your workspace</h3>
@@ -524,7 +528,7 @@ export default function Summaries() {
                   className="w-full text-left text-sm text-theme-secondary bg-theme-input hover:bg-theme-elevated border border-theme-secondary hover:border-indigo-500/35 rounded-2xl px-4 py-3 transition
                              focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:outline-none"
                 >
-                  “{q}”
+                  "{q}"
                 </button>
               ))}
             </div>
@@ -565,7 +569,8 @@ export default function Summaries() {
                 ) : (
                   <GlassCard className="p-4 max-w-[95%]">
                     <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-2xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center flex-shrink-0">
+                      {/* FIXED: Changed from rounded-2xl to rounded-xl */}
+                      <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center flex-shrink-0">
                         <FiZap className="text-indigo-400" size={14} />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -604,7 +609,8 @@ export default function Summaries() {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <GlassCard className="p-4 max-w-[220px]">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-2xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center">
+                    {/* FIXED: Changed from rounded-2xl to rounded-xl */}
+                    <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center">
                       <FiZap className="text-indigo-400 animate-pulse" size={14} />
                     </div>
                     <div className="flex gap-1">
@@ -676,7 +682,7 @@ export default function Summaries() {
                     }, 120);
                   }}
                   onKeyDown={handleKeyDown}
-                  placeholder="Ask about your workspace. Try “deadlines”, “budget”, “action items”…"
+                  placeholder='Ask about your workspace. Try "deadlines", "budget", "action items"…'
                   className="flex-1 bg-transparent text-sm text-theme-primary placeholder:text-theme-muted min-w-0
                              focus:outline-none focus:ring-0 focus:ring-offset-0 ring-0 ring-offset-0"
                   disabled={isSearching}
@@ -765,7 +771,8 @@ export default function Summaries() {
                 )}
               </AnimatePresence>
 
-              {/* Mobile helper row */}
+              {/* COMMENTED OUT: Mobile helper row - testing if this fixes visual glitches */}
+              {/*
               <div className="sm:hidden mt-2 flex items-center justify-between">
                 <button
                   type="button"
@@ -780,6 +787,7 @@ export default function Summaries() {
 
                 <p className="text-[11px] text-theme-muted">Enter to send</p>
               </div>
+              */}
             </div>
           </form>
         </div>
@@ -787,7 +795,6 @@ export default function Summaries() {
     </div>
   );
 }
-
 
 
 

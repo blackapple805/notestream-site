@@ -120,7 +120,8 @@ const featureRoutes = {
   custom: "/dashboard/ai-lab/training",
   cloud: "/dashboard/ai-lab/cloud-sync", 
   export: "/dashboard/notes",            
-  voice: "/dashboard/ai-lab/voice-notes", 
+  voice: "/dashboard/ai-lab/voice-notes",
+  collab: "/dashboard/ai-lab/team-collaboration", 
 };
 
 export default function AiLab() {

@@ -41,6 +41,10 @@ import Integrations from "./pages/Integrations";
 import Support from "./pages/Support";
 import FAQ from "./pages/FAQ";
 
+// NEW: Support sub-pages (Dashboard)
+import HelpCenter from "./pages/HelpCenter";
+import ContactSupport from "./pages/ContactSupport";
+
 // Auth Pages
 import SignupPage from "./pages/Signup";
 import LoginPage from "./pages/Login";
@@ -57,7 +61,8 @@ import Activity from "./pages/Activity";
 import AiLab from "./pages/AiLab";
 import CustomTraining from "./pages/CustomTraining";
 import CloudSync from "./pages/CloudSync";
-import VoiceNotes from "./pages/VoiceNotes"; // NEW: Voice Notes page
+import VoiceNotes from "./pages/VoiceNotes";
+import TeamCollaboration from "./pages/TeamCollaboration"; // NEW: Team Collaboration page
 import Settings from "./pages/Settings";
 import DocumentViewer from "./pages/DocumentViewer";
 import RewriteDocument from "./pages/RewriteDocument";
@@ -65,7 +70,6 @@ import RewriteDocument from "./pages/RewriteDocument";
 // Dashboard Integration Pages
 import IntegrationSettings from "./pages/dashboard/IntegrationSettings";
 import IntegrationConnect from "./pages/dashboard/IntegrationConnect";
-
 
 // ----------------------------------------------------------------
 // PUBLIC PAGE ANIMATION WRAPPER
@@ -138,7 +142,6 @@ function PublicRoutesFadeWrapper() {
   );
 }
 
-
 // ----------------------------------------------------------------
 // PUBLIC LANDING CONTENT
 // ----------------------------------------------------------------
@@ -151,7 +154,6 @@ function HomeLanding() {
     </>
   );
 }
-
 
 // ----------------------------------------------------------------
 // PUBLIC SITE WRAPPER WITH CONDITIONAL NAV/FOOTER
@@ -177,7 +179,6 @@ function PublicSiteWrapper() {
   );
 }
 
-
 // ----------------------------------------------------------------
 // ROOT APP - Wrapped with all Providers
 // ----------------------------------------------------------------
@@ -190,14 +191,13 @@ export default function App() {
       size: "1.2 MB",
       updated: "2 days ago",
       fileUrl: "/docs/projectRoadmap.pdf",
-      summary: null,
+      summary: null
     }
   ]);
 
   const [notes, setNotes] = useState([]);
-  
+
   return (
-    // Wrap entire app with all providers
     <ThemeProvider>
       <IntegrationsProvider>
         <SubscriptionProvider>
@@ -239,18 +239,29 @@ export default function App() {
 
                   {/* INTEGRATIONS */}
                   <Route path="integrations" element={<IntegrationSettings />} />
-                  <Route path="integrations/connect/:integrationId" element={<IntegrationConnect />} />
+                  <Route
+                    path="integrations/connect/:integrationId"
+                    element={<IntegrationConnect />}
+                  />
 
                   {/* OTHER SECTIONS */}
                   <Route path="summaries" element={<Summaries />} />
                   <Route path="activity" element={<Activity />} />
-                  
+
+                  {/* SUPPORT (Dashboard) */}
+                  <Route path="help-center" element={<HelpCenter />} />
+                  <Route path="contact-support" element={<ContactSupport />} />
+
                   {/* AI LAB & SUB-PAGES */}
                   <Route path="ai-lab" element={<AiLab />} />
                   <Route path="ai-lab/training" element={<CustomTraining />} />
                   <Route path="ai-lab/cloud-sync" element={<CloudSync />} />
-                  <Route path="ai-lab/voice-notes" element={<VoiceNotes />} /> {/* NEW: Voice Notes route */}
-                  
+                  <Route path="ai-lab/voice-notes" element={<VoiceNotes />} />
+                  <Route
+                    path="ai-lab/team-collaboration"
+                    element={<TeamCollaboration />}
+                  />
+
                   {/* SETTINGS */}
                   <Route path="settings" element={<Settings />} />
                 </Route>
