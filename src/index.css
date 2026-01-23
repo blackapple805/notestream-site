@@ -1530,6 +1530,24 @@ button[class*="bg-purple-600"],
   transition: background-color 0.15s ease, color 0.15s ease !important;
 }
 
+/* --------------------------------------------------------------
+   Notes light-mode visibility helpers
+-------------------------------------------------------------- */
+
+/* Theme-aware hover background */
+.theme-hover:hover {
+  background: var(--bg-hover) !important;
+}
+
+/* Theme-aware "accent text" (use your variable, not Tailwind indigo-400) */
+.text-theme-accent {
+  color: var(--accent-indigo) !important;
+}
+
+/* For soft/disabled accent icons (replaces text-indigo-400/60) */
+.text-theme-accent-soft {
+  color: color-mix(in srgb, var(--accent-indigo) 70%, var(--text-muted)) !important;
+}
 
 
 

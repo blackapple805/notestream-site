@@ -54,13 +54,15 @@ const initialNotes = [
 
 export default function Notes() {
   const navigate = useNavigate();
-  
+
   // Subscription source of truth
   const { subscription, isFeatureUnlocked, isLoading } = useSubscription();
   const isPro = !!subscription?.plan && subscription.plan !== "free";
-  const canUseVoice = typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("voice") : isPro;
-  const canUseExport = typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("export") : isPro;
-  
+  const canUseVoice =
+    typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("voice") : isPro;
+  const canUseExport =
+    typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("export") : isPro;
+
   // Toast when plan flips free -> pro
   const [planToast, setPlanToast] = useState(false);
   const prevPlanRef = useRef(subscription?.plan);
@@ -80,7 +82,9 @@ export default function Notes() {
   const filePickerRef = useRef(null);
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const isMobileDevice =
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
 
   const [selectedNote, setSelectedNote] = useState(null);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
@@ -110,7 +114,9 @@ export default function Notes() {
   const chunksRef = useRef([]);
 
   const updateSelectedNote = (id, updates) => {
-    setSelectedNote((prev) => (prev && prev.id === id ? { ...prev, ...updates } : prev));
+    setSelectedNote((prev) =>
+      prev && prev.id === id ? { ...prev, ...updates } : prev
+    );
   };
 
   const openSetPinForNote = (noteId) => {
@@ -136,7 +142,11 @@ export default function Notes() {
         return;
       }
       localStorage.setItem(PIN_KEY, pinInput);
-      setNotes((prev) => prev.map((n) => (n.id === pendingNoteId ? { ...n, locked: true } : n)));
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === pendingNoteId ? { ...n, locked: true } : n
+        )
+      );
       setPinModalOpen(false);
       setPinInput("");
       setPinMode(null);
@@ -151,7 +161,11 @@ export default function Notes() {
     }
 
     if (pinMode === "unlock") {
-      setNotes((prev) => prev.map((n) => (n.id === pendingNoteId ? { ...n, locked: false } : n)));
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === pendingNoteId ? { ...n, locked: false } : n
+        )
+      );
       updateSelectedNote(pendingNoteId, { locked: false });
     } else if (pinMode === "unlockOpen") {
       const noteToOpen = notes.find((n) => n.id === pendingNoteId);
@@ -174,7 +188,9 @@ export default function Notes() {
     const current = notes.find((n) => n.id === id);
     const newFavorite = !current.favorite;
 
-    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, favorite: newFavorite } : n)));
+    setNotes((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, favorite: newFavorite } : n))
+    );
 
     if (fromView) updateSelectedNote(id, { favorite: newFavorite });
     if (activeMenuId === id) setActiveMenuId(null);
@@ -182,11 +198,15 @@ export default function Notes() {
 
   const onEditSave = (id, newTitle, newBody, updated) => {
     setNotes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, title: newTitle, body: newBody, updated } : n))
+      prev.map((n) =>
+        n.id === id ? { ...n, title: newTitle, body: newBody, updated } : n
+      )
     );
 
     setSelectedNote((prev) =>
-      prev && prev.id === id ? { ...prev, title: newTitle, body: newBody, updated } : prev
+      prev && prev.id === id
+        ? { ...prev, title: newTitle, body: newBody, updated }
+        : prev
     );
   };
 
@@ -197,11 +217,15 @@ export default function Notes() {
     if (!target.locked) {
       if (!stored) return openSetPinForNote(id);
 
-      setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, locked: true } : n)));
+      setNotes((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, locked: true } : n))
+      );
       if (fromView) updateSelectedNote(id, { locked: true });
     } else {
       if (!stored) {
-        setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, locked: false } : n)));
+        setNotes((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, locked: false } : n))
+        );
         if (fromView) updateSelectedNote(id, { locked: false });
         return;
       }
@@ -351,7 +375,10 @@ export default function Notes() {
 
   const stopTracks = useCallback(() => {
     try {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state !== "inactive"
+      ) {
         mediaRecorderRef.current.stop();
       }
     } catch {}
@@ -448,6 +475,7 @@ export default function Notes() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
+        {/* theme-aware spinner: keep border indigo, but make it visible on light bg */}
         <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -511,33 +539,35 @@ export default function Notes() {
         )}
       </AnimatePresence>
 
-      {/* Header - Updated to match other pages */}
+      {/* Header */}
       <header className="pt-2 px-1">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center">
-            <Note className="text-indigo-400" size={18} weight="duotone" />
+            <Note className="text-theme-accent" size={18} weight="duotone" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">My Notes</h1>
-            <p className="text-theme-muted text-sm">Organized. Searchable. Intelligent.</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">
+              My Notes
+            </h1>
+            <p className="text-theme-muted text-sm">
+              Organized. Searchable. Intelligent.
+            </p>
           </div>
         </div>
       </header>
 
-      {/* Search Bar - Fancy Rounded Design */}
+      {/* Search Bar */}
       <div className="relative group">
-        <div 
-          className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-indigo-500/20 rounded-2xl blur-sm opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300"
-        />
-        <div 
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-indigo-500/20 rounded-2xl blur-sm opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300" />
+        <div
           className="relative flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-300 group-focus-within:border-indigo-500/50 group-focus-within:shadow-lg group-focus-within:shadow-indigo-500/10"
-          style={{ 
-            backgroundColor: "var(--bg-surface)", 
-            borderColor: "var(--border-secondary)" 
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            borderColor: "var(--border-secondary)",
           }}
         >
           <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-            <FiSearch className="text-indigo-400" size={16} />
+            <FiSearch className="text-theme-accent" size={16} />
           </div>
           <input
             type="text"
@@ -549,12 +579,15 @@ export default function Notes() {
           {query && (
             <button
               onClick={() => setQuery("")}
-              className="flex items-center justify-center w-7 h-7 rounded-lg bg-theme-tertiary text-theme-muted hover:text-theme-primary hover:bg-rose-500/10 hover:text-rose-400 transition-all"
+              className="flex items-center justify-center w-7 h-7 rounded-lg bg-theme-tertiary text-theme-muted hover:text-theme-primary hover:bg-rose-500/10 transition-all"
             >
               <FiX size={14} />
             </button>
           )}
-          <div className="hidden sm:flex items-center gap-1.5 pl-3 border-l" style={{ borderColor: "var(--border-secondary)" }}>
+          <div
+            className="hidden sm:flex items-center gap-1.5 pl-3 border-l"
+            style={{ borderColor: "var(--border-secondary)" }}
+          >
             <span className="text-[10px] text-theme-muted px-2 py-1 rounded-md bg-theme-tertiary">
               {filteredNotes.length}
             </span>
@@ -574,9 +607,9 @@ export default function Notes() {
           <button
             onClick={() => setGridView(true)}
             className={`p-2 rounded-lg transition ${
-              gridView 
-                ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30" 
-                : "text-theme-muted hover:text-theme-secondary"
+              gridView
+                ? "bg-indigo-500/20 text-theme-accent border border-indigo-500/30"
+                : "text-theme-muted hover:text-theme-secondary theme-hover"
             }`}
           >
             <FiGrid size={16} />
@@ -584,9 +617,9 @@ export default function Notes() {
           <button
             onClick={() => setGridView(false)}
             className={`p-2 rounded-lg transition ${
-              !gridView 
-                ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30" 
-                : "text-theme-muted hover:text-theme-secondary"
+              !gridView
+                ? "bg-indigo-500/20 text-theme-accent border border-indigo-500/30"
+                : "text-theme-muted hover:text-theme-secondary theme-hover"
             }`}
           >
             <FiList size={16} />
@@ -594,39 +627,48 @@ export default function Notes() {
         </div>
       </div>
 
-      {/* Filter Tabs - Functional */}
+      {/* Filter Tabs - Theme-aware + readable in light mode */}
       <div className="flex gap-2 overflow-x-auto pb-1 px-1 -mx-1 scrollbar-hide">
         {[
           { id: "all", label: "All", count: notes.length, icon: null },
-          { id: "favorites", label: "Favorites", count: notes.filter(n => n.favorite).length, icon: FiHeart },
-          { id: "locked", label: "Locked", count: notes.filter(n => n.locked).length, icon: FiLock },
-          { id: "voice", label: "Voice", count: notes.filter(n => n.tag === "Voice").length, icon: FiMic },
+          { id: "favorites", label: "Favorites", count: notes.filter((n) => n.favorite).length, icon: FiHeart },
+          { id: "locked", label: "Locked", count: notes.filter((n) => n.locked).length, icon: FiLock },
+          { id: "voice", label: "Voice", count: notes.filter((n) => n.tag === "Voice").length, icon: FiMic },
         ].map((filter) => {
           const isActive = activeFilter === filter.id;
           const IconComponent = filter.icon;
+
           return (
             <button
               key={filter.id}
               onClick={() => setActiveFilter(filter.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all duration-200 ${
-                isActive
-                  ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 shadow-sm shadow-indigo-500/10"
-                  : "bg-theme-surface border border-theme-secondary text-theme-muted hover:text-theme-secondary hover:border-indigo-500/20 hover:bg-indigo-500/5"
-              }`}
-              style={!isActive ? { backgroundColor: "var(--bg-surface)" } : {}}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all duration-200 border"
+              style={{
+                backgroundColor: isActive ? "var(--bg-hover)" : "var(--bg-surface)",
+                borderColor: isActive ? "var(--accent-indigo)" : "var(--border-secondary)",
+                color: isActive ? "var(--accent-indigo)" : "var(--text-secondary)",
+                boxShadow: isActive ? "0 10px 24px rgba(0,0,0,0.10)" : "none",
+              }}
             >
               {IconComponent && (
-                <IconComponent 
-                  size={14} 
-                  className={isActive ? "text-indigo-400" : "text-theme-muted"} 
+                <IconComponent
+                  size={14}
+                  style={{ color: isActive ? "var(--accent-indigo)" : "var(--text-muted)" }}
                 />
               )}
-              {filter.label}
-              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${
-                isActive 
-                  ? "bg-indigo-500/25 text-indigo-300" 
-                  : "bg-theme-tertiary text-theme-muted"
-              }`}>
+
+              <span style={{ color: isActive ? "var(--accent-indigo)" : "var(--text-secondary)" }}>
+                {filter.label}
+              </span>
+
+              <span
+                className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold"
+                style={{
+                  backgroundColor: isActive ? "var(--bg-tertiary)" : "var(--bg-tertiary)",
+                  color: isActive ? "var(--text-primary)" : "var(--text-tertiary)",
+                  border: `1px solid ${isActive ? "var(--border-tertiary)" : "var(--border-secondary)"}`,
+                }}
+              >
                 {filter.count}
               </span>
             </button>
@@ -634,46 +676,56 @@ export default function Notes() {
         })}
       </div>
 
+
       {/* Notes Grid/List */}
-      <div className={`grid gap-4 transition-all ${gridView ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
+      <div
+        className={`grid gap-4 transition-all ${
+          gridView ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"
+        }`}
+      >
         {filteredNotes.length === 0 ? (
           <div className="col-span-2">
             <GlassCard className="p-8 text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
                 {activeFilter === "favorites" ? (
-                  <FiHeart size={32} className="text-indigo-400/60" />
+                  <FiHeart size={32} className="text-theme-accent-soft" />
                 ) : activeFilter === "locked" ? (
-                  <FiLock size={32} className="text-indigo-400/60" />
+                  <FiLock size={32} className="text-theme-accent-soft" />
                 ) : activeFilter === "voice" ? (
-                  <FiMic size={32} className="text-indigo-400/60" />
+                  <FiMic size={32} className="text-theme-accent-soft" />
                 ) : (
-                  <Note size={32} weight="duotone" className="text-indigo-400/60" />
+                  <Note
+                    size={32}
+                    weight="duotone"
+                    className="text-theme-accent-soft"
+                  />
                 )}
               </div>
+
               <h3 className="text-lg font-medium text-theme-primary mb-1">
-                {query 
-                  ? "No notes found" 
-                  : activeFilter === "favorites" 
-                    ? "No favorite notes" 
-                    : activeFilter === "locked" 
-                      ? "No locked notes"
-                      : activeFilter === "voice"
-                        ? "No voice notes"
-                        : "No notes yet"
-                }
+                {query
+                  ? "No notes found"
+                  : activeFilter === "favorites"
+                  ? "No favorite notes"
+                  : activeFilter === "locked"
+                  ? "No locked notes"
+                  : activeFilter === "voice"
+                  ? "No voice notes"
+                  : "No notes yet"}
               </h3>
+
               <p className="text-theme-muted text-sm mb-4">
-                {query 
-                  ? "Try a different search term" 
-                  : activeFilter === "favorites" 
-                    ? "Mark notes as favorites to see them here"
-                    : activeFilter === "locked"
-                      ? "Lock notes to keep them private"
-                      : activeFilter === "voice"
-                        ? "Record voice notes to see them here"
-                        : "Create your first note to get started!"
-                }
+                {query
+                  ? "Try a different search term"
+                  : activeFilter === "favorites"
+                  ? "Mark notes as favorites to see them here"
+                  : activeFilter === "locked"
+                  ? "Lock notes to keep them private"
+                  : activeFilter === "voice"
+                  ? "Record voice notes to see them here"
+                  : "Create your first note to get started!"}
               </p>
+
               {!query && activeFilter === "all" && (
                 <button
                   onClick={() => setEditorOpen(true)}
@@ -683,6 +735,7 @@ export default function Notes() {
                   New Note
                 </button>
               )}
+
               {!query && activeFilter === "voice" && canUseVoice && (
                 <button
                   onClick={() => openVoiceRecorder()}
@@ -692,10 +745,11 @@ export default function Notes() {
                   Record Voice Note
                 </button>
               )}
+
               {activeFilter !== "all" && (
                 <button
                   onClick={() => setActiveFilter("all")}
-                  className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 transition"
+                  className="mt-3 text-xs text-theme-accent hover:opacity-80 transition"
                 >
                   ← View all notes
                 </button>
@@ -730,7 +784,10 @@ export default function Notes() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[90]"
-              style={{ backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}
+              style={{
+                backgroundColor: "rgba(0,0,0,0.4)",
+                backdropFilter: "blur(4px)",
+              }}
               onClick={() => setActiveMenuId(null)}
             />
             <motion.div
@@ -738,11 +795,11 @@ export default function Notes() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
               className="fixed rounded-2xl border shadow-xl z-[200] min-w-[200px] overflow-hidden"
-              style={{ 
-                top: menuPos.y, 
+              style={{
+                top: menuPos.y,
                 left: menuPos.x,
                 backgroundColor: "var(--bg-surface)",
-                borderColor: "var(--border-secondary)"
+                borderColor: "var(--border-secondary)",
               }}
             >
               <div className="p-2">
@@ -758,10 +815,18 @@ export default function Notes() {
                   icon={
                     <FiHeart
                       size={16}
-                      className={notes.find((n) => n.id === activeMenuId)?.favorite ? "text-rose-400 fill-rose-400" : ""}
+                      className={
+                        notes.find((n) => n.id === activeMenuId)?.favorite
+                          ? "text-rose-400 fill-rose-400"
+                          : ""
+                      }
                     />
                   }
-                  label={notes.find((n) => n.id === activeMenuId)?.favorite ? "Unfavorite" : "Favorite"}
+                  label={
+                    notes.find((n) => n.id === activeMenuId)?.favorite
+                      ? "Unfavorite"
+                      : "Favorite"
+                  }
                   onClick={() => {
                     handleFavorite(activeMenuId);
                     setActiveMenuId(null);
@@ -769,13 +834,20 @@ export default function Notes() {
                 />
                 <MenuButton
                   icon={<FiLock size={16} />}
-                  label={notes.find((n) => n.id === activeMenuId)?.locked ? "Unlock" : "Lock"}
+                  label={
+                    notes.find((n) => n.id === activeMenuId)?.locked
+                      ? "Unlock"
+                      : "Lock"
+                  }
                   onClick={() => {
                     handleLockToggle(activeMenuId);
                     setActiveMenuId(null);
                   }}
                 />
-                <div className="h-px my-1" style={{ backgroundColor: "var(--border-secondary)" }} />
+                <div
+                  className="h-px my-1"
+                  style={{ backgroundColor: "var(--border-secondary)" }}
+                />
                 <MenuButton
                   icon={<FiTrash2 size={16} />}
                   label="Delete"
@@ -811,7 +883,7 @@ export default function Notes() {
             />
             <FABAction
               icon={<FiMic size={18} />}
-              label={canUseVoice ? "Voice Note" : "Voice Note"}
+              label="Voice Note"
               onClick={() => {
                 openVoiceRecorder();
                 setShowAddMenu(false);
@@ -854,7 +926,9 @@ export default function Notes() {
         whileTap={{ scale: 0.95 }}
         onClick={() => setShowAddMenu(!showAddMenu)}
         className={`fab-btn fixed bottom-[calc(env(safe-area-inset-bottom)+var(--mobile-nav-height)+16px)] right-5 w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/30 flex items-center justify-center z-[140] transition-all duration-200 ${
-          showAddMenu ? "rotate-45 shadow-indigo-500/50" : "hover:shadow-indigo-500/40"
+          showAddMenu
+            ? "rotate-45 shadow-indigo-500/50"
+            : "hover:shadow-indigo-500/40"
         }`}
       >
         <FiPlus size={26} strokeWidth={2.5} />
@@ -894,7 +968,10 @@ export default function Notes() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[200]"
-              style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+              style={{
+                backgroundColor: "rgba(0,0,0,0.6)",
+                backdropFilter: "blur(8px)",
+              }}
               onClick={() => setEditorOpen(false)}
             />
             <motion.div
@@ -902,23 +979,35 @@ export default function Notes() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="fixed inset-x-4 top-1/2 -translate-y-1/2 rounded-2xl border shadow-xl z-[201] max-w-md mx-auto overflow-hidden"
-              style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                borderColor: "var(--border-secondary)",
+              }}
             >
               {/* Header */}
-              <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+              <div
+                className="p-5 border-b"
+                style={{ borderColor: "var(--border-secondary)" }}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-                      <FilePlus size={20} weight="duotone" className="text-indigo-400" />
+                      <FilePlus
+                        size={20}
+                        weight="duotone"
+                        className="text-theme-accent"
+                      />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-theme-primary">New Note</h3>
+                      <h3 className="text-lg font-semibold text-theme-primary">
+                        New Note
+                      </h3>
                       <p className="text-xs text-theme-muted">Create a new note</p>
                     </div>
                   </div>
                   <button
                     onClick={() => setEditorOpen(false)}
-                    className="h-8 w-8 rounded-lg flex items-center justify-center text-theme-muted hover:text-theme-primary transition"
+                    className="h-8 w-8 rounded-lg flex items-center justify-center text-theme-muted hover:text-theme-primary transition theme-hover"
                     style={{ backgroundColor: "var(--bg-tertiary)" }}
                   >
                     <FiX size={16} />
@@ -929,32 +1018,52 @@ export default function Notes() {
               {/* Form */}
               <div className="p-5 space-y-4">
                 <div>
-                  <label className="text-xs font-medium text-theme-muted mb-2 block">Title</label>
+                  <label className="text-xs font-medium text-theme-muted mb-2 block">
+                    Title
+                  </label>
                   <input
                     className="w-full border rounded-xl px-4 py-3 text-theme-primary text-base font-medium placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition"
-                    style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}
+                    style={{
+                      backgroundColor: "var(--bg-input)",
+                      borderColor: "var(--border-secondary)",
+                    }}
                     placeholder="Note title..."
                     maxLength={80}
                     value={newNote.title}
-                    onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
+                    onChange={(e) =>
+                      setNewNote({ ...newNote, title: e.target.value })
+                    }
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-theme-muted mb-2 block">Content</label>
+                  <label className="text-xs font-medium text-theme-muted mb-2 block">
+                    Content
+                  </label>
                   <textarea
                     className="w-full border rounded-xl px-4 py-3 text-theme-secondary text-sm placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 resize-none transition"
-                    style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}
+                    style={{
+                      backgroundColor: "var(--bg-input)",
+                      borderColor: "var(--border-secondary)",
+                    }}
                     placeholder="Start writing..."
                     rows={5}
                     value={newNote.body}
-                    onChange={(e) => setNewNote({ ...newNote, body: e.target.value })}
+                    onChange={(e) =>
+                      setNewNote({ ...newNote, body: e.target.value })
+                    }
                   />
                 </div>
               </div>
 
               {/* Footer */}
-              <div className="p-5 border-t" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
+              <div
+                className="p-5 border-t"
+                style={{
+                  borderColor: "var(--border-secondary)",
+                  backgroundColor: "var(--bg-tertiary)",
+                }}
+              >
                 <button
                   onClick={createNote}
                   className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-medium transition hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2"
@@ -977,7 +1086,10 @@ export default function Notes() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[200]"
-              style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+              style={{
+                backgroundColor: "rgba(0,0,0,0.6)",
+                backdropFilter: "blur(8px)",
+              }}
               onClick={() => {
                 setPinModalOpen(false);
                 setPinInput("");
@@ -990,10 +1102,16 @@ export default function Notes() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="fixed inset-x-4 top-1/2 -translate-y-1/2 rounded-2xl border shadow-xl z-[201] max-w-sm mx-auto overflow-hidden"
-              style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                borderColor: "var(--border-secondary)",
+              }}
             >
               {/* Header */}
-              <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+              <div
+                className="p-5 border-b"
+                style={{ borderColor: "var(--border-secondary)" }}
+              >
                 <div className="flex items-center gap-3">
                   <div
                     className={`h-10 w-10 rounded-xl flex items-center justify-center ${
@@ -1002,14 +1120,21 @@ export default function Notes() {
                         : "bg-amber-500/20 border border-amber-500/30"
                     }`}
                   >
-                    <FiLock size={18} className={pinMode === "set" ? "text-indigo-400" : "text-amber-400"} />
+                    <FiLock
+                      size={18}
+                      className={
+                        pinMode === "set" ? "text-theme-accent" : "text-amber-400"
+                      }
+                    />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-theme-primary">
                       {pinMode === "set" ? "Set PIN" : "Enter PIN"}
                     </h3>
                     <p className="text-xs text-theme-muted">
-                      {pinMode === "set" ? "Create a 4-digit PIN to lock notes" : "Enter your PIN to unlock"}
+                      {pinMode === "set"
+                        ? "Create a 4-digit PIN to lock notes"
+                        : "Enter your PIN to unlock"}
                     </p>
                   </div>
                 </div>
@@ -1019,7 +1144,10 @@ export default function Notes() {
               <div className="p-5">
                 <input
                   className="w-full border rounded-xl px-4 py-4 text-center tracking-[0.5em] text-xl text-theme-primary font-mono placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition"
-                  style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}
+                  style={{
+                    backgroundColor: "var(--bg-input)",
+                    borderColor: "var(--border-secondary)",
+                  }}
                   type="password"
                   maxLength={4}
                   value={pinInput}
@@ -1030,7 +1158,13 @@ export default function Notes() {
               </div>
 
               {/* Footer */}
-              <div className="p-5 border-t" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
+              <div
+                className="p-5 border-t"
+                style={{
+                  borderColor: "var(--border-secondary)",
+                  backgroundColor: "var(--bg-tertiary)",
+                }}
+              >
                 <button
                   onClick={handlePinSubmit}
                   className={`w-full py-3 rounded-xl font-medium transition hover:opacity-90 active:scale-[0.98] ${
@@ -1048,7 +1182,12 @@ export default function Notes() {
       </AnimatePresence>
 
       {/* Hidden file inputs */}
-      <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} ref={filePickerRef} />
+      <input
+        type="file"
+        accept="image/*,application/pdf"
+        style={{ display: "none" }}
+        ref={filePickerRef}
+      />
       <input
         type="file"
         accept="image/*"
@@ -1065,10 +1204,17 @@ export default function Notes() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[300] flex flex-col items-center justify-center"
-            style={{ backgroundColor: "rgba(0,0,0,0.8)", backdropFilter: "blur(12px)" }}
+            style={{
+              backgroundColor: "rgba(0,0,0,0.8)",
+              backdropFilter: "blur(12px)",
+            }}
           >
             <div className="w-16 h-16 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mb-6">
-              <UploadSimple size={32} weight="duotone" className="text-indigo-400 animate-bounce" />
+              <UploadSimple
+                size={32}
+                weight="duotone"
+                className="text-theme-accent animate-bounce"
+              />
             </div>
             <div className="w-48 h-1.5 bg-theme-tertiary rounded-full overflow-hidden mb-4">
               <motion.div
@@ -1096,7 +1242,7 @@ const MenuButton = ({ icon, label, onClick, danger }) => (
     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition text-left w-full ${
       danger
         ? "text-rose-400 hover:bg-rose-500/10"
-        : "text-theme-secondary hover:bg-white/5 hover:text-theme-primary"
+        : "text-theme-secondary theme-hover hover:text-theme-primary"
     }`}
   >
     <span className="flex-shrink-0">{icon}</span>
@@ -1115,12 +1261,12 @@ const FABAction = ({ icon, label, onClick, delay = 0, proHint }) => (
     transition={{ delay }}
     onClick={onClick}
     className="action-btn flex items-center gap-3 px-4 py-3 rounded-xl text-theme-primary transition active:scale-95 border shadow-lg"
-    style={{ 
-      backgroundColor: "var(--bg-surface)", 
-      borderColor: "var(--border-secondary)" 
+    style={{
+      backgroundColor: "var(--bg-surface)",
+      borderColor: "var(--border-secondary)",
     }}
   >
-    <span className="text-indigo-400">{icon}</span>
+    <span className="text-theme-accent">{icon}</span>
     <span className="text-sm font-medium flex items-center gap-2">
       {label}
       {proHint && (
@@ -1168,25 +1314,33 @@ const UpgradeModal = ({ onClose, title, body, onUpgrade }) => (
       {/* Body */}
       <div className="p-6">
         <p className="text-theme-secondary text-sm leading-relaxed">{body}</p>
-        
-        <div className="mt-4 p-3 rounded-xl border" style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}>
+
+        <div
+          className="mt-4 p-3 rounded-xl border"
+          style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
+        >
           <p className="text-xs text-theme-muted mb-2">Pro includes:</p>
           <ul className="space-y-1.5">
-            {["Voice notes & transcription", "Advanced export options", "Unlimited AI features", "Cloud sync"].map((feature, i) => (
-              <li key={i} className="flex items-center gap-2 text-xs text-theme-secondary">
-                <span className="w-1 h-1 rounded-full bg-indigo-400" />
-                {feature}
-              </li>
-            ))}
+            {["Voice notes & transcription", "Advanced export options", "Unlimited AI features", "Cloud sync"].map(
+              (feature, i) => (
+                <li key={i} className="flex items-center gap-2 text-xs text-theme-secondary">
+                  <span className="w-1 h-1 rounded-full bg-indigo-400" />
+                  {feature}
+                </li>
+              )
+            )}
           </ul>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="p-6 border-t flex gap-3" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
+      <div
+        className="p-6 border-t flex gap-3"
+        style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}
+      >
         <button
           onClick={onClose}
-          className="flex-1 px-4 py-3 rounded-xl text-theme-secondary font-medium transition border hover:bg-white/5"
+          className="flex-1 px-4 py-3 rounded-xl text-theme-secondary font-medium transition border theme-hover"
           style={{ borderColor: "var(--border-secondary)" }}
         >
           Not now
@@ -1230,12 +1384,17 @@ const VoiceRecorderModal = ({ onClose, state, error, onStart, onStop }) => (
       <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
-              state === "recording" 
-                ? "bg-rose-500/20 border border-rose-500/30" 
-                : "bg-indigo-500/20 border border-indigo-500/30"
-            }`}>
-              <FiMic className={state === "recording" ? "text-rose-400" : "text-indigo-400"} size={18} />
+            <div
+              className={`h-10 w-10 rounded-xl flex items-center justify-center ${
+                state === "recording"
+                  ? "bg-rose-500/20 border border-rose-500/30"
+                  : "bg-indigo-500/20 border border-indigo-500/30"
+              }`}
+            >
+              <FiMic
+                className={state === "recording" ? "text-rose-400" : "text-theme-accent"}
+                size={18}
+              />
             </div>
             <div>
               <h3 className="text-lg font-semibold text-theme-primary">Voice Note</h3>
@@ -1244,7 +1403,7 @@ const VoiceRecorderModal = ({ onClose, state, error, onStart, onStop }) => (
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-lg flex items-center justify-center text-theme-muted hover:text-theme-primary transition"
+            className="h-8 w-8 rounded-lg flex items-center justify-center text-theme-muted hover:text-theme-primary transition theme-hover"
             style={{ backgroundColor: "var(--bg-tertiary)" }}
           >
             <FiX size={16} />
@@ -1288,12 +1447,14 @@ const VoiceRecorderModal = ({ onClose, state, error, onStart, onStop }) => (
                     <FiMic className="text-emerald-400" size={20} />
                   </div>
                   <p className="text-emerald-400 text-sm font-medium">Recording saved!</p>
-                  <p className="text-xs text-theme-muted">A new "Voice Note" was added to your notes.</p>
+                  <p className="text-xs text-theme-muted">
+                    A new "Voice Note" was added to your notes.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   <div className="w-12 h-12 mx-auto rounded-full bg-indigo-500/20 flex items-center justify-center">
-                    <FiMic className="text-indigo-400" size={20} />
+                    <FiMic className="text-theme-accent" size={20} />
                   </div>
                   <p className="text-theme-secondary text-sm">Ready to record</p>
                   <p className="text-xs text-theme-muted">Tap Start to begin recording</p>
@@ -1334,10 +1495,13 @@ const VoiceRecorderModal = ({ onClose, state, error, onStart, onStop }) => (
 
       {/* Footer */}
       {state === "stopped" && (
-        <div className="p-5 border-t" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
+        <div
+          className="p-5 border-t"
+          style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}
+        >
           <button
             onClick={onClose}
-            className="w-full py-3 rounded-xl font-medium transition border hover:bg-white/5 text-theme-secondary"
+            className="w-full py-3 rounded-xl font-medium transition border theme-hover text-theme-secondary"
             style={{ borderColor: "var(--border-secondary)" }}
           >
             Done
@@ -1347,4 +1511,5 @@ const VoiceRecorderModal = ({ onClose, state, error, onStart, onStop }) => (
     </motion.div>
   </motion.div>
 );
+
 

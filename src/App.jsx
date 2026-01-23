@@ -35,7 +35,7 @@ import HowItWorks from "./pages/HowItWorks";
 import Updates from "./pages/Updates";
 import SmartNotes from "./pages/SmartNotes";
 import AISummary from "./pages/AISummary";
-import Integrations from "./pages/Integrations";
+import Integrations from "./pages/dashboard/Integrations"; // Public landing page
 
 // Support Pages
 import Support from "./pages/Support";
@@ -44,6 +44,9 @@ import FAQ from "./pages/FAQ";
 // NEW: Support sub-pages (Dashboard)
 import HelpCenter from "./pages/HelpCenter";
 import ContactSupport from "./pages/ContactSupport";
+
+// NEW: Integration Docs (Dashboard)
+import IntegrationDocs from "./pages/IntegrationDocs";
 
 // Auth Pages
 import SignupPage from "./pages/Signup";
@@ -62,13 +65,14 @@ import AiLab from "./pages/AiLab";
 import CustomTraining from "./pages/CustomTraining";
 import CloudSync from "./pages/CloudSync";
 import VoiceNotes from "./pages/VoiceNotes";
-import TeamCollaboration from "./pages/TeamCollaboration"; // NEW: Team Collaboration page
+import TeamCollaboration from "./pages/TeamCollaboration";
 import Settings from "./pages/Settings";
 import DocumentViewer from "./pages/DocumentViewer";
 import RewriteDocument from "./pages/RewriteDocument";
 
 // Dashboard Integration Pages
-import IntegrationSettings from "./pages/dashboard/IntegrationSettings";
+// NOTE: Using DashboardIntegrations for the dashboard version
+import DashboardIntegrations from "./pages/dashboard/Integrations";
 import IntegrationConnect from "./pages/dashboard/IntegrationConnect";
 
 // ----------------------------------------------------------------
@@ -237,8 +241,8 @@ export default function App() {
                     element={<RewriteDocument docs={docs} setDocs={setDocs} />}
                   />
 
-                  {/* INTEGRATIONS */}
-                  <Route path="integrations" element={<IntegrationSettings />} />
+                  {/* INTEGRATIONS - Using Dashboard version */}
+                  <Route path="integrations" element={<DashboardIntegrations />} />
                   <Route
                     path="integrations/connect/:integrationId"
                     element={<IntegrationConnect />}
@@ -251,6 +255,9 @@ export default function App() {
                   {/* SUPPORT (Dashboard) */}
                   <Route path="help-center" element={<HelpCenter />} />
                   <Route path="contact-support" element={<ContactSupport />} />
+
+                  {/* Integration Docs (Dashboard) */}
+                  <Route path="integration-docs" element={<IntegrationDocs />} />
 
                   {/* AI LAB & SUB-PAGES */}
                   <Route path="ai-lab" element={<AiLab />} />
@@ -273,3 +280,4 @@ export default function App() {
     </ThemeProvider>
   );
 }
+
