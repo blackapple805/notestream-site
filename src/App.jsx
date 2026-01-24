@@ -1,11 +1,12 @@
+// src/App.jsx
 import {
   BrowserRouter as Router,
   Routes,
   Route,
-  useLocation
+  useLocation,
 } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 // Theme Provider
 import { ThemeProvider } from "./context/ThemeContext";
@@ -95,14 +96,14 @@ function PublicRoutesFadeWrapper() {
       opacity: 1,
       y: 0,
       filter: "blur(0)",
-      transition: { duration: 0.35, ease: "easeOut" }
+      transition: { duration: 0.35, ease: "easeOut" },
     },
     exit: {
       opacity: 0,
       y: -12,
       filter: "blur(6px)",
-      transition: { duration: 0.25, ease: "easeIn" }
-    }
+      transition: { duration: 0.25, ease: "easeIn" },
+    },
   };
 
   return (
@@ -188,6 +189,18 @@ function PublicSiteWrapper() {
 // ROOT APP - Wrapped with all Providers
 // ----------------------------------------------------------------
 export default function App() {
+  // Use Vite’s BASE_URL (driven by vite.config.js `base`) so the SAME build
+  // can work on GitHub Pages (/notestream-site/) AND on your custom domain (/).
+  // - When base="/notestream-site/" => basename becomes "/notestream-site"
+  // - When base="/"               => basename becomes ""
+  const routerBasename = useMemo(() => {
+    const baseUrl = import.meta.env.BASE_URL || "/";
+    const trimmed = baseUrl.replace(/\/$/, ""); // "/notestream-site" or ""
+    return trimmed; // Router wants "" or "/notestream-site"
+  }, []);
+
+  // If you ever reference static files, prefer relative URLs
+  // OR prefix with BASE_URL to work under both hosts.
   const [docs, setDocs] = useState([
     {
       id: "1",
@@ -195,10 +208,11 @@ export default function App() {
       type: "PDF",
       size: "1.2 MB",
       updated: "2 days ago",
-      // IMPORTANT: relative path so it works on /notestream-site/ and on custom domain
-      fileUrl: "docs/projectRoadmap.pdf",
-      summary: null
-    }
+      // safest for both domains:
+      // (BASE_URL already includes trailing slash)
+      fileUrl: `${import.meta.env.BASE_URL}docs/projectRoadmap.pdf`,
+      summary: null,
+    },
   ]);
 
   const [notes, setNotes] = useState([]);
@@ -208,8 +222,7 @@ export default function App() {
       <IntegrationsProvider>
         <SubscriptionProvider>
           <WorkspaceProvider>
-            {/* IMPORTANT: basename for GitHub Pages project site */}
-            <Router basename="/notestream-site">
+            <Router basename={routerBasename}>
               <ScrollToTop />
 
               <Routes>
@@ -241,11 +254,16 @@ export default function App() {
                   />
                   <Route
                     path="documents/rewrite/:id"
-                    element={<RewriteDocument docs={docs} setDocs={setDocs} />}
+                    element={
+                      <RewriteDocument docs={docs} setDocs={setDocs} />
+                    }
                   />
 
                   {/* INTEGRATIONS - Dashboard version for logged-in users */}
-                  <Route path="integrations" element={<DashboardIntegrations />} />
+                  <Route
+                    path="integrations"
+                    element={<DashboardIntegrations />}
+                  />
                   <Route
                     path="integrations/connect/:integrationId"
                     element={<IntegrationConnect />}
@@ -257,16 +275,31 @@ export default function App() {
 
                   {/* SUPPORT (Dashboard) */}
                   <Route path="help-center" element={<HelpCenter />} />
-                  <Route path="contact-support" element={<ContactSupport />} />
+                  <Route
+                    path="contact-support"
+                    element={<ContactSupport />}
+                  />
 
                   {/* Integration Docs (Dashboard) */}
-                  <Route path="integration-docs" element={<IntegrationDocs />} />
+                  <Route
+                    path="integration-docs"
+                    element={<IntegrationDocs />}
+                  />
 
                   {/* AI LAB & SUB-PAGES */}
                   <Route path="ai-lab" element={<AiLab />} />
-                  <Route path="ai-lab/training" element={<CustomTraining />} />
-                  <Route path="ai-lab/cloud-sync" element={<CloudSync />} />
-                  <Route path="ai-lab/voice-notes" element={<VoiceNotes />} />
+                  <Route
+                    path="ai-lab/training"
+                    element={<CustomTraining />}
+                  />
+                  <Route
+                    path="ai-lab/cloud-sync"
+                    element={<CloudSync />}
+                  />
+                  <Route
+                    path="ai-lab/voice-notes"
+                    element={<VoiceNotes />}
+                  />
                   <Route
                     path="ai-lab/team-collaboration"
                     element={<TeamCollaboration />}
@@ -283,5 +316,6 @@ export default function App() {
     </ThemeProvider>
   );
 }
+
 
 
