@@ -23,11 +23,13 @@ const navLinks = [
   },
 ];
 
-const Navbar = () => {
+export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [shouldRenderMobile, setShouldRenderMobile] = useState(false);
+
   const [isScrolled, setIsScrolled] = useState(false);
   const [desktopDropdown, setDesktopDropdown] = useState(null);
   const [mobileDropdown, setMobileDropdown] = useState(null);
@@ -35,6 +37,24 @@ const Navbar = () => {
   const hoverCloseTimeout = useRef(null);
   const mobileMenuRef = useRef(null);
   const hamburgerBtnRef = useRef(null);
+
+  // Always start CLOSED (guards against weird cached state / iOS restore)
+  useEffect(() => {
+    setIsMobileOpen(false);
+    setMobileDropdown(null);
+    setShouldRenderMobile(false);
+  }, []);
+
+  // Render panel only while open (or while closing animation finishes)
+  useEffect(() => {
+    if (isMobileOpen) {
+      setShouldRenderMobile(true);
+      return;
+    }
+    // wait for CSS transition to finish, then unmount
+    const t = setTimeout(() => setShouldRenderMobile(false), 280);
+    return () => clearTimeout(t);
+  }, [isMobileOpen]);
 
   /* Scroll Detection */
   useEffect(() => {
@@ -75,10 +95,11 @@ const Navbar = () => {
     setMobileDropdown(null);
   }, [location.pathname]);
 
-  /* Outside click/tap to close */
+  /* Outside click/tap to close (more reliable with refs on iOS) */
   useEffect(() => {
+    if (!isMobileOpen) return;
+
     const handler = (e) => {
-      if (!isMobileOpen) return;
       const menu = mobileMenuRef.current;
       const btn = hamburgerBtnRef.current;
       if (!menu?.contains(e.target) && !btn?.contains(e.target)) {
@@ -87,21 +108,13 @@ const Navbar = () => {
       }
     };
 
-    if (isMobileOpen) {
-      // small delay prevents immediate close from the click that opened it
-      const t = setTimeout(() => {
-        document.addEventListener("mousedown", handler);
-        document.addEventListener("touchstart", handler, { passive: true });
-      }, 120);
-
-      return () => {
-        clearTimeout(t);
-        document.removeEventListener("mousedown", handler);
-        document.removeEventListener("touchstart", handler);
-      };
-    }
+    const t = setTimeout(() => {
+      document.addEventListener("mousedown", handler);
+      document.addEventListener("touchstart", handler, { passive: true });
+    }, 120);
 
     return () => {
+      clearTimeout(t);
       document.removeEventListener("mousedown", handler);
       document.removeEventListener("touchstart", handler);
     };
@@ -136,7 +149,7 @@ const Navbar = () => {
       >
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-18">
-            {/* LOGO - Always visible */}
+            {/* LOGO */}
             <Link to="/" className="flex items-center gap-2.5 flex-shrink-0">
               <div
                 className="h-8 w-8 rounded-lg flex items-center justify-center"
@@ -176,7 +189,7 @@ const Navbar = () => {
               </span>
             </Link>
 
-            {/* DESKTOP NAV - Only show at lg (1024px) and above */}
+            {/* DESKTOP NAV */}
             <div className="hidden lg:flex items-center gap-1">
               {navLinks.map((link) => (
                 <div
@@ -211,7 +224,6 @@ const Navbar = () => {
                         />
                       </button>
 
-                      {/* Dropdown Menu */}
                       {desktopDropdown === link.name && (
                         <div
                           className="absolute left-0 top-full pt-2 z-[140]"
@@ -277,7 +289,6 @@ const Navbar = () => {
 
             {/* RIGHT SIDE ACTIONS */}
             <div className="flex items-center gap-2 sm:gap-3">
-              {/* Desktop-only buttons */}
               <div className="hidden lg:flex items-center gap-2">
                 <Link
                   to="/signup"
@@ -285,19 +296,6 @@ const Navbar = () => {
                   style={{
                     backgroundColor: "var(--accent-indigo)",
                     boxShadow: "0 2px 8px rgba(99, 102, 241, 0.3)",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#4f46e5";
-                    e.currentTarget.style.transform = "translateY(-1px)";
-                    e.currentTarget.style.boxShadow =
-                      "0 4px 12px rgba(99, 102, 241, 0.4)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor =
-                      "var(--accent-indigo)";
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow =
-                      "0 2px 8px rgba(99, 102, 241, 0.3)";
                   }}
                 >
                   Start Free
@@ -311,14 +309,6 @@ const Navbar = () => {
                     borderColor: "var(--border-secondary)",
                     backgroundColor: "transparent",
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--accent-indigo)";
-                    e.currentTarget.style.color = "var(--accent-indigo)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border-secondary)";
-                    e.currentTarget.style.color = "var(--text-primary)";
-                  }}
                 >
                   Login
                 </Link>
@@ -327,20 +317,12 @@ const Navbar = () => {
                   to="/search"
                   className="p-2 rounded-lg transition-all duration-200"
                   style={{ color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--bg-hover)";
-                    e.currentTarget.style.color = "var(--accent-indigo)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "var(--text-muted)";
-                  }}
                 >
                   <FiSearch className="w-5 h-5" />
                 </Link>
               </div>
 
-              {/* Mobile hamburger - Show below lg */}
+              {/* Mobile hamburger */}
               <button
                 ref={hamburgerBtnRef}
                 type="button"
@@ -354,11 +336,9 @@ const Navbar = () => {
                 aria-expanded={isMobileOpen}
                 aria-controls="mobile-nav-panel"
               >
-                {/* IMPORTANT: hide any visible "Menu" label on mobile */}
                 <span className="sr-only">
                   {isMobileOpen ? "Close menu" : "Open menu"}
                 </span>
-
                 {isMobileOpen ? (
                   <FiX className="h-6 w-6" />
                 ) : (
@@ -370,217 +350,231 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* MOBILE MENU OVERLAY */}
-      {isMobileOpen && (
-        <div
-          className="fixed inset-0 z-[110] lg:hidden"
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
-          onClick={() => setIsMobileOpen(false)}
-        />
-      )}
-
-      {/* MOBILE MENU PANEL */}
-      <div
-        id="mobile-nav-panel"
-        ref={mobileMenuRef}
-        className={`fixed top-0 right-0 h-full w-[min(320px,85vw)] z-[130] lg:hidden transform transition-transform duration-300 ease-out ${
-          isMobileOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-        style={{
-          backgroundColor: "var(--bg-surface)",
-          borderLeft: "1px solid var(--border-secondary)",
-          boxShadow: "-10px 0 40px rgba(0, 0, 0, 0.3)",
-        }}
-        role="dialog"
-        aria-modal="true"
-      >
-        {/* Mobile Header */}
-        <div
-          className="flex justify-between items-center px-5 h-16"
-          style={{ borderBottom: "1px solid var(--border-secondary)" }}
-        >
-          <span
-            className="text-base font-semibold"
-            style={{ color: "var(--text-primary)" }}
-          >
-            Menu
-          </span>
-
-          <button
-            type="button"
-            onClick={() => setIsMobileOpen(false)}
-            className="p-2 rounded-lg transition-all duration-200"
-            style={{ color: "var(--text-muted)" }}
-            aria-label="Close menu"
-          >
-            <span className="sr-only">Close menu</span>
-            <FiX className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Menu content */}
-        <div className="overflow-y-auto h-[calc(100%-64px)] px-4 py-4">
-          <div className="space-y-1">
-            {navLinks.map((link) => (
-              <div key={link.name}>
-                {link.dropdown ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => toggleMobileDropdown(link.name)}
-                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200"
-                      style={{
-                        color: "var(--text-primary)",
-                        backgroundColor:
-                          mobileDropdown === link.name
-                            ? "var(--bg-hover)"
-                            : "transparent",
-                      }}
-                      aria-expanded={mobileDropdown === link.name}
-                    >
-                      <span className="text-[15px] font-medium">
-                        {link.name}
-                      </span>
-                      <FiChevronDown
-                        className={`w-5 h-5 transition-transform duration-200 ${
-                          mobileDropdown === link.name ? "rotate-180" : ""
-                        }`}
-                        style={{ color: "var(--text-muted)" }}
-                      />
-                    </button>
-
-                    <div
-                      className={`overflow-hidden transition-all duration-300 ${
-                        mobileDropdown === link.name
-                          ? "max-h-48 opacity-100"
-                          : "max-h-0 opacity-0"
-                      }`}
-                    >
-                      <div className="pl-4 py-1 space-y-0.5">
-                        {link.dropdown.map((item) => (
-                          <button
-                            key={item.label}
-                            type="button"
-                            onClick={() => handleMobileNavigate(item.to)}
-                            className="w-full text-left px-4 py-2.5 rounded-lg text-sm transition-all duration-200"
-                            style={{ color: "var(--text-secondary)" }}
-                          >
-                            {item.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleMobileNavigate(link.to)}
-                    className="w-full text-left px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    {link.name}
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-
+      {/* Only mount overlay/panel when needed */}
+      {shouldRenderMobile && (
+        <>
+          {/* Overlay */}
           <div
-            className="my-4 h-px"
-            style={{ backgroundColor: "var(--border-secondary)" }}
+            className="fixed inset-0 z-[110] lg:hidden"
+            style={{
+              backgroundColor: "rgba(0, 0, 0, 0.5)",
+              opacity: isMobileOpen ? 1 : 0,
+              transition: "opacity 240ms ease",
+            }}
+            onClick={() => setIsMobileOpen(false)}
           />
 
-          {/* Action Buttons */}
-          <div className="space-y-2.5">
-            <button
-              type="button"
-              onClick={() => handleMobileNavigate("/signup")}
-              className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all duration-200"
-              style={{
-                backgroundColor: "var(--accent-indigo)",
-                boxShadow: "0 2px 8px rgba(99, 102, 241, 0.3)",
-              }}
+          {/* Panel */}
+          <div
+            id="mobile-nav-panel"
+            ref={mobileMenuRef}
+            className="fixed top-0 right-0 z-[130] lg:hidden"
+            style={{
+              width: "min(320px, 85vw)",
+              height: "100dvh", // iOS-friendly full height
+              backgroundColor: "var(--bg-surface)",
+              borderLeft: "1px solid var(--border-secondary)",
+              boxShadow: "-10px 0 40px rgba(0, 0, 0, 0.3)",
+              transform: isMobileOpen ? "translateX(0)" : "translateX(100%)",
+              transition: "transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+              willChange: "transform",
+            }}
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Header */}
+            <div
+              className="flex justify-between items-center px-5 h-16"
+              style={{ borderBottom: "1px solid var(--border-secondary)" }}
             >
-              Start Free
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleMobileNavigate("/login")}
-              className="w-full py-3 rounded-xl text-sm font-medium transition-all duration-200 border"
-              style={{
-                color: "var(--text-primary)",
-                borderColor: "var(--border-secondary)",
-              }}
-            >
-              Login
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleMobileNavigate("/search")}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all duration-200"
-              style={{
-                color: "var(--text-secondary)",
-                backgroundColor: "var(--bg-tertiary)",
-              }}
-            >
-              <FiSearch className="w-4 h-4" />
-              Search
-            </button>
-          </div>
-
-          {/* App info at bottom */}
-          <div className="mt-8 px-4">
-            <div className="flex items-center gap-2.5">
-              <div
-                className="h-8 w-8 rounded-lg flex items-center justify-center"
-                style={{
-                  background:
-                    "linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))",
-                }}
+              <span
+                className="text-base font-semibold"
+                style={{ color: "var(--text-primary)" }}
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
-                    stroke="white"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M7 7H17M7 12H17M7 17H12"
-                    stroke="white"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                Menu
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setIsMobileOpen(false)}
+                className="p-2 rounded-lg transition-all duration-200"
+                style={{ color: "var(--text-muted)" }}
+                aria-label="Close menu"
+              >
+                <span className="sr-only">Close menu</span>
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div
+              className="px-4 py-4"
+              style={{
+                overflowY: "auto",
+                height: "calc(100dvh - 64px)",
+                WebkitOverflowScrolling: "touch",
+              }}
+            >
+              <div className="space-y-1">
+                {navLinks.map((link) => (
+                  <div key={link.name}>
+                    {link.dropdown ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => toggleMobileDropdown(link.name)}
+                          className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200"
+                          style={{
+                            color: "var(--text-primary)",
+                            backgroundColor:
+                              mobileDropdown === link.name
+                                ? "var(--bg-hover)"
+                                : "transparent",
+                          }}
+                          aria-expanded={mobileDropdown === link.name}
+                        >
+                          <span className="text-[15px] font-medium">
+                            {link.name}
+                          </span>
+                          <FiChevronDown
+                            className={`w-5 h-5 transition-transform duration-200 ${
+                              mobileDropdown === link.name ? "rotate-180" : ""
+                            }`}
+                            style={{ color: "var(--text-muted)" }}
+                          />
+                        </button>
+
+                        <div
+                          className="overflow-hidden transition-all duration-300"
+                          style={{
+                            maxHeight: mobileDropdown === link.name ? 220 : 0,
+                            opacity: mobileDropdown === link.name ? 1 : 0,
+                          }}
+                        >
+                          <div className="pl-4 py-1 space-y-0.5">
+                            {link.dropdown.map((item) => (
+                              <button
+                                key={item.label}
+                                type="button"
+                                onClick={() => handleMobileNavigate(item.to)}
+                                className="w-full text-left px-4 py-2.5 rounded-lg text-sm transition-all duration-200"
+                                style={{ color: "var(--text-secondary)" }}
+                              >
+                                {item.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleMobileNavigate(link.to)}
+                        className="w-full text-left px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {link.name}
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-              <div>
-                <p
-                  className="text-sm font-medium"
-                  style={{ color: "var(--text-primary)" }}
+
+              <div
+                className="my-4 h-px"
+                style={{ backgroundColor: "var(--border-secondary)" }}
+              />
+
+              <div className="space-y-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleMobileNavigate("/signup")}
+                  className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all duration-200"
+                  style={{
+                    backgroundColor: "var(--accent-indigo)",
+                    boxShadow: "0 2px 8px rgba(99, 102, 241, 0.3)",
+                  }}
                 >
-                  NoteStream
-                </p>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  Early Access
-                </p>
+                  Start Free
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleMobileNavigate("/login")}
+                  className="w-full py-3 rounded-xl text-sm font-medium transition-all duration-200 border"
+                  style={{
+                    color: "var(--text-primary)",
+                    borderColor: "var(--border-secondary)",
+                  }}
+                >
+                  Login
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleMobileNavigate("/search")}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all duration-200"
+                  style={{
+                    color: "var(--text-secondary)",
+                    backgroundColor: "var(--bg-tertiary)",
+                  }}
+                >
+                  <FiSearch className="w-4 h-4" />
+                  Search
+                </button>
+              </div>
+
+              <div className="mt-8 px-4">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className="h-8 w-8 rounded-lg flex items-center justify-center"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))",
+                    }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z"
+                        stroke="white"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M7 7H17M7 12H17M7 17H12"
+                        stroke="white"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <p
+                      className="text-sm font-medium"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      NoteStream
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      Early Access
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </>
   );
-};
+}
 
-export default Navbar;
 
