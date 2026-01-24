@@ -15,10 +15,7 @@ import {
   FiCheck,
   FiPlus,
   FiExternalLink,
-  FiBell,
   FiBookOpen,
-  FiSettings,
-  FiRefreshCw,
 } from "react-icons/fi";
 import {
   Lightning,

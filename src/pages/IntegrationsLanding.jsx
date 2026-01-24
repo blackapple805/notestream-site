@@ -216,7 +216,7 @@ export default function IntegrationsLanding() {
         </div>
       </section>
 
-      {/* Integrations grid */}
+      {/* Integration grid */}
       <section ref={sectionRef} className="py-24 px-6">
         <div className="max-w-6xl mx-auto">
           <motion.div
