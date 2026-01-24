@@ -189,18 +189,7 @@ function PublicSiteWrapper() {
 // ROOT APP - Wrapped with all Providers
 // ----------------------------------------------------------------
 export default function App() {
-  // Use Vite’s BASE_URL (driven by vite.config.js `base`) so the SAME build
-  // can work on GitHub Pages (/notestream-site/) AND on your custom domain (/).
-  // - When base="/notestream-site/" => basename becomes "/notestream-site"
-  // - When base="/"               => basename becomes ""
-  const routerBasename = useMemo(() => {
-    const baseUrl = import.meta.env.BASE_URL || "/";
-    const trimmed = baseUrl.replace(/\/$/, ""); // "/notestream-site" or ""
-    return trimmed; // Router wants "" or "/notestream-site"
-  }, []);
-
-  // If you ever reference static files, prefer relative URLs
-  // OR prefix with BASE_URL to work under both hosts.
+const routerBasename = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
   const [docs, setDocs] = useState([
     {
       id: "1",
