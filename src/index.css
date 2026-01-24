@@ -1242,6 +1242,8 @@ button[class*="bg-purple-600"],
   --tw-backdrop-blur: blur(16px);
 }
 
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 
 
