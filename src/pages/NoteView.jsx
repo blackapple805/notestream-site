@@ -16,7 +16,7 @@ import {
 } from "react-icons/fi";
 import { Sparkle, Lightning } from "phosphor-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSubscription } from "../hooks/useSubscription";
 
@@ -41,7 +41,7 @@ export default function NoteView({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  // ✅ keep local UI in sync immediately (fixes lock button lag)
+  // ✅ local UI state (instant toggles)
   const [isLocked, setIsLocked] = useState(!!note.locked);
   const [isFav, setIsFav] = useState(!!note.favorite);
 
@@ -60,6 +60,8 @@ export default function NoteView({
     SmartSchedule: note.SmartSchedule || null,
   });
 
+  const textareaRef = useRef(null);
+
   // If parent swaps to a different note, resync local state
   useEffect(() => {
     setIsLocked(!!note.locked);
@@ -75,8 +77,6 @@ export default function NoteView({
     setIsEditing(false);
     setShowExportMenu(false);
   }, [note?.id]); // intentionally only when note changes
-
-  const textareaRef = useRef(null);
 
   const hasSmartData =
     smartData.SmartTasks ||
@@ -113,12 +113,20 @@ export default function NoteView({
     if (isEditing) autoResize();
   }, [body, isEditing]);
 
+  // ✅ Always ensure caret is visible in edit mode
+  useEffect(() => {
+    if (!isEditing) return;
+    const t = setTimeout(() => textareaRef.current?.focus(), 0);
+    return () => clearTimeout(t);
+  }, [isEditing]);
+
   const handleEditToggle = () => {
     if (isLocked) return;
+
     if (isEditing) {
       onEditSave(note.id, title, body, new Date().toISOString());
     }
-    setIsEditing(!isEditing);
+    setIsEditing((v) => !v);
   };
 
   const fakeSmartNotes = () => {
@@ -143,14 +151,14 @@ export default function NoteView({
   const handleLockToggle = () => {
     const next = !isLocked;
 
-    // Optional: auto-exit edit mode when locking
+    // auto-save + exit edit when locking
     if (next && isEditing) {
       onEditSave(note.id, title, body, new Date().toISOString());
       setIsEditing(false);
     }
 
-    setIsLocked(next); // instant UI update
-    onLockToggle(note.id, next); // persist to parent/store
+    setIsLocked(next);
+    onLockToggle(note.id, next);
   };
 
   const handleFavoriteToggle = () => {
@@ -159,7 +167,7 @@ export default function NoteView({
     onFavoriteToggle(note.id, next);
   };
 
-  // =============== EXPORT FUNCTIONS ===============
+  // ====================== EXPORT HELPERS (kept minimal) ======================
   const downloadBlob = (filename, mime, content) => {
     const blob = new Blob([content], { type: mime });
     const url = URL.createObjectURL(blob);
@@ -190,16 +198,11 @@ export default function NoteView({
       smartContent += "\n\n-----------------------------------\n";
       smartContent += "AI SMART NOTES ANALYSIS\n";
       smartContent += "-----------------------------------\n\n";
-
-      if (smartData.summary) {
-        smartContent += "AI Summary:\n" + smartData.summary + "\n\n";
-      }
+      if (smartData.summary) smartContent += "AI Summary:\n" + smartData.summary + "\n\n";
       if (smartData.SmartTasks?.length > 0) {
         smartContent +=
           "Tasks:\n" +
-          smartData.SmartTasks
-            .map((t, i) => `  ${i + 1}. ${t}`)
-            .join("\n") +
+          smartData.SmartTasks.map((t, i) => `  ${i + 1}. ${t}`).join("\n") +
           "\n\n";
       }
       if (smartData.SmartHighlights?.length > 0) {
@@ -239,22 +242,21 @@ export default function NoteView({
         document.body.appendChild(iframe);
       }
 
-      let smartHtml = "";
-      if (hasSmartData) {
-        smartHtml = `
+      const smartHtml = hasSmartData
+        ? `
           <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #6366f1;">
             <h2 style="color: #6366f1; margin-bottom: 20px;">📊 AI Smart Notes Analysis</h2>
-            ${smartData.summary ? `
-              <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-                <h3 style="color: #4f46e5; margin: 0 0 8px 0;">💡 AI Summary</h3>
-                <p style="margin: 0; color: #374151;">${escapeHtml(
-                  smartData.summary
-                )}</p>
-              </div>
-            ` : ""}
+            ${
+              smartData.summary
+                ? `<div style="background: #f3f4f6; padding: 16px; border-radius: 8px;">
+                    <h3 style="color: #4f46e5; margin: 0 0 8px 0;">💡 AI Summary</h3>
+                    <p style="margin: 0; color: #374151;">${escapeHtml(smartData.summary)}</p>
+                  </div>`
+                : ""
+            }
           </div>
-        `;
-      }
+        `
+        : "";
 
       const html = `
         <!DOCTYPE html>
@@ -293,7 +295,7 @@ export default function NoteView({
       return;
     }
 
-    // (keep your other export formats as-is)
+    // keep other formats as-is in your existing file
   };
 
   const handleExportClick = () => {
@@ -333,24 +335,128 @@ export default function NoteView({
     return null;
   }, [note.tag, hasSmartData]);
 
+  // Mobile header: keep actions usable without wrapping weirdly
+  const headerActions = (
+    <div className="flex items-center justify-end gap-2 overflow-x-auto no-scrollbar max-w-[70vw] sm:max-w-none">
+      <ActionButton
+        icon={<FiMic size={16} />}
+        onClick={handleVoiceClick}
+        disabled={isAnalyzing}
+        title={canUseVoice ? "Voice Notes" : "Voice Notes (Pro)"}
+        active={canUseVoice}
+        activeColor="text-purple-400"
+      />
+
+      <div className="relative">
+        <ActionButton
+          icon={<FiDownload size={16} />}
+          onClick={handleExportClick}
+          disabled={isAnalyzing}
+          title={canUseExport ? "Advanced Export" : "Advanced Export (Pro)"}
+          active={showExportMenu}
+          activeColor="text-indigo-400"
+        />
+
+        <AnimatePresence>
+          {showExportMenu && canUseExport && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[120]"
+                onClick={() => setShowExportMenu(false)}
+              />
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                className="absolute right-0 top-12 z-[200] w-[220px] rounded-2xl border shadow-xl p-2"
+                style={{
+                  backgroundColor: "var(--bg-elevated)",
+                  borderColor: "var(--border-secondary)",
+                  backdropFilter: "blur(12px)",
+                }}
+              >
+                <MenuItem
+                  icon={<FiFileText size={14} />}
+                  label="Export PDF"
+                  onClick={() => exportAdvanced("pdf")}
+                />
+                <MenuItem
+                  icon={<FiDownload size={14} />}
+                  label="Basic export (TXT)"
+                  onClick={exportBasic}
+                  subtle
+                />
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <ActionButton
+        icon={<FiHeart size={16} />}
+        active={isFav}
+        activeColor="text-rose-400"
+        onClick={handleFavoriteToggle}
+        disabled={isAnalyzing}
+        title="Favorite"
+      />
+
+      <ActionButton
+        icon={<FiZap size={16} />}
+        active={isAnalyzing}
+        activeColor="text-indigo-400"
+        onClick={fakeSmartNotes}
+        disabled={isAnalyzing}
+        title="AI Analysis"
+        pulse={isAnalyzing}
+      />
+
+      <ActionButton
+        icon={<FiLock size={16} />}
+        active={isLocked}
+        activeColor="text-amber-400"
+        onClick={handleLockToggle}
+        disabled={isAnalyzing}
+        title={isLocked ? "Unlock" : "Lock"}
+      />
+
+      <ActionButton
+        icon={<FiTrash2 size={16} />}
+        onClick={() => setShowDeleteConfirm(true)}
+        disabled={isAnalyzing}
+        hoverColor="hover:text-rose-400"
+        title="Delete"
+      />
+
+      <ActionButton
+        icon={isEditing ? <FiCheck size={16} /> : <FiEdit2 size={16} />}
+        active={isEditing}
+        activeColor="text-emerald-400"
+        onClick={handleEditToggle}
+        disabled={isAnalyzing || isLocked}
+        title={isLocked ? "Locked" : isEditing ? "Save" : "Edit"}
+      />
+    </div>
+  );
+
   return (
     <div className="min-h-full w-full pb-[calc(var(--mobile-nav-height)+24px)]">
-      {/* HEADER: no background color, just the bottom line */}
+      {/* HEADER: transparent (no gray), and NO border line */}
       <div className="sticky top-0 z-50">
         <div
           className="absolute left-1/2 -translate-x-1/2 top-0 w-screen h-full pointer-events-none"
-          style={{
-            backgroundColor: "transparent",
-            backdropFilter: "none",
-          }}
+          style={{ backgroundColor: "transparent", backdropFilter: "none" }}
         />
-        <div className="relative mx-auto w-full max-w-5xl px-4 sm:px-6 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
+        <div className="relative mx-auto w-full max-w-5xl px-3 sm:px-6 py-2.5">
+          {/* Mobile: stack meta/title under actions cleanly */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2.5 min-w-0">
               <ActionButton icon={<FiArrowLeft size={18} />} onClick={onBack} title="Back" />
-
               <div className="min-w-0">
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
                   <p className="text-[11px] text-theme-muted">
                     {note.updated ? formatDate(note.updated) : ""}
                     {note.updated ? ` • ${formatRelative(note.updated)}` : ""}
@@ -363,81 +469,13 @@ export default function NoteView({
                     </span>
                   )}
                 </div>
-
-                <p className="text-sm text-theme-primary font-semibold truncate max-w-[56vw]">
+                <p className="text-base sm:text-sm text-theme-primary font-semibold truncate max-w-[55vw] sm:max-w-[56vw]">
                   {title}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 relative">
-              <ActionButton
-                icon={<FiMic size={16} />}
-                onClick={handleVoiceClick}
-                disabled={isAnalyzing}
-                title={canUseVoice ? "Voice Notes" : "Voice Notes (Pro)"}
-                active={canUseVoice}
-                activeColor="text-purple-400"
-              />
-
-              <div className="relative">
-                <ActionButton
-                  icon={<FiDownload size={16} />}
-                  onClick={handleExportClick}
-                  disabled={isAnalyzing}
-                  title={canUseExport ? "Advanced Export" : "Advanced Export (Pro)"}
-                  active={showExportMenu}
-                  activeColor="text-indigo-400"
-                />
-                {/* export dropdown unchanged */}
-              </div>
-
-              <ActionButton
-                icon={<FiHeart size={16} />}
-                active={isFav}
-                activeColor="text-rose-400"
-                onClick={handleFavoriteToggle}
-                disabled={isAnalyzing}
-                title="Favorite"
-              />
-
-              <ActionButton
-                icon={<FiZap size={16} />}
-                active={isAnalyzing}
-                activeColor="text-indigo-400"
-                onClick={fakeSmartNotes}
-                disabled={isAnalyzing}
-                title="AI Analysis"
-                pulse={isAnalyzing}
-              />
-
-              {/* ✅ uses local isLocked state + instant toggle */}
-              <ActionButton
-                icon={<FiLock size={16} />}
-                active={isLocked}
-                activeColor="text-amber-400"
-                onClick={handleLockToggle}
-                disabled={isAnalyzing}
-                title={isLocked ? "Unlock" : "Lock"}
-              />
-
-              <ActionButton
-                icon={<FiTrash2 size={16} />}
-                onClick={() => setShowDeleteConfirm(true)}
-                disabled={isAnalyzing}
-                hoverColor="hover:text-rose-400"
-                title="Delete"
-              />
-
-              <ActionButton
-                icon={isEditing ? <FiCheck size={16} /> : <FiEdit2 size={16} />}
-                active={isEditing}
-                activeColor="text-emerald-400"
-                onClick={handleEditToggle}
-                disabled={isAnalyzing || isLocked} // ✅ prevent editing when locked
-                title={isLocked ? "Locked" : isEditing ? "Save" : "Edit"}
-              />
-            </div>
+            {headerActions}
           </div>
         </div>
       </div>
@@ -525,8 +563,9 @@ export default function NoteView({
         )}
       </AnimatePresence>
 
-      {/* CONTENT (centered, better structure) */}
+      {/* CONTENT */}
       <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-6">
+        {/* Mobile: stack everything (no right panel). Desktop: 2 columns */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* MAIN */}
           <div className="lg:col-span-7 space-y-5">
@@ -553,7 +592,9 @@ export default function NoteView({
                     <p className="text-sm text-theme-primary font-medium">
                       Voice Recording
                     </p>
-                    <p className="text-[11px] text-theme-muted">Tap play to listen</p>
+                    <p className="text-[11px] text-theme-muted">
+                      Tap play to listen
+                    </p>
                   </div>
                 </div>
                 <audio controls className="w-full" style={{ height: "40px" }}>
@@ -618,45 +659,59 @@ export default function NoteView({
               </div>
             )}
 
-            {/* NOTE SURFACE */}
-            <div className="px-0 sm:px-0">
+            {/* NOTE SURFACE (no box, looks like Notes app) */}
+            <div
+              className="rounded-2xl border p-4 sm:p-6"
+              style={{
+                backgroundColor: "transparent",
+                borderColor: "var(--border-secondary)",
+              }}
+              onMouseDown={(e) => {
+                if (!isEditing || isLocked) return;
+                if (e.target.closest("button,a,input,textarea,select")) return;
+                textareaRef.current?.focus();
+              }}
+            >
               {isEditing ? (
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                maxLength={140}
-                className="w-full bg-transparent text-theme-primary text-2xl sm:text-3xl font-bold placeholder:text-theme-muted
-                          outline-none ring-0 focus:ring-0 focus:outline-none
-                          border border-transparent focus:border-transparent
-                          focus-visible:outline-none focus-visible:ring-0"
-                placeholder="Title"
-              />
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  maxLength={140}
+                  className="w-full bg-transparent text-theme-primary text-2xl sm:text-3xl font-bold placeholder:text-theme-muted
+                             outline-none ring-0 focus:ring-0 focus:outline-none
+                             border border-transparent focus:border-transparent
+                             focus-visible:outline-none focus-visible:ring-0"
+                  placeholder="Title"
+                  disabled={isLocked}
+                />
               ) : (
                 <h1 className="text-2xl sm:text-3xl font-bold text-theme-primary leading-tight">
                   {title}
                 </h1>
               )}
 
-              <div className="mt-4">
+              <div className="mt-3">
                 {isEditing ? (
-               <textarea
-                ref={textareaRef}
-                rows={10}
-                className="w-full bg-transparent text-theme-secondary text-[15px] sm:text-[16px] resize-none leading-relaxed whitespace-pre-wrap break-words placeholder:text-theme-muted mt-4
-                          outline-none ring-0 focus:ring-0 focus:outline-none
-                          border border-transparent focus:border-transparent
-                          focus-visible:outline-none focus-visible:ring-0"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="Start writing..."
-              />
+                  <textarea
+                    ref={textareaRef}
+                    rows={12}
+                    className="w-full bg-transparent text-theme-secondary text-[15px] sm:text-[16px] resize-none leading-relaxed whitespace-pre-wrap break-words placeholder:text-theme-muted
+                               outline-none ring-0 focus:ring-0 focus:outline-none
+                               border border-transparent focus:border-transparent
+                               focus-visible:outline-none focus-visible:ring-0"
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    placeholder={isLocked ? "This note is locked." : "Start writing…"}
+                    disabled={isLocked}
+                    style={{ outline: "none", boxShadow: "none" }}
+                  />
                 ) : body ? (
                   <div className="text-[15px] text-theme-secondary leading-relaxed whitespace-pre-wrap break-words">
                     {body}
                   </div>
                 ) : (
                   <p className="text-theme-muted text-sm">
-                    This note is empty. Click edit to start writing.
+                    This note is empty. Tap edit to start writing.
                   </p>
                 )}
               </div>
@@ -689,7 +744,7 @@ export default function NoteView({
             )}
           </div>
 
-          {/* SMART PANEL (RIGHT) */}
+          {/* SMART PANEL: on mobile it's below note, on desktop right column */}
           <div className="lg:col-span-5 space-y-4">
             {!isEditing && hasSmartData ? (
               <>
@@ -799,7 +854,8 @@ export default function NoteView({
                     </p>
                   </div>
                   <p className="text-[13px] text-theme-muted leading-relaxed">
-                    Run AI Analysis to generate a summary, tasks, highlights, and schedule.
+                    Run AI Analysis to generate a summary, tasks, highlights, and
+                    schedule.
                   </p>
                   <button
                     onClick={fakeSmartNotes}
@@ -900,7 +956,7 @@ const ActionButton = ({
     disabled={disabled}
     title={title}
     className={[
-      "h-10 w-10 rounded-2xl flex items-center justify-center transition active:scale-95",
+      "h-10 w-10 rounded-2xl flex items-center justify-center transition active:scale-95 flex-shrink-0",
       active ? activeColor : `text-theme-muted ${hoverColor}`,
       disabled ? "opacity-50 cursor-not-allowed" : "",
       pulse ? "animate-pulse" : "",
