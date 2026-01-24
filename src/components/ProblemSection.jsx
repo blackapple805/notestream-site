@@ -1,136 +1,243 @@
+// src/components/ProblemSection.jsx
 import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useInView } from "framer-motion";
-import { FiAlertCircle, FiClock, FiLayers, FiZap } from "react-icons/fi";
+import { 
+  FiClock, FiLayers, FiZap, FiArrowRight,
+  FiX, FiCheck, FiFolder, FiSearch
+} from "react-icons/fi";
+import { Lightning, Sparkle } from "phosphor-react";
 
 export default function ProblemSection() {
   const navigate = useNavigate();
   
-  // NEW smooth fade-up animation
-  const fadeSoft = {
-    hidden: { opacity: 0, y: 30, scale: 0.96 },
-    visible: { opacity: 1, y: 0, scale: 1 },
-  };
+  const sectionRef = useRef(null);
+  const inView = useInView(sectionRef, { amount: 0.3, once: true });
 
-  const leftRef = useRef(null);
-  const rightRef = useRef(null);
+  const problems = [
+    {
+      icon: <FiClock size={20} />,
+      title: "Hours Wasted",
+      desc: "Sorting through endless notes and documents to find what matters.",
+      color: "var(--accent-rose)",
+    },
+    {
+      icon: <FiLayers size={20} />,
+      title: "Scattered Data",
+      desc: "Insights buried across multiple tools, folders, and platforms.",
+      color: "var(--accent-amber)",
+    },
+    {
+      icon: <FiSearch size={20} />,
+      title: "Lost Context",
+      desc: "Important connections between ideas slip through the cracks.",
+      color: "var(--accent-purple)",
+    },
+  ];
 
-  const leftInView = useInView(leftRef, { amount: 0.3 });
-  const rightInView = useInView(rightRef, { amount: 0.3 });
+  const solutions = [
+    { icon: <FiZap size={16} />, text: "Instant AI-powered summaries" },
+    { icon: <FiFolder size={16} />, text: "Auto-organized by topic" },
+    { icon: <Sparkle size={16} weight="fill" />, text: "Smart connections discovered" },
+  ];
 
   return (
     <section
+      ref={sectionRef}
       id="problem"
-      className="relative flex flex-col md:flex-row items-center justify-center gap-16 md:gap-24 px-8 md:px-20 py-[16vh] text-theme-primary overflow-hidden"
+      className="relative py-24 md:py-32 px-6 overflow-hidden"
       style={{ backgroundColor: 'var(--bg-primary)' }}
     >
-      {/* === Floating Background Glows === */}
-      <motion.div
-        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.7, 0.5] }}
-        transition={{ repeat: Infinity, duration: 10, ease: "easeInOut" }}
-        className="absolute top-[10%] left-[8%] w-[220px] h-[220px] bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"
+      {/* === Background Elements === */}
+      <div 
+        className="absolute top-[20%] left-[5%] w-[300px] h-[300px] rounded-full pointer-events-none"
+        style={{ 
+          background: 'radial-gradient(circle, rgba(244, 63, 94, 0.08), transparent 70%)', 
+          filter: 'blur(60px)' 
+        }}
       />
-      <motion.div
-        animate={{ scale: [1.1, 0.9, 1.1], opacity: [0.4, 0.6, 0.4] }}
-        transition={{ repeat: Infinity, duration: 12, ease: "easeInOut" }}
-        className="absolute bottom-[15%] right-[8%] w-[200px] h-[200px] bg-purple-500/15 rounded-full blur-3xl pointer-events-none"
+      <div 
+        className="absolute bottom-[10%] right-[10%] w-[250px] h-[250px] rounded-full pointer-events-none"
+        style={{ 
+          background: 'radial-gradient(circle, rgba(99, 102, 241, 0.1), transparent 70%)', 
+          filter: 'blur(60px)' 
+        }}
       />
 
-      {/* === Left Side: Illustration === */}
-      <motion.div
-        ref={leftRef}
-        variants={fadeSoft}
-        initial="hidden"
-        animate={leftInView ? "visible" : "hidden"}
-        transition={{ duration: 0.7, ease: "easeOut" }}
-        className="relative flex items-center justify-center w-[260px] h-[260px] md:w-[320px] md:h-[320px] rounded-3xl backdrop-blur-md border border-indigo-500/20 shadow-[0_0_50px_rgba(99,102,241,0.2)] hover:shadow-[0_0_70px_rgba(99,102,241,0.3)] transition-transform duration-700 hover:scale-[1.05]"
-        style={{ backgroundColor: 'var(--bg-card)' }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/20 via-purple-500/10 to-transparent rounded-3xl blur-2xl pointer-events-none" />
+      <div className="relative z-10 max-w-6xl mx-auto">
+        {/* Header */}
         <motion.div
-          animate={{ rotate: [0, 8, -8, 0], y: [0, -6, 0] }}
-          transition={{ repeat: Infinity, duration: 7, ease: "easeInOut" }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-16"
         >
-          <FiAlertCircle className="text-indigo-500 w-20 h-20 relative z-10 drop-shadow-[0_0_25px_rgba(99,102,241,0.6)]" />
+          <div 
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6 border"
+            style={{ 
+              backgroundColor: 'rgba(244, 63, 94, 0.1)', 
+              borderColor: 'rgba(244, 63, 94, 0.2)' 
+            }}
+          >
+            <FiX size={14} style={{ color: 'var(--accent-rose)' }} />
+            <span className="text-sm font-medium" style={{ color: 'var(--accent-rose)' }}>
+              The Problem
+            </span>
+          </div>
+
+          <h2 className="text-3xl md:text-5xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
+            Note-taking is{" "}
+            <span style={{ color: 'var(--accent-rose)' }}>broken</span>
+          </h2>
+          <p className="text-lg max-w-2xl mx-auto" style={{ color: 'var(--text-muted)' }}>
+            Before <span className="font-medium" style={{ color: 'var(--accent-indigo)' }}>NoteStream</span>, 
+            finding insights meant scrolling through chaos.
+          </p>
         </motion.div>
-      </motion.div>
 
-      {/* === Right Side: Text === */}
-      <motion.div
-        ref={rightRef}
-        variants={fadeSoft}
-        initial="hidden"
-        animate={rightInView ? "visible" : "hidden"}
-        transition={{ duration: 0.7, ease: "easeOut" }}
-        className="max-w-2xl text-center md:text-left relative z-10"
-      >
-        <h2 className="text-4xl md:text-5xl font-extrabold mb-6 leading-tight text-theme-primary">
-          The Problem We{" "}
-          <span className="text-indigo-500">
-            Solve
-          </span>
-        </h2>
-
-        <p className="text-theme-muted text-lg mb-10 leading-relaxed max-w-xl">
-          Before <span className="text-indigo-500 font-semibold">NoteStream</span>, finding insights
-          meant scrolling through chaos. We turn that noise into clarity — instantly.
-        </p>
-
-        {/* === Staggered List === */}
-        <motion.ul
-          initial="hidden"
-          animate={rightInView ? "visible" : "hidden"}
-          variants={{
-            hidden: {},
-            visible: { transition: { staggerChildren: 0.2, delayChildren: 0.1 } },
-          }}
-          className="space-y-5 text-theme-secondary text-base"
-        >
-          {[
-            {
-              icon: <FiClock className="text-indigo-500 mt-1 w-5 h-5 shrink-0" />,
-              text: "Hours lost sorting and reviewing notes.",
-            },
-            {
-              icon: <FiLayers className="text-indigo-500 mt-1 w-5 h-5 shrink-0" />,
-              text: "Insights buried across tools and folders.",
-            },
-            {
-              icon: <FiZap className="text-indigo-500 mt-1 w-5 h-5 shrink-0" />,
-              text: (
-                <>
-                  <span className="text-indigo-500 font-semibold">NoteStream</span> connects it all
-                  — fast, clear, and effortless.
-                </>
-              ),
-            },
-          ].map((item, i) => (
-            <motion.li
-              key={i}
-              variants={{
-                hidden: { opacity: 0, y: 20, scale: 0.98 },
-                visible: { opacity: 1, y: 0, scale: 1 },
+        {/* Problems Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-16">
+          {problems.map((problem, i) => (
+            <motion.div
+              key={problem.title}
+              initial={{ opacity: 0, y: 30 }}
+              animate={inView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.5, delay: 0.1 + i * 0.1 }}
+              className="group relative rounded-2xl p-6 border transition-all duration-300"
+              style={{ 
+                backgroundColor: 'var(--bg-surface)', 
+                borderColor: 'var(--border-secondary)',
               }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-              whileHover={{ scale: 1.03 }}
-              className="flex items-start gap-3"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = `${problem.color}40`;
+                e.currentTarget.style.transform = 'translateY(-4px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border-secondary)';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
             >
-              {item.icon}
-              {item.text}
-            </motion.li>
-          ))}
-        </motion.ul>
+              {/* X mark in corner */}
+              <div 
+                className="absolute top-4 right-4 w-6 h-6 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: `${problem.color}15` }}
+              >
+                <FiX size={12} style={{ color: problem.color }} />
+              </div>
 
-        {/* === CTA Button === */}
-        <motion.button
-          whileHover={{ scale: 1.06 }}
-          whileTap={{ scale: 0.94 }}
-          onClick={() => navigate("/smart-notes")}
-          className="inline-block mt-10 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold text-[1rem] px-8 py-3.5 rounded-full shadow-lg shadow-indigo-500/25 hover:opacity-90 transition-all"
+              <div 
+                className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
+                style={{ backgroundColor: `${problem.color}15`, color: problem.color }}
+              >
+                {problem.icon}
+              </div>
+              <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                {problem.title}
+              </h3>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                {problem.desc}
+              </p>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Transition Arrow */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={inView ? { opacity: 1, scale: 1 } : {}}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="flex justify-center mb-16"
         >
-          Explore Smart Notes
-        </motion.button>
-      </motion.div>
+          <div 
+            className="w-12 h-12 rounded-full flex items-center justify-center"
+            style={{ 
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+              border: '1px solid rgba(99, 102, 241, 0.2)',
+            }}
+          >
+            <motion.div
+              animate={{ y: [0, 4, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <FiArrowRight 
+                size={20} 
+                style={{ color: 'var(--accent-indigo)', transform: 'rotate(90deg)' }} 
+              />
+            </motion.div>
+          </div>
+        </motion.div>
+
+        {/* Solution Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={inView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.6, delay: 0.5 }}
+          className="text-center"
+        >
+          <div 
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6 border"
+            style={{ 
+              backgroundColor: 'rgba(99, 102, 241, 0.1)', 
+              borderColor: 'rgba(99, 102, 241, 0.2)' 
+            }}
+          >
+            <Lightning size={14} weight="fill" style={{ color: 'var(--accent-indigo)' }} />
+            <span className="text-sm font-medium" style={{ color: 'var(--accent-indigo)' }}>
+              The Solution
+            </span>
+          </div>
+
+          <h2 className="text-3xl md:text-4xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
+            <span style={{ color: 'var(--accent-indigo)' }}>NoteStream</span> fixes this
+          </h2>
+          <p className="text-lg max-w-xl mx-auto mb-10" style={{ color: 'var(--text-muted)' }}>
+            We turn noise into clarity — instantly and effortlessly.
+          </p>
+
+          {/* Solution Pills */}
+          <div className="flex flex-wrap justify-center gap-3 mb-10">
+            {solutions.map((solution, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={inView ? { opacity: 1, scale: 1 } : {}}
+                transition={{ duration: 0.4, delay: 0.6 + i * 0.1 }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-full border"
+                style={{ 
+                  backgroundColor: 'var(--bg-surface)', 
+                  borderColor: 'var(--border-secondary)',
+                }}
+              >
+                <div 
+                  className="w-6 h-6 rounded-md flex items-center justify-center"
+                  style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-emerald)' }}
+                >
+                  <FiCheck size={12} />
+                </div>
+                <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  {solution.text}
+                </span>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* CTA Button */}
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={inView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.5, delay: 0.9 }}
+            onClick={() => navigate("/smart-notes")}
+            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-semibold text-white transition-all duration-300 hover:scale-[1.02]"
+            style={{ 
+              background: 'linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))',
+              boxShadow: '0 4px 20px rgba(99, 102, 241, 0.35)',
+            }}
+          >
+            Explore Smart Notes
+            <FiArrowRight size={18} />
+          </motion.button>
+        </motion.div>
+      </div>
     </section>
   );
 }

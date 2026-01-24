@@ -25,6 +25,9 @@
   --vh: 1vh;
   --mobile-nav-height: 90px;
 
+  /* RGB values for transparency */
+  --bg-surface-rgb: 21, 21, 29;
+
   /* Dark Theme (Default) */
   --bg-primary: #0a0a0f;
   --bg-secondary: #0d0d14;
@@ -75,6 +78,7 @@
   --bg-secondary: #f1f5f9;
   --bg-tertiary: #e2e8f0;
   --bg-surface: #ffffff;
+  --bg-surface-rgb: 255, 255, 255;
   --bg-card: #ffffff;
   --bg-card-hover: #f8fafc;
   --bg-elevated: #eef1f6;
@@ -112,6 +116,7 @@
   --bg-secondary: #0d0d14;
   --bg-tertiary: #111118;
   --bg-surface: #15151d;
+  --bg-surface-rgb: 21, 21, 29;
   --bg-card: #101018;
   --bg-card-hover: #131320;
   --bg-elevated: #1b1b23;
@@ -260,15 +265,16 @@ nav {
 }
 
 nav.scrolled {
-  backdrop-filter: blur(16px);
-  background-color: rgba(13, 13, 16, 0.85);
-  border-bottom-color: rgba(31, 31, 35, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background-color: rgba(21, 21, 29, 0.92);
+  border-bottom-color: var(--border-secondary);
 }
 
 :root.light nav.scrolled,
 [data-theme="light"] nav.scrolled {
-  background-color: rgba(248, 250, 252, 0.85);
-  border-bottom-color: rgba(226, 232, 240, 0.7);
+  background-color: rgba(255, 255, 255, 0.92);
+  border-bottom-color: var(--border-secondary);
 }
 
 nav button,
@@ -1161,7 +1167,7 @@ button[class*="bg-purple-600"],
 
 @media (max-width: 932px) {
   :root {
-    --mobile-nav-height: calc(100px + env(safe-area-inset-bottom));
+    --mobile-nav-height: calc(90px + env(safe-area-inset-bottom));
   }
 
   button,
@@ -1177,6 +1183,7 @@ button[class*="bg-purple-600"],
   }
 }
 
+/* Hide note action sheet on desktop */
 @media (min-width: 768px) {
   .note-action-sheet,
   .note-sheet-overlay {
@@ -1185,7 +1192,66 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   20. LIGHT MODE TAILWIND OVERRIDES
+   20. NOTE INPUT STYLING — Apple Notes Style
+============================================================== */
+
+/* Remove ALL focus styling from note inputs */
+.note-input,
+.note-input:focus,
+.note-input:focus-visible,
+.note-input:active {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  ring: 0 !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+}
+
+.note-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Ensure textarea in notes has no resize handle showing focus */
+textarea.note-input {
+  resize: none;
+}
+
+/* Global override for any input/textarea that might have Tailwind focus ring */
+input:focus-visible,
+textarea:focus-visible {
+  --tw-ring-color: transparent !important;
+  --tw-ring-offset-color: transparent !important;
+  --tw-ring-shadow: none !important;
+}
+
+/* ==============================================================
+   22. BOTTOM NAVIGATION
+============================================================== */
+
+/* Bottom nav gradient fade */
+.nav-gradient-fade {
+  background: linear-gradient(to top, var(--bg-primary) 50%, transparent);
+}
+
+/* Bottom nav container */
+.bottom-nav {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-secondary);
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.03) inset;
+}
+
+/* Note action sheet - hide on desktop if still used */
+@media (min-width: 768px) {
+  .note-action-sheet,
+  .note-sheet-overlay {
+    display: none !important;
+  }
+}
+
+/* ==============================================================
+   23. LIGHT MODE TAILWIND OVERRIDES
 ============================================================== */
 
 /* Fix emerald colors */
@@ -1241,11 +1307,6 @@ button[class*="bg-purple-600"],
 [data-theme="light"] .backdrop-blur-xl {
   --tw-backdrop-blur: blur(16px);
 }
-
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-
 
 
 

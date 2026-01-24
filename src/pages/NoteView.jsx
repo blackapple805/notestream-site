@@ -41,7 +41,6 @@ export default function NoteView({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  // ✅ local UI state (instant toggles)
   const [isLocked, setIsLocked] = useState(!!note.locked);
   const [isFav, setIsFav] = useState(!!note.favorite);
 
@@ -62,7 +61,6 @@ export default function NoteView({
 
   const textareaRef = useRef(null);
 
-  // If parent swaps to a different note, resync local state
   useEffect(() => {
     setIsLocked(!!note.locked);
     setIsFav(!!note.favorite);
@@ -76,7 +74,7 @@ export default function NoteView({
     });
     setIsEditing(false);
     setShowExportMenu(false);
-  }, [note?.id]); // intentionally only when note changes
+  }, [note?.id]);
 
   const hasSmartData =
     smartData.SmartTasks ||
@@ -113,7 +111,6 @@ export default function NoteView({
     if (isEditing) autoResize();
   }, [body, isEditing]);
 
-  // ✅ Always ensure caret is visible in edit mode
   useEffect(() => {
     if (!isEditing) return;
     const t = setTimeout(() => textareaRef.current?.focus(), 0);
@@ -147,11 +144,9 @@ export default function NoteView({
     }, 2000);
   };
 
-  // ✅ Lock toggle: update UI instantly + call parent for persistence
   const handleLockToggle = () => {
     const next = !isLocked;
 
-    // auto-save + exit edit when locking
     if (next && isEditing) {
       onEditSave(note.id, title, body, new Date().toISOString());
       setIsEditing(false);
@@ -167,7 +162,6 @@ export default function NoteView({
     onFavoriteToggle(note.id, next);
   };
 
-  // ====================== EXPORT HELPERS (kept minimal) ======================
   const downloadBlob = (filename, mime, content) => {
     const blob = new Blob([content], { type: mime });
     const url = URL.createObjectURL(blob);
@@ -294,8 +288,6 @@ export default function NoteView({
       setShowExportMenu(false);
       return;
     }
-
-    // keep other formats as-is in your existing file
   };
 
   const handleExportClick = () => {
@@ -318,7 +310,14 @@ export default function NoteView({
   const noteBadge = useMemo(() => {
     if (note.tag === "Voice") {
       return (
-        <span className="inline-flex items-center gap-1.5 text-[10px] text-purple-400 font-medium px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20">
+        <span 
+          className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full"
+          style={{ 
+            color: 'var(--accent-purple)', 
+            backgroundColor: 'rgba(168, 85, 247, 0.1)', 
+            border: '1px solid rgba(168, 85, 247, 0.2)' 
+          }}
+        >
           <FiMic size={10} />
           Voice
         </span>
@@ -326,7 +325,14 @@ export default function NoteView({
     }
     if (hasSmartData) {
       return (
-        <span className="inline-flex items-center gap-1.5 text-[10px] text-indigo-400 font-medium px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20">
+        <span 
+          className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full"
+          style={{ 
+            color: 'var(--accent-indigo)', 
+            backgroundColor: 'rgba(99, 102, 241, 0.1)', 
+            border: '1px solid rgba(99, 102, 241, 0.2)' 
+          }}
+        >
           <Sparkle size={12} weight="fill" />
           Smart
         </span>
@@ -335,147 +341,167 @@ export default function NoteView({
     return null;
   }, [note.tag, hasSmartData]);
 
-  // Mobile header: keep actions usable without wrapping weirdly
-  const headerActions = (
-    <div className="flex items-center justify-end gap-2 overflow-x-auto no-scrollbar max-w-[70vw] sm:max-w-none">
-      <ActionButton
-        icon={<FiMic size={16} />}
-        onClick={handleVoiceClick}
-        disabled={isAnalyzing}
-        title={canUseVoice ? "Voice Notes" : "Voice Notes (Pro)"}
-        active={canUseVoice}
-        activeColor="text-purple-400"
-      />
-
-      <div className="relative">
-        <ActionButton
-          icon={<FiDownload size={16} />}
-          onClick={handleExportClick}
-          disabled={isAnalyzing}
-          title={canUseExport ? "Advanced Export" : "Advanced Export (Pro)"}
-          active={showExportMenu}
-          activeColor="text-indigo-400"
-        />
-
-        <AnimatePresence>
-          {showExportMenu && canUseExport && (
-            <>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[120]"
-                onClick={() => setShowExportMenu(false)}
-              />
-              <motion.div
-                initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                className="absolute right-0 top-12 z-[200] w-[220px] rounded-2xl border shadow-xl p-2"
-                style={{
-                  backgroundColor: "var(--bg-elevated)",
-                  borderColor: "var(--border-secondary)",
-                  backdropFilter: "blur(12px)",
-                }}
-              >
-                <MenuItem
-                  icon={<FiFileText size={14} />}
-                  label="Export PDF"
-                  onClick={() => exportAdvanced("pdf")}
-                />
-                <MenuItem
-                  icon={<FiDownload size={14} />}
-                  label="Basic export (TXT)"
-                  onClick={exportBasic}
-                  subtle
-                />
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-      </div>
-
-      <ActionButton
-        icon={<FiHeart size={16} />}
-        active={isFav}
-        activeColor="text-rose-400"
-        onClick={handleFavoriteToggle}
-        disabled={isAnalyzing}
-        title="Favorite"
-      />
-
-      <ActionButton
-        icon={<FiZap size={16} />}
-        active={isAnalyzing}
-        activeColor="text-indigo-400"
-        onClick={fakeSmartNotes}
-        disabled={isAnalyzing}
-        title="AI Analysis"
-        pulse={isAnalyzing}
-      />
-
-      <ActionButton
-        icon={<FiLock size={16} />}
-        active={isLocked}
-        activeColor="text-amber-400"
-        onClick={handleLockToggle}
-        disabled={isAnalyzing}
-        title={isLocked ? "Unlock" : "Lock"}
-      />
-
-      <ActionButton
-        icon={<FiTrash2 size={16} />}
-        onClick={() => setShowDeleteConfirm(true)}
-        disabled={isAnalyzing}
-        hoverColor="hover:text-rose-400"
-        title="Delete"
-      />
-
-      <ActionButton
-        icon={isEditing ? <FiCheck size={16} /> : <FiEdit2 size={16} />}
-        active={isEditing}
-        activeColor="text-emerald-400"
-        onClick={handleEditToggle}
-        disabled={isAnalyzing || isLocked}
-        title={isLocked ? "Locked" : isEditing ? "Save" : "Edit"}
-      />
-    </div>
-  );
-
   return (
     <div className="min-h-full w-full pb-[calc(var(--mobile-nav-height)+24px)]">
-      {/* HEADER: transparent (no gray), and NO border line */}
+      {/* HEADER */}
       <div className="sticky top-0 z-50">
-        <div
-          className="absolute left-1/2 -translate-x-1/2 top-0 w-screen h-full pointer-events-none"
-          style={{ backgroundColor: "transparent", backdropFilter: "none" }}
-        />
         <div className="relative mx-auto w-full max-w-5xl px-3 sm:px-6 py-2.5">
-          {/* Mobile: stack meta/title under actions cleanly */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-2.5 min-w-0">
+          {/* Mobile Layout: Back + Meta on left, scrollable actions on right */}
+          <div className="flex items-center justify-between gap-2">
+            {/* Left side: Back button + title info */}
+            <div className="flex items-center gap-2 min-w-0 flex-shrink">
               <ActionButton icon={<FiArrowLeft size={18} />} onClick={onBack} title="Back" />
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2 min-w-0">
-                  <p className="text-[11px] text-theme-muted">
+              <div className="min-w-0 hidden sm:block">
+                <div className="flex items-center gap-2">
+                  <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                     {note.updated ? formatDate(note.updated) : ""}
                     {note.updated ? ` • ${formatRelative(note.updated)}` : ""}
                   </p>
                   {noteBadge}
-                  {isLocked && (
-                    <span className="inline-flex items-center gap-1.5 text-[10px] text-amber-400 font-medium px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
-                      <FiLock size={10} />
-                      Locked
-                    </span>
-                  )}
                 </div>
-                <p className="text-base sm:text-sm text-theme-primary font-semibold truncate max-w-[55vw] sm:max-w-[56vw]">
+                <p 
+                  className="text-sm font-semibold truncate max-w-[200px]"
+                  style={{ color: 'var(--text-primary)' }}
+                >
                   {title}
                 </p>
               </div>
             </div>
 
-            {headerActions}
+            {/* Right side: Action buttons - horizontal scroll on mobile */}
+            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar flex-shrink-0">
+              <ActionButton
+                icon={<FiMic size={16} />}
+                onClick={handleVoiceClick}
+                disabled={isAnalyzing}
+                title={canUseVoice ? "Voice Notes" : "Voice Notes (Pro)"}
+                active={canUseVoice}
+                activeColor="var(--accent-purple)"
+              />
+
+              <div className="relative">
+                <ActionButton
+                  icon={<FiDownload size={16} />}
+                  onClick={handleExportClick}
+                  disabled={isAnalyzing}
+                  title={canUseExport ? "Export" : "Export (Pro)"}
+                  active={showExportMenu}
+                  activeColor="var(--accent-indigo)"
+                />
+
+                <AnimatePresence>
+                  {showExportMenu && canUseExport && (
+                    <>
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[120]"
+                        onClick={() => setShowExportMenu(false)}
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                        className="absolute right-0 top-12 z-[200] w-[200px] rounded-2xl border shadow-xl p-2"
+                        style={{
+                          backgroundColor: "var(--bg-elevated)",
+                          borderColor: "var(--border-secondary)",
+                        }}
+                      >
+                        <MenuItem
+                          icon={<FiFileText size={14} />}
+                          label="Export PDF"
+                          onClick={() => exportAdvanced("pdf")}
+                        />
+                        <MenuItem
+                          icon={<FiDownload size={14} />}
+                          label="Basic (TXT)"
+                          onClick={exportBasic}
+                          subtle
+                        />
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <ActionButton
+                icon={<FiHeart size={16} />}
+                active={isFav}
+                activeColor="var(--accent-rose)"
+                onClick={handleFavoriteToggle}
+                disabled={isAnalyzing}
+                title="Favorite"
+                filled={isFav}
+              />
+
+              <ActionButton
+                icon={<FiZap size={16} />}
+                active={isAnalyzing}
+                activeColor="var(--accent-indigo)"
+                onClick={fakeSmartNotes}
+                disabled={isAnalyzing}
+                title="AI Analysis"
+                pulse={isAnalyzing}
+              />
+
+              <ActionButton
+                icon={<FiLock size={16} />}
+                active={isLocked}
+                activeColor="var(--accent-amber)"
+                onClick={handleLockToggle}
+                disabled={isAnalyzing}
+                title={isLocked ? "Unlock" : "Lock"}
+              />
+
+              <ActionButton
+                icon={<FiTrash2 size={16} />}
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isAnalyzing}
+                hoverColor="var(--accent-rose)"
+                title="Delete"
+              />
+
+              <ActionButton
+                icon={isEditing ? <FiCheck size={16} /> : <FiEdit2 size={16} />}
+                active={isEditing}
+                activeColor="var(--accent-emerald)"
+                onClick={handleEditToggle}
+                disabled={isAnalyzing || isLocked}
+                title={isLocked ? "Locked" : isEditing ? "Save" : "Edit"}
+              />
+            </div>
+          </div>
+
+          {/* Mobile-only: Show title below header row */}
+          <div className="sm:hidden mt-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                {note.updated ? formatDate(note.updated) : ""}
+                {note.updated ? ` • ${formatRelative(note.updated)}` : ""}
+              </p>
+              {noteBadge}
+              {isLocked && (
+                <span 
+                  className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
+                  style={{ 
+                    color: 'var(--accent-amber)', 
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)', 
+                    border: '1px solid rgba(245, 158, 11, 0.2)' 
+                  }}
+                >
+                  <FiLock size={9} />
+                  Locked
+                </span>
+              )}
+            </div>
+            <p 
+              className="text-base font-semibold mt-1 truncate"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              {title}
+            </p>
           </div>
         </div>
       </div>
@@ -499,7 +525,12 @@ export default function NoteView({
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-[400] bg-emerald-900/90 border border-emerald-500/40 text-emerald-200 px-4 py-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2"
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-[400] px-4 py-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2"
+            style={{
+              backgroundColor: 'rgba(16, 185, 129, 0.9)',
+              border: '1px solid rgba(16, 185, 129, 0.4)',
+              color: 'white'
+            }}
           >
             <Sparkle size={16} weight="fill" />
             Smart Notes analysis complete!
@@ -514,10 +545,15 @@ export default function NoteView({
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-[400] bg-purple-900/90 border border-purple-500/40 text-purple-200 px-4 py-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2"
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-[400] px-4 py-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2"
+            style={{
+              backgroundColor: 'rgba(168, 85, 247, 0.9)',
+              border: '1px solid rgba(168, 85, 247, 0.4)',
+              color: 'white'
+            }}
           >
             <FiMic size={16} />
-            Voice Notes can be created from the Notes page using the + button
+            Voice Notes can be created from the Notes page
           </motion.div>
         )}
       </AnimatePresence>
@@ -529,23 +565,27 @@ export default function NoteView({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed top-[64px] left-1/2 -translate-x-1/2 z-[300] w-[min(520px,92vw)] rounded-2xl border px-4 py-4 flex items-center gap-4"
+            className="fixed top-[80px] left-1/2 -translate-x-1/2 z-[300] w-[min(480px,90vw)] rounded-2xl border px-4 py-4 flex items-center gap-4"
             style={{
-              backgroundColor: "rgba(12,12,16,0.65)",
-              borderColor: "rgba(99,102,241,0.22)",
-              backdropFilter: "blur(14px)",
+              backgroundColor: "var(--bg-surface)",
+              borderColor: "var(--border-secondary)",
+              boxShadow: "var(--shadow-lg)",
             }}
           >
             <motion.div
               animate={{ scale: [1, 1.12, 1] }}
               transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
-              className="w-12 h-12 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center shadow-[0_0_25px_rgba(99,102,241,0.25)]"
+              className="w-12 h-12 rounded-2xl flex items-center justify-center"
+              style={{
+                backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+              }}
             >
-              <Lightning size={22} weight="fill" className="text-indigo-400" />
+              <Lightning size={22} weight="fill" style={{ color: 'var(--accent-indigo)' }} />
             </motion.div>
 
             <div className="flex-1">
-              <p className="text-sm text-theme-primary font-semibold">
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                 Analyzing note with AI…
               </p>
               <div
@@ -555,7 +595,8 @@ export default function NoteView({
                 <motion.div
                   animate={{ x: ["-100%", "100%"] }}
                   transition={{ duration: 1.1, repeat: Infinity, ease: "linear" }}
-                  className="h-full w-1/3 bg-indigo-500"
+                  className="h-full w-1/3"
+                  style={{ backgroundColor: 'var(--accent-indigo)' }}
                 />
               </div>
             </div>
@@ -564,17 +605,17 @@ export default function NoteView({
       </AnimatePresence>
 
       {/* CONTENT */}
-      <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-6">
-        {/* Mobile: stack everything (no right panel). Desktop: 2 columns */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* MAIN */}
-          <div className="lg:col-span-7 space-y-5">
+      <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-4 sm:py-6">
+        {/* Mobile: stack vertically. Desktop: 2 columns */}
+        <div className="flex flex-col lg:flex-row lg:gap-6">
+          {/* MAIN NOTE CONTENT */}
+          <div className="flex-1 lg:flex-[7] space-y-4">
             {/* Attachments */}
             {note.audioUrl && (
               <div
                 className="p-4 rounded-2xl border"
                 style={{
-                  backgroundColor: "var(--bg-input)",
+                  backgroundColor: "var(--bg-surface)",
                   borderColor: "var(--border-secondary)",
                 }}
               >
@@ -586,13 +627,13 @@ export default function NoteView({
                       border: "1px solid rgba(168, 85, 247, 0.28)",
                     }}
                   >
-                    <FiMic className="text-purple-400" />
+                    <FiMic style={{ color: 'var(--accent-purple)' }} />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm text-theme-primary font-medium">
+                    <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
                       Voice Recording
                     </p>
-                    <p className="text-[11px] text-theme-muted">
+                    <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                       Tap play to listen
                     </p>
                   </div>
@@ -602,7 +643,6 @@ export default function NoteView({
                     src={note.audioUrl}
                     type={note.audioMime || "audio/webm"}
                   />
-                  Your browser does not support the audio element.
                 </audio>
               </div>
             )}
@@ -611,7 +651,7 @@ export default function NoteView({
               <div
                 className="rounded-2xl overflow-hidden border"
                 style={{
-                  backgroundColor: "var(--bg-elevated)",
+                  backgroundColor: "var(--bg-surface)",
                   borderColor: "var(--border-secondary)",
                 }}
               >
@@ -627,7 +667,7 @@ export default function NoteView({
               <div
                 className="p-4 rounded-2xl border"
                 style={{
-                  backgroundColor: "var(--bg-input)",
+                  backgroundColor: "var(--bg-surface)",
                   borderColor: "var(--border-secondary)",
                 }}
               >
@@ -636,13 +676,13 @@ export default function NoteView({
                     className="h-12 w-12 rounded-2xl flex items-center justify-center"
                     style={{ backgroundColor: "var(--bg-tertiary)" }}
                   >
-                    <FiFileText size={22} className="text-indigo-400" />
+                    <FiFileText size={22} style={{ color: 'var(--accent-indigo)' }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-theme-primary font-medium">
+                    <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
                       PDF Document
                     </p>
-                    <p className="text-[11px] text-theme-muted truncate">
+                    <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
                       Tap to view full document
                     </p>
                   </div>
@@ -650,7 +690,12 @@ export default function NoteView({
                     href={note.pdfUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="h-10 w-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-300 hover:bg-indigo-500/20 transition"
+                    className="h-10 w-10 rounded-2xl flex items-center justify-center transition"
+                    style={{
+                      backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                      border: '1px solid rgba(99, 102, 241, 0.25)',
+                      color: 'var(--accent-indigo)'
+                    }}
                     title="Open PDF"
                   >
                     <FiExternalLink size={16} />
@@ -659,58 +704,56 @@ export default function NoteView({
               </div>
             )}
 
-            {/* NOTE SURFACE (no box, looks like Notes app) */}
+            {/* NOTE SURFACE - Apple Notes style: minimal, no card border when editing */}
             <div
-              className="rounded-2xl border p-4 sm:p-6"
+              className="rounded-2xl p-4 sm:p-5"
               style={{
-                backgroundColor: "transparent",
-                borderColor: "var(--border-secondary)",
-              }}
-              onMouseDown={(e) => {
-                if (!isEditing || isLocked) return;
-                if (e.target.closest("button,a,input,textarea,select")) return;
-                textareaRef.current?.focus();
+                backgroundColor: "var(--bg-surface)",
+                border: `1px solid var(--border-secondary)`,
               }}
             >
+              {/* Title */}
               {isEditing ? (
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   maxLength={140}
-                  className="w-full bg-transparent text-theme-primary text-2xl sm:text-3xl font-bold placeholder:text-theme-muted
-                             outline-none ring-0 focus:ring-0 focus:outline-none
-                             border border-transparent focus:border-transparent
-                             focus-visible:outline-none focus-visible:ring-0"
+                  className="note-input w-full bg-transparent text-xl sm:text-2xl font-bold"
+                  style={{ color: 'var(--text-primary)' }}
                   placeholder="Title"
                   disabled={isLocked}
                 />
               ) : (
-                <h1 className="text-2xl sm:text-3xl font-bold text-theme-primary leading-tight">
+                <h1 
+                  className="text-xl sm:text-2xl font-bold leading-tight"
+                  style={{ color: 'var(--text-primary)' }}
+                >
                   {title}
                 </h1>
               )}
 
+              {/* Body */}
               <div className="mt-3">
                 {isEditing ? (
                   <textarea
                     ref={textareaRef}
-                    rows={12}
-                    className="w-full bg-transparent text-theme-secondary text-[15px] sm:text-[16px] resize-none leading-relaxed whitespace-pre-wrap break-words placeholder:text-theme-muted
-                               outline-none ring-0 focus:ring-0 focus:outline-none
-                               border border-transparent focus:border-transparent
-                               focus-visible:outline-none focus-visible:ring-0"
+                    rows={10}
+                    className="note-input w-full bg-transparent text-[15px] resize-none leading-relaxed whitespace-pre-wrap"
+                    style={{ color: 'var(--text-secondary)' }}
                     value={body}
                     onChange={(e) => setBody(e.target.value)}
                     placeholder={isLocked ? "This note is locked." : "Start writing…"}
                     disabled={isLocked}
-                    style={{ outline: "none", boxShadow: "none" }}
                   />
                 ) : body ? (
-                  <div className="text-[15px] text-theme-secondary leading-relaxed whitespace-pre-wrap break-words">
+                  <div 
+                    className="text-[15px] leading-relaxed whitespace-pre-wrap break-words"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
                     {body}
                   </div>
                 ) : (
-                  <p className="text-theme-muted text-sm">
+                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
                     This note is empty. Tap edit to start writing.
                   </p>
                 )}
@@ -722,7 +765,7 @@ export default function NoteView({
               <div
                 className="p-4 rounded-2xl border"
                 style={{
-                  backgroundColor: "var(--bg-input)",
+                  backgroundColor: "var(--bg-surface)",
                   borderColor: "var(--border-secondary)",
                 }}
               >
@@ -731,21 +774,24 @@ export default function NoteView({
                     className="h-8 w-8 rounded-2xl flex items-center justify-center"
                     style={{ backgroundColor: "var(--bg-tertiary)" }}
                   >
-                    <FiFileText size={14} className="text-theme-muted" />
+                    <FiFileText size={14} style={{ color: 'var(--text-muted)' }} />
                   </div>
-                  <h3 className="font-semibold text-sm text-theme-primary">
+                  <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
                     Extracted Text
                   </h3>
                 </div>
-                <p className="text-theme-muted text-[13px] whitespace-pre-wrap leading-relaxed">
+                <p 
+                  className="text-[13px] whitespace-pre-wrap leading-relaxed"
+                  style={{ color: 'var(--text-muted)' }}
+                >
                   {note.extractedText}
                 </p>
               </div>
             )}
           </div>
 
-          {/* SMART PANEL: on mobile it's below note, on desktop right column */}
-          <div className="lg:col-span-5 space-y-4">
+          {/* SMART PANEL - Below on mobile, right column on desktop */}
+          <div className="lg:flex-[5] mt-4 lg:mt-0 space-y-4">
             {!isEditing && hasSmartData ? (
               <>
                 {smartData.summary && (
@@ -755,7 +801,7 @@ export default function NoteView({
                     color="indigo"
                     delay={0}
                   >
-                    <p className="text-theme-secondary text-[13px] leading-relaxed">
+                    <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                       {smartData.summary}
                     </p>
                   </SmartCard>
@@ -772,10 +818,17 @@ export default function NoteView({
                       {smartData.SmartTasks.map((task, i) => (
                         <li
                           key={i}
-                          className="flex items-start gap-2 text-theme-secondary text-[13px]"
+                          className="flex items-start gap-2 text-[13px]"
+                          style={{ color: 'var(--text-secondary)' }}
                         >
-                          <div className="h-5 w-5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <FiCheck size={10} className="text-emerald-400" />
+                          <div 
+                            className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                            style={{
+                              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                              border: '1px solid rgba(16, 185, 129, 0.3)'
+                            }}
+                          >
+                            <FiCheck size={10} style={{ color: 'var(--accent-emerald)' }} />
                           </div>
                           {task}
                         </li>
@@ -795,10 +848,17 @@ export default function NoteView({
                       {smartData.SmartHighlights.map((item, i) => (
                         <li
                           key={i}
-                          className="flex items-start gap-2 text-theme-secondary text-[13px]"
+                          className="flex items-start gap-2 text-[13px]"
+                          style={{ color: 'var(--text-secondary)' }}
                         >
-                          <div className="h-5 w-5 rounded-lg border border-amber-500/30 bg-amber-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <FiStar size={10} className="text-amber-400" />
+                          <div 
+                            className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                            style={{
+                              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                              border: '1px solid rgba(245, 158, 11, 0.3)'
+                            }}
+                          >
+                            <FiStar size={10} style={{ color: 'var(--accent-amber)' }} />
                           </div>
                           {item}
                         </li>
@@ -818,10 +878,17 @@ export default function NoteView({
                       {smartData.SmartSchedule.map((date, i) => (
                         <li
                           key={i}
-                          className="flex items-start gap-2 text-theme-secondary text-[13px]"
+                          className="flex items-start gap-2 text-[13px]"
+                          style={{ color: 'var(--text-secondary)' }}
                         >
-                          <div className="h-5 w-5 rounded-lg border border-purple-500/30 bg-purple-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <FiCalendar size={10} className="text-purple-400" />
+                          <div 
+                            className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                            style={{
+                              backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                              border: '1px solid rgba(168, 85, 247, 0.3)'
+                            }}
+                          >
+                            <FiCalendar size={10} style={{ color: 'var(--accent-purple)' }} />
                           </div>
                           {date}
                         </li>
@@ -835,7 +902,7 @@ export default function NoteView({
                 <div
                   className="rounded-2xl border p-4"
                   style={{
-                    backgroundColor: "var(--bg-input)",
+                    backgroundColor: "var(--bg-surface)",
                     borderColor: "var(--border-secondary)",
                   }}
                 >
@@ -847,13 +914,13 @@ export default function NoteView({
                         border: "1px solid rgba(99,102,241,0.22)",
                       }}
                     >
-                      <Sparkle size={16} weight="fill" className="text-indigo-400" />
+                      <Sparkle size={16} weight="fill" style={{ color: 'var(--accent-indigo)' }} />
                     </div>
-                    <p className="text-sm text-theme-primary font-semibold">
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                       Smart Notes
                     </p>
                   </div>
-                  <p className="text-[13px] text-theme-muted leading-relaxed">
+                  <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                     Run AI Analysis to generate a summary, tasks, highlights, and
                     schedule.
                   </p>
@@ -862,8 +929,7 @@ export default function NoteView({
                     disabled={isAnalyzing}
                     className="mt-3 w-full py-2.5 rounded-xl text-sm font-medium transition active:scale-[0.99]"
                     style={{
-                      background:
-                        "linear-gradient(90deg, rgba(99,102,241,0.9), rgba(79,70,229,0.9))",
+                      background: "linear-gradient(90deg, var(--accent-indigo), #4f46e5)",
                       color: "white",
                       opacity: isAnalyzing ? 0.6 : 1,
                     }}
@@ -896,27 +962,33 @@ export default function NoteView({
               exit={{ scale: 0.95, opacity: 0 }}
               className="w-full max-w-[360px] p-6 rounded-2xl border shadow-xl"
               style={{
-                backgroundColor: "var(--bg-elevated)",
+                backgroundColor: "var(--bg-surface)",
                 borderColor: "var(--border-secondary)",
               }}
             >
               <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-2xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center">
-                  <FiTrash2 size={18} className="text-rose-400" />
+                <div 
+                  className="h-10 w-10 rounded-2xl flex items-center justify-center"
+                  style={{
+                    backgroundColor: 'rgba(244, 63, 94, 0.2)',
+                    border: '1px solid rgba(244, 63, 94, 0.3)'
+                  }}
+                >
+                  <FiTrash2 size={18} style={{ color: 'var(--accent-rose)' }} />
                 </div>
-                <h3 className="text-lg font-semibold text-theme-primary">
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                   Delete Note?
                 </h3>
               </div>
-              <p className="text-theme-muted text-sm mb-6">
+              <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
                 This action cannot be undone. Are you sure you want to delete this
                 note?
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="flex-1 px-4 py-3 rounded-xl text-theme-primary font-medium transition"
-                  style={{ backgroundColor: "var(--bg-button)" }}
+                  className="flex-1 px-4 py-3 rounded-xl font-medium transition"
+                  style={{ backgroundColor: "var(--bg-button)", color: 'var(--text-primary)' }}
                 >
                   Cancel
                 </button>
@@ -925,7 +997,8 @@ export default function NoteView({
                     onDelete(note.id);
                     setShowDeleteConfirm(false);
                   }}
-                  className="flex-1 px-4 py-3 rounded-xl bg-rose-600 text-white hover:bg-rose-500 transition font-medium"
+                  className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition"
+                  style={{ backgroundColor: 'var(--accent-rose)' }}
                 >
                   Delete
                 </button>
@@ -934,57 +1007,86 @@ export default function NoteView({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Inline styles for note inputs - removes ALL focus styling */}
+      <style>{`
+        .note-input {
+          outline: none !important;
+          border: none !important;
+          box-shadow: none !important;
+          -webkit-appearance: none !important;
+          -moz-appearance: none !important;
+          appearance: none !important;
+          caret-color: var(--accent-indigo);
+        }
+        .note-input:focus {
+          outline: none !important;
+          border: none !important;
+          box-shadow: none !important;
+          ring: none !important;
+        }
+        .note-input::placeholder {
+          color: var(--text-muted);
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
     </div>
   );
 }
 
 /* -----------------------------------------
-   Action Button Component (squircle style)
+   Action Button Component
 ----------------------------------------- */
 const ActionButton = ({
   icon,
   active,
-  activeColor = "text-indigo-400",
+  activeColor = "var(--accent-indigo)",
   onClick,
   disabled,
   title,
-  hoverColor = "hover:text-theme-primary",
+  hoverColor,
   pulse,
+  filled,
 }) => (
   <button
     onClick={onClick}
     disabled={disabled}
     title={title}
-    className={[
-      "h-10 w-10 rounded-2xl flex items-center justify-center transition active:scale-95 flex-shrink-0",
-      active ? activeColor : `text-theme-muted ${hoverColor}`,
-      disabled ? "opacity-50 cursor-not-allowed" : "",
-      pulse ? "animate-pulse" : "",
-    ].join(" ")}
+    className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl sm:rounded-2xl flex items-center justify-center transition active:scale-95 flex-shrink-0 ${
+      disabled ? "opacity-50 cursor-not-allowed" : ""
+    } ${pulse ? "animate-pulse" : ""}`}
     style={{
       backgroundColor: "var(--bg-tertiary)",
-      border: `1px solid ${active ? "currentColor" : "var(--border-secondary)"}`,
+      border: `1px solid ${active ? activeColor : "var(--border-secondary)"}`,
+      color: active ? activeColor : "var(--text-muted)",
     }}
   >
-    {icon}
+    {filled && active ? (
+      <FiHeart size={16} fill="currentColor" />
+    ) : (
+      icon
+    )}
   </button>
 );
 
 /* -----------------------------------------
    Menu Item Component
 ----------------------------------------- */
-const MenuItem = ({ icon, label, onClick, subtle, highlight }) => (
+const MenuItem = ({ icon, label, onClick, subtle }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition ${
-      highlight
-        ? "text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20"
-        : subtle
-        ? "text-theme-muted hover:text-theme-primary hover:bg-white/5"
-        : "text-theme-primary hover:bg-white/5"
-    }`}
+    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition"
+    style={{
+      color: subtle ? 'var(--text-muted)' : 'var(--text-primary)',
+    }}
   >
-    <span className="text-indigo-400">{icon}</span>
+    <span style={{ color: 'var(--accent-indigo)' }}>{icon}</span>
     <span className="text-sm font-medium">{label}</span>
   </button>
 );
@@ -993,57 +1095,38 @@ const MenuItem = ({ icon, label, onClick, subtle, highlight }) => (
    Smart Card Component
 ----------------------------------------- */
 const SmartCard = ({ icon, title, color, children, delay = 0 }) => {
-  const colorStyles = {
-    indigo: {
-      border: "border-indigo-500/20",
-      bg: "bg-indigo-500/5",
-      iconBg: "bg-indigo-500/20",
-      iconBorder: "border-indigo-500/30",
-      iconText: "text-indigo-400",
-      titleText: "text-indigo-300",
-    },
-    emerald: {
-      border: "border-emerald-500/20",
-      bg: "bg-emerald-500/5",
-      iconBg: "bg-emerald-500/20",
-      iconBorder: "border-emerald-500/30",
-      iconText: "text-emerald-400",
-      titleText: "text-emerald-300",
-    },
-    amber: {
-      border: "border-amber-500/20",
-      bg: "bg-amber-500/5",
-      iconBg: "bg-amber-500/20",
-      iconBorder: "border-amber-500/30",
-      iconText: "text-amber-400",
-      titleText: "text-amber-300",
-    },
-    purple: {
-      border: "border-purple-500/20",
-      bg: "bg-purple-500/5",
-      iconBg: "bg-purple-500/20",
-      iconBorder: "border-purple-500/30",
-      iconText: "text-purple-400",
-      titleText: "text-purple-300",
-    },
+  const colorMap = {
+    indigo: { bg: 'rgba(99, 102, 241, 0.05)', border: 'rgba(99, 102, 241, 0.2)', accent: 'var(--accent-indigo)' },
+    emerald: { bg: 'rgba(16, 185, 129, 0.05)', border: 'rgba(16, 185, 129, 0.2)', accent: 'var(--accent-emerald)' },
+    amber: { bg: 'rgba(245, 158, 11, 0.05)', border: 'rgba(245, 158, 11, 0.2)', accent: 'var(--accent-amber)' },
+    purple: { bg: 'rgba(168, 85, 247, 0.05)', border: 'rgba(168, 85, 247, 0.2)', accent: 'var(--accent-purple)' },
   };
 
-  const c = colorStyles[color] || colorStyles.indigo;
+  const c = colorMap[color] || colorMap.indigo;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay }}
-      className={`${c.bg} border ${c.border} rounded-2xl p-4`}
+      className="rounded-2xl p-4"
+      style={{
+        backgroundColor: c.bg,
+        border: `1px solid ${c.border}`,
+      }}
     >
       <div className="flex items-center gap-2 mb-3">
         <div
-          className={`h-8 w-8 rounded-2xl ${c.iconBg} border ${c.iconBorder} flex items-center justify-center ${c.iconText}`}
+          className="h-8 w-8 rounded-xl flex items-center justify-center"
+          style={{
+            backgroundColor: c.bg,
+            border: `1px solid ${c.border}`,
+            color: c.accent,
+          }}
         >
           {icon}
         </div>
-        <h3 className={`font-semibold text-sm ${c.titleText}`}>{title}</h3>
+        <h3 className="font-semibold text-sm" style={{ color: c.accent }}>{title}</h3>
       </div>
       {children}
     </motion.div>
@@ -1069,22 +1152,28 @@ const UpgradeModal = ({ onClose, title, body, onUpgrade }) => (
       onClick={(e) => e.stopPropagation()}
       className="w-full max-w-[380px] p-6 rounded-2xl border shadow-xl"
       style={{
-        backgroundColor: "var(--bg-elevated)",
+        backgroundColor: "var(--bg-surface)",
         borderColor: "var(--border-secondary)",
       }}
     >
       <div className="flex items-center gap-3 mb-3">
-        <div className="h-10 w-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-          <FiLock className="text-amber-400" />
+        <div 
+          className="h-10 w-10 rounded-2xl flex items-center justify-center"
+          style={{
+            backgroundColor: 'rgba(245, 158, 11, 0.2)',
+            border: '1px solid rgba(245, 158, 11, 0.3)'
+          }}
+        >
+          <FiLock style={{ color: 'var(--accent-amber)' }} />
         </div>
-        <h3 className="text-lg font-semibold text-theme-primary">{title}</h3>
+        <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h3>
       </div>
-      <p className="text-theme-muted text-sm mb-5">{body}</p>
+      <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>{body}</p>
       <div className="flex gap-3">
         <button
           onClick={onClose}
-          className="flex-1 px-4 py-3 rounded-xl text-theme-primary font-medium transition"
-          style={{ backgroundColor: "var(--bg-button)" }}
+          className="flex-1 px-4 py-3 rounded-xl font-medium transition"
+          style={{ backgroundColor: "var(--bg-button)", color: 'var(--text-primary)' }}
         >
           Not now
         </button>
@@ -1093,7 +1182,8 @@ const UpgradeModal = ({ onClose, title, body, onUpgrade }) => (
             onClose();
             onUpgrade?.();
           }}
-          className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-medium transition hover:opacity-95"
+          className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition"
+          style={{ background: 'linear-gradient(90deg, var(--accent-indigo), #4f46e5)' }}
         >
           Upgrade
         </button>
@@ -1101,4 +1191,3 @@ const UpgradeModal = ({ onClose, title, body, onUpgrade }) => (
     </motion.div>
   </motion.div>
 );
-

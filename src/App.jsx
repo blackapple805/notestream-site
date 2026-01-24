@@ -35,17 +35,19 @@ import HowItWorks from "./pages/HowItWorks";
 import Updates from "./pages/Updates";
 import SmartNotes from "./pages/SmartNotes";
 import AISummary from "./pages/AISummary";
-import Integrations from "./pages/dashboard/Integrations"; // Public landing page
+
+// PUBLIC Integrations Landing Page (for Navbar/marketing site)
+import IntegrationsLanding from "./pages/IntegrationsLanding";
 
 // Support Pages
 import Support from "./pages/Support";
 import FAQ from "./pages/FAQ";
 
-// NEW: Support sub-pages (Dashboard)
+// Support sub-pages (Dashboard)
 import HelpCenter from "./pages/HelpCenter";
 import ContactSupport from "./pages/ContactSupport";
 
-// NEW: Integration Docs (Dashboard)
+// Integration Docs (Dashboard)
 import IntegrationDocs from "./pages/IntegrationDocs";
 
 // Auth Pages
@@ -70,8 +72,7 @@ import Settings from "./pages/Settings";
 import DocumentViewer from "./pages/DocumentViewer";
 import RewriteDocument from "./pages/RewriteDocument";
 
-// Dashboard Integration Pages
-// NOTE: Using DashboardIntegrations for the dashboard version
+// DASHBOARD Integrations Page (for logged-in users)
 import DashboardIntegrations from "./pages/dashboard/Integrations";
 import IntegrationConnect from "./pages/dashboard/IntegrationConnect";
 
@@ -121,10 +122,10 @@ function PublicRoutesFadeWrapper() {
             {/* Landing */}
             <Route path="/" element={<HomeLanding />} />
 
-            {/* Features */}
+            {/* Features - PUBLIC pages linked from Navbar */}
             <Route path="/smart-notes" element={<SmartNotes />} />
             <Route path="/ai-summary" element={<AISummary />} />
-            <Route path="/integrations" element={<Integrations />} />
+            <Route path="/integrations" element={<IntegrationsLanding />} />
 
             {/* Main */}
             <Route path="/how-it-works" element={<HowItWorks />} />
@@ -213,7 +214,7 @@ export default function App() {
                 {/* PUBLIC SITE */}
                 <Route path="/*" element={<PublicSiteWrapper />} />
 
-                {/* DASHBOARD PAGES */}
+                {/* DASHBOARD PAGES (for logged-in users) */}
                 <Route path="/dashboard" element={<DashboardLayout />}>
                   <Route index element={<Dashboard />} />
 
@@ -241,7 +242,7 @@ export default function App() {
                     element={<RewriteDocument docs={docs} setDocs={setDocs} />}
                   />
 
-                  {/* INTEGRATIONS - Using Dashboard version */}
+                  {/* INTEGRATIONS - Dashboard version for logged-in users */}
                   <Route path="integrations" element={<DashboardIntegrations />} />
                   <Route
                     path="integrations/connect/:integrationId"
