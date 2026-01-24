@@ -195,7 +195,8 @@ export default function App() {
       type: "PDF",
       size: "1.2 MB",
       updated: "2 days ago",
-      fileUrl: "/docs/projectRoadmap.pdf",
+      // IMPORTANT: relative path so it works on /notestream-site/ and on custom domain
+      fileUrl: "docs/projectRoadmap.pdf",
       summary: null
     }
   ]);
@@ -207,7 +208,8 @@ export default function App() {
       <IntegrationsProvider>
         <SubscriptionProvider>
           <WorkspaceProvider>
-            <Router>
+            {/* IMPORTANT: basename for GitHub Pages project site */}
+            <Router basename="/notestream-site">
               <ScrollToTop />
 
               <Routes>
@@ -281,4 +283,5 @@ export default function App() {
     </ThemeProvider>
   );
 }
+
 
