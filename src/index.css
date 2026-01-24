@@ -2,26 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
-/* --------------------------------------------------------------
-   CSS VARIABLES — THEME SYSTEM (FINALIZED)
--------------------------------------------------------------- */
+/* ==============================================================
+   NOTESTREAM — MASTER STYLESHEET
+   Organized Structure:
+   1. CSS Variables (Theme System)
+   2. Base & Reset
+   3. Layout & Body
+   4. Typography
+   5. Interactive Elements
+   6. Navigation
+   7. Components (Cards, Modals, Buttons, etc.)
+   8. Animations
+   9. Utilities
+============================================================== */
+
+/* ==============================================================
+   1. CSS VARIABLES — THEME SYSTEM
+============================================================== */
+
 :root {
+  /* Layout */
   --vh: 1vh;
   --mobile-nav-height: 90px;
 
-  /* Default Dark Theme (base fallback) */
+  /* Dark Theme (Default) */
   --bg-primary: #0a0a0f;
   --bg-secondary: #0d0d14;
   --bg-tertiary: #111118;
-  --bg-surface: #15151d; /* modals / floating cards */
+  --bg-surface: #15151d;
   --bg-card: #101018;
   --bg-card-hover: #131320;
-  --bg-elevated: #1b1b23; /* action buttons, suggestion bubbles */
+  --bg-elevated: #1b1b23;
   --bg-input: #0d0d14;
   --bg-button: #1c1c24;
   --bg-button-hover: #262631;
-  --bg-hover: rgba(99,102,241,0.15);
-  --bg-overlay: rgba(0,0,0,0.45);
+  --bg-hover: rgba(99, 102, 241, 0.15);
+  --bg-overlay: rgba(0, 0, 0, 0.45);
 
   --border-primary: #1f1f27;
   --border-secondary: #26262c;
@@ -37,15 +53,21 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.65);
 
+  /* Accent Colors */
   --accent-indigo: #6366f1;
   --accent-purple: #a855f7;
   --accent-emerald: #10b981;
   --accent-amber: #f59e0b;
   --accent-rose: #f43f5e;
   --accent-sky: #0ea5e9;
+
+  /* Tag Colors (Dark) */
+  --tag-success-text: #34d399;
+  --tag-warning-text: #fbbf24;
+  --tag-error-text: #fb7185;
+  --tag-info-text: #818cf8;
 }
 
-/* -------------------------------------------------------------- */
 /* Light Theme */
 :root.light,
 [data-theme="light"] {
@@ -55,12 +77,12 @@
   --bg-surface: #ffffff;
   --bg-card: #ffffff;
   --bg-card-hover: #f8fafc;
-  --bg-elevated: #eef1f6; /* This is the key fix for Insight Explorer */
+  --bg-elevated: #eef1f6;
   --bg-input: #ffffff;
   --bg-button: #e2e8f0;
   --bg-button-hover: #cbd5e1;
-  --bg-hover: rgba(99,102,241,0.08);
-  --bg-overlay: rgba(0,0,0,0.25);
+  --bg-hover: rgba(99, 102, 241, 0.08);
+  --bg-overlay: rgba(0, 0, 0, 0.25);
 
   --border-primary: #cbd5e1;
   --border-secondary: #b7c4cf;
@@ -75,9 +97,14 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.15);
+
+  /* Tag Colors (Light) */
+  --tag-success-text: #059669;
+  --tag-warning-text: #d97706;
+  --tag-error-text: #e11d48;
+  --tag-info-text: #4f46e5;
 }
 
-/* -------------------------------------------------------------- */
 /* Dark Theme Explicit */
 :root.dark,
 [data-theme="dark"] {
@@ -91,8 +118,8 @@
   --bg-input: #0d0d14;
   --bg-button: #1c1c24;
   --bg-button-hover: #262631;
-  --bg-hover: rgba(99,102,241,0.15);
-  --bg-overlay: rgba(0,0,0,0.45);
+  --bg-hover: rgba(99, 102, 241, 0.15);
+  --bg-overlay: rgba(0, 0, 0, 0.45);
 
   --border-primary: #1f1f27;
   --border-secondary: #26262c;
@@ -109,32 +136,10 @@
   --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.65);
 }
 
-/* --------------------------------------------------------------
-   UTILITY CLASSES — THEME TOKENS
--------------------------------------------------------------- */
-.bg-theme-primary { background: var(--bg-primary); }
-.bg-theme-secondary { background: var(--bg-secondary); }
-.bg-theme-tertiary { background: var(--bg-tertiary); }
-.bg-theme-surface { background: var(--bg-surface); }
-.bg-theme-card { background: var(--bg-card); }
-.bg-theme-input { background: var(--bg-input); }
-.bg-theme-button { background: var(--bg-button); }
-.bg-theme-elevated { background: var(--bg-elevated); }
-.bg-theme-hover { background: var(--bg-hover); }
-.bg-theme-overlay { background: var(--bg-overlay); }
+/* ==============================================================
+   2. BASE & RESET
+============================================================== */
 
-.text-theme-primary { color: var(--text-primary); }
-.text-theme-secondary { color: var(--text-secondary); }
-.text-theme-tertiary { color: var(--text-tertiary); }
-.text-theme-muted { color: var(--text-muted); }
-
-.border-theme-primary { border-color: var(--border-primary); }
-.border-theme-secondary { border-color: var(--border-secondary); }
-.border-theme-tertiary { border-color: var(--border-tertiary); }
-
-/* --------------------------------------------------------------
-   GLOBAL LAYOUT
--------------------------------------------------------------- */
 html,
 body,
 #root {
@@ -164,90 +169,12 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Light theme body adjustments */
 :root.light body,
 [data-theme="light"] body {
   color-scheme: light;
 }
 
-/* --------------------------------------------------------------
-   INTERACTION / SELECTION
--------------------------------------------------------------- */
-
-/* Default: everything interactive */
-a,
-button,
-input,
-textarea,
-select {
-  user-select: auto !important;
-  pointer-events: auto !important;
-  caret-color: auto !important;
-}
-
-/* Utility to explicitly disable selection where needed */
-.disable-select {
-  user-select: none !important;
-}
-
-/* Remove default outlines (you can add custom focus styles with Tailwind) */
-a:focus,
-button:focus {
-  outline: none !important;
-}
-
-/* Navigation pointer UX */
-nav button,
-nav a,
-nav svg,
-nav img,
-nav span {
-  cursor: pointer !important;
-  -webkit-user-drag: none !important;
-}
-
-/* Tap pulse animation for active buttons */
-@keyframes tapPulse {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(0.96); opacity: 0.7; }
-}
-.active\:pulse:active {
-  animation: tapPulse 0.18s ease-out;
-}
-
-/* --------------------------------------------------------------
-   NAVBAR BASE
--------------------------------------------------------------- */
-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  background-color: transparent;
-  border-bottom: 1px solid transparent;
-  transition:
-    background-color 0.35s ease,
-    border-color 0.35s ease,
-    backdrop-filter 0.35s ease;
-  transform: translate3d(0, 0, 0);
-}
-
-nav.scrolled {
-  backdrop-filter: blur(16px);
-  background-color: rgba(13, 13, 16, 0.85);
-  border-bottom-color: rgba(31, 31, 35, 0.7);
-}
-
-/* Light theme navbar */
-:root.light nav.scrolled,
-[data-theme="light"] nav.scrolled {
-  background-color: rgba(248, 250, 252, 0.85);
-  border-bottom-color: rgba(226, 232, 240, 0.7);
-}
-
-/* --------------------------------------------------------------
-   BACKGROUND IMAGE
--------------------------------------------------------------- */
+/* Background Image */
 body::before {
   content: "";
   position: fixed;
@@ -260,239 +187,197 @@ body::before {
   transition: opacity 0.3s ease;
 }
 
-/* Hide or dim background in light mode */
 :root.light body::before,
 [data-theme="light"] body::before {
   opacity: 0.05;
 }
 
-/* --------------------------------------------------------------
-   PAGE ENTRY ANIMATIONS (Landing only)
--------------------------------------------------------------- */
-@keyframes fadeSlide {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.animate-fadeSlide {
-  animation: fadeSlide 0.8s ease-out forwards;
+/* Hide caret on non-input elements */
+*:not(input):not(textarea):not([contenteditable="true"]) {
+  caret-color: transparent;
 }
 
-@keyframes heroFadeIn {
-  from { opacity: 0.98; transform: scale(1.01) translateY(10px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
-}
-.animate-heroFade {
-  animation: heroFadeIn 1.5s ease-out forwards;
+/* Remove tap highlight */
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Fade In animation */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-out forwards;
+/* ==============================================================
+   3. TYPOGRAPHY
+============================================================== */
+
+/* Prevent color transition flickering on text */
+h1, h2, h3, h4, h5, h6, p, span, a, li {
+  transition: none;
 }
 
-/* --------------------------------------------------------------
-   NOTE ACTION SHEET — iPhone Only
--------------------------------------------------------------- */
-@keyframes slideUp {
-  from { transform: translateY(40px); opacity: 0; }
-  to   { transform: translateY(0); opacity: 1; }
-}
-.animate-slideUp {
-  animation: slideUp 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+/* ==============================================================
+   4. INTERACTIVE ELEMENTS
+============================================================== */
+
+a,
+button,
+input,
+textarea,
+select {
+  user-select: auto !important;
+  pointer-events: auto !important;
+  caret-color: auto !important;
 }
 
-/* Prevent bottom sheet / overlay on desktop */
-@media (min-width: 768px) {
-  .note-action-sheet,
-  .note-sheet-overlay {
-    display: none !important;
-  }
+button, a, [role="button"] {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-/* Overlay base styles (kept light for performance) */
-.note-sheet-overlay {
-  pointer-events: auto;
+a:focus,
+button:focus {
+  outline: none !important;
 }
 
-@keyframes fadeInFloat {
-  0% { opacity: 0; transform: scale(0.88) translateY(12px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
+/* Input Focus States */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent-indigo) !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
 }
 
-.animate-fadeInFloat {
-  animation: fadeInFloat 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+/* ==============================================================
+   5. NAVIGATION
+============================================================== */
+
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: transparent;
+  border-bottom: 1px solid transparent;
+  transition: background-color 0.35s ease, border-color 0.35s ease, backdrop-filter 0.35s ease;
+  transform: translate3d(0, 0, 0);
 }
 
-/* --------------------------------------------------------------
-   MOBILE MENU ANIMATIONS (Top navbar menu)
--------------------------------------------------------------- */
-@keyframes fadeOverlayIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+nav.scrolled {
+  backdrop-filter: blur(16px);
+  background-color: rgba(13, 13, 16, 0.85);
+  border-bottom-color: rgba(31, 31, 35, 0.7);
 }
 
-/* Mobile menu slide down */
-@keyframes ns-slideDown {
-  from { transform: translateY(-20px); opacity: 0; }
-  to   { transform: translateY(0); opacity: 1; }
-}
-.animate-ns-slideDown {
-  animation: ns-slideDown 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+:root.light nav.scrolled,
+[data-theme="light"] nav.scrolled {
+  background-color: rgba(248, 250, 252, 0.85);
+  border-bottom-color: rgba(226, 232, 240, 0.7);
 }
 
-/* Hamburger icon rotation */
-.ns-hamburger {
-  transition: transform 0.3s ease, opacity 0.3s ease;
-}
-.ns-hamburger-rotate {
-  transform: rotate(180deg) scale(1.1);
-}
-
-/* Stagger for mobile menu items */
-@keyframes ns-menuItemFade {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.ns-menu-item {
-  opacity: 0;
-  animation: ns-menuItemFade 0.45s ease forwards;
+nav button,
+nav a,
+nav svg,
+nav img,
+nav span {
+  cursor: pointer !important;
+  -webkit-user-drag: none !important;
 }
 
-/* --------------------------------------------------------------
-   MOBILE BEHAVIOR / SAFE AREA FIXES
--------------------------------------------------------------- */
-@supports (-webkit-touch-callout: none) {
-  .fixed {
-    transform: translate3d(0, 0, 0);
-  }
+/* Sidebar */
+.sidebar-bg {
+  background: var(--bg-secondary);
+  border-color: var(--border-primary);
 }
 
-@media (max-width: 932px) {
-  :root {
-    --mobile-nav-height: calc(100px + env(safe-area-inset-bottom));
-  }
-
-  button,
-  a,
-  input,
-  select,
-  textarea {
-    touch-action: manipulation;
-  }
-
-  .safe-area-inset-bottom {
-    padding-bottom: max(env(safe-area-inset-bottom), 0px);
-  }
+/* Mobile Bottom Nav */
+.mobile-nav-bg {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-primary);
 }
 
-/* --------------------------------------------------------------
-   MOBILE MENU CLOSE ANIMATION
--------------------------------------------------------------- */
-@keyframes ns-slideUpClose {
-  from { transform: translateY(0); opacity: 1; }
-  to   { transform: translateY(-18px); opacity: 0; }
-}
-.animate-ns-slideUpClose {
-  animation: ns-slideUpClose 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+/* ==============================================================
+   6. COMPONENTS — BUTTONS
+============================================================== */
+
+/* Primary Button */
+.btn-primary {
+  background: var(--accent-indigo);
+  color: white;
 }
 
+.btn-primary:hover {
+  background: #5558e8;
+}
+
+/* Secondary Button */
+.btn-secondary {
+  background: var(--bg-button);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-secondary);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-button-hover);
+  border-color: var(--border-tertiary);
+}
+
+/* Toggle Button */
+.toggle-btn {
+  background: var(--bg-button);
+  color: var(--text-muted);
+  border: 1px solid var(--border-secondary);
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn.active,
+.toggle-btn[data-active="true"],
+.toggle-btn-active {
+  background: var(--accent-indigo);
+  color: white !important;
+  border-color: var(--accent-indigo);
+}
+
+.toggle-btn:not(.active):not([data-active="true"]):hover {
+  background: var(--bg-button-hover);
+  color: var(--text-secondary);
+}
+
+/* Gradient buttons always have white text */
+button[class*="bg-indigo-500"],
+button[class*="bg-indigo-600"],
+button[class*="bg-purple-500"],
+button[class*="bg-purple-600"],
+[class*="bg-gradient-to-r"][class*="from-indigo"] {
+  color: white !important;
+}
+
+/* ==============================================================
+   7. COMPONENTS — FAB (Floating Action Button)
+============================================================== */
 
 .fab-btn {
   position: fixed;
+  bottom: calc(env(safe-area-inset-bottom) + var(--mobile-nav-height) + 12px);
   right: 20px;
-  bottom: calc(env(safe-area-inset-bottom) + var(--mobile-nav-height) + 18px);
-  width: 56px;
-  height: 56px;
-  background: #6c63ff;
+  width: 62px;
+  height: 62px;
+  background: var(--accent-indigo);
   border-radius: 50%;
+  color: white;
+  font-size: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  box-shadow: 0 12px 26px rgba(0,0,0,0.4);
-  z-index: 200;
-  transition: transform 0.25s ease;
+  box-shadow: 0px 8px 32px rgba(99, 102, 241, 0.35);
+  z-index: 220;
+  transition: background 0.2s, transform 0.2s;
 }
 
 .fab-btn:active {
   transform: scale(0.92);
 }
 
-/* Action Menu Buttons */
-.action-btn {
-  background: var(--bg-button);
-  border-radius: 14px;
-  padding: 10px 16px;
-  font-size: 14px;
-  display: inline-flex;
-  align-items: center;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-secondary);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-  opacity: 0;
-  transform: translateY(12px);
-  animation: menuAppear 0.3s forwards ease-out;
-}
-
-.action-btn:hover {
-  background: var(--bg-button-hover);
-}
-
-/* Menu animation */
-@keyframes menuAppear {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* --------------------------------------------------------------
-   💥 Notes UI Enhancements
--------------------------------------------------------------- */
-
-/* Action button items in context menu */
-.menu-icon-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--text-primary);
-  width: 100%;
-  padding: 10px 14px;
-  font-size: 14px;
-  border-radius: 12px;
-  transition: background 0.15s;
-}
-.menu-icon-btn:hover {
-  background: rgba(255,255,255,0.08);
-}
-
-:root.light .menu-icon-btn:hover,
-[data-theme="light"] .menu-icon-btn:hover {
-  background: rgba(0,0,0,0.05);
-}
-
-/* Cancel button in context menu */
-.menu-cancel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 10px 14px;
-  font-size: 14px;
-  border-radius: 12px;
-  color: var(--text-muted);
-  margin-top: 4px;
-  transition: background 0.15s;
-}
-.menu-cancel:hover {
-  background: rgba(255,255,255,0.05);
-}
-
-/* Add sub-action buttons under floating action button */
 .action-btn {
   display: flex;
   align-items: center;
@@ -503,49 +388,96 @@ body::before {
   font-size: 14px;
   color: var(--text-primary);
   letter-spacing: 0.2px;
+  border: 1px solid var(--border-secondary);
   box-shadow: var(--shadow-md);
-  opacity: 1;
-  transform: translateY(0);
-  transition: transform .25s, opacity .25s;
+  transition: transform 0.25s, opacity 0.25s;
 }
 
-/* Main floating button */
-.fab-btn {
-  position: fixed;
-  bottom: calc(env(safe-area-inset-bottom) + var(--mobile-nav-height) + 12px);
-  right: 20px;
-  background: #6366f1;
-  width: 62px;
-  height: 62px;
-  border-radius: 50%;
-  color: #fff;
-  font-size: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0px 8px 32px rgba(99,102,241,.35);
-  z-index: 220;
-  transition: background .2s, transform .2s;
-}
-.fab-btn:active {
-  transform: scale(.92);
+.action-btn:hover {
+  background: var(--bg-button-hover);
 }
 
-/* Modal Overlay */
+/* ==============================================================
+   8. COMPONENTS — CARDS
+============================================================== */
+
+.card-hover:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-indigo);
+}
+
+/* Stat Boxes */
+.stat-box-indigo { background: rgba(99, 102, 241, 0.9); color: white !important; }
+.stat-box-purple { background: rgba(168, 85, 247, 0.9); color: white !important; }
+.stat-box-emerald { background: rgba(16, 185, 129, 0.9); color: white !important; }
+.stat-box-amber { background: rgba(245, 158, 11, 0.9); color: white !important; }
+
+.stat-box-subtle {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.stat-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.stat-solid-bg {
+  color: white !important;
+}
+
+/* Clarity Score */
+.clarity-score-box {
+  background: rgba(99, 102, 241, 0.15);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.clarity-score-box .score-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.clarity-score-box .score-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.clarity-score-box-solid {
+  background: rgba(99, 102, 241, 0.9);
+}
+
+.clarity-score-box-solid .score-value,
+.clarity-score-box-solid .score-label {
+  color: white !important;
+}
+
+:root.light .clarity-stat,
+[data-theme="light"] .clarity-stat {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--text-primary);
+}
+
+/* ==============================================================
+   9. COMPONENTS — MODALS & OVERLAYS
+============================================================== */
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.55);
+  background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(4px);
   z-index: 300;
 }
 
 :root.light .modal-backdrop,
 [data-theme="light"] .modal-backdrop {
-  background: rgba(0,0,0,.4);
+  background: rgba(0, 0, 0, 0.4);
 }
 
-/* Note editor modal (centered!) */
 .modal {
   position: fixed;
   top: 50%;
@@ -558,10 +490,9 @@ body::before {
   padding: 20px;
   border: 1px solid var(--border-secondary);
   z-index: 301;
-  animation: zoomIn .28s cubic-bezier(.22,1,.36,1);
+  animation: zoomIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Modal title */
 .modal-title {
   width: 100%;
   margin-bottom: 12px;
@@ -573,7 +504,6 @@ body::before {
   outline: none;
 }
 
-/* Modal writing area */
 .modal-body {
   width: 100%;
   min-height: 140px;
@@ -586,547 +516,41 @@ body::before {
   resize: none;
 }
 
-/* Save button */
 .modal-save {
   margin-top: 14px;
   width: 100%;
   padding: 12px;
-  background: #6366f1;
+  background: var(--accent-indigo);
   border-radius: 14px;
   color: white;
   font-weight: 600;
   font-size: 15px;
 }
+
 .modal-save:hover {
   opacity: 0.9;
 }
 
-/* Zoom animation */
-@keyframes zoomIn {
-  from { opacity: 0; transform: translate(-50%, -55%) scale(.92); }
-  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-}
-
-/* --------------------------------------------------------------
-   ❤️ Favorite Heart Pulse Animation
--------------------------------------------------------------- */
-@keyframes fav-pulse {
-  0% { transform: scale(1); }
-  40% { transform: scale(1.3); }
-  60% { transform: scale(0.95); }
-  100% { transform: scale(1); }
-}
-
-.fav-animate {
-  animation: fav-pulse 0.28s ease-out;
-}
-
-/* --------------------------------------------------------------
-   🔄 Upload Progress Bar Animation
--------------------------------------------------------------- */
-@keyframes loadbar {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-/* --------------------------------------------------------------
-   ⚠ Toast-Specific Animations (Safe Names)
--------------------------------------------------------------- */
-
-@keyframes toastFadeIn {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -46%) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-}
-
-@keyframes toastFadeOut {
-  from {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: translate(-50%, -46%) scale(0.95);
-  }
-}
-
-.toast-fade-in {
-  animation: toastFadeIn 0.25s ease-out forwards;
-}
-
-.toast-fade-out {
-  animation: toastFadeOut 0.35s ease-in forwards;
-}
-
-/* --------------------------------------------------------------
-   SCROLLBAR STYLING
--------------------------------------------------------------- */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-tertiary);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
-}
-
-/* --------------------------------------------------------------
-   SMOOTH THEME TRANSITIONS
--------------------------------------------------------------- */
-*, *::before, *::after {
-  transition: background-color 0.2s ease, 
-              border-color 0.2s ease,
-              box-shadow 0.2s ease;
-}
-
-/* Disable transitions on page load */
-.no-transitions *, 
-.no-transitions *::before, 
-.no-transitions *::after {
-  transition: none !important;
-}
-
-
-
-/* --------------------------------------------------------------
-   🔧 THEME FIXES — Add these to the END of your index.css
-   Fixes blur issues, modal overlays, and component consistency
--------------------------------------------------------------- */
-
-/* --------------------------------------------------------------
-   BACKDROP BLUR FIX — Ensures blur works in both themes
--------------------------------------------------------------- */
-
-/* For elements using backdrop-blur, ensure they have a semi-transparent background */
-.backdrop-blur-sm,
-.backdrop-blur,
-.backdrop-blur-md,
-.backdrop-blur-lg,
-.backdrop-blur-xl {
-  /* Light theme needs darker overlay for blur to be visible */
-}
-
-:root.light .backdrop-blur-sm,
-:root.light .backdrop-blur,
-:root.light .backdrop-blur-md,
-:root.light .backdrop-blur-lg,
-:root.light .backdrop-blur-xl,
-[data-theme="light"] .backdrop-blur-sm,
-[data-theme="light"] .backdrop-blur,
-[data-theme="light"] .backdrop-blur-md,
-[data-theme="light"] .backdrop-blur-lg,
-[data-theme="light"] .backdrop-blur-xl {
-  --tw-backdrop-blur: blur(16px);
-}
-
-/* --------------------------------------------------------------
-   MODAL & OVERLAY BACKGROUNDS — Theme-aware
--------------------------------------------------------------- */
-
-/* Dark theme modal overlay */
-:root.dark .modal-overlay,
-[data-theme="dark"] .modal-overlay {
-  background: rgba(0, 0, 0, 0.6);
-}
-
-/* Light theme modal overlay - needs to be darker to show contrast */
-:root.light .modal-overlay,
-[data-theme="light"] .modal-overlay {
-  background: rgba(0, 0, 0, 0.4);
-}
-
-/* --------------------------------------------------------------
-   FIXED ELEMENT BACKGROUNDS — Prevent transparency issues
--------------------------------------------------------------- */
-
-/* Ensure fixed elements have solid backgrounds in both themes */
-.fixed-element-bg {
-  background-color: var(--bg-elevated);
-  border-color: var(--border-secondary);
-}
-
-/* --------------------------------------------------------------
-   INPUT FOCUS STATES — Consistent across themes
--------------------------------------------------------------- */
-
-input:focus,
-textarea:focus,
-select:focus {
-  outline: none;
-  border-color: var(--accent-indigo) !important;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
-}
-
-/* --------------------------------------------------------------
-   BUTTON HOVER STATES — Theme-aware
--------------------------------------------------------------- */
-
-/* Primary buttons stay consistent */
-.btn-primary {
-  background: var(--accent-indigo);
-  color: white;
-}
-
-.btn-primary:hover {
-  background: #5558e8;
-}
-
-/* Secondary/ghost buttons adapt to theme */
-.btn-secondary {
-  background: var(--bg-button);
-  color: var(--text-secondary);
+.modal-panel,
+.modal-content,
+.overlay-content {
+  background: var(--bg-surface);
   border: 1px solid var(--border-secondary);
-}
-
-.btn-secondary:hover {
-  background: var(--bg-button-hover);
-  border-color: var(--border-tertiary);
-}
-
-/* --------------------------------------------------------------
-   CARD HOVER EFFECTS — Theme-aware
--------------------------------------------------------------- */
-
-.card-hover:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--accent-indigo);
-  border-opacity: 0.4;
-}
-
-/* --------------------------------------------------------------
-   TOAST NOTIFICATIONS — Fixed backgrounds
--------------------------------------------------------------- */
-
-.toast-success {
-  background: rgba(16, 185, 129, 0.9);
-  border: 1px solid rgba(16, 185, 129, 0.4);
-  color: white;
-}
-
-.toast-error {
-  background: rgba(244, 63, 94, 0.9);
-  border: 1px solid rgba(244, 63, 94, 0.4);
-  color: white;
-}
-
-/* --------------------------------------------------------------
-   SIDEBAR & NAV — Theme-aware backgrounds
--------------------------------------------------------------- */
-
-.sidebar-bg {
-  background: var(--bg-secondary);
-  border-color: var(--border-primary);
-}
-
-/* Mobile bottom nav */
-.mobile-nav-bg {
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border-primary);
-}
-
-/* --------------------------------------------------------------
-   DROPDOWN & CONTEXT MENUS — Solid backgrounds
--------------------------------------------------------------- */
-
-.dropdown-menu,
-.context-menu {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-secondary);
+  border-radius: 20px;
   box-shadow: var(--shadow-lg);
 }
 
-/* --------------------------------------------------------------
-   LOADING STATES — Theme-aware
--------------------------------------------------------------- */
-
-.skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--bg-tertiary) 0%,
-    var(--bg-secondary) 50%,
-    var(--bg-tertiary) 100%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-loading 1.5s infinite;
+.modal-scroll,
+.panel-scroll {
+  background: var(--bg-primary);
 }
 
-@keyframes skeleton-loading {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+.modal-wrapper > div,
+[role="dialog"] > div {
+  background-color: var(--bg-surface);
 }
 
-/* --------------------------------------------------------------
-   ACCENT COLOR CLASSES — For consistent branding
--------------------------------------------------------------- */
-
-.text-accent-indigo { color: var(--accent-indigo); }
-.text-accent-purple { color: var(--accent-purple); }
-.text-accent-emerald { color: var(--accent-emerald); }
-.text-accent-amber { color: var(--accent-amber); }
-.text-accent-rose { color: var(--accent-rose); }
-.text-accent-sky { color: var(--accent-sky); }
-
-.bg-accent-indigo { background: var(--accent-indigo); }
-.bg-accent-purple { background: var(--accent-purple); }
-.bg-accent-emerald { background: var(--accent-emerald); }
-.bg-accent-amber { background: var(--accent-amber); }
-.bg-accent-rose { background: var(--accent-rose); }
-.bg-accent-sky { background: var(--accent-sky); }
-
-/* --------------------------------------------------------------
-   CHARTS & GRAPHS — Theme-aware colors
--------------------------------------------------------------- */
-
-.chart-axis-text {
-  fill: var(--text-tertiary);
-}
-
-.chart-grid-line {
-  stroke: var(--border-secondary);
-}
-
-/* --------------------------------------------------------------
-   FORM LABELS — Consistent styling
--------------------------------------------------------------- */
-
-.form-label {
-  color: var(--text-muted);
-  font-size: 12px;
-  margin-bottom: 6px;
-  display: block;
-}
-
-/* --------------------------------------------------------------
-   DIVIDERS — Theme-aware
--------------------------------------------------------------- */
-
-.divider {
-  height: 1px;
-  background: var(--border-secondary);
-  margin: 16px 0;
-}
-
-.divider-vertical {
-  width: 1px;
-  background: var(--border-secondary);
-  margin: 0 12px;
-}
-
-/* --------------------------------------------------------------
-   FIX: Prevent color transition on text (can cause flickering)
--------------------------------------------------------------- */
-
-h1, h2, h3, h4, h5, h6, p, span, a, li {
-  transition: none;
-}
-
-/* Only transition backgrounds and borders */
-*, *::before, *::after {
-  transition-property: background-color, border-color, box-shadow;
-  transition-duration: 0.2s;
-  transition-timing-function: ease;
-}
-
-/* --------------------------------------------------------------
-   FIX: Ensure proper stacking for fixed elements
--------------------------------------------------------------- */
-
-/* Search bar in Insight Explorer */
-.search-bar-fixed {
-  position: fixed;
-  z-index: 50;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-secondary);
-  box-shadow: var(--shadow-md);
-}
-
-/* Sticky headers */
-.sticky-header {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  background: var(--bg-surface);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-secondary);
-}
-
-:root.light .sticky-header,
-[data-theme="light"] .sticky-header {
-  background: rgba(248, 250, 252, 0.9);
-}
-
-:root.dark .sticky-header,
-[data-theme="dark"] .sticky-header {
-  background: rgba(21, 21, 29, 0.9);
-}
-
-/* ==============================================================
-   🎨 GLOBAL LIGHT MODE FIXES
-   Add this to the END of your index.css
-   Fixes: tags, toggle buttons, stat boxes, overlays
-============================================================== */
-
-/* --------------------------------------------------------------
-   TAG COLOR VARIABLES — Adjust per theme
--------------------------------------------------------------- */
-:root {
-  --tag-success-text: #34d399;
-  --tag-warning-text: #fbbf24;
-  --tag-error-text: #fb7185;
-  --tag-info-text: #818cf8;
-}
-
-:root.light,
-[data-theme="light"] {
-  --tag-success-text: #059669;
-  --tag-warning-text: #d97706;
-  --tag-error-text: #e11d48;
-  --tag-info-text: #4f46e5;
-}
-
-/* --------------------------------------------------------------
-   1. TAGS & BADGES — Ensure visibility in both themes
--------------------------------------------------------------- */
-
-/* AI Ready / Status Tags - Dark mode (default) */
-.tag-success,
-.badge-success,
-[class*="bg-emerald"][class*="text-emerald"] {
-  background: rgba(16, 185, 129, 0.2);
-  color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-/* Light mode - darker backgrounds for contrast */
-:root.light .tag-success,
-:root.light .badge-success,
-[data-theme="light"] .tag-success,
-[data-theme="light"] .badge-success {
-  background: rgba(16, 185, 129, 0.15);
-  color: #059669;
-  border: 1px solid rgba(16, 185, 129, 0.4);
-}
-
-/* Priority Tags (High, Medium, Low) */
-.tag-high {
-  background: rgba(244, 63, 94, 0.2);
-  color: #fb7185;
-}
-.tag-medium {
-  background: rgba(245, 158, 11, 0.2);
-  color: #fbbf24;
-}
-.tag-low {
-  background: rgba(34, 197, 94, 0.2);
-  color: #4ade80;
-}
-
-:root.light .tag-high,
-[data-theme="light"] .tag-high {
-  background: rgba(244, 63, 94, 0.12);
-  color: #e11d48;
-}
-:root.light .tag-medium,
-[data-theme="light"] .tag-medium {
-  background: rgba(245, 158, 11, 0.12);
-  color: #d97706;
-}
-:root.light .tag-low,
-[data-theme="light"] .tag-low {
-  background: rgba(34, 197, 94, 0.12);
-  color: #16a34a;
-}
-
-/* --------------------------------------------------------------
-   2. TOGGLE BUTTONS — Selected state visibility
--------------------------------------------------------------- */
-
-/* Base toggle button */
-.toggle-btn {
-  background: var(--bg-button);
-  color: var(--text-muted);
-  border: 1px solid var(--border-secondary);
-  padding: 6px 14px;
-  border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-/* Selected/Active state */
-.toggle-btn.active,
-.toggle-btn[data-active="true"],
-.toggle-btn-active {
-  background: var(--accent-indigo);
-  color: white !important;
-  border-color: var(--accent-indigo);
-}
-
-/* Hover state (non-active) */
-.toggle-btn:not(.active):not([data-active="true"]):hover {
-  background: var(--bg-button-hover);
-  color: var(--text-secondary);
-}
-
-/* --------------------------------------------------------------
-   3. STAT BOXES — Text on colored backgrounds
--------------------------------------------------------------- */
-
-/* For boxes with colored backgrounds, text should ALWAYS be white */
-.stat-box-indigo,
-.stat-box-purple,
-.stat-box-emerald,
-.stat-box-amber {
-  color: white !important;
-}
-
-.stat-box-indigo { background: rgba(99, 102, 241, 0.9); }
-.stat-box-purple { background: rgba(168, 85, 247, 0.9); }
-.stat-box-emerald { background: rgba(16, 185, 129, 0.9); }
-.stat-box-amber { background: rgba(245, 158, 11, 0.9); }
-
-/* For subtle stat boxes that should adapt to theme */
-.stat-box-subtle {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-/* Clarity score specific - ensure white text on purple bg */
-.clarity-stat {
-  background: rgba(99, 102, 241, 0.15);
-  color: var(--text-primary);
-}
-
-:root.light .clarity-stat,
-[data-theme="light"] .clarity-stat {
-  background: rgba(99, 102, 241, 0.12);
-  color: var(--text-primary);
-}
-
-/* If you want white text on solid color bg regardless of theme */
-.stat-solid-bg {
-  color: white !important;
-}
-
-/* --------------------------------------------------------------
-   4. MODAL & OVERLAY BACKGROUNDS — Solid backgrounds
--------------------------------------------------------------- */
-
-/* Research Synthesizer / Any overlay result panel */
+/* Overlay Panels */
 .result-panel,
 .overlay-panel,
 .synthesis-result {
@@ -1135,16 +559,130 @@ h1, h2, h3, h4, h5, h6, p, span, a, li {
   box-shadow: var(--shadow-lg);
 }
 
-/* Full-screen overlay backdrop */
 .overlay-backdrop {
   background: var(--bg-overlay);
   backdrop-filter: blur(8px);
 }
 
-/* --------------------------------------------------------------
-   5. FILTER CHIPS — Like "Uploads", "Summaries", "Notes"
--------------------------------------------------------------- */
+/* ==============================================================
+   10. COMPONENTS — MENUS & DROPDOWNS
+============================================================== */
 
+.dropdown-menu,
+.context-menu {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-secondary);
+  box-shadow: var(--shadow-lg);
+}
+
+.menu-icon-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-primary);
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  border-radius: 12px;
+  transition: background 0.15s;
+}
+
+.menu-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:root.light .menu-icon-btn:hover,
+[data-theme="light"] .menu-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.menu-cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  border-radius: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  transition: background 0.15s;
+}
+
+.menu-cancel:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ==============================================================
+   11. COMPONENTS — TAGS & BADGES
+============================================================== */
+
+.tag-success,
+.badge-success {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--tag-success-text);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+:root.light .tag-success,
+:root.light .badge-success,
+[data-theme="light"] .tag-success,
+[data-theme="light"] .badge-success {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+/* Priority Tags */
+.tag-high {
+  background: rgba(244, 63, 94, 0.2);
+  color: var(--tag-error-text);
+}
+
+.tag-medium {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--tag-warning-text);
+}
+
+.tag-low {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--tag-success-text);
+}
+
+:root.light .tag-high,
+[data-theme="light"] .tag-high {
+  background: rgba(244, 63, 94, 0.12);
+}
+
+:root.light .tag-medium,
+[data-theme="light"] .tag-medium {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+:root.light .tag-low,
+[data-theme="light"] .tag-low {
+  background: rgba(34, 197, 94, 0.12);
+}
+
+/* Priority Indicators */
+.priority-high {
+  background: rgba(244, 63, 94, 0.12);
+  color: var(--tag-error-text);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+}
+
+.priority-medium {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--tag-warning-text);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.priority-low {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--tag-success-text);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+/* Filter Chips */
 .filter-chip {
   background: var(--bg-button);
   color: var(--text-secondary);
@@ -1166,64 +704,20 @@ h1, h2, h3, h4, h5, h6, p, span, a, li {
   border-color: var(--accent-indigo);
 }
 
-/* --------------------------------------------------------------
-   6. INLINE TAILWIND OVERRIDES — For existing components
--------------------------------------------------------------- */
-
-/* Fix emerald/green tags that use Tailwind classes */
-:root.light [class*="bg-emerald-900"],
-[data-theme="light"] [class*="bg-emerald-900"] {
-  background-color: rgba(16, 185, 129, 0.15) !important;
+/* Activity Pills */
+.activity-pill {
+  background: var(--bg-button);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-secondary);
 }
 
-:root.light [class*="text-emerald-400"],
-[data-theme="light"] [class*="text-emerald-400"] {
-  color: #059669 !important;
+.activity-pill.active {
+  background: var(--accent-indigo);
+  color: white;
+  border-color: transparent;
 }
 
-/* Fix indigo backgrounds in light mode */
-:root.light [class*="bg-indigo-500/20"],
-:root.light [class*="bg-indigo-500/15"],
-:root.light [class*="bg-indigo-500/10"],
-[data-theme="light"] [class*="bg-indigo-500/20"],
-[data-theme="light"] [class*="bg-indigo-500/15"],
-[data-theme="light"] [class*="bg-indigo-500/10"] {
-  background-color: rgba(99, 102, 241, 0.12) !important;
-}
-
-/* Fix purple backgrounds */
-:root.light [class*="bg-purple-500/20"],
-:root.light [class*="bg-purple-500/15"],
-[data-theme="light"] [class*="bg-purple-500/20"],
-[data-theme="light"] [class*="bg-purple-500/15"] {
-  background-color: rgba(168, 85, 247, 0.12) !important;
-}
-
-/* --------------------------------------------------------------
-   7. TEXT ON COLORED STAT CARDS — Universal fix
--------------------------------------------------------------- */
-
-/* When a card has a semi-transparent colored background,
-   ensure the large number text is visible */
-   
-/* Dark mode: light text on dark-ish colored bg */
-.stat-value {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-/* For solid colored backgrounds, always white */
-[class*="bg-indigo-"][class*="/90"] .stat-value,
-[class*="bg-purple-"][class*="/90"] .stat-value,
-[class*="bg-emerald-"][class*="/90"] .stat-value {
-  color: white !important;
-}
-
-/* --------------------------------------------------------------
-   8. SPECIFIC COMPONENT FIXES
--------------------------------------------------------------- */
-
-/* Activity Timeline toggle buttons */
+/* Timeline Filter */
 .timeline-filter-btn {
   background: var(--bg-button);
   color: var(--text-muted);
@@ -1239,29 +733,18 @@ h1, h2, h3, h4, h5, h6, p, span, a, li {
   border-color: var(--accent-indigo);
 }
 
-/* Activity type pills (Uploads, Summaries, Notes, etc.) */
-.activity-pill {
-  background: var(--bg-button);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-secondary);
-}
-
-.activity-pill.active {
-  background: var(--accent-indigo);
-  color: white;
-  border-color: transparent;
-}
-
-/* --------------------------------------------------------------
-   9. RESEARCH SYNTHESIZER MODAL FIX
--------------------------------------------------------------- */
+/* ==============================================================
+   12. COMPONENTS — SYNTHESIZER
+============================================================== */
 
 .synthesizer-modal {
   background: var(--bg-surface);
   border: 1px solid var(--border-secondary);
 }
 
-.synthesizer-result {
+.synthesizer-result,
+.synthesis-results,
+.research-results {
   background: var(--bg-card);
   border: 1px solid var(--border-secondary);
   border-radius: 16px;
@@ -1269,7 +752,9 @@ h1, h2, h3, h4, h5, h6, p, span, a, li {
   margin-top: 16px;
 }
 
-.synthesizer-section {
+.synthesizer-section,
+.synthesis-section,
+.result-section {
   background: var(--bg-input);
   border: 1px solid var(--border-secondary);
   border-radius: 12px;
@@ -1277,14 +762,15 @@ h1, h2, h3, h4, h5, h6, p, span, a, li {
   margin-bottom: 12px;
 }
 
-.synthesizer-section-title {
+.synthesizer-section-title,
+.section-header,
+.synthesis-title {
   color: var(--accent-indigo);
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 8px;
 }
 
-/* Theme cards in synthesizer */
 .theme-card {
   background: var(--bg-input);
   border: 1px solid var(--border-secondary);
@@ -1321,102 +807,6 @@ h1, h2, h3, h4, h5, h6, p, span, a, li {
   color: #d97706;
 }
 
-/* --------------------------------------------------------------
-   10. UNIVERSAL BUTTON TEXT COLOR FIX
--------------------------------------------------------------- */
-
-/* Any button with indigo/purple solid bg should have white text */
-button[class*="bg-indigo-500"],
-button[class*="bg-indigo-600"],
-button[class*="bg-purple-500"],
-button[class*="bg-purple-600"],
-[class*="bg-gradient-to-r"][class*="from-indigo"] {
-  color: white !important;
-}
-
-/* --------------------------------------------------------------
-   11. CLARITY SCORE BOXES - SPECIFIC FIX
--------------------------------------------------------------- */
-
-/* The stat boxes showing 94%, 89%, 93% */
-.clarity-score-box {
-  background: rgba(99, 102, 241, 0.15);
-  border-radius: 12px;
-  padding: 16px;
-  text-align: center;
-}
-
-.clarity-score-box .score-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.clarity-score-box .score-label {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 4px;
-}
-
-/* If using solid indigo background */
-.clarity-score-box-solid {
-  background: rgba(99, 102, 241, 0.9);
-}
-
-.clarity-score-box-solid .score-value,
-.clarity-score-box-solid .score-label {
-  color: white !important;
-}
-
-/* --------------------------------------------------------------
-   12. RESEARCH SYNTHESIZER RESULT SECTIONS
-   Ensure all result sections have proper backgrounds
--------------------------------------------------------------- */
-
-/* Main result container */
-.synthesis-results,
-.research-results,
-[class*="synthesizer-result"] {
-  background: var(--bg-card);
-  border: 1px solid var(--border-secondary);
-  border-radius: 16px;
-  padding: 16px;
-  margin-top: 12px;
-}
-
-/* Individual section cards */
-.synthesis-section,
-.result-section,
-[class*="executive-summary"],
-[class*="key-themes"],
-[class*="consolidated-insights"] {
-  background: var(--bg-input);
-  border: 1px solid var(--border-secondary);
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-}
-
-/* Section headers in synthesizer */
-.section-header,
-.synthesis-title {
-  color: var(--accent-indigo);
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-/* Source tags */
-.source-tag {
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-secondary);
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-}
-
-/* Theme/priority cards in results */
 .theme-result-card {
   background: var(--bg-input);
   border: 1px solid var(--border-secondary);
@@ -1427,93 +817,305 @@ button[class*="bg-purple-600"],
 
 .theme-result-card:hover {
   border-color: var(--accent-indigo);
-  border-opacity: 0.4;
 }
 
-/* Priority indicators */
-.priority-high {
-  background: rgba(244, 63, 94, 0.12);
-  color: var(--tag-error-text);
-  border: 1px solid rgba(244, 63, 94, 0.25);
-}
-
-.priority-medium {
-  background: rgba(245, 158, 11, 0.12);
-  color: var(--tag-warning-text);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-}
-
-.priority-low {
-  background: rgba(34, 197, 94, 0.12);
-  color: var(--tag-success-text);
-  border: 1px solid rgba(34, 197, 94, 0.25);
-}
-
-/* --------------------------------------------------------------
-   13. MODAL/OVERLAY PANEL BACKGROUNDS
--------------------------------------------------------------- */
-
-/* Any modal content panel */
-.modal-panel,
-.modal-content,
-.overlay-content {
-  background: var(--bg-surface);
+.source-tag {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   border: 1px solid var(--border-secondary);
-  border-radius: 20px;
-  box-shadow: var(--shadow-lg);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
 }
 
-/* Scrollable areas within modals */
-.modal-scroll,
-.panel-scroll {
-  background: var(--bg-primary);
+/* ==============================================================
+   13. COMPONENTS — FORMS
+============================================================== */
+
+.form-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+  display: block;
 }
 
-/* --------------------------------------------------------------
-   14. FIX FOR TAILWIND DARK: PREFIX
-   Some components may use dark: prefix incorrectly
--------------------------------------------------------------- */
+/* ==============================================================
+   14. COMPONENTS — TOASTS
+============================================================== */
 
-/* Override dark: prefixed text colors in light mode */
-:root.light .dark\:text-emerald-400,
-[data-theme="light"] .dark\:text-emerald-400 {
-  color: #059669 !important;
+.toast-success {
+  background: rgba(16, 185, 129, 0.9);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: white;
 }
 
-:root.light .dark\:text-indigo-400,
-[data-theme="light"] .dark\:text-indigo-400 {
-  color: #4f46e5 !important;
+.toast-error {
+  background: rgba(244, 63, 94, 0.9);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  color: white;
 }
 
-:root.light .dark\:text-purple-400,
-[data-theme="light"] .dark\:text-purple-400 {
-  color: #9333ea !important;
+/* ==============================================================
+   15. COMPONENTS — MISCELLANEOUS
+============================================================== */
+
+/* Dividers */
+.divider {
+  height: 1px;
+  background: var(--border-secondary);
+  margin: 16px 0;
 }
 
-:root.light .dark\:text-amber-400,
-[data-theme="light"] .dark\:text-amber-400 {
-  color: #d97706 !important;
+.divider-vertical {
+  width: 1px;
+  background: var(--border-secondary);
+  margin: 0 12px;
 }
 
-:root.light .dark\:text-rose-400,
-[data-theme="light"] .dark\:text-rose-400 {
-  color: #e11d48 !important;
+/* Sticky Header */
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--bg-surface);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-secondary);
 }
 
-/* --------------------------------------------------------------
-   15. ENSURE MODAL BACKGROUNDS HAVE SOLID COLOR
--------------------------------------------------------------- */
-
-/* Override any transparent backgrounds in modals */
-.modal-wrapper > div,
-[role="dialog"] > div {
-  background-color: var(--bg-surface);
+:root.light .sticky-header,
+[data-theme="light"] .sticky-header {
+  background: rgba(248, 250, 252, 0.9);
 }
 
-/* --------------------------------------------------------------
-   NO-ANIMATE CLASS — Prevents ALL animations/transitions
--------------------------------------------------------------- */
+:root.dark .sticky-header,
+[data-theme="dark"] .sticky-header {
+  background: rgba(21, 21, 29, 0.9);
+}
 
+/* Fixed Element Background */
+.fixed-element-bg {
+  background-color: var(--bg-elevated);
+  border-color: var(--border-secondary);
+}
+
+/* Search Bar Fixed */
+.search-bar-fixed {
+  position: fixed;
+  z-index: 50;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-secondary);
+  box-shadow: var(--shadow-md);
+}
+
+/* Charts */
+.chart-axis-text {
+  fill: var(--text-tertiary);
+}
+
+.chart-grid-line {
+  stroke: var(--border-secondary);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-tertiary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Loading Skeleton */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-tertiary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+}
+
+/* ==============================================================
+   16. ANIMATIONS
+============================================================== */
+
+/* Fade Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInFloat {
+  from { opacity: 0; transform: scale(0.88) translateY(12px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes fadeOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Slide Animations */
+@keyframes slideUp {
+  from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes ns-slideDown {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes ns-slideUpClose {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(-18px); opacity: 0; }
+}
+
+@keyframes ns-menuItemFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Scale Animations */
+@keyframes zoomIn {
+  from { opacity: 0; transform: translate(-50%, -55%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes heroFadeIn {
+  from { opacity: 0.98; transform: scale(1.01) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes tapPulse {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.96); opacity: 0.7; }
+}
+
+@keyframes fav-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.3); }
+  60% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+/* Progress Animations */
+@keyframes loadbar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes menuAppear {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Toast Animations */
+@keyframes toastFadeIn {
+  from { opacity: 0; transform: translate(-50%, -46%) scale(0.95); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes toastFadeOut {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -46%) scale(0.95); }
+}
+
+/* Animation Classes */
+.animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
+.animate-fadeSlide { animation: fadeSlide 0.8s ease-out forwards; }
+.animate-fadeInFloat { animation: fadeInFloat 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.animate-heroFade { animation: heroFadeIn 1.5s ease-out forwards; }
+.animate-slideUp { animation: slideUp 0.24s cubic-bezier(0.22, 1, 0.36, 1); }
+.animate-ns-slideDown { animation: ns-slideDown 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.animate-ns-slideUpClose { animation: ns-slideUpClose 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.active\:pulse:active { animation: tapPulse 0.18s ease-out; }
+.fav-animate { animation: fav-pulse 0.28s ease-out; }
+.toast-fade-in { animation: toastFadeIn 0.25s ease-out forwards; }
+.toast-fade-out { animation: toastFadeOut 0.35s ease-in forwards; }
+
+.ns-menu-item {
+  opacity: 0;
+  animation: ns-menuItemFade 0.45s ease forwards;
+}
+
+.ns-hamburger {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.ns-hamburger-rotate {
+  transform: rotate(180deg) scale(1.1);
+}
+
+/* ==============================================================
+   17. UTILITY CLASSES
+============================================================== */
+
+/* Background */
+.bg-theme-primary { background: var(--bg-primary); }
+.bg-theme-secondary { background: var(--bg-secondary); }
+.bg-theme-tertiary { background: var(--bg-tertiary); }
+.bg-theme-surface { background: var(--bg-surface); }
+.bg-theme-card { background: var(--bg-card); }
+.bg-theme-input { background: var(--bg-input); }
+.bg-theme-button { background: var(--bg-button); }
+.bg-theme-elevated { background: var(--bg-elevated); }
+.bg-theme-hover { background: var(--bg-hover); }
+.bg-theme-overlay { background: var(--bg-overlay); }
+
+/* Text */
+.text-theme-primary { color: var(--text-primary); }
+.text-theme-secondary { color: var(--text-secondary); }
+.text-theme-tertiary { color: var(--text-tertiary); }
+.text-theme-muted { color: var(--text-muted); }
+
+/* Border */
+.border-theme-primary { border-color: var(--border-primary); }
+.border-theme-secondary { border-color: var(--border-secondary); }
+.border-theme-tertiary { border-color: var(--border-tertiary); }
+
+/* Accent Colors */
+.text-accent-indigo { color: var(--accent-indigo); }
+.text-accent-purple { color: var(--accent-purple); }
+.text-accent-emerald { color: var(--accent-emerald); }
+.text-accent-amber { color: var(--accent-amber); }
+.text-accent-rose { color: var(--accent-rose); }
+.text-accent-sky { color: var(--accent-sky); }
+
+.bg-accent-indigo { background: var(--accent-indigo); }
+.bg-accent-purple { background: var(--accent-purple); }
+.bg-accent-emerald { background: var(--accent-emerald); }
+.bg-accent-amber { background: var(--accent-amber); }
+.bg-accent-rose { background: var(--accent-rose); }
+.bg-accent-sky { background: var(--accent-sky); }
+
+/* Theme Accent (for icons/text) */
+.text-theme-accent { color: var(--accent-indigo) !important; }
+.text-theme-accent-soft { color: color-mix(in srgb, var(--accent-indigo) 70%, var(--text-muted)) !important; }
+
+/* Hover */
+.theme-hover:hover { background: var(--bg-hover) !important; }
+
+/* Selection */
+.disable-select { user-select: none !important; }
+
+/* No Animate */
 .no-animate,
 .no-animate *,
 .no-animate *::before,
@@ -1525,31 +1127,120 @@ button[class*="bg-purple-600"],
   visibility: visible !important;
 }
 
-/* But allow specific transitions we DO want (like button hover) */
 .no-animate button {
   transition: background-color 0.15s ease, color 0.15s ease !important;
 }
 
-/* --------------------------------------------------------------
-   Notes light-mode visibility helpers
--------------------------------------------------------------- */
+/* ==============================================================
+   18. TRANSITIONS
+============================================================== */
 
-/* Theme-aware hover background */
-.theme-hover:hover {
-  background: var(--bg-hover) !important;
+/* Smooth theme transitions (backgrounds/borders only) */
+*, *::before, *::after {
+  transition-property: background-color, border-color, box-shadow;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
 }
 
-/* Theme-aware "accent text" (use your variable, not Tailwind indigo-400) */
-.text-theme-accent {
-  color: var(--accent-indigo) !important;
+/* Disable transitions on page load */
+.no-transitions *,
+.no-transitions *::before,
+.no-transitions *::after {
+  transition: none !important;
 }
 
-/* For soft/disabled accent icons (replaces text-indigo-400/60) */
-.text-theme-accent-soft {
-  color: color-mix(in srgb, var(--accent-indigo) 70%, var(--text-muted)) !important;
+/* ==============================================================
+   19. RESPONSIVE / MOBILE
+============================================================== */
+
+@supports (-webkit-touch-callout: none) {
+  .fixed {
+    transform: translate3d(0, 0, 0);
+  }
 }
 
+@media (max-width: 932px) {
+  :root {
+    --mobile-nav-height: calc(100px + env(safe-area-inset-bottom));
+  }
 
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  .safe-area-inset-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+}
+
+@media (min-width: 768px) {
+  .note-action-sheet,
+  .note-sheet-overlay {
+    display: none !important;
+  }
+}
+
+/* ==============================================================
+   20. LIGHT MODE TAILWIND OVERRIDES
+============================================================== */
+
+/* Fix emerald colors */
+:root.light [class*="text-emerald-400"],
+[data-theme="light"] [class*="text-emerald-400"] {
+  color: #059669 !important;
+}
+
+/* Fix indigo backgrounds */
+:root.light [class*="bg-indigo-500/20"],
+:root.light [class*="bg-indigo-500/15"],
+:root.light [class*="bg-indigo-500/10"],
+[data-theme="light"] [class*="bg-indigo-500/20"],
+[data-theme="light"] [class*="bg-indigo-500/15"],
+[data-theme="light"] [class*="bg-indigo-500/10"] {
+  background-color: rgba(99, 102, 241, 0.12) !important;
+}
+
+/* Fix purple backgrounds */
+:root.light [class*="bg-purple-500/20"],
+:root.light [class*="bg-purple-500/15"],
+[data-theme="light"] [class*="bg-purple-500/20"],
+[data-theme="light"] [class*="bg-purple-500/15"] {
+  background-color: rgba(168, 85, 247, 0.12) !important;
+}
+
+/* Fix dark: prefix colors in light mode */
+:root.light .dark\:text-emerald-400,
+[data-theme="light"] .dark\:text-emerald-400 { color: #059669 !important; }
+
+:root.light .dark\:text-indigo-400,
+[data-theme="light"] .dark\:text-indigo-400 { color: #4f46e5 !important; }
+
+:root.light .dark\:text-purple-400,
+[data-theme="light"] .dark\:text-purple-400 { color: #9333ea !important; }
+
+:root.light .dark\:text-amber-400,
+[data-theme="light"] .dark\:text-amber-400 { color: #d97706 !important; }
+
+:root.light .dark\:text-rose-400,
+[data-theme="light"] .dark\:text-rose-400 { color: #e11d48 !important; }
+
+/* Backdrop blur fix for light mode */
+:root.light .backdrop-blur-sm,
+:root.light .backdrop-blur,
+:root.light .backdrop-blur-md,
+:root.light .backdrop-blur-lg,
+:root.light .backdrop-blur-xl,
+[data-theme="light"] .backdrop-blur-sm,
+[data-theme="light"] .backdrop-blur,
+[data-theme="light"] .backdrop-blur-md,
+[data-theme="light"] .backdrop-blur-lg,
+[data-theme="light"] .backdrop-blur-xl {
+  --tw-backdrop-blur: blur(16px);
+}
 
 
 

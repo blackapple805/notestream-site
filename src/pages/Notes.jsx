@@ -1,4 +1,7 @@
 // src/pages/Notes.jsx
+// Rebuilt with cleaner design matching Summaries.jsx style
+// Removed complex mobile-specific handling
+
 import {
   FiPlus,
   FiEdit2,
@@ -10,8 +13,11 @@ import {
   FiX,
   FiSearch,
   FiMic,
+  FiMoreVertical,
+  FiUpload,
+  FiCamera,
 } from "react-icons/fi";
-import { Note, FilePlus, Camera, UploadSimple, Crown } from "phosphor-react";
+import { Note, FilePlus, Crown, Sparkle } from "phosphor-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -52,60 +58,42 @@ const initialNotes = [
   },
 ];
 
+const FILTERS = [
+  { id: "all", label: "All Notes", icon: Note },
+  { id: "favorites", label: "Favorites", icon: FiHeart },
+  { id: "locked", label: "Private", icon: FiLock },
+  { id: "voice", label: "Voice", icon: FiMic },
+];
+
 export default function Notes() {
   const navigate = useNavigate();
-
-  // Subscription source of truth
   const { subscription, isFeatureUnlocked, isLoading } = useSubscription();
   const isPro = !!subscription?.plan && subscription.plan !== "free";
-  const canUseVoice =
-    typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("voice") : isPro;
-  const canUseExport =
-    typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("export") : isPro;
+  const canUseVoice = typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("voice") : isPro;
+  const canUseExport = typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("export") : isPro;
 
-  // Toast when plan flips free -> pro
-  const [planToast, setPlanToast] = useState(false);
-  const prevPlanRef = useRef(subscription?.plan);
-  useEffect(() => {
-    const prev = prevPlanRef.current;
-    const next = subscription?.plan;
-
-    if (prev === "free" && next && next !== "free") {
-      setPlanToast(true);
-      window.setTimeout(() => setPlanToast(false), 2500);
-    }
-    prevPlanRef.current = next;
-  }, [subscription?.plan]);
-
-  const [uploading, setUploading] = useState(false);
   const cameraInputRef = useRef(null);
   const filePickerRef = useRef(null);
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const isMobileDevice =
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    );
 
   const [selectedNote, setSelectedNote] = useState(null);
-  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const [gridView, setGridView] = useState(true);
   const [notes, setNotes] = useState(initialNotes);
   const [query, setQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
   const [activeMenuId, setActiveMenuId] = useState(null);
+  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
 
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [newNote, setNewNote] = useState({ title: "", body: "" });
+  const [uploading, setUploading] = useState(false);
 
   const [pinModalOpen, setPinModalOpen] = useState(false);
   const [pinMode, setPinMode] = useState(null);
   const [pinInput, setPinInput] = useState("");
   const [pendingNoteId, setPendingNoteId] = useState(null);
 
-  // Pro gating UI
   const [showUpgrade, setShowUpgrade] = useState(false);
-
-  // Voice recorder UI
   const [recOpen, setRecOpen] = useState(false);
   const [recState, setRecState] = useState("idle");
   const [recError, setRecError] = useState("");
@@ -113,12 +101,66 @@ export default function Notes() {
   const mediaStreamRef = useRef(null);
   const chunksRef = useRef([]);
 
+  // Filtered notes
+  const filteredNotes = useMemo(() => {
+    let filtered = notes;
+
+    switch (activeFilter) {
+      case "favorites":
+        filtered = filtered.filter((n) => n.favorite);
+        break;
+      case "locked":
+        filtered = filtered.filter((n) => n.locked);
+        break;
+      case "voice":
+        filtered = filtered.filter((n) => n.tag === "Voice");
+        break;
+      default:
+        break;
+    }
+
+    if (query) {
+      filtered = filtered.filter((n) =>
+        n.title.toLowerCase().includes(query.toLowerCase())
+      );
+    }
+
+    return filtered.sort((a, b) => b.favorite - a.favorite);
+  }, [query, notes, activeFilter]);
+
+  // Filter counts
+  const filterCounts = useMemo(() => ({
+    all: notes.length,
+    favorites: notes.filter((n) => n.favorite).length,
+    locked: notes.filter((n) => n.locked).length,
+    voice: notes.filter((n) => n.tag === "Voice").length,
+  }), [notes]);
+
+  // Note operations
   const updateSelectedNote = (id, updates) => {
-    setSelectedNote((prev) =>
-      prev && prev.id === id ? { ...prev, ...updates } : prev
-    );
+    setSelectedNote((prev) => (prev && prev.id === id ? { ...prev, ...updates } : prev));
   };
 
+  const handleDelete = (id) => {
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    if (selectedNote?.id === id) setSelectedNote(null);
+    setActiveMenuId(null);
+  };
+
+  const handleFavorite = (id, fromView = false) => {
+    const current = notes.find((n) => n.id === id);
+    const newFavorite = !current.favorite;
+    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, favorite: newFavorite } : n)));
+    if (fromView) updateSelectedNote(id, { favorite: newFavorite });
+    setActiveMenuId(null);
+  };
+
+  const onEditSave = (id, newTitle, newBody, updated) => {
+    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, title: newTitle, body: newBody, updated } : n)));
+    setSelectedNote((prev) => (prev && prev.id === id ? { ...prev, title: newTitle, body: newBody, updated } : prev));
+  };
+
+  // PIN operations
   const openSetPinForNote = (noteId) => {
     setPinMode("set");
     setPendingNoteId(noteId);
@@ -142,11 +184,7 @@ export default function Notes() {
         return;
       }
       localStorage.setItem(PIN_KEY, pinInput);
-      setNotes((prev) =>
-        prev.map((n) =>
-          n.id === pendingNoteId ? { ...n, locked: true } : n
-        )
-      );
+      setNotes((prev) => prev.map((n) => (n.id === pendingNoteId ? { ...n, locked: true } : n)));
       setPinModalOpen(false);
       setPinInput("");
       setPinMode(null);
@@ -161,11 +199,7 @@ export default function Notes() {
     }
 
     if (pinMode === "unlock") {
-      setNotes((prev) =>
-        prev.map((n) =>
-          n.id === pendingNoteId ? { ...n, locked: false } : n
-        )
-      );
+      setNotes((prev) => prev.map((n) => (n.id === pendingNoteId ? { ...n, locked: false } : n)));
       updateSelectedNote(pendingNoteId, { locked: false });
     } else if (pinMode === "unlockOpen") {
       const noteToOpen = notes.find((n) => n.id === pendingNoteId);
@@ -178,70 +212,39 @@ export default function Notes() {
     setPendingNoteId(null);
   };
 
-  const handleDelete = (id) => {
-    setNotes((prev) => prev.filter((n) => n.id !== id));
-    if (selectedNote?.id === id) setSelectedNote(null);
-    if (activeMenuId === id) setActiveMenuId(null);
-  };
-
-  const handleFavorite = (id, fromView = false) => {
-    const current = notes.find((n) => n.id === id);
-    const newFavorite = !current.favorite;
-
-    setNotes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, favorite: newFavorite } : n))
-    );
-
-    if (fromView) updateSelectedNote(id, { favorite: newFavorite });
-    if (activeMenuId === id) setActiveMenuId(null);
-  };
-
-  const onEditSave = (id, newTitle, newBody, updated) => {
-    setNotes((prev) =>
-      prev.map((n) =>
-        n.id === id ? { ...n, title: newTitle, body: newBody, updated } : n
-      )
-    );
-
-    setSelectedNote((prev) =>
-      prev && prev.id === id
-        ? { ...prev, title: newTitle, body: newBody, updated }
-        : prev
-    );
-  };
-
   const handleLockToggle = (id, fromView = false) => {
     const stored = localStorage.getItem(PIN_KEY);
     const target = notes.find((n) => n.id === id);
 
     if (!target.locked) {
       if (!stored) return openSetPinForNote(id);
-
-      setNotes((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, locked: true } : n))
-      );
+      setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, locked: true } : n)));
       if (fromView) updateSelectedNote(id, { locked: true });
     } else {
       if (!stored) {
-        setNotes((prev) =>
-          prev.map((n) => (n.id === id ? { ...n, locked: false } : n))
-        );
+        setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, locked: false } : n)));
         if (fromView) updateSelectedNote(id, { locked: false });
         return;
       }
       openUnlockForNote(id, fromView);
       return;
     }
-
-    if (activeMenuId === id) setActiveMenuId(null);
+    setActiveMenuId(null);
   };
 
+  const tryOpenNote = (note) => {
+    const stored = localStorage.getItem(PIN_KEY);
+    if (!note.locked) return setSelectedNote(note);
+    if (!stored) return openSetPinForNote(note.id);
+    openUnlockForNote(note.id, true);
+  };
+
+  // File upload
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploading(true);
-
     const isPDF = file.type.includes("pdf");
     const objectUrl = URL.createObjectURL(file);
 
@@ -249,17 +252,12 @@ export default function Notes() {
 
     const newNoteItem = {
       id: Date.now(),
-      title: file.name
-        .replace(/\.[^/.]+$/, "")
-        .replace(/[_-]+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim(),
+      title: file.name.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim(),
       body: "",
       tag: isPDF ? "PDF" : "Photo",
       updated: new Date().toISOString(),
       favorite: false,
       locked: false,
-      analyzing: false,
       fileType: isPDF ? "pdf" : "image",
       pdfUrl: isPDF ? objectUrl : null,
       imageUrl: !isPDF ? objectUrl : null,
@@ -267,6 +265,7 @@ export default function Notes() {
 
     setNotes((prev) => [newNoteItem, ...prev]);
     setUploading(false);
+    setShowAddMenu(false);
   };
 
   const handleScanCapture = async (e) => {
@@ -277,7 +276,6 @@ export default function Notes() {
     await new Promise((r) => setTimeout(r, 1200));
 
     const objectUrl = URL.createObjectURL(file);
-
     const newNoteItem = {
       id: Date.now(),
       title: "Scanned Image",
@@ -287,46 +285,15 @@ export default function Notes() {
       favorite: false,
       locked: false,
       fileType: "image",
-      pdfUrl: null,
       imageUrl: objectUrl,
     };
 
     setNotes((prev) => [newNoteItem, ...prev]);
     setUploading(false);
+    setShowAddMenu(false);
   };
 
-  // Active filter state
-  const [activeFilter, setActiveFilter] = useState("all");
-
-  const filteredNotes = useMemo(() => {
-    let filtered = notes;
-
-    // Apply filter
-    switch (activeFilter) {
-      case "favorites":
-        filtered = filtered.filter((n) => n.favorite);
-        break;
-      case "locked":
-        filtered = filtered.filter((n) => n.locked);
-        break;
-      case "voice":
-        filtered = filtered.filter((n) => n.tag === "Voice");
-        break;
-      default:
-        break;
-    }
-
-    // Apply search query
-    if (query) {
-      filtered = filtered.filter((n) =>
-        n.title.toLowerCase().includes(query.toLowerCase())
-      );
-    }
-
-    // Sort favorites first
-    return filtered.sort((a, b) => b.favorite - a.favorite);
-  }, [query, notes, activeFilter]);
-
+  // Create note
   const createNote = () => {
     const item = {
       id: Date.now(),
@@ -342,43 +309,10 @@ export default function Notes() {
     setEditorOpen(false);
   };
 
-  const tryOpenNote = (note) => {
-    const stored = localStorage.getItem(PIN_KEY);
-
-    if (!note.locked) return setSelectedNote(note);
-
-    if (!stored) return openSetPinForNote(note.id);
-    openUnlockForNote(note.id, true);
-  };
-
-  useEffect(() => {
-    if (!cameraInputRef.current) return;
-    cameraInputRef.current.onchange = handleScanCapture;
-  }, []);
-
-  useEffect(() => {
-    if (!filePickerRef.current) return;
-    filePickerRef.current.onchange = handleFileUpload;
-  }, []);
-
-  useEffect(() => {
-    const closeMenuOnOutsideClick = (e) => {
-      if (!showAddMenu) return;
-      const isFab = e.target.closest(".fab-btn");
-      const isMenu = e.target.closest(".action-btn");
-      if (!isFab && !isMenu) setShowAddMenu(false);
-    };
-
-    document.addEventListener("click", closeMenuOnOutsideClick);
-    return () => document.removeEventListener("click", closeMenuOnOutsideClick);
-  }, [showAddMenu]);
-
+  // Voice recording
   const stopTracks = useCallback(() => {
     try {
-      if (
-        mediaRecorderRef.current &&
-        mediaRecorderRef.current.state !== "inactive"
-      ) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
       }
     } catch {}
@@ -471,289 +405,240 @@ export default function Notes() {
     setRecError("");
   };
 
-  // Loading screen
+  // Close menus on outside click
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (showAddMenu && !e.target.closest(".fab-zone")) {
+        setShowAddMenu(false);
+      }
+    };
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [showAddMenu]);
+
+  // File input handlers
+  useEffect(() => {
+    if (cameraInputRef.current) cameraInputRef.current.onchange = handleScanCapture;
+    if (filePickerRef.current) filePickerRef.current.onchange = handleFileUpload;
+  }, []);
+
+  // Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        {/* theme-aware spinner: keep border indigo, but make it visible on light bg */}
         <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
+  // Note view
   if (selectedNote) {
     return (
-      <>
-        <AnimatePresence>
-          {planToast && (
-            <motion.div
-              initial={{ opacity: 0, y: -18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -18 }}
-              className="fixed top-20 left-1/2 -translate-x-1/2 z-[999] px-4 py-2.5 rounded-xl border shadow-xl backdrop-blur-md"
-              style={{
-                backgroundColor: "rgba(16,185,129,0.12)",
-                borderColor: "rgba(16,185,129,0.25)",
-                color: "rgba(167,243,208,1)",
-              }}
-            >
-              Pro unlocked. Notes features updated.
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <NoteView
-          note={selectedNote}
-          onBack={() => setSelectedNote(null)}
-          onFavoriteToggle={handleFavorite}
-          onEditSave={onEditSave}
-          onDelete={handleDelete}
-          onLockToggle={handleLockToggle}
-          isPro={isPro}
-          canUseExport={canUseExport}
-          canUseVoice={canUseVoice}
-          onRequireUpgrade={() => setShowUpgrade(true)}
-        />
-      </>
+      <NoteView
+        note={selectedNote}
+        onBack={() => setSelectedNote(null)}
+        onFavoriteToggle={handleFavorite}
+        onEditSave={onEditSave}
+        onDelete={handleDelete}
+        onLockToggle={handleLockToggle}
+        isPro={isPro}
+        canUseExport={canUseExport}
+        canUseVoice={canUseVoice}
+        onRequireUpgrade={() => setShowUpgrade(true)}
+      />
     );
   }
 
   return (
-    <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+110px)] relative animate-fadeIn">
-      {/* Pro unlock toast */}
-      <AnimatePresence>
-        {planToast && (
-          <motion.div
-            initial={{ opacity: 0, y: -18 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -18 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-[999] px-4 py-2.5 rounded-xl border shadow-xl backdrop-blur-md"
-            style={{
-              backgroundColor: "rgba(16,185,129,0.12)",
-              borderColor: "rgba(16,185,129,0.25)",
-              color: "rgba(167,243,208,1)",
-            }}
-          >
-            Pro unlocked. Notes features updated.
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+    <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+100px)] animate-fadeIn">
       {/* Header */}
       <header className="pt-2 px-1">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center">
-            <Note className="text-theme-accent" size={18} weight="duotone" />
+          <div 
+            className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ 
+              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2))',
+              border: '1px solid rgba(99, 102, 241, 0.25)'
+            }}
+          >
+            <Note style={{ color: 'var(--accent-indigo)' }} size={20} weight="duotone" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">
-              My Notes
-            </h1>
-            <p className="text-theme-muted text-sm">
-              Organized. Searchable. Intelligent.
-            </p>
+            <h1 className="text-2xl font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>My Notes</h1>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Capture ideas, organize thoughts, stay productive.</p>
           </div>
         </div>
       </header>
 
-      {/* Search Bar */}
-      <div className="relative group">
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-indigo-500/20 rounded-2xl blur-sm opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300" />
-        <div
-          className="relative flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-300 group-focus-within:border-indigo-500/50 group-focus-within:shadow-lg group-focus-within:shadow-indigo-500/10"
-          style={{
-            backgroundColor: "var(--bg-surface)",
-            borderColor: "var(--border-secondary)",
-          }}
+      {/* Stats Banner */}
+      <div className="grid grid-cols-3 gap-3">
+        <div 
+          className="p-4 rounded-xl border text-center"
+          style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-secondary)' }}
         >
-          <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-            <FiSearch className="text-theme-accent" size={16} />
-          </div>
-          <input
-            type="text"
-            placeholder="Search your notes..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="flex-1 bg-transparent text-sm text-theme-primary placeholder:text-theme-muted focus:outline-none"
-          />
-          {query && (
-            <button
-              onClick={() => setQuery("")}
-              className="flex items-center justify-center w-7 h-7 rounded-lg bg-theme-tertiary text-theme-muted hover:text-theme-primary hover:bg-rose-500/10 transition-all"
-            >
-              <FiX size={14} />
-            </button>
-          )}
-          <div
-            className="hidden sm:flex items-center gap-1.5 pl-3 border-l"
-            style={{ borderColor: "var(--border-secondary)" }}
-          >
-            <span className="text-[10px] text-theme-muted px-2 py-1 rounded-md bg-theme-tertiary">
-              {filteredNotes.length}
-            </span>
-            <span className="text-[10px] text-theme-muted">
-              {filteredNotes.length === 1 ? "note" : "notes"}
-            </span>
-          </div>
+          <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{notes.length}</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Total Notes</p>
+        </div>
+        <div 
+          className="p-4 rounded-xl border text-center"
+          style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-secondary)' }}
+        >
+          <p className="text-2xl font-bold" style={{ color: 'var(--accent-rose)' }}>{filterCounts.favorites}</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Favorites</p>
+        </div>
+        <div 
+          className="p-4 rounded-xl border text-center"
+          style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-secondary)' }}
+        >
+          <p className="text-2xl font-bold" style={{ color: 'var(--accent-amber)' }}>{filterCounts.locked}</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Private</p>
         </div>
       </div>
 
-      {/* View Toggle */}
-      <div className="flex items-center justify-between px-1">
-        <p className="text-xs text-theme-muted sm:hidden">
-          {filteredNotes.length} {filteredNotes.length === 1 ? "note" : "notes"}
-        </p>
-        <div className="flex gap-1 bg-theme-input border border-theme-secondary rounded-xl p-1 ml-auto">
+      {/* Search Bar - Clean pill style matching Summaries.jsx */}
+      <div
+        className="flex items-center w-full rounded-full px-4 py-3 transition-all duration-300 border"
+        style={{ 
+          backgroundColor: 'var(--bg-surface)', 
+          borderColor: query ? 'var(--accent-indigo)' : 'var(--border-secondary)',
+          boxShadow: query ? '0 0 20px rgba(99,102,241,0.15)' : 'none'
+        }}
+      >
+        <FiSearch className="w-5 h-5 mr-3 flex-shrink-0" style={{ color: 'var(--text-muted)' }} />
+        <input
+          type="text"
+          placeholder="Search notes..."
+          className="flex-1 bg-transparent text-sm outline-none min-w-0"
+          style={{ color: 'var(--text-primary)' }}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          autoComplete="off"
+          spellCheck={false}
+        />
+        {query && (
+          <button
+            onClick={() => setQuery("")}
+            className="p-1.5 rounded-full transition ml-2"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            <FiX size={16} />
+          </button>
+        )}
+        <div className="flex items-center gap-2 ml-3 pl-3 border-l" style={{ borderColor: 'var(--border-secondary)' }}>
           <button
             onClick={() => setGridView(true)}
-            className={`p-2 rounded-lg transition ${
-              gridView
-                ? "bg-indigo-500/20 text-theme-accent border border-indigo-500/30"
-                : "text-theme-muted hover:text-theme-secondary theme-hover"
-            }`}
+            className="p-2 rounded-lg transition"
+            style={{ 
+              backgroundColor: gridView ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+              color: gridView ? 'var(--accent-indigo)' : 'var(--text-muted)'
+            }}
           >
             <FiGrid size={16} />
           </button>
           <button
             onClick={() => setGridView(false)}
-            className={`p-2 rounded-lg transition ${
-              !gridView
-                ? "bg-indigo-500/20 text-theme-accent border border-indigo-500/30"
-                : "text-theme-muted hover:text-theme-secondary theme-hover"
-            }`}
+            className="p-2 rounded-lg transition"
+            style={{ 
+              backgroundColor: !gridView ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+              color: !gridView ? 'var(--accent-indigo)' : 'var(--text-muted)'
+            }}
           >
             <FiList size={16} />
           </button>
         </div>
       </div>
 
-      {/* Filter Tabs - Theme-aware + readable in light mode */}
-      <div className="flex gap-2 overflow-x-auto pb-1 px-1 -mx-1 scrollbar-hide">
-        {[
-          { id: "all", label: "All", count: notes.length, icon: null },
-          { id: "favorites", label: "Favorites", count: notes.filter((n) => n.favorite).length, icon: FiHeart },
-          { id: "locked", label: "Locked", count: notes.filter((n) => n.locked).length, icon: FiLock },
-          { id: "voice", label: "Voice", count: notes.filter((n) => n.tag === "Voice").length, icon: FiMic },
-        ].map((filter) => {
+      {/* Filter Tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        {FILTERS.map((filter) => {
           const isActive = activeFilter === filter.id;
+          const count = filterCounts[filter.id];
           const IconComponent = filter.icon;
 
           return (
             <button
               key={filter.id}
               onClick={() => setActiveFilter(filter.id)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all duration-200 border"
-              style={{
-                backgroundColor: isActive ? "var(--bg-hover)" : "var(--bg-surface)",
-                borderColor: isActive ? "var(--accent-indigo)" : "var(--border-secondary)",
-                color: isActive ? "var(--accent-indigo)" : "var(--text-secondary)",
-                boxShadow: isActive ? "0 10px 24px rgba(0,0,0,0.10)" : "none",
+              className="flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-medium whitespace-nowrap transition-all border"
+              style={{ 
+                backgroundColor: isActive ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                borderColor: isActive ? 'rgba(99, 102, 241, 0.3)' : 'transparent',
+                color: isActive ? 'var(--accent-indigo)' : 'var(--text-secondary)'
               }}
             >
-              {IconComponent && (
-                <IconComponent
-                  size={14}
-                  style={{ color: isActive ? "var(--accent-indigo)" : "var(--text-muted)" }}
-                />
-              )}
-
-              <span style={{ color: isActive ? "var(--accent-indigo)" : "var(--text-secondary)" }}>
-                {filter.label}
-              </span>
-
-              <span
-                className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold"
+              <IconComponent size={14} weight={filter.id === "all" ? "duotone" : undefined} />
+              <span>{filter.label}</span>
+              <span 
+                className="px-1.5 py-0.5 rounded-md text-[10px]"
                 style={{
-                  backgroundColor: isActive ? "var(--bg-tertiary)" : "var(--bg-tertiary)",
-                  color: isActive ? "var(--text-primary)" : "var(--text-tertiary)",
-                  border: `1px solid ${isActive ? "var(--border-tertiary)" : "var(--border-secondary)"}`,
+                  backgroundColor: isActive ? 'rgba(99, 102, 241, 0.2)' : 'var(--bg-tertiary)',
+                  color: isActive ? 'var(--accent-indigo)' : 'var(--text-muted)'
                 }}
               >
-                {filter.count}
+                {count}
               </span>
             </button>
           );
         })}
       </div>
 
-
-      {/* Notes Grid/List */}
-      <div
-        className={`grid gap-4 transition-all ${
-          gridView ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"
-        }`}
-      >
+      {/* Notes Grid */}
+      <div className={`grid gap-4 ${gridView ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
         {filteredNotes.length === 0 ? (
           <div className="col-span-2">
-            <GlassCard className="p-8 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-                {activeFilter === "favorites" ? (
-                  <FiHeart size={32} className="text-theme-accent-soft" />
-                ) : activeFilter === "locked" ? (
-                  <FiLock size={32} className="text-theme-accent-soft" />
-                ) : activeFilter === "voice" ? (
-                  <FiMic size={32} className="text-theme-accent-soft" />
-                ) : (
-                  <Note
-                    size={32}
-                    weight="duotone"
-                    className="text-theme-accent-soft"
-                  />
+            <GlassCard>
+              <div className="py-12 text-center">
+                <div 
+                  className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center"
+                  style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.2)' }}
+                >
+                  {activeFilter === "favorites" ? (
+                    <FiHeart size={28} style={{ color: 'var(--accent-indigo)' }} />
+                  ) : activeFilter === "locked" ? (
+                    <FiLock size={28} style={{ color: 'var(--accent-indigo)' }} />
+                  ) : activeFilter === "voice" ? (
+                    <FiMic size={28} style={{ color: 'var(--accent-indigo)' }} />
+                  ) : (
+                    <Note size={28} weight="duotone" style={{ color: 'var(--accent-indigo)' }} />
+                  )}
+                </div>
+
+                <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                  {query ? "No notes found" : `No ${activeFilter === "all" ? "" : activeFilter + " "}notes yet`}
+                </h3>
+
+                <p className="text-sm mb-6 max-w-xs mx-auto" style={{ color: 'var(--text-muted)' }}>
+                  {query
+                    ? "Try a different search term"
+                    : activeFilter === "favorites"
+                    ? "Mark notes as favorites to see them here"
+                    : activeFilter === "locked"
+                    ? "Lock notes to keep them private"
+                    : activeFilter === "voice"
+                    ? "Record voice notes to see them here"
+                    : "Create your first note to get started"}
+                </p>
+
+                {!query && activeFilter === "all" && (
+                  <button
+                    onClick={() => setEditorOpen(true)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transition active:scale-95"
+                  >
+                    <FiPlus size={16} />
+                    Create Note
+                  </button>
+                )}
+
+                {activeFilter !== "all" && (
+                  <button
+                    onClick={() => setActiveFilter("all")}
+                    className="text-xs transition"
+                    style={{ color: 'var(--accent-indigo)' }}
+                  >
+                    ← View all notes
+                  </button>
                 )}
               </div>
-
-              <h3 className="text-lg font-medium text-theme-primary mb-1">
-                {query
-                  ? "No notes found"
-                  : activeFilter === "favorites"
-                  ? "No favorite notes"
-                  : activeFilter === "locked"
-                  ? "No locked notes"
-                  : activeFilter === "voice"
-                  ? "No voice notes"
-                  : "No notes yet"}
-              </h3>
-
-              <p className="text-theme-muted text-sm mb-4">
-                {query
-                  ? "Try a different search term"
-                  : activeFilter === "favorites"
-                  ? "Mark notes as favorites to see them here"
-                  : activeFilter === "locked"
-                  ? "Lock notes to keep them private"
-                  : activeFilter === "voice"
-                  ? "Record voice notes to see them here"
-                  : "Create your first note to get started!"}
-              </p>
-
-              {!query && activeFilter === "all" && (
-                <button
-                  onClick={() => setEditorOpen(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 text-white text-sm font-medium transition hover:opacity-90 active:scale-[0.98]"
-                >
-                  <FiPlus size={16} />
-                  New Note
-                </button>
-              )}
-
-              {!query && activeFilter === "voice" && canUseVoice && (
-                <button
-                  onClick={() => openVoiceRecorder()}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 text-white text-sm font-medium transition hover:opacity-90 active:scale-[0.98]"
-                >
-                  <FiMic size={16} />
-                  Record Voice Note
-                </button>
-              )}
-
-              {activeFilter !== "all" && (
-                <button
-                  onClick={() => setActiveFilter("all")}
-                  className="mt-3 text-xs text-theme-accent hover:opacity-80 transition"
-                >
-                  ← View all notes
-                </button>
-              )}
             </GlassCard>
           </div>
         ) : (
@@ -764,9 +649,7 @@ export default function Notes() {
               onMenu={(e) => {
                 e.stopPropagation();
                 const rect = e.currentTarget.getBoundingClientRect();
-                const x = Math.min(rect.right - 180, window.innerWidth - 200);
-                const y = rect.bottom + 8;
-                setMenuPos({ x, y });
+                setMenuPos({ x: Math.min(rect.right - 180, window.innerWidth - 200), y: rect.bottom + 8 });
                 setActiveMenuId(note.id);
               }}
               onOpen={() => tryOpenNote(note)}
@@ -784,78 +667,38 @@ export default function Notes() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[90]"
-              style={{
-                backgroundColor: "rgba(0,0,0,0.4)",
-                backdropFilter: "blur(4px)",
-              }}
+              style={{ backgroundColor: "var(--bg-overlay)", backdropFilter: "blur(4px)" }}
               onClick={() => setActiveMenuId(null)}
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: -10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: -10 }}
-              className="fixed rounded-2xl border shadow-xl z-[200] min-w-[200px] overflow-hidden"
-              style={{
-                top: menuPos.y,
-                left: menuPos.x,
-                backgroundColor: "var(--bg-surface)",
-                borderColor: "var(--border-secondary)",
-              }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed rounded-2xl border shadow-xl z-[200] min-w-[180px] overflow-hidden"
+              style={{ top: menuPos.y, left: menuPos.x, backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
             >
               <div className="p-2">
-                <MenuButton
-                  icon={<FiEdit2 size={16} />}
+                <ContextMenuItem
+                  icon={<FiEdit2 size={15} />}
                   label="Open"
-                  onClick={() => {
-                    tryOpenNote(notes.find((n) => n.id === activeMenuId));
-                    setActiveMenuId(null);
-                  }}
+                  onClick={() => { tryOpenNote(notes.find((n) => n.id === activeMenuId)); setActiveMenuId(null); }}
                 />
-                <MenuButton
-                  icon={
-                    <FiHeart
-                      size={16}
-                      className={
-                        notes.find((n) => n.id === activeMenuId)?.favorite
-                          ? "text-rose-400 fill-rose-400"
-                          : ""
-                      }
-                    />
-                  }
-                  label={
-                    notes.find((n) => n.id === activeMenuId)?.favorite
-                      ? "Unfavorite"
-                      : "Favorite"
-                  }
-                  onClick={() => {
-                    handleFavorite(activeMenuId);
-                    setActiveMenuId(null);
-                  }}
+                <ContextMenuItem
+                  icon={<FiHeart size={15} style={notes.find((n) => n.id === activeMenuId)?.favorite ? { color: 'var(--accent-rose)', fill: 'var(--accent-rose)' } : {}} />}
+                  label={notes.find((n) => n.id === activeMenuId)?.favorite ? "Unfavorite" : "Favorite"}
+                  onClick={() => { handleFavorite(activeMenuId); setActiveMenuId(null); }}
                 />
-                <MenuButton
-                  icon={<FiLock size={16} />}
-                  label={
-                    notes.find((n) => n.id === activeMenuId)?.locked
-                      ? "Unlock"
-                      : "Lock"
-                  }
-                  onClick={() => {
-                    handleLockToggle(activeMenuId);
-                    setActiveMenuId(null);
-                  }}
+                <ContextMenuItem
+                  icon={<FiLock size={15} />}
+                  label={notes.find((n) => n.id === activeMenuId)?.locked ? "Unlock" : "Lock"}
+                  onClick={() => { handleLockToggle(activeMenuId); setActiveMenuId(null); }}
                 />
-                <div
-                  className="h-px my-1"
-                  style={{ backgroundColor: "var(--border-secondary)" }}
-                />
-                <MenuButton
-                  icon={<FiTrash2 size={16} />}
+                <div className="h-px my-1" style={{ backgroundColor: "var(--border-secondary)" }} />
+                <ContextMenuItem
+                  icon={<FiTrash2 size={15} />}
                   label="Delete"
                   danger
-                  onClick={() => {
-                    handleDelete(activeMenuId);
-                    setActiveMenuId(null);
-                  }}
+                  onClick={() => { handleDelete(activeMenuId); setActiveMenuId(null); }}
                 />
               </div>
             </motion.div>
@@ -863,338 +706,342 @@ export default function Notes() {
         )}
       </AnimatePresence>
 
-      {/* FAB Menu */}
-      <AnimatePresence>
-        {showAddMenu && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+var(--mobile-nav-height)+90px)] right-5 flex flex-col gap-3 z-[150]"
-          >
-            <FABAction
-              icon={<FiEdit2 size={18} />}
-              label="New Note"
-              onClick={() => {
-                setEditorOpen(true);
-                setShowAddMenu(false);
-              }}
-              delay={0}
-            />
-            <FABAction
-              icon={<FiMic size={18} />}
-              label="Voice Note"
-              onClick={() => {
-                openVoiceRecorder();
-                setShowAddMenu(false);
-              }}
-              delay={0.03}
-              proHint={!canUseVoice}
-            />
-            {isMobileDevice && (
-              <FABAction
-                icon={<Camera size={20} weight="duotone" />}
-                label="Scan"
-                onClick={() => {
-                  if (cameraInputRef.current) {
-                    cameraInputRef.current.value = null;
-                    cameraInputRef.current.click();
-                  }
-                  setShowAddMenu(false);
-                }}
-                delay={0.06}
-              />
-            )}
-            <FABAction
-              icon={<UploadSimple size={20} weight="duotone" />}
-              label="Upload"
-              onClick={() => {
-                if (filePickerRef.current) {
-                  filePickerRef.current.value = null;
-                  filePickerRef.current.click();
-                }
-                setShowAddMenu(false);
-              }}
-              delay={0.09}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* FAB Zone */}
+      <div className="fab-zone fixed bottom-[calc(var(--mobile-nav-height)+16px)] right-4 z-[140]">
+        <AnimatePresence>
+          {showAddMenu && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="absolute bottom-16 right-0 flex flex-col gap-2 min-w-[160px]"
+            >
+              <FABOption icon={<FiEdit2 size={16} />} label="New Note" onClick={() => { setEditorOpen(true); setShowAddMenu(false); }} />
+              <FABOption icon={<FiMic size={16} />} label="Voice Note" pro={!canUseVoice} onClick={() => { openVoiceRecorder(); setShowAddMenu(false); }} />
+              <FABOption icon={<FiCamera size={16} />} label="Scan" onClick={() => { cameraInputRef.current?.click(); }} />
+              <FABOption icon={<FiUpload size={16} />} label="Upload" onClick={() => { filePickerRef.current?.click(); }} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* FAB Button */}
-      <motion.button
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setShowAddMenu(!showAddMenu)}
-        className={`fab-btn fixed bottom-[calc(env(safe-area-inset-bottom)+var(--mobile-nav-height)+16px)] right-5 w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/30 flex items-center justify-center z-[140] transition-all duration-200 ${
-          showAddMenu
-            ? "rotate-45 shadow-indigo-500/50"
-            : "hover:shadow-indigo-500/40"
-        }`}
-      >
-        <FiPlus size={26} strokeWidth={2.5} />
-      </motion.button>
-
-      {/* Upgrade Modal */}
-      <AnimatePresence>
-        {showUpgrade && (
-          <UpgradeModal
-            onClose={() => setShowUpgrade(false)}
-            title="Pro Feature"
-            body="Voice Notes and Advanced Export are available on Pro. Upgrade to unlock these powerful features."
-            onUpgrade={() => navigate("/dashboard/ai-lab")}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Voice Recorder Modal */}
-      <AnimatePresence>
-        {recOpen && (
-          <VoiceRecorderModal
-            onClose={closeRecorder}
-            state={recState}
-            error={recError}
-            onStart={startRecording}
-            onStop={stopRecording}
-          />
-        )}
-      </AnimatePresence>
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setShowAddMenu(!showAddMenu)}
+          className={`w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30 flex items-center justify-center transition-all ${
+            showAddMenu ? "rotate-45 shadow-indigo-500/50" : "hover:shadow-indigo-500/40"
+          }`}
+        >
+          <FiPlus size={24} strokeWidth={2.5} />
+        </motion.button>
+      </div>
 
       {/* New Note Modal */}
       <AnimatePresence>
         {editorOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[200]"
-              style={{
-                backgroundColor: "rgba(0,0,0,0.6)",
-                backdropFilter: "blur(8px)",
-              }}
-              onClick={() => setEditorOpen(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-x-4 top-1/2 -translate-y-1/2 rounded-2xl border shadow-xl z-[201] max-w-md mx-auto overflow-hidden"
-              style={{
-                backgroundColor: "var(--bg-surface)",
-                borderColor: "var(--border-secondary)",
-              }}
-            >
-              {/* Header */}
-              <div
-                className="p-5 border-b"
-                style={{ borderColor: "var(--border-secondary)" }}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-                      <FilePlus
-                        size={20}
-                        weight="duotone"
-                        className="text-theme-accent"
-                      />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-theme-primary">
-                        New Note
-                      </h3>
-                      <p className="text-xs text-theme-muted">Create a new note</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setEditorOpen(false)}
-                    className="h-8 w-8 rounded-lg flex items-center justify-center text-theme-muted hover:text-theme-primary transition theme-hover"
-                    style={{ backgroundColor: "var(--bg-tertiary)" }}
+          <Modal onClose={() => setEditorOpen(false)}>
+            <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="h-10 w-10 rounded-xl flex items-center justify-center"
+                    style={{ backgroundColor: 'rgba(99, 102, 241, 0.2)', border: '1px solid rgba(99, 102, 241, 0.3)' }}
                   >
-                    <FiX size={16} />
-                  </button>
+                    <FilePlus size={20} weight="duotone" style={{ color: 'var(--accent-indigo)' }} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>New Note</h3>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Create a new note</p>
+                  </div>
                 </div>
-              </div>
-
-              {/* Form */}
-              <div className="p-5 space-y-4">
-                <div>
-                  <label className="text-xs font-medium text-theme-muted mb-2 block">
-                    Title
-                  </label>
-                  <input
-                    className="w-full border rounded-xl px-4 py-3 text-theme-primary text-base font-medium placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition"
-                    style={{
-                      backgroundColor: "var(--bg-input)",
-                      borderColor: "var(--border-secondary)",
-                    }}
-                    placeholder="Note title..."
-                    maxLength={80}
-                    value={newNote.title}
-                    onChange={(e) =>
-                      setNewNote({ ...newNote, title: e.target.value })
-                    }
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-theme-muted mb-2 block">
-                    Content
-                  </label>
-                  <textarea
-                    className="w-full border rounded-xl px-4 py-3 text-theme-secondary text-sm placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 resize-none transition"
-                    style={{
-                      backgroundColor: "var(--bg-input)",
-                      borderColor: "var(--border-secondary)",
-                    }}
-                    placeholder="Start writing..."
-                    rows={5}
-                    value={newNote.body}
-                    onChange={(e) =>
-                      setNewNote({ ...newNote, body: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div
-                className="p-5 border-t"
-                style={{
-                  borderColor: "var(--border-secondary)",
-                  backgroundColor: "var(--bg-tertiary)",
-                }}
-              >
                 <button
-                  onClick={createNote}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-medium transition hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2"
+                  onClick={() => setEditorOpen(false)}
+                  className="h-8 w-8 rounded-lg flex items-center justify-center transition"
+                  style={{ backgroundColor: "var(--bg-tertiary)", color: 'var(--text-muted)' }}
                 >
-                  <FiPlus size={18} />
-                  Create Note
+                  <FiX size={16} />
                 </button>
               </div>
-            </motion.div>
-          </>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--text-muted)' }}>Title</label>
+                <input
+                  className="w-full border rounded-xl px-4 py-3 focus:outline-none transition"
+                  style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)", color: 'var(--text-primary)' }}
+                  placeholder="Note title..."
+                  maxLength={80}
+                  value={newNote.title}
+                  onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--text-muted)' }}>Content</label>
+                <textarea
+                  className="w-full border rounded-xl px-4 py-3 focus:outline-none resize-none transition"
+                  style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)", color: 'var(--text-secondary)' }}
+                  placeholder="Start writing..."
+                  rows={5}
+                  value={newNote.body}
+                  onChange={(e) => setNewNote({ ...newNote, body: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="p-5 border-t" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
+              <button
+                onClick={createNote}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium transition hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <FiPlus size={18} />
+                Create Note
+              </button>
+            </div>
+          </Modal>
         )}
       </AnimatePresence>
 
       {/* PIN Modal */}
       <AnimatePresence>
         {pinModalOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[200]"
-              style={{
-                backgroundColor: "rgba(0,0,0,0.6)",
-                backdropFilter: "blur(8px)",
-              }}
-              onClick={() => {
-                setPinModalOpen(false);
-                setPinInput("");
-                setPinMode(null);
-                setPendingNoteId(null);
-              }}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-x-4 top-1/2 -translate-y-1/2 rounded-2xl border shadow-xl z-[201] max-w-sm mx-auto overflow-hidden"
-              style={{
-                backgroundColor: "var(--bg-surface)",
-                borderColor: "var(--border-secondary)",
-              }}
-            >
-              {/* Header */}
-              <div
-                className="p-5 border-b"
-                style={{ borderColor: "var(--border-secondary)" }}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`h-10 w-10 rounded-xl flex items-center justify-center ${
-                      pinMode === "set"
-                        ? "bg-indigo-500/20 border border-indigo-500/30"
-                        : "bg-amber-500/20 border border-amber-500/30"
-                    }`}
-                  >
-                    <FiLock
-                      size={18}
-                      className={
-                        pinMode === "set" ? "text-theme-accent" : "text-amber-400"
-                      }
-                    />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-theme-primary">
-                      {pinMode === "set" ? "Set PIN" : "Enter PIN"}
-                    </h3>
-                    <p className="text-xs text-theme-muted">
-                      {pinMode === "set"
-                        ? "Create a 4-digit PIN to lock notes"
-                        : "Enter your PIN to unlock"}
-                    </p>
-                  </div>
+          <Modal onClose={() => { setPinModalOpen(false); setPinInput(""); setPinMode(null); setPendingNoteId(null); }}>
+            <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+              <div className="flex items-center gap-3">
+                <div 
+                  className="h-10 w-10 rounded-xl flex items-center justify-center"
+                  style={{ 
+                    backgroundColor: pinMode === "set" ? 'rgba(99, 102, 241, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                    border: `1px solid ${pinMode === "set" ? 'rgba(99, 102, 241, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
+                  }}
+                >
+                  <FiLock size={18} style={{ color: pinMode === "set" ? 'var(--accent-indigo)' : 'var(--accent-amber)' }} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{pinMode === "set" ? "Set PIN" : "Enter PIN"}</h3>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{pinMode === "set" ? "Create a 4-digit PIN" : "Enter your PIN to unlock"}</p>
                 </div>
               </div>
+            </div>
 
-              {/* PIN Input */}
-              <div className="p-5">
-                <input
-                  className="w-full border rounded-xl px-4 py-4 text-center tracking-[0.5em] text-xl text-theme-primary font-mono placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition"
-                  style={{
-                    backgroundColor: "var(--bg-input)",
-                    borderColor: "var(--border-secondary)",
-                  }}
-                  type="password"
-                  maxLength={4}
-                  value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
-                  placeholder="••••"
-                  autoFocus
-                />
-              </div>
+            <div className="p-5">
+              <input
+                className="w-full border rounded-xl px-4 py-4 text-center tracking-[0.5em] text-xl font-mono focus:outline-none transition"
+                style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)", color: 'var(--text-primary)' }}
+                type="password"
+                maxLength={4}
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
+                placeholder="••••"
+                autoFocus
+              />
+            </div>
 
-              {/* Footer */}
-              <div
-                className="p-5 border-t"
-                style={{
-                  borderColor: "var(--border-secondary)",
-                  backgroundColor: "var(--bg-tertiary)",
-                }}
+            <div className="p-5 border-t" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
+              <button
+                onClick={handlePinSubmit}
+                className="w-full py-3 rounded-xl font-medium transition hover:opacity-90 active:scale-[0.98] text-white"
+                style={{ background: pinMode === "set" ? 'linear-gradient(to right, #6366f1, #a855f7)' : 'linear-gradient(to right, #f59e0b, #f97316)' }}
               >
-                <button
-                  onClick={handlePinSubmit}
-                  className={`w-full py-3 rounded-xl font-medium transition hover:opacity-90 active:scale-[0.98] ${
-                    pinMode === "set"
-                      ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white"
-                      : "bg-gradient-to-r from-amber-500 to-orange-500 text-white"
-                  }`}
-                >
-                  {pinMode === "set" ? "Save PIN" : "Unlock"}
-                </button>
-              </div>
-            </motion.div>
-          </>
+                {pinMode === "set" ? "Save PIN" : "Unlock"}
+              </button>
+            </div>
+          </Modal>
         )}
       </AnimatePresence>
 
-      {/* Hidden file inputs */}
-      <input
-        type="file"
-        accept="image/*,application/pdf"
-        style={{ display: "none" }}
-        ref={filePickerRef}
-      />
-      <input
-        type="file"
-        accept="image/*"
-        capture={isIOS ? "camera" : "environment"}
-        style={{ display: "none" }}
-        ref={cameraInputRef}
-      />
+      {/* Voice Recorder Modal */}
+      <AnimatePresence>
+        {recOpen && (
+          <Modal onClose={closeRecorder}>
+            <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="h-10 w-10 rounded-xl flex items-center justify-center"
+                    style={{ 
+                      backgroundColor: recState === "recording" ? 'rgba(244, 63, 94, 0.2)' : 'rgba(99, 102, 241, 0.2)',
+                      border: `1px solid ${recState === "recording" ? 'rgba(244, 63, 94, 0.3)' : 'rgba(99, 102, 241, 0.3)'}`
+                    }}
+                  >
+                    <FiMic style={{ color: recState === "recording" ? 'var(--accent-rose)' : 'var(--accent-indigo)' }} size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Voice Note</h3>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Record and save</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={closeRecorder} 
+                  className="h-8 w-8 rounded-lg flex items-center justify-center transition"
+                  style={{ backgroundColor: "var(--bg-tertiary)", color: 'var(--text-muted)' }}
+                >
+                  <FiX size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5">
+              {recError ? (
+                <div 
+                  className="p-4 rounded-xl text-sm"
+                  style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.3)', color: 'var(--accent-rose)' }}
+                >
+                  {recError}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div 
+                    className="p-6 rounded-xl border text-center"
+                    style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-input)" }}
+                  >
+                    {recState === "recording" ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-center gap-1">
+                          {[...Array(5)].map((_, i) => (
+                            <motion.div 
+                              key={i} 
+                              className="w-1 rounded-full" 
+                              style={{ backgroundColor: 'var(--accent-rose)' }}
+                              animate={{ height: [8, 24, 8] }} 
+                              transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1 }} 
+                            />
+                          ))}
+                        </div>
+                        <p className="text-sm font-medium flex items-center justify-center gap-2" style={{ color: 'var(--accent-rose)' }}>
+                          <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-rose)' }} />
+                          Recording...
+                        </p>
+                      </div>
+                    ) : recState === "stopped" ? (
+                      <div className="space-y-2">
+                        <div 
+                          className="w-12 h-12 mx-auto rounded-full flex items-center justify-center"
+                          style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)' }}
+                        >
+                          <FiMic style={{ color: 'var(--accent-emerald)' }} size={20} />
+                        </div>
+                        <p className="text-sm font-medium" style={{ color: 'var(--accent-emerald)' }}>Saved!</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div 
+                          className="w-12 h-12 mx-auto rounded-full flex items-center justify-center"
+                          style={{ backgroundColor: 'rgba(99, 102, 241, 0.2)' }}
+                        >
+                          <FiMic style={{ color: 'var(--accent-indigo)' }} size={20} />
+                        </div>
+                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Ready to record</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={startRecording}
+                      disabled={recState !== "idle"}
+                      className="flex-1 px-4 py-3 rounded-xl font-medium transition flex items-center justify-center gap-2"
+                      style={{ 
+                        opacity: recState !== "idle" ? 0.5 : 1,
+                        cursor: recState !== "idle" ? 'not-allowed' : 'pointer',
+                        background: recState !== "idle" ? 'var(--bg-tertiary)' : 'linear-gradient(to right, #6366f1, #a855f7)',
+                        color: recState !== "idle" ? 'var(--text-muted)' : 'white'
+                      }}
+                    >
+                      <FiMic size={16} /> Start
+                    </button>
+                    <button
+                      onClick={stopRecording}
+                      disabled={recState !== "recording"}
+                      className="flex-1 px-4 py-3 rounded-xl font-medium transition flex items-center justify-center gap-2"
+                      style={{ 
+                        opacity: recState !== "recording" ? 0.5 : 1,
+                        cursor: recState !== "recording" ? 'not-allowed' : 'pointer',
+                        background: recState !== "recording" ? 'var(--bg-tertiary)' : 'linear-gradient(to right, #f43f5e, #e11d48)',
+                        color: recState !== "recording" ? 'var(--text-muted)' : 'white'
+                      }}
+                    >
+                      <FiX size={16} /> Stop
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {recState === "stopped" && (
+              <div className="p-5 border-t" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
+                <button 
+                  onClick={closeRecorder} 
+                  className="w-full py-3 rounded-xl font-medium transition border"
+                  style={{ borderColor: "var(--border-secondary)", color: 'var(--text-secondary)' }}
+                >
+                  Done
+                </button>
+              </div>
+            )}
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      {/* Upgrade Modal */}
+      <AnimatePresence>
+        {showUpgrade && (
+          <Modal onClose={() => setShowUpgrade(false)}>
+            <div className="p-6 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+              <div className="flex items-center gap-3">
+                <div 
+                  className="h-12 w-12 rounded-xl flex items-center justify-center"
+                  style={{ 
+                    background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(249, 115, 22, 0.2))',
+                    border: '1px solid rgba(245, 158, 11, 0.3)'
+                  }}
+                >
+                  <Crown size={24} weight="fill" style={{ color: 'var(--accent-amber)' }} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Pro Feature</h3>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Upgrade to unlock</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-secondary)' }}>
+                Voice Notes and Advanced Export are available on Pro. Upgrade to unlock these powerful features.
+              </p>
+              <div 
+                className="p-3 rounded-xl border"
+                style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
+              >
+                <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Pro includes:</p>
+                <ul className="space-y-1.5">
+                  {["Voice notes & transcription", "Advanced export", "Unlimited AI", "Cloud sync"].map((f, i) => (
+                    <li key={i} className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                      <span className="w-1 h-1 rounded-full" style={{ backgroundColor: 'var(--accent-indigo)' }} /> {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            <div className="p-6 border-t flex gap-3" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
+              <button 
+                onClick={() => setShowUpgrade(false)} 
+                className="flex-1 px-4 py-3 rounded-xl font-medium border transition"
+                style={{ borderColor: "var(--border-secondary)", color: 'var(--text-secondary)' }}
+              >
+                Not now
+              </button>
+              <button 
+                onClick={() => { setShowUpgrade(false); navigate("/dashboard/ai-lab"); }} 
+                className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium flex items-center justify-center gap-2 hover:opacity-95 transition"
+              >
+                <Crown size={16} weight="fill" /> Upgrade
+              </button>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
 
       {/* Upload Loader */}
       <AnimatePresence>
@@ -1204,19 +1051,15 @@ export default function Notes() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[300] flex flex-col items-center justify-center"
-            style={{
-              backgroundColor: "rgba(0,0,0,0.8)",
-              backdropFilter: "blur(12px)",
-            }}
+            style={{ backgroundColor: "rgba(0,0,0,0.8)", backdropFilter: "blur(12px)" }}
           >
-            <div className="w-16 h-16 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mb-6">
-              <UploadSimple
-                size={32}
-                weight="duotone"
-                className="text-theme-accent animate-bounce"
-              />
+            <div 
+              className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6"
+              style={{ backgroundColor: 'rgba(99, 102, 241, 0.2)', border: '1px solid rgba(99, 102, 241, 0.3)' }}
+            >
+              <FiUpload size={32} className="animate-bounce" style={{ color: 'var(--accent-indigo)' }} />
             </div>
-            <div className="w-48 h-1.5 bg-theme-tertiary rounded-full overflow-hidden mb-4">
+            <div className="w-48 h-1.5 rounded-full overflow-hidden mb-4" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
               <motion.div
                 initial={{ x: "-100%" }}
                 animate={{ x: "100%" }}
@@ -1224,292 +1067,82 @@ export default function Notes() {
                 className="h-full w-1/2 bg-gradient-to-r from-transparent via-indigo-500 to-transparent"
               />
             </div>
-            <p className="text-base text-theme-primary font-medium">Uploading...</p>
-            <p className="text-sm text-theme-muted mt-1">Please wait a moment</p>
+            <p className="text-base font-medium" style={{ color: 'var(--text-primary)' }}>Uploading...</p>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Hidden file inputs */}
+      <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} ref={filePickerRef} />
+      <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} ref={cameraInputRef} />
     </div>
   );
 }
 
-/* -----------------------------------------
-   Menu Button Component
------------------------------------------ */
-const MenuButton = ({ icon, label, onClick, danger }) => (
+/* Helper Components */
+
+const Modal = ({ children, onClose }) => (
+  <>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[200]"
+      style={{ backgroundColor: "var(--bg-overlay)", backdropFilter: "blur(8px)" }}
+      onClick={onClose}
+    />
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95, y: 20 }}
+      className="fixed inset-x-4 top-1/2 -translate-y-1/2 rounded-2xl border shadow-xl z-[201] max-w-md mx-auto overflow-hidden"
+      style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+    >
+      {children}
+    </motion.div>
+  </>
+);
+
+const ContextMenuItem = ({ icon, label, onClick, danger }) => (
   <button
     onClick={onClick}
-    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition text-left w-full ${
-      danger
-        ? "text-rose-400 hover:bg-rose-500/10"
-        : "text-theme-secondary theme-hover hover:text-theme-primary"
-    }`}
+    className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition text-left w-full"
+    style={{ 
+      color: danger ? 'var(--accent-rose)' : 'var(--text-secondary)'
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.backgroundColor = danger ? 'rgba(244, 63, 94, 0.1)' : 'var(--bg-hover)';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.backgroundColor = 'transparent';
+    }}
   >
-    <span className="flex-shrink-0">{icon}</span>
+    {icon}
     <span className="text-sm font-medium">{label}</span>
   </button>
 );
 
-/* -----------------------------------------
-   FAB Action Button
------------------------------------------ */
-const FABAction = ({ icon, label, onClick, delay = 0, proHint }) => (
-  <motion.button
-    initial={{ opacity: 0, x: 20 }}
-    animate={{ opacity: 1, x: 0 }}
-    exit={{ opacity: 0, x: 20 }}
-    transition={{ delay }}
+const FABOption = ({ icon, label, onClick, pro }) => (
+  <button
     onClick={onClick}
-    className="action-btn flex items-center gap-3 px-4 py-3 rounded-xl text-theme-primary transition active:scale-95 border shadow-lg"
-    style={{
-      backgroundColor: "var(--bg-surface)",
-      borderColor: "var(--border-secondary)",
-    }}
+    className="flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg transition active:scale-95"
+    style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
   >
-    <span className="text-theme-accent">{icon}</span>
-    <span className="text-sm font-medium flex items-center gap-2">
+    <span style={{ color: 'var(--accent-indigo)' }}>{icon}</span>
+    <span className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
       {label}
-      {proHint && (
-        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/25 text-amber-400 font-medium">
+      {pro && (
+        <span 
+          className="text-[10px] px-2 py-0.5 rounded-full"
+          style={{ 
+            backgroundColor: 'rgba(245, 158, 11, 0.15)', 
+            border: '1px solid rgba(245, 158, 11, 0.25)', 
+            color: 'var(--accent-amber)' 
+          }}
+        >
           PRO
         </span>
       )}
     </span>
-  </motion.button>
+  </button>
 );
-
-/* -----------------------------------------
-   Upgrade Modal Component
------------------------------------------ */
-const UpgradeModal = ({ onClose, title, body, onUpgrade }) => (
-  <motion.div
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
-    className="fixed inset-0 z-[999] flex items-center justify-center px-4"
-    style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
-    onClick={onClose}
-  >
-    <motion.div
-      initial={{ scale: 0.95, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.95, opacity: 0 }}
-      onClick={(e) => e.stopPropagation()}
-      className="w-full max-w-[400px] rounded-2xl border shadow-xl overflow-hidden"
-      style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
-    >
-      {/* Header */}
-      <div className="p-6 border-b" style={{ borderColor: "var(--border-secondary)" }}>
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center">
-            <Crown size={24} weight="fill" className="text-amber-400" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-theme-primary">{title}</h3>
-            <p className="text-xs text-theme-muted">Upgrade to unlock</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div className="p-6">
-        <p className="text-theme-secondary text-sm leading-relaxed">{body}</p>
-
-        <div
-          className="mt-4 p-3 rounded-xl border"
-          style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
-        >
-          <p className="text-xs text-theme-muted mb-2">Pro includes:</p>
-          <ul className="space-y-1.5">
-            {["Voice notes & transcription", "Advanced export options", "Unlimited AI features", "Cloud sync"].map(
-              (feature, i) => (
-                <li key={i} className="flex items-center gap-2 text-xs text-theme-secondary">
-                  <span className="w-1 h-1 rounded-full bg-indigo-400" />
-                  {feature}
-                </li>
-              )
-            )}
-          </ul>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div
-        className="p-6 border-t flex gap-3"
-        style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}
-      >
-        <button
-          onClick={onClose}
-          className="flex-1 px-4 py-3 rounded-xl text-theme-secondary font-medium transition border theme-hover"
-          style={{ borderColor: "var(--border-secondary)" }}
-        >
-          Not now
-        </button>
-        <button
-          onClick={() => {
-            onClose();
-            onUpgrade?.();
-          }}
-          className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium transition hover:opacity-95 flex items-center justify-center gap-2"
-        >
-          <Crown size={16} weight="fill" />
-          Upgrade
-        </button>
-      </div>
-    </motion.div>
-  </motion.div>
-);
-
-/* -----------------------------------------
-   Voice Recorder Modal Component
------------------------------------------ */
-const VoiceRecorderModal = ({ onClose, state, error, onStart, onStop }) => (
-  <motion.div
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
-    className="fixed inset-0 z-[999] flex items-center justify-center px-4"
-    style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
-    onClick={onClose}
-  >
-    <motion.div
-      initial={{ scale: 0.95, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.95, opacity: 0 }}
-      onClick={(e) => e.stopPropagation()}
-      className="w-full max-w-[420px] rounded-2xl border shadow-xl overflow-hidden"
-      style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
-    >
-      {/* Header */}
-      <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div
-              className={`h-10 w-10 rounded-xl flex items-center justify-center ${
-                state === "recording"
-                  ? "bg-rose-500/20 border border-rose-500/30"
-                  : "bg-indigo-500/20 border border-indigo-500/30"
-              }`}
-            >
-              <FiMic
-                className={state === "recording" ? "text-rose-400" : "text-theme-accent"}
-                size={18}
-              />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-theme-primary">Voice Note</h3>
-              <p className="text-xs text-theme-muted">Record and save as a new note</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="h-8 w-8 rounded-lg flex items-center justify-center text-theme-muted hover:text-theme-primary transition theme-hover"
-            style={{ backgroundColor: "var(--bg-tertiary)" }}
-          >
-            <FiX size={16} />
-          </button>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div className="p-5">
-        {error ? (
-          <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 text-sm">
-            {error}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Status Display */}
-            <div
-              className="p-4 rounded-xl border text-center"
-              style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-input)" }}
-            >
-              {state === "recording" ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-center gap-1">
-                    {[...Array(5)].map((_, i) => (
-                      <motion.div
-                        key={i}
-                        className="w-1 bg-rose-400 rounded-full"
-                        animate={{ height: [8, 24, 8] }}
-                        transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1 }}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-rose-400 text-sm font-medium flex items-center justify-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
-                    Recording...
-                  </p>
-                </div>
-              ) : state === "stopped" ? (
-                <div className="space-y-2">
-                  <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/20 flex items-center justify-center">
-                    <FiMic className="text-emerald-400" size={20} />
-                  </div>
-                  <p className="text-emerald-400 text-sm font-medium">Recording saved!</p>
-                  <p className="text-xs text-theme-muted">
-                    A new "Voice Note" was added to your notes.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="w-12 h-12 mx-auto rounded-full bg-indigo-500/20 flex items-center justify-center">
-                    <FiMic className="text-theme-accent" size={20} />
-                  </div>
-                  <p className="text-theme-secondary text-sm">Ready to record</p>
-                  <p className="text-xs text-theme-muted">Tap Start to begin recording</p>
-                </div>
-              )}
-            </div>
-
-            {/* Controls */}
-            <div className="flex gap-3">
-              <button
-                onClick={onStart}
-                disabled={state === "recording" || state === "stopped"}
-                className={`flex-1 px-4 py-3 rounded-xl font-medium transition flex items-center justify-center gap-2 ${
-                  state === "recording" || state === "stopped"
-                    ? "opacity-50 cursor-not-allowed bg-theme-tertiary text-theme-muted"
-                    : "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white hover:opacity-95"
-                }`}
-              >
-                <FiMic size={16} />
-                Start
-              </button>
-              <button
-                onClick={onStop}
-                disabled={state !== "recording"}
-                className={`flex-1 px-4 py-3 rounded-xl font-medium transition flex items-center justify-center gap-2 ${
-                  state !== "recording"
-                    ? "opacity-50 cursor-not-allowed bg-theme-tertiary text-theme-muted"
-                    : "bg-gradient-to-r from-rose-500 to-rose-600 text-white hover:opacity-95"
-                }`}
-              >
-                <FiX size={16} />
-                Stop
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      {state === "stopped" && (
-        <div
-          className="p-5 border-t"
-          style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}
-        >
-          <button
-            onClick={onClose}
-            className="w-full py-3 rounded-xl font-medium transition border theme-hover text-theme-secondary"
-            style={{ borderColor: "var(--border-secondary)" }}
-          >
-            Done
-          </button>
-        </div>
-      )}
-    </motion.div>
-  </motion.div>
-);
-
-
