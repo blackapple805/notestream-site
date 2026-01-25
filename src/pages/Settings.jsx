@@ -42,7 +42,7 @@ export default function Settings() {
 
   // Profile state
   const [displayName, setDisplayName] = useState(() => {
-    return localStorage.getItem("notestream-displayName") || "Eric Angel";
+    return localStorage.getItem("notestream-displayName") || "Angel";
   });
   const [email, setEmail] = useState(() => {
     return localStorage.getItem("notestream-email") || "you@example.com";
@@ -209,14 +209,14 @@ export default function Settings() {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="pt-2 px-1">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center">
-            <Gear size={18} weight="duotone" className="text-indigo-400" />
+      <header className="page-header">
+        <div className="page-header-content">
+          <div className="page-header-icon">
+            <Gear weight="duotone" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">Settings</h1>
-            <p className="text-theme-muted text-sm">Control how NoteStream behaves across your workspace.</p>
+            <h1 className="page-header-title">Settings</h1>
+            <p className="page-header-subtitle">Control how NoteStream behaves across your workspace.</p>
           </div>
         </div>
       </header>

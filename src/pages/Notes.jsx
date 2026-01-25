@@ -1,5 +1,5 @@
 // src/pages/Notes.jsx
-// Rebuilt with cleaner design matching Summaries.jsx style
+// Rebuilt with cleaner design matching universal page-header CSS system
 // Removed complex mobile-specific handling
 
 import {
@@ -451,21 +451,15 @@ export default function Notes() {
 
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+100px)] animate-fadeIn">
-      {/* Header */}
-      <header className="pt-2 px-1">
-        <div className="flex items-center gap-3">
-          <div 
-            className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ 
-              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2))',
-              border: '1px solid rgba(99, 102, 241, 0.25)'
-            }}
-          >
-            <Note style={{ color: 'var(--accent-indigo)' }} size={20} weight="duotone" />
+      {/* Header - Using universal page-header CSS classes */}
+      <header className="page-header">
+        <div className="page-header-content">
+          <div className="page-header-icon">
+            <Note weight="duotone" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>My Notes</h1>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Capture ideas, organize thoughts, stay productive.</p>
+            <h1 className="page-header-title">My Notes</h1>
+            <p className="page-header-subtitle">Capture ideas, organize thoughts, stay productive.</p>
           </div>
         </div>
       </header>

@@ -171,22 +171,25 @@ export default function Activity() {
   return (
     <div className="w-full space-y-4 sm:space-y-5 pb-[calc(var(--mobile-nav-height)+24px)]">
       {/* Header */}
-      <motion.div
+      <motion.header
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="flex items-center justify-between"
+        className="page-header flex items-center justify-between"
       >
-        <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center">
-            <ChartLine size={20} weight="duotone" className="text-indigo-400" />
+        <div className="page-header-content">
+          <div className="page-header-icon">
+            <ChartLine weight="duotone" />
           </div>
-          <h1 className="text-xl font-semibold text-theme-primary">Activity</h1>
+          <div>
+            <h1 className="page-header-title">Activity</h1>
+            <p className="page-header-subtitle">Track your productivity and usage patterns</p>
+          </div>
         </div>
         <span className="text-xs text-theme-muted px-3 py-1.5 rounded-full bg-theme-tertiary border border-theme-secondary">
           {new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
         </span>
-      </motion.div>
+      </motion.header>
 
       {/* Stats Row */}
       <motion.div

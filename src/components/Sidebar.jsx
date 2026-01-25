@@ -8,7 +8,6 @@ import {
   Activity,
   BezierCurve,
   Gear,
-  Crown,
   Plugs,
 } from "phosphor-react";
 import { Link, useLocation } from "react-router-dom";
@@ -22,10 +21,18 @@ export default function Sidebar() {
     if (window.innerWidth < 768) return;
 
     let last = 0;
+    let ticking = false;
+    
     const onScroll = () => {
-      const curr = window.scrollY;
-      setCollapsed(curr > last && curr > 60);
-      last = curr;
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const curr = window.scrollY;
+          setCollapsed(curr > last && curr > 60);
+          last = curr;
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
 
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -157,16 +164,16 @@ export default function Sidebar() {
       </aside>
 
       {/* ═══════════════════════════════════════════════════════════
-          DESKTOP SIDEBAR — Logo at bottom
+          DESKTOP SIDEBAR — Clean professional design
       ═══════════════════════════════════════════════════════════ */}
       <aside
         className="hidden md:flex fixed top-0 left-0 h-screen z-[80] overflow-hidden"
         style={{
-          width: collapsed ? "72px" : "220px",
+          width: collapsed ? "80px" : "220px",
           transform: "translate3d(0, 0, 0)",
           backgroundColor: "var(--bg-secondary)",
           borderRight: "1px solid var(--border-secondary)",
-          transition: "width 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+          transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         }}
       >
         <div className="flex flex-col h-full w-full py-5">
@@ -180,42 +187,55 @@ export default function Sidebar() {
                 <Link
                   key={i}
                   to={item.to}
-                  className="group relative flex items-center gap-3 py-2.5 rounded-xl transition-all duration-200"
+                  className="group relative flex items-center rounded-xl transition-all duration-200"
                   style={{
-                    backgroundColor: active ? "var(--bg-hover)" : "transparent",
-                    paddingLeft: collapsed ? "12px" : "12px",
-                    paddingRight: collapsed ? "12px" : "12px",
+                    padding: collapsed ? "10px" : "10px 12px",
                     justifyContent: collapsed ? "center" : "flex-start",
+                    gap: collapsed ? "0" : "12px",
+                    backgroundColor: active 
+                      ? "rgba(99, 102, 241, 0.1)" 
+                      : "transparent",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!active) {
+                      e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!active) {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }
                   }}
                 >
-                  {/* Active indicator bar */}
-                  <motion.div
-                    initial={false}
-                    animate={{
-                      scaleY: active ? 1 : 0,
-                      opacity: active ? 1 : 0,
-                    }}
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full"
-                    style={{ 
-                      backgroundColor: "var(--accent-indigo)",
-                      display: collapsed ? "none" : "block",
-                    }}
-                    transition={{ duration: 0.2 }}
-                  />
+                  {/* Active indicator bar - only show when expanded */}
+                  {!collapsed && (
+                    <motion.div
+                      initial={false}
+                      animate={{
+                        scaleY: active ? 1 : 0,
+                        opacity: active ? 1 : 0,
+                      }}
+                      className="absolute left-0 top-[25%] -translate-y-1/2 w-[2.5px] h-8 rounded-r-full"
+                      style={{ backgroundColor: "var(--accent-indigo)" }}
+                      transition={{ duration: 0.2 }}
+                    />
+                  )}
 
-                  {/* Icon */}
+                  {/* Icon container */}
                   <div
-                    className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200"
+                    className="flex items-center justify-center flex-shrink-0 transition-all duration-200"
                     style={{
+                      width: collapsed ? "40px" : "36px",
+                      height: collapsed ? "40px" : "36px",
+                      borderRadius: "10px",
                       backgroundColor: active 
                         ? "rgba(99, 102, 241, 0.15)" 
                         : "var(--bg-tertiary)",
-                      border: `1px solid ${active ? "rgba(99, 102, 241, 0.3)" : "var(--border-secondary)"}`,
-                      boxShadow: active ? "0 0 12px rgba(99, 102, 241, 0.25)" : "none",
+                      border: `1px solid ${active ? "rgba(99, 102, 241, 0.25)" : "var(--border-secondary)"}`,
                     }}
                   >
                     <Icon
-                      size={18}
+                      size={collapsed ? 20 : 18}
                       weight={active ? "fill" : "duotone"}
                       style={{
                         color: active ? "var(--accent-indigo)" : "var(--text-muted)",
@@ -224,18 +244,24 @@ export default function Sidebar() {
                     />
                   </div>
 
-                  {/* Label */}
-                  <span
-                    className="text-sm whitespace-nowrap flex items-center gap-2 transition-all duration-300"
+                  {/* Label - hidden when collapsed */}
+                  <div
+                    className="flex items-center gap-2 overflow-hidden transition-all duration-300"
                     style={{
                       opacity: collapsed ? 0 : 1,
                       width: collapsed ? 0 : "auto",
-                      overflow: "hidden",
-                      color: active ? "var(--accent-indigo)" : "var(--text-secondary)",
-                      fontWeight: active ? 500 : 400,
+                      whiteSpace: "nowrap",
                     }}
                   >
-                    {item.label}
+                    <span
+                      className="text-sm transition-colors duration-200"
+                      style={{
+                        color: active ? "var(--accent-indigo)" : "var(--text-secondary)",
+                        fontWeight: active ? 500 : 400,
+                      }}
+                    >
+                      {item.label}
+                    </span>
                     {item.pro && (
                       <span 
                         className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
@@ -248,13 +274,37 @@ export default function Sidebar() {
                         PRO
                       </span>
                     )}
-                  </span>
+                  </div>
 
-                  {/* Hover background */}
-                  <div 
-                    className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 -z-10"
-                    style={{ backgroundColor: active ? "transparent" : "var(--bg-tertiary)" }}
-                  />
+                  {/* Tooltip for collapsed state */}
+                  {collapsed && (
+                    <div 
+                      className="absolute left-full ml-3 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
+                      style={{
+                        backgroundColor: "var(--bg-elevated)",
+                        border: "1px solid var(--border-secondary)",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                      }}
+                    >
+                      <span 
+                        className="text-sm font-medium whitespace-nowrap flex items-center gap-2"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {item.label}
+                        {item.pro && (
+                          <span 
+                            className="text-[9px] px-1.5 py-0.5 rounded font-medium"
+                            style={{
+                              backgroundColor: "rgba(245, 158, 11, 0.15)",
+                              color: "var(--accent-amber)",
+                            }}
+                          >
+                            PRO
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )}
                 </Link>
               );
             })}
@@ -267,21 +317,25 @@ export default function Sidebar() {
               style={{ backgroundColor: "var(--border-secondary)" }}
             />
             
-            {/* Logo / Brand area - now at bottom */}
+            {/* Logo / Brand area */}
             <div 
-              className="flex items-center gap-3 px-2 overflow-hidden transition-all duration-300"
+              className="flex items-center overflow-hidden transition-all duration-300"
               style={{ 
+                padding: collapsed ? "8px" : "8px 12px",
                 justifyContent: collapsed ? "center" : "flex-start",
+                gap: collapsed ? "0" : "12px",
               }}
             >
               <div 
-                className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                className="flex items-center justify-center flex-shrink-0 transition-all duration-200"
                 style={{
+                  width: collapsed ? "40px" : "36px",
+                  height: collapsed ? "40px" : "36px",
+                  borderRadius: "10px",
                   background: "linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))",
-                  boxShadow: "0 0 12px rgba(99, 102, 241, 0.3)",
                 }}
               >
-                <Note size={18} weight="fill" color="white" />
+                <Note size={collapsed ? 20 : 18} weight="fill" color="white" />
               </div>
               <div 
                 className="transition-all duration-300 overflow-hidden"
@@ -308,15 +362,15 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {/* Inline styles for smooth hover states */}
+      {/* Inline styles for smooth interactions */}
       <style>{`
-        /* Desktop nav item hover effect */
+        /* Smooth scrolling performance */
         @media (min-width: 768px) {
-          nav a:hover .icon-container {
-            border-color: rgba(99, 102, 241, 0.2);
+          aside {
+            will-change: width;
           }
-          nav a:hover span:first-of-type {
-            color: var(--text-primary);
+          nav a {
+            will-change: background-color;
           }
         }
         

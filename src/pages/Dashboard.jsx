@@ -196,19 +196,14 @@ export default function Dashboard() {
         transition={{ duration: 0.45 }}
         className="pt-2 px-1 sm:px-0"
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <IconTile tone="indigo" size="md">
-              <House size={20} weight="duotone" />
-            </IconTile>
-
+        <div className="page-header-content">
+          <div className="page-header-icon">
+            <House size={20} weight="duotone" />
+          </div>
+          <div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-theme-primary leading-tight">
-                {getGreeting()}
-              </h1>
-              <p className="text-theme-tertiary text-xs sm:text-sm mt-1">
-                Welcome back — ready to continue where you left off?
-              </p>
+              <h1 className="page-header-title">{getGreeting()}</h1>
+              <p className="page-header-subtitle">Welcome back — ready to continue where you left off?</p>
             </div>
           </div>
 

@@ -25,6 +25,23 @@
   --vh: 1vh;
   --mobile-nav-height: 90px;
 
+  /* ============================================
+     PAGE HEADER SYSTEM - Universal Variables
+     Use these for consistent headers across all pages
+  ============================================ */
+  --page-header-icon-size: 40px;
+  --page-header-icon-radius: 12px;
+  --page-header-icon-inner: 20px;
+  --page-header-icon-border-width: 1px;
+  --page-header-title-size: 1.5rem;
+  --page-header-title-weight: 600;
+  --page-header-subtitle-size: 0.875rem;
+  --page-header-gap: 12px;
+  
+  /* Page header icon background gradients */
+  --page-header-icon-bg: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2));
+  --page-header-icon-border: rgba(99, 102, 241, 0.25);
+
   /* RGB values for transparency */
   --bg-surface-rgb: 21, 21, 29;
 
@@ -102,6 +119,10 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.15);
 
+  /* Light mode page header adjustments */
+  --page-header-icon-bg: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.15));
+  --page-header-icon-border: rgba(99, 102, 241, 0.3);
+
   /* Tag Colors (Light) */
   --tag-success-text: #059669;
   --tag-warning-text: #d97706;
@@ -139,6 +160,9 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.65);
+  
+  --page-header-icon-bg: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2));
+  --page-header-icon-border: rgba(99, 102, 241, 0.25);
 }
 
 /* ==============================================================
@@ -299,7 +323,55 @@ nav span {
 }
 
 /* ==============================================================
-   6. COMPONENTS — BUTTONS
+   6. PAGE HEADER COMPONENT
+============================================================== */
+
+.page-header {
+  padding-top: 0.5rem;
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
+.page-header-content {
+  display: flex;
+  align-items: center;
+  gap: var(--page-header-gap);
+}
+
+.page-header-icon {
+  width: var(--page-header-icon-size);
+  height: var(--page-header-icon-size);
+  border-radius: var(--page-header-icon-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--page-header-icon-bg);
+  border: var(--page-header-icon-border-width) solid var(--page-header-icon-border);
+  flex-shrink: 0;
+}
+
+.page-header-icon svg {
+  width: var(--page-header-icon-inner);
+  height: var(--page-header-icon-inner);
+  color: var(--accent-indigo);
+}
+
+.page-header-title {
+  font-size: var(--page-header-title-size);
+  font-weight: var(--page-header-title-weight);
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.page-header-subtitle {
+  font-size: var(--page-header-subtitle-size);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ==============================================================
+   7. COMPONENTS — BUTTONS
 ============================================================== */
 
 /* Primary Button */
@@ -359,7 +431,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   7. COMPONENTS — FAB (Floating Action Button)
+   8. COMPONENTS — FAB (Floating Action Button)
 ============================================================== */
 
 .fab-btn {
@@ -404,7 +476,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   8. COMPONENTS — CARDS
+   9. COMPONENTS — CARDS
 ============================================================== */
 
 .card-hover:hover {
@@ -468,7 +540,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   9. COMPONENTS — MODALS & OVERLAYS
+   10. COMPONENTS — MODALS & OVERLAYS
 ============================================================== */
 
 .modal-backdrop {
@@ -571,7 +643,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   10. COMPONENTS — MENUS & DROPDOWNS
+   11. COMPONENTS — MENUS & DROPDOWNS
 ============================================================== */
 
 .dropdown-menu,
@@ -620,7 +692,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   11. COMPONENTS — TAGS & BADGES
+   12. COMPONENTS — TAGS & BADGES
 ============================================================== */
 
 .tag-success,
@@ -740,7 +812,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   12. COMPONENTS — SYNTHESIZER
+   13. COMPONENTS — SYNTHESIZER
 ============================================================== */
 
 .synthesizer-modal {
@@ -835,7 +907,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   13. COMPONENTS — FORMS
+   14. COMPONENTS — FORMS
 ============================================================== */
 
 .form-label {
@@ -846,7 +918,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   14. COMPONENTS — TOASTS
+   15. COMPONENTS — TOASTS
 ============================================================== */
 
 .toast-success {
@@ -862,7 +934,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   15. COMPONENTS — MISCELLANEOUS
+   16. COMPONENTS — MISCELLANEOUS
 ============================================================== */
 
 /* Dividers */
@@ -949,7 +1021,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   16. ANIMATIONS
+   17. ANIMATIONS
 ============================================================== */
 
 /* Fade Animations */
@@ -1070,7 +1142,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   17. UTILITY CLASSES
+   18. UTILITY CLASSES
 ============================================================== */
 
 /* Background */
@@ -1138,7 +1210,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   18. TRANSITIONS
+   19. TRANSITIONS
 ============================================================== */
 
 /* Smooth theme transitions (backgrounds/borders only) */
@@ -1156,7 +1228,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   19. RESPONSIVE / MOBILE
+   20. RESPONSIVE / MOBILE
 ============================================================== */
 
 @supports (-webkit-touch-callout: none) {
@@ -1192,7 +1264,7 @@ button[class*="bg-purple-600"],
 }
 
 /* ==============================================================
-   20. NOTE INPUT STYLING — Apple Notes Style
+   21. NOTE INPUT STYLING — Apple Notes Style
 ============================================================== */
 
 /* Remove ALL focus styling from note inputs */

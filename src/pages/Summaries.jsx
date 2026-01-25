@@ -1,6 +1,6 @@
 // src/pages/Summaries.jsx - "Insight Explorer"
 // Rebuilt with cleaner search bar matching Search.jsx style
-// Removed complex mobile handling that was causing visual glitches
+// Uses universal page-header CSS classes for consistent styling
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FiSend, FiFile, FiSearch, FiZap, FiTrash2, FiX, FiChevronDown } from "react-icons/fi";
@@ -232,15 +232,15 @@ export default function Summaries() {
 
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+140px)] animate-fadeIn">
-      {/* Header */}
-      <header className="pt-2 px-1">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center">
-            <FiZap className="text-indigo-400" size={20} />
+      {/* Header - Using universal page-header CSS classes */}
+      <header className="page-header">
+        <div className="page-header-content">
+          <div className="page-header-icon">
+            <FiZap />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">Insight Explorer</h1>
-            <p className="text-theme-muted text-sm">Ask questions across your workspace. AI-powered search and analysis.</p>
+            <h1 className="page-header-title">Insight Explorer</h1>
+            <p className="page-header-subtitle">Ask questions across your workspace. AI-powered search and analysis.</p>
           </div>
         </div>
       </header>

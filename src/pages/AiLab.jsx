@@ -249,24 +249,24 @@ export default function AiLab() {
 
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
-      {/* Header - Updated to match other pages */}
-      <header className="pt-2 px-1">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/25 flex items-center justify-center">
-            <Robot size={18} weight="duotone" className="text-indigo-400" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">AI Lab</h1>
-              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30">
-                <Crown size={14} weight="fill" className="text-amber-500" />
-                <span className="text-[10px] font-semibold text-amber-500">PRO</span>
-              </div>
+        {/* Header */}
+        <header className="page-header">
+          <div className="page-header-content">
+            <div className="page-header-icon">
+              <Robot weight="duotone" />
             </div>
-            <p className="text-theme-muted text-sm">Unlock powerful AI features to supercharge your workflow.</p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="page-header-title">AI Lab</h1>
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30">
+                  <Crown size={14} weight="fill" className="text-amber-500" />
+                  <span className="text-[10px] font-semibold text-amber-500">PRO</span>
+                </div>
+              </div>
+              <p className="page-header-subtitle">Unlock powerful AI features to supercharge your workflow.</p>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
       {isPro ? (
         <GlassCard className="border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 to-teal-500/5">

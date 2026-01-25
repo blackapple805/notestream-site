@@ -213,18 +213,14 @@ export default function Integrations() {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="pt-2 px-1">
-        <div className="flex items-center gap-3">
-          <IconTile tone="indigo" size="md">
-            <FiSettings className="h-5 w-5" />
-          </IconTile>
+      <header className="page-header">
+        <div className="page-header-content">
+          <div className="page-header-icon">
+            <FiSettings size={20} />
+          </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
-              Integrations
-            </h1>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Connect with popular tools and platforms to streamline your workflow
-            </p>
+            <h1 className="page-header-title">Integrations</h1>
+            <p className="page-header-subtitle">Connect with popular tools and platforms to streamline your workflow</p>
           </div>
         </div>
       </header>

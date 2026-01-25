@@ -294,14 +294,14 @@ export default function Documents({ docs = [], setDocs }) {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="pt-2">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center">
-            <Brain className="text-indigo-400" size={22} weight="duotone" />
+      <header className="page-header">
+        <div className="page-header-content">
+          <div className="page-header-icon">
+            <Brain weight="duotone" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold tracking-tight text-theme-primary">Research Synthesizer</h1>
-            <p className="text-theme-muted text-xs">Merge multiple documents into actionable briefs</p>
+            <h1 className="page-header-title">Research Synthesizer</h1>
+            <p className="page-header-subtitle">Merge multiple documents into actionable briefs</p>
           </div>
         </div>
       </header>
