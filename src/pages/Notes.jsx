@@ -576,8 +576,8 @@ export default function Notes() {
         })}
       </div>
 
-      {/* Notes Grid */}
-      <div className={`grid gap-4 ${gridView ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
+      {/* Notes Grid - 2 columns on mobile, 3 on larger screens */}
+      <div className={`grid gap-3 ${gridView ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-1"}`}>
         {filteredNotes.length === 0 ? (
           <div className="col-span-2">
             <GlassCard>
@@ -1085,15 +1085,25 @@ const Modal = ({ children, onClose }) => (
       style={{ backgroundColor: "var(--bg-overlay)", backdropFilter: "blur(8px)" }}
       onClick={onClose}
     />
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95, y: 20 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95, y: 20 }}
-      className="fixed inset-x-4 top-1/2 -translate-y-1/2 rounded-2xl border shadow-xl z-[201] max-w-md mx-auto overflow-hidden"
-      style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
-    >
-      {children}
-    </motion.div>
+    {/* Modal container - centers content and handles overflow */}
+    <div className="fixed inset-0 z-[201] flex items-center justify-center p-4 pointer-events-none overflow-y-auto">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="w-full max-w-md rounded-2xl border shadow-xl overflow-hidden pointer-events-auto my-auto"
+        style={{ 
+          backgroundColor: "var(--bg-surface)", 
+          borderColor: "var(--border-secondary)",
+          maxHeight: "calc(100vh - 32px)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="max-h-[calc(100vh-32px)] overflow-y-auto">
+          {children}
+        </div>
+      </motion.div>
+    </div>
   </>
 );
 

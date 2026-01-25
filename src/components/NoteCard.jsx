@@ -1,5 +1,6 @@
 // src/components/NoteCard.jsx
-import { FiHeart, FiLock, FiFileText, FiImage } from "react-icons/fi";
+import { FiHeart, FiLock, FiFileText, FiImage, FiMoreVertical, FiMic } from "react-icons/fi";
+import { Note, FilePdf, Image, Microphone } from "phosphor-react";
 
 // Localized Relative Time Formatting
 const formatRelative = (date) => {
@@ -12,94 +13,138 @@ const formatRelative = (date) => {
 
   const isFR = navigator.language?.startsWith("fr");
 
-  if (diffMins < 1) return isFR ? "À l’instant" : "Just now";
-  if (diffHrs < 1)
-    return isFR ? `${diffMins} min` : `${diffMins}m ago`;
-  if (diffDays < 1)
-    return isFR ? `${diffHrs} h` : `${diffHrs}h ago`;
+  if (diffMins < 1) return isFR ? "À l'instant" : "Just now";
+  if (diffHrs < 1) return isFR ? `${diffMins} min` : `${diffMins}m ago`;
+  if (diffDays < 1) return isFR ? `${diffHrs} h` : `${diffHrs}h ago`;
+  if (diffDays < 7) return isFR ? `il y a ${diffDays} j` : `${diffDays}d ago`;
 
-  if (diffDays < 7)
-    return isFR
-      ? `il y a ${diffDays} j`
-      : `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+  return new Date(date).toLocaleDateString(navigator.language || "en-US", {
+    month: "short",
+    day: "numeric",
+  });
+};
 
-  return new Date(date).toLocaleDateString(
-    navigator.language || "en-US",
-    {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    }
-  );
+// Get icon and color based on note type
+const getNoteTypeConfig = (note) => {
+  if (note.fileType === "pdf") {
+    return { 
+      icon: FilePdf, 
+      label: "PDF", 
+      color: "text-rose-400",
+      bg: "rgba(244, 63, 94, 0.15)",
+      border: "rgba(244, 63, 94, 0.25)"
+    };
+  }
+  if (note.tag === "Voice" || note.audioUrl) {
+    return { 
+      icon: Microphone, 
+      label: "Voice", 
+      color: "text-purple-400",
+      bg: "rgba(168, 85, 247, 0.15)",
+      border: "rgba(168, 85, 247, 0.25)"
+    };
+  }
+  if (note.imageUrl) {
+    return { 
+      icon: Image, 
+      label: "Photo", 
+      color: "text-emerald-400",
+      bg: "rgba(16, 185, 129, 0.15)",
+      border: "rgba(16, 185, 129, 0.25)"
+    };
+  }
+  return { 
+    icon: Note, 
+    label: "Text", 
+    color: "text-indigo-400",
+    bg: "rgba(99, 102, 241, 0.15)",
+    border: "rgba(99, 102, 241, 0.25)"
+  };
 };
 
 export default function NoteCard({ note, onMenu, onOpen }) {
   const isPDF = note.fileType === "pdf";
   const isLockedPhoto = note.locked && note.imageUrl && !isPDF;
+  const typeConfig = getNoteTypeConfig(note);
+  const IconComponent = typeConfig.icon;
 
   return (
     <div
-      className="
-        bg-theme-card border border-theme-secondary transition-colors
-        rounded-2xl p-4 flex flex-col
-        justify-between
-        min-h-[220px]
-        active:scale-[0.98] transition cursor-pointer
-        backdrop-blur-sm hover:bg-theme-elevated hover:border-indigo-500/40
-      "
+      className="group rounded-xl p-3 flex flex-col cursor-pointer transition-all duration-200 border active:scale-[0.98]"
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        borderColor: 'var(--border-secondary)',
+      }}
       onClick={onOpen}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)';
+        e.currentTarget.style.backgroundColor = 'var(--bg-elevated)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'var(--border-secondary)';
+        e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
+      }}
     >
-      {/* Title + Icons */}
-      <div className="flex justify-between items-start mb-1">
-        <h3 className="text-[15px] font-semibold text-theme-primary leading-snug line-clamp-2 w-[82%]">
+      {/* Title Row + Menu */}
+      <div className="flex justify-between items-start gap-2 mb-2">
+        <h3 
+          className="text-sm font-semibold leading-snug line-clamp-2 flex-1"
+          style={{ color: 'var(--text-primary)' }}
+        >
           {note.title}
         </h3>
 
-        <div className="flex items-center gap-2">
-          {note.locked && <FiLock size={14} className="text-yellow-300" />}
-          {note.favorite && (
-            <FiHeart size={14} className="text-rose-400 fav-animate" />
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {note.locked && (
+            <FiLock size={12} style={{ color: 'var(--accent-amber)' }} />
           )}
-
+          {note.favorite && (
+            <FiHeart 
+              size={12} 
+              style={{ color: 'var(--accent-rose)', fill: 'var(--accent-rose)' }} 
+            />
+          )}
           <button
-            className="text-theme-muted hover:text-theme-primary px-1"
+            className="p-1 rounded-md transition opacity-0 group-hover:opacity-100"
+            style={{ color: 'var(--text-muted)' }}
             onClick={(e) => {
               e.stopPropagation();
               onMenu(e);
             }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
           >
-            …
+            <FiMoreVertical size={14} />
           </button>
         </div>
       </div>
 
-      {/* Preview Section */}
+      {/* Preview Area - Compact */}
       <div
-        className="
-          relative w-full aspect-[5/3]
-          rounded-lg border border-[var(--border-secondary)]/20
-          border-[var(--border-secondary)]
-          flex items-center justify-center
-          mt-2 overflow-hidden
-        "
+        className="relative w-full aspect-[4/3] rounded-lg flex items-center justify-center overflow-hidden mb-2"
+        style={{
+          backgroundColor: typeConfig.bg,
+          border: `1px solid ${typeConfig.border}`,
+        }}
       >
-        {/* ----------- PDF NOTES ----------- */}
+        {/* PDF Notes */}
         {isPDF && (
-          <FiFileText
-            size={32}
-            className="text-indigo-400 opacity-90"
-          />
+          <IconComponent size={28} weight="duotone" className={typeConfig.color} />
         )}
 
-        {/* ----------- LOCKED PHOTO NOTES ----------- */}
+        {/* Locked Photo Notes */}
         {isLockedPhoto && (
-          <FiImage
-            size={32}
-            className="text-green-400 opacity-85"
-          />
+          <div className="flex flex-col items-center gap-1">
+            <FiLock size={20} style={{ color: 'var(--accent-amber)' }} />
+            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Locked</span>
+          </div>
         )}
 
-        {/* ----------- IMAGE NOTES (UNLOCKED) ----------- */}
+        {/* Image Notes (Unlocked) */}
         {!isPDF && note.imageUrl && !note.locked && (
           <img
             src={note.imageUrl}
@@ -108,23 +153,38 @@ export default function NoteCard({ note, onMenu, onOpen }) {
           />
         )}
 
-        {/* ----------- TEXT NOTES ----------- */}
-        {!note.imageUrl && !isPDF && (
-          <FiFileText
-            size={32}
-            className="text-theme-tertiary"
-          />
+        {/* Voice Notes */}
+        {note.tag === "Voice" && !note.imageUrl && !isPDF && (
+          <IconComponent size={28} weight="duotone" className={typeConfig.color} />
+        )}
+
+        {/* Text Notes */}
+        {!note.imageUrl && !isPDF && note.tag !== "Voice" && (
+          <IconComponent size={28} weight="duotone" className={typeConfig.color} />
         )}
       </div>
 
-      {/* Footer Meta */}
-      <div className="flex justify-between items-center mt-3">
-        <p className="text-[11px] text-theme-tertiary">
+      {/* Footer Meta - Compact */}
+      <div className="flex justify-between items-center">
+        <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
           {note.tag} • {formatRelative(note.updated)}
         </p>
 
-        <span className="text-[10px] px-2 py-[1px] rounded-md bg-indigo-500/20 text-accent-indigo">
-          {isPDF ? "PDF" : note.imageUrl ? "Photo" : "Text"}
+        <span 
+          className="text-[9px] font-medium px-1.5 py-0.5 rounded-md flex-shrink-0"
+          style={{
+            backgroundColor: typeConfig.bg,
+            color: typeConfig.color.replace('text-', '').includes('indigo') 
+              ? 'var(--accent-indigo)' 
+              : typeConfig.color.replace('text-', '').includes('rose')
+              ? 'var(--accent-rose)'
+              : typeConfig.color.replace('text-', '').includes('emerald')
+              ? 'var(--accent-emerald)'
+              : 'var(--accent-purple)',
+            border: `1px solid ${typeConfig.border}`,
+          }}
+        >
+          {typeConfig.label}
         </span>
       </div>
     </div>

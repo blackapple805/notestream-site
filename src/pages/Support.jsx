@@ -3,72 +3,58 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 import { 
   FiMail, 
-  FiMessageCircle, 
-  FiBook, 
-  FiAlertTriangle, 
   FiCheckCircle,
   FiSearch,
-  FiChevronDown,
-  FiChevronUp,
-  FiZap,
-  FiFileText,
-  FiCpu,
-  FiUploadCloud,
-  FiLayers,
-  FiSettings
+  FiExternalLink,
+  FiSend,
 } from "react-icons/fi";
+import {
+  Lifebuoy,
+  BookOpen,
+  ChatCircleDots,
+  Envelope,
+  RocketLaunch,
+  Lightning,
+  ShieldCheck,
+  DiscordLogo,
+  TwitterLogo,
+} from "phosphor-react";
 
 export default function Support() {
-  const [openFaq, setOpenFaq] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [submitted, setSubmitted] = useState(false);
 
   const categories = [
     {
-      icon: <FiMessageCircle className="w-6 h-6 text-indigo-500" />,
+      icon: RocketLaunch,
       title: "Getting Started",
-      desc: "Learn everything you need to begin using NoteStream effectively.",
-      link: "#getting-started",
+      desc: "New to NoteStream? Learn the basics and get up and running in minutes.",
+      link: "/how-it-works",
+      color: "indigo",
     },
     {
-      icon: <FiBook className="w-6 h-6 text-purple-500" />,
+      icon: BookOpen,
       title: "Documentation",
       desc: "Deep-dive guides covering features, workflows, and best practices.",
-      link: "#docs",
+      link: "/docs",
+      color: "purple",
     },
     {
-      icon: <FiMail className="w-6 h-6 text-emerald-500" />,
-      title: "Contact Support",
-      desc: "Need personal help? Our support team is ready to assist you.",
-      link: "#contact",
+      icon: ChatCircleDots,
+      title: "FAQ",
+      desc: "Find quick answers to the most commonly asked questions.",
+      link: "/faq",
+      color: "emerald",
     },
   ];
 
-  const faqs = [
-    {
-      question: "How do I upload documents to NoteStream?",
-      answer: "You can upload documents by clicking the 'Upload' button in the Documents section, or by dragging and dropping files directly into the app. We support PDFs, images, text files, and more.",
-      icon: <FiUploadCloud className="w-5 h-5 text-indigo-500" />,
-    },
-    {
-      question: "What is AI Summary and how does it work?",
-      answer: "AI Summary uses advanced language models to analyze your notes and documents, extracting key points, action items, deadlines, and insights. Simply select a document and click 'Generate Summary' to see the magic.",
-      icon: <FiCpu className="w-5 h-5 text-purple-500" />,
-    },
-    {
-      question: "How do Smart Notes differ from regular notes?",
-      answer: "Smart Notes automatically detect structure in your text — tasks, dates, priorities, and topics. They're organized and searchable by meaning, not just keywords.",
-      icon: <FiZap className="w-5 h-5 text-amber-500" />,
-    },
-    {
-      question: "Can I use NoteStream with other apps?",
-      answer: "Yes! NoteStream integrates with Google Drive, Slack, Notion, Zapier, GitHub, and more. Check out the Integrations page to connect your favorite tools.",
-      icon: <FiLayers className="w-5 h-5 text-blue-500" />,
-    },
-    {
-      question: "How do I customize my dashboard?",
-      answer: "Go to Settings to customize your dashboard layout, theme preferences, notification settings, and more. You can also toggle between light and dark mode.",
-      icon: <FiSettings className="w-5 h-5 text-emerald-500" />,
-    },
+  const quickLinks = [
+    { label: "Reset Password", link: "/reset-password" },
+    { label: "Billing & Plans", link: "/pricing" },
+    { label: "Privacy Policy", link: "/privacy" },
+    { label: "Terms of Service", link: "/terms" },
   ];
 
   const status = {
@@ -81,19 +67,48 @@ export default function Support() {
     ]
   };
 
-  const filteredFaqs = faqs.filter(faq => 
-    faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const colorConfig = {
+    indigo: {
+      bg: "rgba(99, 102, 241, 0.1)",
+      border: "rgba(99, 102, 241, 0.25)",
+      text: "var(--accent-indigo)",
+    },
+    purple: {
+      bg: "rgba(168, 85, 247, 0.1)",
+      border: "rgba(168, 85, 247, 0.25)",
+      text: "var(--accent-purple)",
+    },
+    emerald: {
+      bg: "rgba(16, 185, 129, 0.1)",
+      border: "rgba(16, 185, 129, 0.25)",
+      text: "var(--accent-emerald)",
+    },
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setSubmitted(true);
+    setTimeout(() => {
+      setEmail("");
+      setMessage("");
+      setSubmitted(false);
+    }, 3000);
+  };
 
   return (
     <section 
-      className="min-h-screen text-theme-primary px-6 py-32 relative"
+      className="min-h-screen px-6 py-24 md:py-32 relative"
       style={{ backgroundColor: 'var(--bg-primary)' }}
     >
       {/* Background glows */}
-      <div className="absolute top-[15%] left-[5%] w-[240px] h-[240px] bg-indigo-500/20 blur-[150px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-[10%] right-[5%] w-[200px] h-[200px] bg-purple-500/15 blur-[130px] rounded-full pointer-events-none"></div>
+      <div 
+        className="absolute top-[10%] left-[10%] w-[300px] h-[300px] rounded-full pointer-events-none"
+        style={{ background: 'radial-gradient(circle, rgba(99, 102, 241, 0.15), transparent 70%)', filter: 'blur(60px)' }}
+      />
+      <div 
+        className="absolute bottom-[15%] right-[10%] w-[250px] h-[250px] rounded-full pointer-events-none"
+        style={{ background: 'radial-gradient(circle, rgba(168, 85, 247, 0.12), transparent 70%)', filter: 'blur(60px)' }}
+      />
 
       <div className="relative z-10 max-w-5xl mx-auto">
         {/* Header */}
@@ -102,12 +117,25 @@ export default function Support() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-12"
         >
-          <h1 className="text-5xl font-extrabold mb-6 text-theme-primary">
-            We're Here to <span className="text-indigo-500">Help</span>
+          {/* Badge */}
+          <div 
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6 border"
+            style={{ 
+              backgroundColor: 'rgba(99, 102, 241, 0.1)', 
+              borderColor: 'rgba(99, 102, 241, 0.25)' 
+            }}
+          >
+            <Lifebuoy size={16} weight="duotone" style={{ color: 'var(--accent-indigo)' }} />
+            <span className="text-sm font-medium" style={{ color: 'var(--accent-indigo)' }}>
+              Support Center
+            </span>
+          </div>
+
+          <h1 className="text-4xl md:text-5xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
+            How can we <span style={{ color: 'var(--accent-indigo)' }}>help</span> you?
           </h1>
-          <p className="text-theme-muted text-lg max-w-2xl mx-auto">
-            Whether you're just getting started or need advanced support, our team is here
-            to help you make the most of NoteStream.
+          <p className="text-lg max-w-2xl mx-auto" style={{ color: 'var(--text-muted)' }}>
+            Find answers, browse documentation, or reach out to our support team.
           </p>
         </motion.div>
 
@@ -116,163 +144,162 @@ export default function Support() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="max-w-lg mx-auto mb-16"
+          className="max-w-xl mx-auto mb-16"
         >
-          <div className="relative">
-            <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-theme-muted w-5 h-5" />
+          <div 
+            className="relative flex items-center rounded-2xl border transition-all duration-300"
+            style={{ 
+              backgroundColor: 'var(--bg-surface)', 
+              borderColor: searchQuery ? 'var(--accent-indigo)' : 'var(--border-secondary)',
+              boxShadow: searchQuery ? '0 0 30px rgba(99, 102, 241, 0.15)' : 'none',
+            }}
+          >
+            <FiSearch 
+              className="absolute left-4 w-5 h-5" 
+              style={{ color: 'var(--text-muted)' }} 
+            />
             <input
               type="text"
               placeholder="Search for help topics..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-5 py-4 rounded-xl outline-none transition border focus:ring-2 focus:ring-indigo-500/50 text-theme-primary"
-              style={{ 
-                backgroundColor: 'var(--bg-input)', 
-                borderColor: 'var(--border-secondary)' 
-              }}
+              className="w-full pl-12 pr-5 py-4 rounded-2xl bg-transparent outline-none text-sm"
+              style={{ color: 'var(--text-primary)' }}
             />
           </div>
         </motion.div>
 
-        {/* Categories */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-20">
-          {categories.map((c, idx) => (
-            <motion.a
-              key={idx}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 * idx }}
-              href={c.link}
-              className="group p-6 rounded-2xl border backdrop-blur-md hover:-translate-y-2 hover:border-indigo-500/40 
-              shadow-[0_0_25px_rgba(99,102,241,0.06)] hover:shadow-[0_0_45px_rgba(99,102,241,0.15)] transition-all duration-500"
-              style={{ 
-                backgroundColor: 'var(--bg-card)', 
-                borderColor: 'var(--border-secondary)' 
-              }}
-            >
-              <div 
-                className="flex items-center justify-center w-14 h-14 rounded-xl mb-5 group-hover:bg-indigo-500/20 transition"
-                style={{ backgroundColor: 'var(--bg-tertiary)' }}
-              >
-                {c.icon}
-              </div>
-              <h3 className="text-xl font-semibold mb-3 text-theme-primary group-hover:text-indigo-500 transition">
-                {c.title}
-              </h3>
-              <p className="text-theme-muted text-sm leading-relaxed">{c.desc}</p>
-            </motion.a>
-          ))}
-        </div>
-
-        {/* FAQ Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mb-20"
-        >
-          <h2 className="text-3xl font-bold text-center mb-10 text-theme-primary">
-            Frequently Asked <span className="text-indigo-500">Questions</span>
-          </h2>
-
-          <div className="space-y-4 max-w-3xl mx-auto">
-            {filteredFaqs.map((faq, idx) => (
-              <motion.div
+        {/* Categories - Centered Content */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-16">
+          {categories.map((c, idx) => {
+            const colors = colorConfig[c.color];
+            const IconComponent = c.icon;
+            
+            return (
+              <motion.a
                 key={idx}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 * idx }}
-                className="rounded-xl border overflow-hidden"
+                transition={{ delay: 0.1 + idx * 0.1 }}
+                href={c.link}
+                className="group p-6 rounded-2xl border text-center transition-all duration-300 hover:-translate-y-1"
                 style={{ 
-                  backgroundColor: 'var(--bg-card)', 
-                  borderColor: 'var(--border-secondary)' 
+                  backgroundColor: 'var(--bg-surface)', 
+                  borderColor: 'var(--border-secondary)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.boxShadow = `0 10px 40px ${colors.bg}`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--border-secondary)';
+                  e.currentTarget.style.boxShadow = 'none';
                 }}
               >
-                <button
-                  onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                  className="w-full flex items-center justify-between p-5 text-left hover:bg-opacity-80 transition"
+                {/* Icon - Centered */}
+                <div 
+                  className="w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-4 transition-all duration-300 group-hover:scale-110"
+                  style={{ 
+                    backgroundColor: colors.bg,
+                    border: `1px solid ${colors.border}`,
+                  }}
                 >
-                  <div className="flex items-center gap-4">
-                    <div 
-                      className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: 'var(--bg-tertiary)' }}
-                    >
-                      {faq.icon}
-                    </div>
-                    <span className="font-medium text-theme-primary">{faq.question}</span>
-                  </div>
-                  {openFaq === idx ? (
-                    <FiChevronUp className="text-theme-muted w-5 h-5 flex-shrink-0" />
-                  ) : (
-                    <FiChevronDown className="text-theme-muted w-5 h-5 flex-shrink-0" />
-                  )}
-                </button>
-                
-                {openFaq === idx && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="px-5 pb-5"
-                  >
-                    <div 
-                      className="p-4 rounded-lg text-sm text-theme-secondary leading-relaxed"
-                      style={{ backgroundColor: 'var(--bg-tertiary)' }}
-                    >
-                      {faq.answer}
-                    </div>
-                  </motion.div>
-                )}
-              </motion.div>
-            ))}
+                  <IconComponent size={26} weight="duotone" style={{ color: colors.text }} />
+                </div>
 
-            {filteredFaqs.length === 0 && searchQuery && (
-              <div className="text-center py-10">
-                <p className="text-theme-muted">No results found for "{searchQuery}"</p>
-              </div>
-            )}
-          </div>
-        </motion.div>
+                {/* Title - Centered */}
+                <h3 
+                  className="text-lg font-semibold mb-2 transition-colors"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  {c.title}
+                </h3>
+
+                {/* Description - Centered */}
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                  {c.desc}
+                </p>
+
+                {/* Arrow indicator */}
+                <div 
+                  className="mt-4 text-xs font-medium flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ color: colors.text }}
+                >
+                  Learn more <FiExternalLink size={12} />
+                </div>
+              </motion.a>
+            );
+          })}
+        </div>
 
         {/* System Status */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="rounded-2xl p-8 backdrop-blur-md max-w-2xl mx-auto border"
+          className="rounded-2xl p-6 mb-16 border"
           style={{ 
-            backgroundColor: 'var(--bg-card)', 
+            backgroundColor: 'var(--bg-surface)', 
             borderColor: 'var(--border-secondary)',
-            boxShadow: '0 0 25px rgba(99,102,241,0.08)'
           }}
         >
-          <div className="flex items-center justify-center gap-3 mb-6">
-            {status.healthy ? (
-              <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                <FiCheckCircle className="text-emerald-500 w-5 h-5" />
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div 
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ 
+                  backgroundColor: status.healthy ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)',
+                  border: `1px solid ${status.healthy ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
+                }}
+              >
+                {status.healthy ? (
+                  <ShieldCheck size={20} weight="duotone" style={{ color: 'var(--accent-emerald)' }} />
+                ) : (
+                  <Lightning size={20} weight="fill" style={{ color: 'var(--accent-rose)' }} />
+                )}
               </div>
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center">
-                <FiAlertTriangle className="text-rose-500 w-5 h-5" />
+              <div>
+                <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  System Status
+                </h3>
+                <p className="text-xs" style={{ color: status.healthy ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
+                  {status.healthy ? "All systems operational" : "Service interruptions"}
+                </p>
               </div>
-            )}
-            <span className="text-xl font-semibold text-theme-primary">
-              {status.healthy ? "All Systems Operational" : "Service Interruptions Detected"}
-            </span>
+            </div>
+
+            <a 
+              href="/status" 
+              className="text-xs font-medium transition"
+              style={{ color: 'var(--accent-indigo)' }}
+            >
+              View details →
+            </a>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {status.services.map((service, idx) => (
               <div 
                 key={idx}
-                className="p-3 rounded-lg text-center"
-                style={{ backgroundColor: 'var(--bg-tertiary)' }}
+                className="p-3 rounded-xl text-center border"
+                style={{ 
+                  backgroundColor: 'var(--bg-tertiary)',
+                  borderColor: 'var(--border-secondary)',
+                }}
               >
                 <div className="flex items-center justify-center gap-2 mb-1">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                  <span className="text-xs font-medium text-theme-secondary">{service.name}</span>
+                  <div 
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: 'var(--accent-emerald)' }}
+                  />
+                  <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                    {service.name}
+                  </span>
                 </div>
-                <span className="text-[10px] text-emerald-500 uppercase font-semibold">
+                <span 
+                  className="text-[10px] uppercase font-semibold"
+                  style={{ color: 'var(--accent-emerald)' }}
+                >
                   {service.status}
                 </span>
               </div>
@@ -280,21 +307,214 @@ export default function Support() {
           </div>
         </motion.div>
 
-        {/* Contact CTA */}
+        {/* Contact Form Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="text-center mt-16"
+          className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-16"
         >
-          <p className="text-theme-muted mb-4">Still have questions?</p>
+          {/* Contact Form */}
+          <div 
+            className="rounded-2xl p-6 border"
+            style={{ 
+              backgroundColor: 'var(--bg-surface)', 
+              borderColor: 'var(--border-secondary)',
+            }}
+          >
+            <div className="flex items-center gap-3 mb-5">
+              <div 
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ 
+                  backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                }}
+              >
+                <Envelope size={20} weight="duotone" style={{ color: 'var(--accent-indigo)' }} />
+              </div>
+              <div>
+                <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Send us a message
+                </h3>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  We typically respond within 24 hours
+                </p>
+              </div>
+            </div>
+
+            {submitted ? (
+              <div 
+                className="p-6 rounded-xl text-center"
+                style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)' }}
+              >
+                <FiCheckCircle size={32} style={{ color: 'var(--accent-emerald)' }} className="mx-auto mb-3" />
+                <p className="font-medium" style={{ color: 'var(--accent-emerald)' }}>Message sent!</p>
+                <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>We'll get back to you soon.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--text-muted)' }}>
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full px-4 py-3 rounded-xl border outline-none transition text-sm"
+                    style={{ 
+                      backgroundColor: 'var(--bg-tertiary)', 
+                      borderColor: 'var(--border-secondary)',
+                      color: 'var(--text-primary)',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--text-muted)' }}>
+                    Message
+                  </label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="How can we help you?"
+                    className="w-full px-4 py-3 rounded-xl border outline-none transition text-sm resize-none"
+                    style={{ 
+                      backgroundColor: 'var(--bg-tertiary)', 
+                      borderColor: 'var(--border-secondary)',
+                      color: 'var(--text-primary)',
+                    }}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-xl font-medium text-white text-sm flex items-center justify-center gap-2 transition hover:opacity-90 active:scale-[0.98]"
+                  style={{ 
+                    background: 'linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))',
+                    boxShadow: '0 4px 15px rgba(99, 102, 241, 0.25)',
+                  }}
+                >
+                  <FiSend size={16} />
+                  Send Message
+                </button>
+              </form>
+            )}
+          </div>
+
+          {/* Quick Links + Social */}
+          <div className="space-y-6">
+            {/* Quick Links */}
+            <div 
+              className="rounded-2xl p-6 border"
+              style={{ 
+                backgroundColor: 'var(--bg-surface)', 
+                borderColor: 'var(--border-secondary)',
+              }}
+            >
+              <h3 className="font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
+                Quick Links
+              </h3>
+              <div className="space-y-2">
+                {quickLinks.map((link, idx) => (
+                  <a
+                    key={idx}
+                    href={link.link}
+                    className="flex items-center justify-between p-3 rounded-xl border transition-all"
+                    style={{ 
+                      backgroundColor: 'var(--bg-tertiary)',
+                      borderColor: 'var(--border-secondary)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-secondary)';
+                    }}
+                  >
+                    <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      {link.label}
+                    </span>
+                    <FiExternalLink size={14} style={{ color: 'var(--text-muted)' }} />
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Community / Social */}
+            <div 
+              className="rounded-2xl p-6 border"
+              style={{ 
+                backgroundColor: 'var(--bg-surface)', 
+                borderColor: 'var(--border-secondary)',
+              }}
+            >
+              <h3 className="font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
+                Join the Community
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <a
+                  href="https://discord.gg/notestream"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 p-3 rounded-xl border transition-all hover:scale-[1.02]"
+                  style={{ 
+                    backgroundColor: 'rgba(88, 101, 242, 0.1)',
+                    borderColor: 'rgba(88, 101, 242, 0.25)',
+                  }}
+                >
+                  <DiscordLogo size={20} weight="fill" style={{ color: '#5865F2' }} />
+                  <span className="text-sm font-medium" style={{ color: '#5865F2' }}>Discord</span>
+                </a>
+                <a
+                  href="https://twitter.com/notestream"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 p-3 rounded-xl border transition-all hover:scale-[1.02]"
+                  style={{ 
+                    backgroundColor: 'rgba(29, 161, 242, 0.1)',
+                    borderColor: 'rgba(29, 161, 242, 0.25)',
+                  }}
+                >
+                  <TwitterLogo size={20} weight="fill" style={{ color: '#1DA1F2' }} />
+                  <span className="text-sm font-medium" style={{ color: '#1DA1F2' }}>Twitter</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Contact CTA */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="text-center"
+        >
+          <p className="mb-4" style={{ color: 'var(--text-muted)' }}>
+            Need immediate assistance?
+          </p>
           <a 
             href="mailto:support@notestream.ai"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-500 
-            text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg shadow-indigo-500/25"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-medium text-sm transition"
+            style={{ 
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-secondary)',
+              color: 'var(--text-secondary)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--accent-indigo)';
+              e.currentTarget.style.color = 'var(--accent-indigo)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-secondary)';
+              e.currentTarget.style.color = 'var(--text-secondary)';
+            }}
           >
-            <FiMail className="w-5 h-5" />
-            Contact Support
+            <FiMail size={16} />
+            support@notestream.ai
           </a>
         </motion.div>
       </div>

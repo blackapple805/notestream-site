@@ -68,7 +68,7 @@ export function WorkspaceProvider({ children }) {
           type: "urgent",
           message: "Contains urgent items",
           priority: "high",
-          icon: "⚠️",
+          iconType: "warning", // Changed from emoji to type identifier
         });
         patterns.urgent.lastIndex = 0;
       }
@@ -86,7 +86,7 @@ export function WorkspaceProvider({ children }) {
             type: "deadline",
             message: `Deadline: ${context}`,
             priority: "high",
-            icon: "📅",
+            iconType: "calendar", // Changed from emoji to type identifier
           });
         }
       }
@@ -103,7 +103,7 @@ export function WorkspaceProvider({ children }) {
             type: "todo",
             message: `Task: ${context}`,
             priority: "medium",
-            icon: "✅",
+            iconType: "task", // Changed from emoji to type identifier
           });
         }
       }
@@ -120,7 +120,7 @@ export function WorkspaceProvider({ children }) {
             type: "reminder",
             message: `Reminder: ${context}`,
             priority: "medium",
-            icon: "🔔",
+            iconType: "bell", // Changed from emoji to type identifier
           });
         }
       }
@@ -138,7 +138,7 @@ export function WorkspaceProvider({ children }) {
               type: "meeting",
               message: `Meeting: ${context}`,
               priority: "medium",
-              icon: "📞",
+              iconType: "meeting", // Changed from emoji to type identifier
             });
           }
         }

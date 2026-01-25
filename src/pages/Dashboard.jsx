@@ -14,6 +14,10 @@ import {
   FiX,
   FiBell,
   FiTrendingUp,
+  FiUpload,
+  FiStar,
+  FiCheckCircle,
+  FiAlertCircle,
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -27,10 +31,82 @@ import {
   Activity,
   Plugs,
   BezierCurve,
-  Crown,
+  Lightning,
+  FileText,
+  ChartLineUp,
+  Star,
+  Trophy,
+  Target,
+  Fire,
+  Calendar,
+  Warning,
+  CheckSquare,
+  Phone,
+  Flag,
 } from "phosphor-react";
 import GlassCard from "../components/GlassCard";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
+
+/* -----------------------------------------
+   Notification Icon Component - Neon styled icons
+----------------------------------------- */
+const NotificationIcon = ({ iconType }) => {
+  // Map iconType to styled icon configuration
+  const iconConfig = {
+    calendar: { 
+      icon: Calendar, 
+      color: "text-indigo-400", 
+      bg: "rgba(99,102,241,0.15)", 
+      border: "rgba(99,102,241,0.3)" 
+    },
+    warning: { 
+      icon: Warning, 
+      color: "text-amber-400", 
+      bg: "rgba(245,158,11,0.15)", 
+      border: "rgba(245,158,11,0.3)" 
+    },
+    task: { 
+      icon: CheckSquare, 
+      color: "text-emerald-400", 
+      bg: "rgba(16,185,129,0.15)", 
+      border: "rgba(16,185,129,0.3)" 
+    },
+    bell: { 
+      icon: Bell, 
+      color: "text-amber-400", 
+      bg: "rgba(245,158,11,0.15)", 
+      border: "rgba(245,158,11,0.3)" 
+    },
+    meeting: { 
+      icon: Phone, 
+      color: "text-purple-400", 
+      bg: "rgba(168,85,247,0.15)", 
+      border: "rgba(168,85,247,0.3)" 
+    },
+    // Default fallback
+    default: { 
+      icon: Flag, 
+      color: "text-indigo-400", 
+      bg: "rgba(99,102,241,0.15)", 
+      border: "rgba(99,102,241,0.3)" 
+    },
+  };
+
+  const config = iconConfig[iconType] || iconConfig.default;
+  const IconComponent = config.icon;
+
+  return (
+    <div 
+      className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 ${config.color}`}
+      style={{ 
+        backgroundColor: config.bg, 
+        border: `1px solid ${config.border}` 
+      }}
+    >
+      <IconComponent size={18} weight="duotone" />
+    </div>
+  );
+};
 
 /* -----------------------------------------
    Greeting Logic
@@ -83,12 +159,10 @@ const recentDocs = [
 ----------------------------------------- */
 const IconTile = ({ children, tone = "indigo", size = "md" }) => {
   const sizes = {
-    sm: "h-10 w-10",
-    md: "h-11 w-11",
-    lg: "h-12 w-12",
+    sm: "h-10 w-10 rounded-xl",
+    md: "h-11 w-11 rounded-xl",
+    lg: "h-12 w-12 rounded-xl",
   };
-
-  const rounding = "rounded-[18px]";
 
   const toneMap = {
     indigo: {
@@ -132,7 +206,7 @@ const IconTile = ({ children, tone = "indigo", size = "md" }) => {
 
   return (
     <div
-      className={`${sizes[size]} ${rounding} border flex items-center justify-center ${t.text} shadow-[0_10px_28px_rgba(0,0,0,0.25)]`}
+      className={`${sizes[size]} border flex items-center justify-center ${t.text}`}
       style={{
         backgroundColor: t.bg,
         borderColor: t.border,
@@ -182,137 +256,106 @@ export default function Dashboard() {
   }));
 
   const fadeSlide = {
-    hidden: { opacity: 0, y: 22 },
+    hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0 },
   };
 
   return (
-    <div className="w-full space-y-6 sm:space-y-8 pb-[calc(var(--mobile-nav-height)+24px)]">
-      {/* Greeting */}
-      <motion.div
+    <div className="w-full space-y-6 pb-[calc(var(--mobile-nav-height)+24px)]">
+      {/* ═══════════════════════════════════════════════════════════
+          HEADER SECTION - Fixed layout with bell on far right
+      ═══════════════════════════════════════════════════════════ */}
+      <motion.header
         variants={fadeSlide}
         initial="hidden"
         animate="visible"
-        transition={{ duration: 0.45 }}
-        className="pt-2 px-1 sm:px-0"
+        transition={{ duration: 0.4 }}
+        className="pt-2"
       >
-        <div className="page-header-content">
-          <div className="page-header-icon">
-            <House size={20} weight="duotone" />
-          </div>
-          <div>
-            <div>
+        <div className="flex items-center justify-between gap-4">
+          {/* Left side - Icon + Text */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="page-header-icon flex-shrink-0">
+              <House size={20} weight="duotone" />
+            </div>
+            <div className="min-w-0">
               <h1 className="page-header-title">{getGreeting()}</h1>
-              <p className="page-header-subtitle">Welcome back — ready to continue where you left off?</p>
+              <p className="page-header-subtitle truncate">
+                Welcome back — ready to continue where you left off?
+              </p>
             </div>
           </div>
 
-          {/* Notification Bell */}
+          {/* Right side - Notification Bell */}
           {settings.smartNotifications && notifications.length > 0 && (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setShowNotifications(true)}
-              className="relative transition active:scale-[0.98]"
+              className="relative flex-shrink-0"
               aria-label="Open notifications"
             >
-              <IconTile tone="indigo" size="md">
+              <IconTile tone="amber" size="md">
                 <Bell size={20} weight="duotone" />
               </IconTile>
-
-              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+              <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-[var(--bg-primary)]">
                 {notifications.length}
               </span>
-            </button>
+            </motion.button>
           )}
         </div>
 
         {/* Quick Stats Row */}
-        <div className="flex gap-3 mt-4">
-          <QuickStat label="Today" value="3" suffix="notes" />
-          <QuickStat label="Streak" value="11" suffix="days" highlight="indigo" />
-          <QuickStat label="AI Used" value="54" suffix="times" highlight="emerald" />
+        <div className="grid grid-cols-3 gap-3 mt-5">
+          <QuickStat 
+            icon={<Note size={16} weight="duotone" />}
+            label="Today" 
+            value="3" 
+            suffix="notes" 
+            color="indigo"
+          />
+          <QuickStat 
+            icon={<Fire size={16} weight="fill" />}
+            label="Streak" 
+            value="11" 
+            suffix="days" 
+            color="amber"
+          />
+          <QuickStat 
+            icon={<Lightning size={16} weight="fill" />}
+            label="AI Used" 
+            value="54" 
+            suffix="times" 
+            color="emerald"
+          />
         </div>
-      </motion.div>
+      </motion.header>
 
-      {/* Smart Notifications Banner */}
-      <AnimatePresence>
-        {settings.smartNotifications && notifications.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-          >
-            <GlassCard className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-orange-500/5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <IconTile tone="amber" size="md">
-                    <FiBell size={18} />
-                  </IconTile>
 
-                  <div>
-                    <h3 className="text-sm font-semibold text-theme-primary">
-                      Smart Notifications
-                    </h3>
-                    <p className="text-xs text-theme-muted">
-                      {notifications.length} item{notifications.length !== 1 ? "s" : ""} detected
-                    </p>
-                  </div>
-                </div>
 
-                <button
-                  onClick={() => setShowNotifications(true)}
-                  className="text-xs text-amber-400 hover:text-amber-300 transition font-medium"
-                >
-                  View all →
-                </button>
-              </div>
-
-              <div className="mt-3 space-y-2">
-                {notifications.slice(0, 2).map((notif) => (
-                  <div
-                    key={notif.id}
-                    className="flex items-center gap-3 px-3 py-2 rounded-2xl border"
-                    style={{
-                      backgroundColor: "var(--bg-input)",
-                      borderColor: "var(--border-secondary)",
-                    }}
-                  >
-                    <span className="text-lg">{notif.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-theme-secondary truncate">{notif.message}</p>
-                      <p className="text-[10px] text-theme-muted">From: {notif.noteTitle}</p>
-                    </div>
-                    <span
-                      className={`text-[9px] font-medium px-2 py-0.5 rounded-full ${
-                        notif.priority === "high"
-                          ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                          : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                      }`}
-                    >
-                      {notif.priority}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </GlassCard>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Weekly Digest Card */}
+      {/* ═══════════════════════════════════════════════════════════
+          WEEKLY DIGEST CARD
+      ═══════════════════════════════════════════════════════════ */}
       <AnimatePresence>
         {settings.weeklyDigest && digest && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
           >
-            <GlassCard className="border-purple-500/30 bg-gradient-to-br from-purple-500/5 to-indigo-500/5">
-              <div className="flex items-center justify-between mb-3">
+            <GlassCard className="border-purple-500/20">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <IconTile tone="purple" size="md">
-                    <CalendarBlank size={18} weight="duotone" />
-                  </IconTile>
-
+                  <div 
+                    className="h-10 w-10 rounded-xl flex items-center justify-center"
+                    style={{ 
+                      background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(99,102,241,0.1))',
+                      border: '1px solid rgba(139,92,246,0.3)',
+                    }}
+                  >
+                    <ChartLineUp size={20} weight="duotone" className="text-purple-400" />
+                  </div>
                   <div>
                     <h3 className="text-sm font-semibold text-theme-primary">Weekly Digest</h3>
                     <p className="text-xs text-theme-muted">
@@ -323,74 +366,80 @@ export default function Dashboard() {
 
                 <button
                   onClick={() => setShowDigest(true)}
-                  className="text-xs text-purple-400 hover:text-purple-300 transition font-medium"
+                  className="text-xs transition font-medium px-3 py-1.5 rounded-lg whitespace-nowrap flex-shrink-0"
+                  style={{
+                    color: 'var(--accent-purple)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(168, 85, 247, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
                 >
                   Full report →
                 </button>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div
-                  className="p-3 rounded-2xl border text-center"
-                  style={{
-                    backgroundColor: "var(--bg-input)",
-                    borderColor: "var(--border-secondary)",
-                  }}
-                >
-                  <p className="text-lg font-bold text-indigo-400">{digest.stats.notesCreated}</p>
-                  <p className="text-[10px] text-theme-muted">Notes</p>
-                </div>
-                <div
-                  className="p-3 rounded-2xl border text-center"
-                  style={{
-                    backgroundColor: "var(--bg-input)",
-                    borderColor: "var(--border-secondary)",
-                  }}
-                >
-                  <p className="text-lg font-bold text-purple-400">{digest.stats.docsUploaded}</p>
-                  <p className="text-[10px] text-theme-muted">Docs</p>
-                </div>
-                <div
-                  className="p-3 rounded-2xl border text-center"
-                  style={{
-                    backgroundColor: "var(--bg-input)",
-                    borderColor: "var(--border-secondary)",
-                  }}
-                >
-                  <p className="text-lg font-bold text-emerald-400">{digest.insights.productivity}</p>
-                  <p className="text-[10px] text-theme-muted">Activity</p>
-                </div>
+              {/* Stats Grid */}
+              <div className="grid grid-cols-3 gap-3">
+                <DigestStatCard 
+                  icon={<Note size={18} weight="duotone" />}
+                  value={digest.stats.notesCreated} 
+                  label="Notes" 
+                  color="indigo" 
+                />
+                <DigestStatCard 
+                  icon={<FileText size={18} weight="duotone" />}
+                  value={digest.stats.docsUploaded} 
+                  label="Docs" 
+                  color="purple" 
+                />
+                <DigestStatCard 
+                  icon={<Target size={18} weight="duotone" />}
+                  value={digest.insights.productivity} 
+                  label="Activity" 
+                  color="emerald"
+                  isText={true}
+                />
               </div>
             </GlassCard>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Main CTA Button */}
+      {/* ═══════════════════════════════════════════════════════════
+          MAIN CTA BUTTON - Single Upload button
+      ═══════════════════════════════════════════════════════════ */}
       <motion.div
         variants={fadeSlide}
         initial="hidden"
         animate="visible"
-        transition={{ duration: 0.45, delay: 0.1 }}
-        className="flex justify-center w-full"
+        transition={{ duration: 0.4, delay: 0.15 }}
       >
-        <button
+        <motion.button
+          whileHover={{ scale: 1.02, boxShadow: "0 8px 30px rgba(99, 102, 241, 0.3)" }}
+          whileTap={{ scale: 0.98 }}
           onClick={() => navigate("/dashboard/notes")}
-          className="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-medium shadow-[0_18px_40px_rgba(15,23,42,0.55)] active:opacity-90 transition-all w-full py-3.5 rounded-full text-sm sm:w-[80%] md:w-[60%]"
+          className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-medium text-sm text-white transition-all"
+          style={{
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            boxShadow: '0 4px 20px rgba(99, 102, 241, 0.25)',
+          }}
         >
-          <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-white/10">
-            <FiPlus className="text-[15px]" />
-          </span>
-          New Note / Upload
-        </button>
+          <FiPlus size={18} />
+          <span>New Note / Upload</span>
+        </motion.button>
       </motion.div>
 
-      {/* Quick Access - Pages not in mobile nav */}
+      {/* ═══════════════════════════════════════════════════════════
+          QUICK ACCESS GRID
+      ═══════════════════════════════════════════════════════════ */}
       <motion.div
         variants={fadeSlide}
         initial="hidden"
         animate="visible"
-        transition={{ duration: 0.45, delay: 0.15 }}
+        transition={{ duration: 0.4, delay: 0.2 }}
       >
         <h3 className="text-sm font-semibold text-theme-secondary mb-3 px-1">
           Quick Access
@@ -420,29 +469,30 @@ export default function Dashboard() {
             pro={true}
           />
           <QuickAction
-            icon={<FiUploadCloud size={20} />}
-            label="Upload"
-            desc="Add documents"
-            onClick={() => navigate("/dashboard/documents")}
+            icon={<Note size={22} weight="duotone" />}
+            label="New Note"
+            desc="Start writing"
+            onClick={() => navigate("/dashboard/notes")}
             color="emerald"
           />
         </div>
       </motion.div>
 
-      {/* Recent Notes */}
+      {/* ═══════════════════════════════════════════════════════════
+          RECENT NOTES
+      ═══════════════════════════════════════════════════════════ */}
       <motion.div
         variants={fadeSlide}
         initial="hidden"
         animate="visible"
-        transition={{ duration: 0.45, delay: 0.2 }}
+        transition={{ duration: 0.4, delay: 0.25 }}
       >
         <GlassCard>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
               <IconTile tone="indigo" size="sm">
                 <FiClock size={16} />
               </IconTile>
-
               <h3 className="text-base font-semibold text-theme-primary">Recent Notes</h3>
             </div>
 
@@ -456,28 +506,27 @@ export default function Dashboard() {
 
           <div className="space-y-2">
             {recentNotes.map((note) => (
-              <button
+              <motion.button
                 key={note.id}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
                 onClick={() => navigate(`/dashboard/notes/${note.id}`)}
-                className="group w-full text-left px-4 py-3 rounded-2xl border transition-all flex items-center justify-between active:scale-[0.995]"
+                className="group w-full text-left px-4 py-3 rounded-xl border transition-all flex items-center justify-between"
                 style={{
-                  backgroundColor: "var(--bg-input)",
-                  borderColor: "var(--border-primary)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--bg-card-hover)";
-                  e.currentTarget.style.borderColor = "rgba(99, 102, 241, 0.3)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--bg-input)";
-                  e.currentTarget.style.borderColor = "var(--border-primary)";
+                  backgroundColor: "var(--bg-tertiary)",
+                  borderColor: "var(--border-secondary)",
                 }}
               >
                 <div className="flex items-center gap-3">
-                  <IconTile tone="indigo" size="sm">
-                    <FiFileText size={16} />
-                  </IconTile>
-
+                  <div 
+                    className="h-10 w-10 rounded-xl flex items-center justify-center"
+                    style={{ 
+                      backgroundColor: 'rgba(99,102,241,0.1)',
+                      border: '1px solid rgba(99,102,241,0.2)',
+                    }}
+                  >
+                    <FiFileText size={16} className="text-indigo-400" />
+                  </div>
                   <div>
                     <p className="text-sm text-theme-secondary font-medium group-hover:text-theme-primary transition">
                       {note.title}
@@ -493,27 +542,29 @@ export default function Dashboard() {
                     size={16}
                   />
                 </div>
-              </button>
+              </motion.button>
             ))}
           </div>
         </GlassCard>
       </motion.div>
 
-      {/* Documents + AI Tools */}
+      {/* ═══════════════════════════════════════════════════════════
+          DOCUMENTS + AI TOOLS GRID
+      ═══════════════════════════════════════════════════════════ */}
       <motion.div
         variants={fadeSlide}
         initial="hidden"
         animate="visible"
-        transition={{ duration: 0.45, delay: 0.25 }}
+        transition={{ duration: 0.4, delay: 0.3 }}
         className="grid grid-cols-1 xl:grid-cols-2 gap-4"
       >
+        {/* Recent Documents */}
         <GlassCard>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
               <IconTile tone="purple" size="sm">
                 <FiFolder size={16} />
               </IconTile>
-
               <h3 className="text-base font-semibold text-theme-primary">Recent Documents</h3>
             </div>
 
@@ -536,12 +587,12 @@ export default function Dashboard() {
           </div>
         </GlassCard>
 
+        {/* AI Tools */}
         <GlassCard>
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-3 mb-4">
             <IconTile tone="amber" size="sm">
               <Sparkle size={18} weight="fill" />
             </IconTile>
-
             <h3 className="text-base font-semibold text-theme-primary">AI Tools</h3>
           </div>
 
@@ -578,7 +629,9 @@ export default function Dashboard() {
         </GlassCard>
       </motion.div>
 
-      {/* Notifications Modal */}
+      {/* ═══════════════════════════════════════════════════════════
+          NOTIFICATIONS MODAL
+      ═══════════════════════════════════════════════════════════ */}
       <AnimatePresence>
         {showNotifications && (
           <motion.div
@@ -587,66 +640,82 @@ export default function Dashboard() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[999] flex items-center justify-center p-4"
             style={{
-              backgroundColor: "rgba(0,0,0,0.6)",
+              backgroundColor: "rgba(0,0,0,0.7)",
               backdropFilter: "blur(8px)",
             }}
             onClick={() => setShowNotifications(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[80vh] overflow-hidden rounded-2xl border"
               style={{
                 backgroundColor: "var(--bg-surface)",
                 borderColor: "var(--border-secondary)",
+                boxShadow: "0 25px 50px rgba(0,0,0,0.4)",
               }}
             >
+              {/* Header */}
               <div
                 className="p-4 border-b flex items-center justify-between"
                 style={{ borderColor: "var(--border-secondary)" }}
               >
-                <div className="flex items-center gap-2">
-                  <IconTile tone="amber" size="sm">
-                    <FiBell size={18} />
-                  </IconTile>
-
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="h-10 w-10 rounded-xl flex items-center justify-center"
+                    style={{ 
+                      background: 'linear-gradient(135deg, rgba(245,158,11,0.2), rgba(249,115,22,0.1))',
+                      border: '1px solid rgba(245,158,11,0.3)',
+                    }}
+                  >
+                    <Bell size={18} weight="duotone" className="text-amber-400" />
+                  </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-theme-primary leading-tight">
+                    <h2 className="text-lg font-semibold text-theme-primary">
                       Smart Notifications
                     </h2>
-                    <p className="text-[11px] text-theme-muted">
+                    <p className="text-xs text-theme-muted">
                       {notifications.length} total
                     </p>
                   </div>
                 </div>
 
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
                   onClick={() => setShowNotifications(false)}
-                  className="transition active:scale-[0.98]"
-                  aria-label="Close notifications"
+                  className="h-9 w-9 rounded-xl flex items-center justify-center transition"
+                  style={{ 
+                    backgroundColor: 'rgba(244,63,94,0.1)',
+                    border: '1px solid rgba(244,63,94,0.2)',
+                  }}
                 >
-                  <IconTile tone="rose" size="sm">
-                    <FiX size={16} />
-                  </IconTile>
-                </button>
+                  <FiX size={16} className="text-rose-400" />
+                </motion.button>
               </div>
 
-              <div className="p-4 overflow-y-auto max-h-[60vh] space-y-2">
+              {/* Content */}
+              <div className="p-4 overflow-y-auto max-h-[55vh] space-y-2">
                 {notifications.length === 0 ? (
-                  <p className="text-center text-theme-muted py-8">No notifications</p>
+                  <div className="text-center py-12">
+                    <Bell size={40} weight="duotone" className="text-theme-muted mx-auto mb-3 opacity-50" />
+                    <p className="text-theme-muted">No notifications</p>
+                  </div>
                 ) : (
                   notifications.map((notif) => (
-                    <div
+                    <motion.div
                       key={notif.id}
-                      className="flex items-start gap-3 p-3 rounded-2xl border group"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex items-start gap-3 p-3 rounded-xl border group transition-all hover:border-amber-500/30"
                       style={{
-                        backgroundColor: "var(--bg-input)",
+                        backgroundColor: "var(--bg-tertiary)",
                         borderColor: "var(--border-secondary)",
                       }}
                     >
-                      <span className="text-xl mt-0.5">{notif.icon}</span>
+                      <NotificationIcon iconType={notif.iconType} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-theme-secondary">{notif.message}</p>
                         <p className="text-[11px] text-theme-muted mt-1">
@@ -656,7 +725,7 @@ export default function Dashboard() {
 
                       <div className="flex flex-col items-end gap-2">
                         <span
-                          className={`text-[9px] font-medium px-2 py-0.5 rounded-full ${
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg ${
                             notif.priority === "high"
                               ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
                               : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
@@ -672,11 +741,12 @@ export default function Dashboard() {
                           Dismiss
                         </button>
                       </div>
-                    </div>
+                    </motion.div>
                   ))
                 )}
               </div>
 
+              {/* Footer */}
               {notifications.length > 0 && (
                 <div
                   className="p-4 border-t"
@@ -687,7 +757,7 @@ export default function Dashboard() {
                       clearAllNotifications();
                       setShowNotifications(false);
                     }}
-                    className="w-full py-2.5 rounded-xl text-sm font-medium text-theme-muted hover:text-theme-primary transition"
+                    className="w-full py-3 rounded-xl text-sm font-medium text-theme-muted hover:text-theme-primary transition"
                     style={{ backgroundColor: "var(--bg-tertiary)" }}
                   >
                     Clear all notifications
@@ -699,7 +769,9 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* Weekly Digest Modal */}
+      {/* ═══════════════════════════════════════════════════════════
+          WEEKLY DIGEST MODAL - Improved Design
+      ═══════════════════════════════════════════════════════════ */}
       <AnimatePresence>
         {showDigest && digest && (
           <motion.div
@@ -708,29 +780,37 @@ export default function Dashboard() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[999] flex items-center justify-center p-4"
             style={{
-              backgroundColor: "rgba(0,0,0,0.6)",
+              backgroundColor: "rgba(0,0,0,0.7)",
               backdropFilter: "blur(8px)",
             }}
             onClick={() => setShowDigest(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border"
               style={{
                 backgroundColor: "var(--bg-surface)",
                 borderColor: "var(--border-secondary)",
+                boxShadow: "0 25px 50px rgba(0,0,0,0.4)",
               }}
             >
+              {/* Header */}
               <div className="p-5">
-                <div className="flex items-center justify-between mb-4">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
-                    <IconTile tone="purple" size="md">
-                      <FiTrendingUp size={18} />
-                    </IconTile>
-
+                    <div 
+                      className="h-11 w-11 rounded-xl flex items-center justify-center"
+                      style={{ 
+                        background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(99,102,241,0.1))',
+                        border: '1px solid rgba(139,92,246,0.3)',
+                      }}
+                    >
+                      <ChartLineUp size={22} weight="duotone" className="text-purple-400" />
+                    </div>
                     <div>
                       <h2 className="text-lg font-semibold text-theme-primary">Weekly Digest</h2>
                       <p className="text-xs text-theme-muted">
@@ -739,98 +819,118 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
                     onClick={() => setShowDigest(false)}
-                    className="transition active:scale-[0.98]"
-                    aria-label="Close digest"
+                    className="h-9 w-9 rounded-xl flex items-center justify-center transition"
+                    style={{ 
+                      backgroundColor: 'rgba(244,63,94,0.1)',
+                      border: '1px solid rgba(244,63,94,0.2)',
+                    }}
                   >
-                    <IconTile tone="rose" size="md">
-                      <FiX size={16} />
-                    </IconTile>
-                  </button>
+                    <FiX size={16} className="text-rose-400" />
+                  </motion.button>
                 </div>
 
+                {/* Main Stats Grid */}
                 <div className="grid grid-cols-2 gap-3 mb-5">
-                  <StatCard label="Notes Created" value={digest.stats.notesCreated} color="indigo" />
-                  <StatCard label="Docs Uploaded" value={digest.stats.docsUploaded} color="purple" />
-                  <StatCard label="Favorites" value={digest.stats.favoritedNotes} color="rose" />
-                  <StatCard label="Synthesized" value={digest.stats.synthesizedDocs} color="emerald" />
+                  <ModalStatCard 
+                    icon={<Note size={20} weight="duotone" />}
+                    value={digest.stats.notesCreated} 
+                    label="Notes Created" 
+                    color="indigo" 
+                  />
+                  <ModalStatCard 
+                    icon={<FileText size={20} weight="duotone" />}
+                    value={digest.stats.docsUploaded} 
+                    label="Docs Uploaded" 
+                    color="purple" 
+                  />
+                  <ModalStatCard 
+                    icon={<Star size={20} weight="fill" />}
+                    value={digest.stats.favoritedNotes} 
+                    label="Favorites" 
+                    color="rose" 
+                  />
+                  <ModalStatCard 
+                    icon={<Brain size={20} weight="duotone" />}
+                    value={digest.stats.synthesizedDocs} 
+                    label="Synthesized" 
+                    color="emerald" 
+                  />
                 </div>
 
+                {/* Insights Section */}
                 <div
-                  className="rounded-2xl p-4 mb-4 border"
+                  className="rounded-xl p-4 mb-4 border"
                   style={{
-                    backgroundColor: "var(--bg-input)",
+                    backgroundColor: "var(--bg-tertiary)",
                     borderColor: "var(--border-secondary)",
                   }}
                 >
-                  <h3 className="text-sm font-semibold text-theme-primary mb-3">Insights</h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-theme-muted">Most Active Day</span>
-                      <span className="text-xs text-theme-secondary font-medium">
-                        {digest.insights.mostActiveDay}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-theme-muted">Productivity Level</span>
-                      <span
-                        className={`text-xs font-medium ${
-                          digest.insights.productivity === "High"
-                            ? "text-emerald-400"
-                            : digest.insights.productivity === "Medium"
-                            ? "text-amber-400"
-                            : "text-theme-secondary"
-                        }`}
-                      >
-                        {digest.insights.productivity}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-theme-muted">Total Items</span>
-                      <span className="text-xs text-theme-secondary font-medium">
-                        {digest.stats.totalItems}
-                      </span>
-                    </div>
+                  <h3 className="text-sm font-semibold text-theme-primary mb-3 flex items-center gap-2">
+                    <Target size={16} weight="duotone" className="text-purple-400" />
+                    Insights
+                  </h3>
+                  <div className="space-y-3">
+                    <InsightRow label="Most Active Day" value={digest.insights.mostActiveDay} />
+                    <InsightRow 
+                      label="Productivity Level" 
+                      value={digest.insights.productivity}
+                      valueColor={
+                        digest.insights.productivity === "High" ? "text-emerald-400" :
+                        digest.insights.productivity === "Medium" ? "text-amber-400" : "text-theme-secondary"
+                      }
+                    />
+                    <InsightRow label="Total Items" value={digest.stats.totalItems} />
                   </div>
                 </div>
 
+                {/* Top Tags */}
                 {digest.insights.topTags.length > 0 && (
                   <div
-                    className="rounded-2xl p-4 mb-4 border"
+                    className="rounded-xl p-4 mb-4 border"
                     style={{
-                      backgroundColor: "var(--bg-input)",
+                      backgroundColor: "var(--bg-tertiary)",
                       borderColor: "var(--border-secondary)",
                     }}
                   >
-                    <h3 className="text-sm font-semibold text-theme-primary mb-3">Top Tags</h3>
+                    <h3 className="text-sm font-semibold text-theme-primary mb-3 flex items-center gap-2">
+                      <FiFileText size={16} className="text-indigo-400" />
+                      Top Tags
+                    </h3>
                     <div className="flex flex-wrap gap-2">
                       {digest.insights.topTags.map((tag, i) => (
                         <span
                           key={i}
-                          className="text-xs px-3 py-1.5 rounded-full border"
+                          className="text-xs px-3 py-1.5 rounded-lg border"
                           style={{
-                            backgroundColor: "var(--bg-tertiary)",
+                            backgroundColor: "var(--bg-input)",
                             borderColor: "var(--border-secondary)",
                           }}
                         >
                           <span className="text-theme-secondary">{tag.tag}</span>
-                          <span className="text-theme-muted ml-1">({tag.count})</span>
+                          <span className="text-theme-muted ml-1.5">({tag.count})</span>
                         </span>
                       ))}
                     </div>
                   </div>
                 )}
 
+                {/* Highlights */}
                 {digest.highlights.length > 0 && (
                   <div
-                    className="rounded-2xl p-4 border"
+                    className="rounded-xl p-4 mb-5 border"
                     style={{
-                      backgroundColor: "var(--bg-input)",
+                      backgroundColor: "var(--bg-tertiary)",
                       borderColor: "var(--border-secondary)",
                     }}
                   >
-                    <h3 className="text-sm font-semibold text-theme-primary mb-3">⭐ Highlights</h3>
+                    <h3 className="text-sm font-semibold text-theme-primary mb-3 flex items-center gap-2">
+                      <Star size={16} weight="fill" className="text-amber-400" />
+                      Highlights
+                    </h3>
                     <div className="space-y-2">
                       {digest.highlights.map((h) => (
                         <div key={h.id} className="flex items-center gap-2 text-sm text-theme-secondary">
@@ -842,12 +942,19 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                <button
+                {/* Close Button */}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => setShowDigest(false)}
-                  className="w-full mt-5 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-medium text-sm transition hover:opacity-90"
+                  className="w-full py-3.5 rounded-xl text-white font-medium text-sm"
+                  style={{ 
+                    background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                    boxShadow: '0 4px 15px rgba(139, 92, 246, 0.3)',
+                  }}
                 >
                   Close Digest
-                </button>
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>
@@ -857,85 +964,126 @@ export default function Dashboard() {
   );
 }
 
-/* -----------------------------------------
-   Stat Card for Digest
------------------------------------------ */
-const StatCard = ({ label, value, color }) => {
+/* ═══════════════════════════════════════════════════════════
+   HELPER COMPONENTS
+═══════════════════════════════════════════════════════════ */
+
+/* Quick Stat - Improved with icon */
+const QuickStat = ({ icon, label, value, suffix, color }) => {
   const colorMap = {
-    indigo: "text-indigo-400",
-    purple: "text-purple-400",
-    rose: "text-rose-400",
-    emerald: "text-emerald-400",
+    indigo: { text: "text-indigo-400", bg: "rgba(99,102,241,0.1)", border: "rgba(99,102,241,0.2)" },
+    amber: { text: "text-amber-400", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.2)" },
+    emerald: { text: "text-emerald-400", bg: "rgba(16,185,129,0.1)", border: "rgba(16,185,129,0.2)" },
   };
+  const c = colorMap[color] || colorMap.indigo;
 
   return (
     <div
-      className="p-4 rounded-2xl border text-center"
+      className="rounded-xl px-3 py-3 border"
       style={{
-        backgroundColor: "var(--bg-input)",
+        backgroundColor: "var(--bg-tertiary)",
         borderColor: "var(--border-secondary)",
       }}
     >
-      <p className={`text-2xl font-bold ${colorMap[color]}`}>{value}</p>
-      <p className="text-[11px] text-theme-muted mt-1">{label}</p>
-    </div>
-  );
-};
-
-/* -----------------------------------------
-   Quick Stat
------------------------------------------ */
-const QuickStat = ({ label, value, suffix, highlight }) => {
-  const valueColor =
-    highlight === "indigo"
-      ? "text-indigo-400"
-      : highlight === "emerald"
-      ? "text-emerald-400"
-      : "text-theme-primary";
-
-  return (
-    <div
-      className="flex-1 rounded-2xl px-3 py-2.5 border"
-      style={{
-        backgroundColor: "var(--bg-elevated)",
-        borderColor: "var(--border-secondary)",
-      }}
-    >
-      <p className="text-[10px] text-theme-muted uppercase tracking-wide">{label}</p>
-      <p className={`text-lg font-semibold ${valueColor}`}>
-        {value} <span className="text-sm font-normal text-theme-tertiary">{suffix}</span>
+      <div className="flex items-center gap-2 mb-1">
+        <span className={c.text}>{icon}</span>
+        <p className="text-[10px] text-theme-muted uppercase tracking-wide">{label}</p>
+      </div>
+      <p className={`text-xl font-bold ${c.text}`}>
+        {value} <span className="text-sm font-normal text-theme-muted">{suffix}</span>
       </p>
     </div>
   );
 };
 
-/* -----------------------------------------
-   Quick Action Button - Updated with description and PRO badge
------------------------------------------ */
+/* Digest Stat Card - For the banner */
+const DigestStatCard = ({ icon, value, label, color, isText = false }) => {
+  const colorMap = {
+    indigo: "text-indigo-400",
+    purple: "text-purple-400",
+    emerald: "text-emerald-400",
+    rose: "text-rose-400",
+  };
+
+  return (
+    <div
+      className="p-3 rounded-xl border text-center"
+      style={{
+        backgroundColor: "var(--bg-tertiary)",
+        borderColor: "var(--border-secondary)",
+      }}
+    >
+      <div className={`${colorMap[color]} mb-1 flex justify-center`}>{icon}</div>
+      <p className={`${isText ? 'text-base' : 'text-xl'} font-bold ${colorMap[color]}`}>{value}</p>
+      <p className="text-[10px] text-theme-muted">{label}</p>
+    </div>
+  );
+};
+
+/* Modal Stat Card - For the digest modal */
+const ModalStatCard = ({ icon, value, label, color }) => {
+  const colorMap = {
+    indigo: { text: "text-indigo-400", bg: "rgba(99,102,241,0.1)", border: "rgba(99,102,241,0.2)" },
+    purple: { text: "text-purple-400", bg: "rgba(139,92,246,0.1)", border: "rgba(139,92,246,0.2)" },
+    rose: { text: "text-rose-400", bg: "rgba(244,63,94,0.1)", border: "rgba(244,63,94,0.2)" },
+    emerald: { text: "text-emerald-400", bg: "rgba(16,185,129,0.1)", border: "rgba(16,185,129,0.2)" },
+  };
+  const c = colorMap[color] || colorMap.indigo;
+
+  return (
+    <div
+      className="p-4 rounded-xl border text-center"
+      style={{
+        backgroundColor: "var(--bg-tertiary)",
+        borderColor: "var(--border-secondary)",
+      }}
+    >
+      <div 
+        className={`${c.text} w-10 h-10 rounded-xl mx-auto mb-2 flex items-center justify-center`}
+        style={{ backgroundColor: c.bg, border: `1px solid ${c.border}` }}
+      >
+        {icon}
+      </div>
+      <p className={`text-2xl font-bold ${c.text}`}>{value}</p>
+      <p className="text-[11px] text-theme-muted mt-1">{label}</p>
+    </div>
+  );
+};
+
+/* Insight Row */
+const InsightRow = ({ label, value, valueColor = "text-theme-secondary" }) => (
+  <div className="flex items-center justify-between">
+    <span className="text-xs text-theme-muted">{label}</span>
+    <span className={`text-xs font-medium ${valueColor}`}>{value}</span>
+  </div>
+);
+
+/* Quick Action Button */
 const QuickAction = ({ icon, label, desc, onClick, color = "indigo", pro = false }) => {
   const colorMap = {
-    indigo: { bg: "from-indigo-500/10 to-indigo-600/5", icon: "text-indigo-400", border: "rgba(99,102,241,0.22)" },
-    purple: { bg: "from-purple-500/10 to-purple-600/5", icon: "text-purple-400", border: "rgba(168,85,247,0.22)" },
-    pink: { bg: "from-pink-500/10 to-pink-600/5", icon: "text-pink-400", border: "rgba(236,72,153,0.22)" },
-    emerald: { bg: "from-emerald-500/10 to-emerald-600/5", icon: "text-emerald-400", border: "rgba(16,185,129,0.22)" },
-    amber: { bg: "from-amber-500/10 to-amber-600/5", icon: "text-amber-400", border: "rgba(245,158,11,0.22)" },
-    cyan: { bg: "from-cyan-500/10 to-cyan-600/5", icon: "text-cyan-400", border: "rgba(6,182,212,0.22)" },
+    indigo: { bg: "from-indigo-500/10 to-indigo-600/5", icon: "text-indigo-400", border: "rgba(99,102,241,0.2)" },
+    purple: { bg: "from-purple-500/10 to-purple-600/5", icon: "text-purple-400", border: "rgba(168,85,247,0.2)" },
+    pink: { bg: "from-pink-500/10 to-pink-600/5", icon: "text-pink-400", border: "rgba(236,72,153,0.2)" },
+    emerald: { bg: "from-emerald-500/10 to-emerald-600/5", icon: "text-emerald-400", border: "rgba(16,185,129,0.2)" },
+    amber: { bg: "from-amber-500/10 to-amber-600/5", icon: "text-amber-400", border: "rgba(245,158,11,0.2)" },
+    cyan: { bg: "from-cyan-500/10 to-cyan-600/5", icon: "text-cyan-400", border: "rgba(6,182,212,0.2)" },
   };
   const c = colorMap[color] ?? colorMap.indigo;
 
   return (
-    <button
+    <motion.button
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className={`relative flex flex-col items-center justify-center gap-2 py-5 rounded-2xl bg-gradient-to-br ${c.bg} border transition-all active:scale-[0.98]`}
+      className={`relative flex flex-col items-center justify-center gap-2 py-5 rounded-xl bg-gradient-to-br ${c.bg} border transition-all`}
       style={{ borderColor: "var(--border-secondary)" }}
     >
-      {/* PRO Badge */}
       {pro && (
         <span 
-          className="absolute top-2 right-2 text-[9px] px-1.5 py-0.5 rounded-md font-medium"
+          className="absolute top-2 right-2 text-[9px] px-1.5 py-0.5 rounded-md font-semibold"
           style={{
             backgroundColor: "rgba(245, 158, 11, 0.15)",
-            color: "var(--accent-amber)",
+            color: "#f59e0b",
             border: "1px solid rgba(245, 158, 11, 0.25)",
           }}
         >
@@ -944,7 +1092,7 @@ const QuickAction = ({ icon, label, desc, onClick, color = "indigo", pro = false
       )}
 
       <div
-        className="h-12 w-12 rounded-[18px] border flex items-center justify-center shadow-[0_10px_28px_rgba(0,0,0,0.25)]"
+        className="h-12 w-12 rounded-xl border flex items-center justify-center"
         style={{
           backgroundColor: "var(--bg-tertiary)",
           borderColor: c.border,
@@ -956,54 +1104,44 @@ const QuickAction = ({ icon, label, desc, onClick, color = "indigo", pro = false
         <span className="text-sm font-medium text-theme-secondary block">{label}</span>
         {desc && <span className="text-[10px] text-theme-muted">{desc}</span>}
       </div>
-    </button>
+    </motion.button>
   );
 };
 
-/* -----------------------------------------
-   Status Tag
------------------------------------------ */
+/* Status Tag */
 const StatusTag = ({ children, type = "success" }) => {
   const typeStyles = {
-    success: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25",
-    warning: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25",
-    error: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25",
-    info: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/25",
+    success: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+    warning: "bg-amber-500/15 text-amber-400 border-amber-500/25",
+    error: "bg-rose-500/15 text-rose-400 border-rose-500/25",
+    info: "bg-indigo-500/15 text-indigo-400 border-indigo-500/25",
   };
 
   return (
-    <span className={`text-[9px] font-medium px-2 py-0.5 rounded-full border ${typeStyles[type]}`}>
+    <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-md border ${typeStyles[type]}`}>
       {children}
     </span>
   );
 };
 
-/* -----------------------------------------
-   Document Row
------------------------------------------ */
+/* Document Row */
 const DocumentRow = ({ doc, onClick }) => (
-  <button
+  <motion.button
+    whileHover={{ scale: 1.01 }}
+    whileTap={{ scale: 0.99 }}
     onClick={onClick}
-    className="group w-full text-left px-4 py-3 rounded-2xl border transition-all flex items-center justify-between active:scale-[0.995]"
+    className="group w-full text-left px-4 py-3 rounded-xl border transition-all flex items-center justify-between"
     style={{
-      backgroundColor: "var(--bg-input)",
-      borderColor: "var(--border-primary)",
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.backgroundColor = "var(--bg-card-hover)";
-      e.currentTarget.style.borderColor = "rgba(168, 85, 247, 0.3)";
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.backgroundColor = "var(--bg-input)";
-      e.currentTarget.style.borderColor = "var(--border-primary)";
+      backgroundColor: "var(--bg-tertiary)",
+      borderColor: "var(--border-secondary)",
     }}
   >
     <div className="flex items-center gap-3">
       <div
-        className="h-11 w-11 rounded-[18px] border flex items-center justify-center shadow-[0_10px_28px_rgba(0,0,0,0.25)]"
+        className="h-10 w-10 rounded-xl border flex items-center justify-center"
         style={{
-          backgroundColor: "var(--bg-tertiary)",
-          borderColor: "var(--border-secondary)",
+          backgroundColor: "rgba(168,85,247,0.1)",
+          borderColor: "rgba(168,85,247,0.2)",
         }}
       >
         <FiFileText className="text-purple-400" size={16} />
@@ -1016,53 +1154,44 @@ const DocumentRow = ({ doc, onClick }) => (
     </div>
 
     <span
-      className="text-[10px] text-theme-tertiary px-2 py-0.5 rounded-full border"
+      className="text-[10px] text-theme-muted px-2 py-1 rounded-lg border"
       style={{
-        backgroundColor: "var(--bg-tertiary)",
+        backgroundColor: "var(--bg-input)",
         borderColor: "var(--border-secondary)",
       }}
     >
       {doc.type}
     </span>
-  </button>
+  </motion.button>
 );
 
-/* -----------------------------------------
-   Tool Button
------------------------------------------ */
+/* Tool Button */
 const ToolButton = ({ icon, label, desc, onClick, tone = "indigo" }) => {
   const toneMap = {
-    indigo: "text-indigo-400",
-    purple: "text-purple-400",
-    pink: "text-pink-400",
-    emerald: "text-emerald-400",
+    indigo: { text: "text-indigo-400", bg: "rgba(99,102,241,0.1)", border: "rgba(99,102,241,0.2)" },
+    purple: { text: "text-purple-400", bg: "rgba(168,85,247,0.1)", border: "rgba(168,85,247,0.2)" },
+    pink: { text: "text-pink-400", bg: "rgba(236,72,153,0.1)", border: "rgba(236,72,153,0.2)" },
+    emerald: { text: "text-emerald-400", bg: "rgba(16,185,129,0.1)", border: "rgba(16,185,129,0.2)" },
   };
+  const t = toneMap[tone] || toneMap.indigo;
 
   return (
-    <button
+    <motion.button
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
       onClick={onClick}
-      className="group w-full flex items-center justify-between px-4 py-3 rounded-2xl border transition-all active:scale-[0.995]"
+      className="group w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all"
       style={{
-        backgroundColor: "var(--bg-input)",
-        borderColor: "var(--border-primary)",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = "var(--bg-card-hover)";
-        e.currentTarget.style.borderColor = "rgba(99, 102, 241, 0.3)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = "var(--bg-input)";
-        e.currentTarget.style.borderColor = "var(--border-primary)";
+        backgroundColor: "var(--bg-tertiary)",
+        borderColor: "var(--border-secondary)",
       }}
     >
       <div className="flex items-center gap-3">
         <div
-          className={`h-11 w-11 rounded-[18px] border flex items-center justify-center shadow-[0_10px_28px_rgba(0,0,0,0.25)] ${
-            toneMap[tone] ?? "text-indigo-400"
-          }`}
+          className={`h-10 w-10 rounded-xl border flex items-center justify-center ${t.text}`}
           style={{
-            backgroundColor: "var(--bg-tertiary)",
-            borderColor: "var(--border-secondary)",
+            backgroundColor: t.bg,
+            borderColor: t.border,
           }}
         >
           {icon}
@@ -1075,7 +1204,6 @@ const ToolButton = ({ icon, label, desc, onClick, tone = "indigo" }) => {
       </div>
 
       <FiChevronRight className="text-theme-muted group-hover:text-indigo-400 transition" size={16} />
-    </button>
+    </motion.button>
   );
 };
-
