@@ -322,47 +322,42 @@ export default function Hero() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {features.map((f, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-                whileHover={{ y: -5, transition: { duration: 0.2 } }}
-                className="group rounded-2xl p-6 transition-all duration-300 border text-left"
-                style={{ 
-                  backgroundColor: 'rgba(var(--bg-surface-rgb), 0.5)',
-                  backdropFilter: 'blur(10px)',
-                  borderColor: 'var(--border-secondary)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)';
-                  e.currentTarget.style.boxShadow = '0 10px 40px rgba(99, 102, 241, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--border-secondary)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
-                <div 
-                  className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110"
-                  style={{ 
-                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                    color: 'var(--accent-indigo)',
-                  }}
-                >
-                  {f.icon}
-                </div>
-                <h3 
-                  className="text-lg font-semibold mb-2 transition-colors" 
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  {f.title}
-                </h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                  {f.desc}
-                </p>
-              </motion.div>
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-50px" }}
+            transition={{ delay: i * 0.1, duration: 0.5 }}
+            whileHover={{ y: -5, transition: { duration: 0.2 } }}
+            className="group rounded-2xl p-6 transition-all duration-300 text-center flex flex-col items-center"
+          >
+            {/* Icon */}
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110 mx-auto"
+              style={{
+                backgroundColor: "rgba(99, 102, 241, 0.1)",
+                color: "var(--accent-indigo)",
+              }}
+            >
+              {f.icon}
+            </div>
+
+            {/* Title */}
+            <h3
+              className="text-lg font-semibold mb-2"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {f.title}
+            </h3>
+
+            {/* Description */}
+            <p
+              className="text-sm leading-relaxed max-w-[28ch]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {f.desc}
+            </p>
+          </motion.div>
             ))}
           </div>
         </motion.div>
