@@ -1,4 +1,3 @@
-
 // src/pages/Dashboard.jsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -25,6 +24,10 @@ import {
   Note,
   Bell,
   CalendarBlank,
+  Activity,
+  Plugs,
+  BezierCurve,
+  Crown,
 } from "phosphor-react";
 import GlassCard from "../components/GlassCard";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
@@ -40,7 +43,7 @@ const getGreeting = () => {
 };
 
 /* -----------------------------------------
-   Sample Data (would come from props/context in real app)
+   Sample Data
 ----------------------------------------- */
 const sampleNotes = [
   {
@@ -67,14 +70,6 @@ const sampleNotes = [
     favorite: true,
     tag: "Study",
   },
-  {
-    id: 4,
-    title: "Client Call Prep",
-    body: "Remember to follow up on proposal. Due date: next Monday",
-    updated: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    favorite: false,
-    tag: "Work",
-  },
 ];
 
 const recentDocs = [
@@ -84,8 +79,7 @@ const recentDocs = [
 ];
 
 /* -----------------------------------------
-   Small UI Helpers (SQUIRCLE ICON TILE)
-   Matches screenshot: rounded-square tile, NOT round.
+   Icon Tile Component
 ----------------------------------------- */
 const IconTile = ({ children, tone = "indigo", size = "md" }) => {
   const sizes = {
@@ -94,7 +88,6 @@ const IconTile = ({ children, tone = "indigo", size = "md" }) => {
     lg: "h-12 w-12",
   };
 
-  // Slightly tighter rounding like screenshot
   const rounding = "rounded-[18px]";
 
   const toneMap = {
@@ -127,6 +120,11 @@ const IconTile = ({ children, tone = "indigo", size = "md" }) => {
       bg: "rgba(236,72,153,0.12)",
       border: "rgba(236,72,153,0.22)",
       text: "text-pink-400",
+    },
+    cyan: {
+      bg: "rgba(6,182,212,0.12)",
+      border: "rgba(6,182,212,0.22)",
+      text: "text-cyan-400",
     },
   };
 
@@ -200,7 +198,6 @@ export default function Dashboard() {
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            {/* SQUIRCLE icon tile like screenshot */}
             <IconTile tone="indigo" size="md">
               <House size={20} weight="duotone" />
             </IconTile>
@@ -261,7 +258,7 @@ export default function Dashboard() {
                       Smart Notifications
                     </h3>
                     <p className="text-xs text-theme-muted">
-                      {notifications.length} item{notifications.length !== 1 ? "s" : ""} detected in your notes
+                      {notifications.length} item{notifications.length !== 1 ? "s" : ""} detected
                     </p>
                   </div>
                 </div>
@@ -393,7 +390,7 @@ export default function Dashboard() {
         </button>
       </motion.div>
 
-      {/* Quick Actions */}
+      {/* Quick Access - Pages not in mobile nav */}
       <motion.div
         variants={fadeSlide}
         initial="hidden"
@@ -401,31 +398,36 @@ export default function Dashboard() {
         transition={{ duration: 0.45, delay: 0.15 }}
       >
         <h3 className="text-sm font-semibold text-theme-secondary mb-3 px-1">
-          Quick Actions
+          Quick Access
         </h3>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <QuickAction
-            icon={<Note size={22} weight="duotone" />}
-            label="My Notes"
-            onClick={() => navigate("/dashboard/notes")}
-            color="indigo"
+            icon={<Activity size={22} weight="duotone" />}
+            label="Activity"
+            desc="View your history"
+            onClick={() => navigate("/dashboard/activity")}
+            color="cyan"
           />
           <QuickAction
-            icon={<MagnifyingGlass size={22} weight="duotone" />}
-            label="Insights"
-            onClick={() => navigate("/dashboard/summaries")}
+            icon={<Plugs size={22} weight="duotone" />}
+            label="Integrations"
+            desc="Connect your apps"
+            onClick={() => navigate("/dashboard/integrations")}
             color="purple"
           />
           <QuickAction
-            icon={<Brain size={22} weight="duotone" />}
-            label="Research"
-            onClick={() => navigate("/dashboard/documents")}
-            color="pink"
+            icon={<BezierCurve size={22} weight="duotone" />}
+            label="AI Lab"
+            desc="Advanced AI tools"
+            onClick={() => navigate("/dashboard/ai-lab")}
+            color="amber"
+            pro={true}
           />
           <QuickAction
             icon={<FiUploadCloud size={20} />}
             label="Upload"
+            desc="Add documents"
             onClick={() => navigate("/dashboard/documents")}
             color="emerald"
           />
@@ -886,7 +888,7 @@ const StatCard = ({ label, value, color }) => {
 };
 
 /* -----------------------------------------
-   Quick Stat - Theme Aware
+   Quick Stat
 ----------------------------------------- */
 const QuickStat = ({ label, value, suffix, highlight }) => {
   const valueColor =
@@ -913,39 +915,58 @@ const QuickStat = ({ label, value, suffix, highlight }) => {
 };
 
 /* -----------------------------------------
-   Quick Action Button (UPDATED: SQUIRCLE ICON TILE)
+   Quick Action Button - Updated with description and PRO badge
 ----------------------------------------- */
-const QuickAction = ({ icon, label, onClick, color = "indigo" }) => {
+const QuickAction = ({ icon, label, desc, onClick, color = "indigo", pro = false }) => {
   const colorMap = {
-    indigo: { bg: "from-indigo-500/10 to-indigo-600/5", icon: "text-indigo-400" },
-    purple: { bg: "from-purple-500/10 to-purple-600/5", icon: "text-purple-400" },
-    pink: { bg: "from-pink-500/10 to-pink-600/5", icon: "text-pink-400" },
-    emerald: { bg: "from-emerald-500/10 to-emerald-600/5", icon: "text-emerald-400" },
+    indigo: { bg: "from-indigo-500/10 to-indigo-600/5", icon: "text-indigo-400", border: "rgba(99,102,241,0.22)" },
+    purple: { bg: "from-purple-500/10 to-purple-600/5", icon: "text-purple-400", border: "rgba(168,85,247,0.22)" },
+    pink: { bg: "from-pink-500/10 to-pink-600/5", icon: "text-pink-400", border: "rgba(236,72,153,0.22)" },
+    emerald: { bg: "from-emerald-500/10 to-emerald-600/5", icon: "text-emerald-400", border: "rgba(16,185,129,0.22)" },
+    amber: { bg: "from-amber-500/10 to-amber-600/5", icon: "text-amber-400", border: "rgba(245,158,11,0.22)" },
+    cyan: { bg: "from-cyan-500/10 to-cyan-600/5", icon: "text-cyan-400", border: "rgba(6,182,212,0.22)" },
   };
   const c = colorMap[color] ?? colorMap.indigo;
 
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-br ${c.bg} border transition-all active:scale-[0.98]`}
+      className={`relative flex flex-col items-center justify-center gap-2 py-5 rounded-2xl bg-gradient-to-br ${c.bg} border transition-all active:scale-[0.98]`}
       style={{ borderColor: "var(--border-secondary)" }}
     >
+      {/* PRO Badge */}
+      {pro && (
+        <span 
+          className="absolute top-2 right-2 text-[9px] px-1.5 py-0.5 rounded-md font-medium"
+          style={{
+            backgroundColor: "rgba(245, 158, 11, 0.15)",
+            color: "var(--accent-amber)",
+            border: "1px solid rgba(245, 158, 11, 0.25)",
+          }}
+        >
+          PRO
+        </span>
+      )}
+
       <div
         className="h-12 w-12 rounded-[18px] border flex items-center justify-center shadow-[0_10px_28px_rgba(0,0,0,0.25)]"
         style={{
           backgroundColor: "var(--bg-tertiary)",
-          borderColor: "var(--border-secondary)",
+          borderColor: c.border,
         }}
       >
         <span className={c.icon}>{icon}</span>
       </div>
-      <span className="text-xs text-theme-secondary">{label}</span>
+      <div className="text-center">
+        <span className="text-sm font-medium text-theme-secondary block">{label}</span>
+        {desc && <span className="text-[10px] text-theme-muted">{desc}</span>}
+      </div>
     </button>
   );
 };
 
 /* -----------------------------------------
-   Status Tag - Theme Aware
+   Status Tag
 ----------------------------------------- */
 const StatusTag = ({ children, type = "success" }) => {
   const typeStyles = {
@@ -963,7 +984,7 @@ const StatusTag = ({ children, type = "success" }) => {
 };
 
 /* -----------------------------------------
-   Document Row (UPDATED: SQUIRCLE ICON TILE)
+   Document Row
 ----------------------------------------- */
 const DocumentRow = ({ doc, onClick }) => (
   <button
@@ -1012,7 +1033,7 @@ const DocumentRow = ({ doc, onClick }) => (
 );
 
 /* -----------------------------------------
-   Tool Button (UPDATED: SQUIRCLE ICON TILE)
+   Tool Button
 ----------------------------------------- */
 const ToolButton = ({ icon, label, desc, onClick, tone = "indigo" }) => {
   const toneMap = {
@@ -1062,5 +1083,4 @@ const ToolButton = ({ icon, label, desc, onClick, tone = "indigo" }) => {
     </button>
   );
 };
-
 

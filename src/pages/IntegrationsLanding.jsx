@@ -16,7 +16,55 @@ import {
   FiExternalLink,
   FiGithub,
 } from "react-icons/fi";
-import { Lightning, CheckCircle, Clock, Bell, Plugs, BookOpen, Gear } from "phosphor-react";
+import {
+  Lightning,
+  CheckCircle,
+  Clock,
+  Bell,
+  Plugs,
+  BookOpen,
+  Gear,
+} from "phosphor-react";
+
+// Dashboard-style palette (matches your IntegrationConnect colorMap)
+const colorMap = {
+  blue: {
+    bg: "bg-blue-500",
+    light: "bg-blue-500/20",
+    text: "text-blue-500",
+    ring: "ring-blue-500/20",
+  },
+  purple: {
+    bg: "bg-purple-500",
+    light: "bg-purple-500/20",
+    text: "text-purple-500",
+    ring: "ring-purple-500/20",
+  },
+  slate: {
+    bg: "bg-slate-600",
+    light: "bg-slate-500/20",
+    text: "text-slate-300",
+    ring: "ring-slate-500/20",
+  },
+  orange: {
+    bg: "bg-orange-500",
+    light: "bg-orange-500/20",
+    text: "text-orange-500",
+    ring: "ring-orange-500/20",
+  },
+  gray: {
+    bg: "bg-gray-600",
+    light: "bg-gray-500/20",
+    text: "text-gray-300",
+    ring: "ring-gray-500/20",
+  },
+  rose: {
+    bg: "bg-rose-500",
+    light: "bg-rose-500/20",
+    text: "text-rose-500",
+    ring: "ring-rose-500/20",
+  },
+};
 
 export default function IntegrationsLanding() {
   const navigate = useNavigate();
@@ -31,42 +79,42 @@ export default function IntegrationsLanding() {
       {
         name: "Google Drive",
         icon: <FiCloud size={26} />,
-        color: "#4285F4",
+        colorKey: "blue",
         desc: "Sync docs, sheets, and slides directly to NoteStream",
         status: "Available",
       },
       {
         name: "Slack",
         icon: <FiLink2 size={26} />,
-        color: "#4A154B",
+        colorKey: "purple",
         desc: "Turn Slack conversations into organized notes",
         status: "Available",
       },
       {
         name: "Notion",
         icon: <FiBookOpen size={26} />,
-        color: "#FFFFFF",
+        colorKey: "slate",
         desc: "Import and sync your Notion workspace",
         status: "Available",
       },
       {
         name: "Dropbox",
         icon: <FiCloud size={26} />,
-        color: "#0061FF",
+        colorKey: "blue",
         desc: "Access your Dropbox files seamlessly",
         status: "Coming Soon",
       },
       {
         name: "Trello",
         icon: <FiSettings size={26} />,
-        color: "#0052CC",
+        colorKey: "blue",
         desc: "Connect boards and cards to your notes",
         status: "Coming Soon",
       },
       {
         name: "GitHub",
         icon: <FiGithub size={26} />,
-        color: "#FFFFFF",
+        colorKey: "gray",
         desc: "Link repositories and track project notes",
         status: "Coming Soon",
       },
@@ -95,42 +143,13 @@ export default function IntegrationsLanding() {
     []
   );
 
-  // Helper styles to make icons more visible
-  const iconShellStyle = (color) => ({
-    background:
-      `radial-gradient(circle at 30% 30%, ${color}40 0%, ${color}18 45%, rgba(255,255,255,0.04) 100%)`,
-    border: "1px solid rgba(255,255,255,0.08)",
-    boxShadow: `0 10px 30px ${color}22, inset 0 1px 0 rgba(255,255,255,0.08)`,
-    color: "#FFFFFF",
-  });
-
-  const iconInnerStyle = (color) => ({
-    color,
-    filter: "drop-shadow(0 8px 14px rgba(0,0,0,0.45)) drop-shadow(0 0 10px rgba(255,255,255,0.06))",
-    opacity: 1,
-  });
-
   return (
     <div style={{ backgroundColor: "var(--bg-primary)" }}>
       {/* Hero */}
       <section className="relative py-24 md:py-32 px-6 overflow-hidden">
-        {/* Background glows */}
-        <div
-          className="absolute top-[10%] left-[10%] w-[300px] h-[300px] rounded-full pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(99, 102, 241, 0.12), transparent 70%)",
-            filter: "blur(60px)",
-          }}
-        />
-        <div
-          className="absolute bottom-[20%] right-[5%] w-[250px] h-[250px] rounded-full pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(168, 85, 247, 0.1), transparent 70%)",
-            filter: "blur(60px)",
-          }}
-        />
+        {/* Background glows (dashboard theme) */}
+        <div className="absolute top-[10%] left-[10%] w-[300px] h-[300px] rounded-full pointer-events-none bg-indigo-500/10 blur-[60px]" />
+        <div className="absolute bottom-[20%] right-[5%] w-[250px] h-[250px] rounded-full pointer-events-none bg-purple-500/10 blur-[60px]" />
 
         <div className="relative z-10 max-w-4xl mx-auto text-center">
           <motion.div
@@ -139,22 +158,9 @@ export default function IntegrationsLanding() {
             transition={{ duration: 0.55 }}
           >
             {/* Badge */}
-            <div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6 border"
-              style={{
-                backgroundColor: "rgba(99, 102, 241, 0.1)",
-                borderColor: "rgba(99, 102, 241, 0.2)",
-              }}
-            >
-              <Lightning
-                size={16}
-                weight="fill"
-                style={{ color: "var(--accent-indigo)" }}
-              />
-              <span
-                className="text-sm font-medium"
-                style={{ color: "var(--accent-indigo)" }}
-              >
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6 border border-indigo-500/20 bg-indigo-500/10">
+              <Lightning size={16} weight="fill" className="text-indigo-500" />
+              <span className="text-sm font-medium text-indigo-500">
                 Seamless Connections
               </span>
             </div>
@@ -164,9 +170,7 @@ export default function IntegrationsLanding() {
               style={{ color: "var(--text-primary)" }}
             >
               Connect your{" "}
-              <span style={{ color: "var(--accent-indigo)" }}>
-                favorite tools
-              </span>
+              <span className="text-indigo-400">favorite tools</span>
             </h1>
 
             <p
@@ -181,19 +185,15 @@ export default function IntegrationsLanding() {
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <button
                 onClick={() => navigate("/signup")}
-                className="px-8 py-3.5 rounded-full font-semibold text-lg text-white transition-all duration-300 hover:scale-[1.02]"
-                style={{
-                  background:
-                    "linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))",
-                  boxShadow: "0 4px 20px rgba(99, 102, 241, 0.35)",
-                }}
+                className="px-8 py-3.5 rounded-full font-semibold text-lg text-white transition-all duration-300 hover:scale-[1.02]
+                           bg-gradient-to-r from-indigo-500 to-purple-500 shadow-[0_4px_20px_rgba(99,102,241,0.35)]"
               >
                 Get Started Free
               </button>
 
               <button
                 onClick={() => navigate("/how-it-works")}
-                className="px-8 py-3.5 rounded-full font-semibold text-lg transition-all duration-300 border"
+                className="px-8 py-3.5 rounded-full font-semibold text-lg transition-all duration-300 border hover:bg-white/5"
                 style={{
                   color: "var(--text-secondary)",
                   borderColor: "var(--border-secondary)",
@@ -235,76 +235,78 @@ export default function IntegrationsLanding() {
               className="text-lg max-w-xl mx-auto"
               style={{ color: "var(--text-muted)" }}
             >
-              Connect with popular tools and platforms to streamline your workflow
+              Connect with popular tools and platforms to streamline your
+              workflow
             </p>
           </motion.div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {integrations.map((integration, i) => (
-              <motion.div
-                key={integration.name}
-                initial={{ opacity: 0, y: 16 }}
-                animate={inView ? { opacity: 1, y: 0 } : {}}
-                transition={{ duration: 0.45, delay: 0.08 * i }}
-              >
-                <GlassCard className="relative rounded-2xl p-6 border transition-all duration-300">
-                  {/* Status badge */}
-                  <div
-                    className="absolute top-4 right-4 px-2 py-1 rounded-md text-[10px] font-medium"
-                    style={{
-                      backgroundColor:
-                        integration.status === "Available"
-                          ? "rgba(16, 185, 129, 0.15)"
-                          : "rgba(245, 158, 11, 0.15)",
-                      color:
-                        integration.status === "Available"
-                          ? "var(--accent-emerald)"
-                          : "var(--accent-amber)",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                    }}
-                  >
-                    {integration.status}
-                  </div>
+            {integrations.map((integration, i) => {
+              const c = colorMap[integration.colorKey] || colorMap.blue;
 
-                  {/* Icon (more visible) */}
-                  <div
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-                    style={iconShellStyle(integration.color)}
-                  >
-                    <div style={iconInnerStyle(integration.color)}>
-                      {integration.icon}
-                    </div>
-                  </div>
-
-                  <h3
-                    className="text-lg font-semibold mb-2"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    {integration.name}
-                  </h3>
-                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                    {integration.desc}
-                  </p>
-
-                  {integration.status === "Available" ? (
-                    <button
-                      onClick={() => navigate("/signup")}
-                      className="mt-4 inline-flex items-center gap-2 text-sm font-medium transition-colors"
-                      style={{ color: "var(--accent-indigo)" }}
-                    >
-                      Connect <FiExternalLink size={14} />
-                    </button>
-                  ) : (
+              return (
+                <motion.div
+                  key={integration.name}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={inView ? { opacity: 1, y: 0 } : {}}
+                  transition={{ duration: 0.45, delay: 0.08 * i }}
+                >
+                  <GlassCard className="relative rounded-2xl p-6 border transition-all duration-300">
+                    {/* Status badge */}
                     <div
-                      className="mt-4 inline-flex items-center gap-2 text-xs"
+                      className={`absolute top-4 right-4 px-2 py-1 rounded-md text-[10px] font-medium border
+                      ${
+                        integration.status === "Available"
+                          ? "bg-emerald-500/15 text-emerald-400 border-white/10"
+                          : "bg-amber-500/15 text-amber-400 border-white/10"
+                      }`}
+                    >
+                      {integration.status}
+                    </div>
+
+                    {/* Icon (dashboard theme) */}
+                    <div
+                      className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${c.light} ring-1 ${c.ring}`}
+                    >
+                      <div
+                        className={`${c.text} drop-shadow-[0_10px_20px_rgba(0,0,0,0.35)]`}
+                      >
+                        {integration.icon}
+                      </div>
+                    </div>
+
+                    <h3
+                      className="text-lg font-semibold mb-2"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {integration.name}
+                    </h3>
+                    <p
+                      className="text-sm"
                       style={{ color: "var(--text-muted)" }}
                     >
-                      <Clock size={14} /> Coming soon
-                    </div>
-                  )}
-                </GlassCard>
-              </motion.div>
-            ))}
+                      {integration.desc}
+                    </p>
+
+                    {integration.status === "Available" ? (
+                      <button
+                        onClick={() => navigate("/signup")}
+                        className="mt-4 inline-flex items-center gap-2 text-sm font-medium transition-colors text-indigo-400 hover:text-indigo-300"
+                      >
+                        Connect <FiExternalLink size={14} />
+                      </button>
+                    ) : (
+                      <div
+                        className="mt-4 inline-flex items-center gap-2 text-xs"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        <Clock size={14} /> Coming soon
+                      </div>
+                    )}
+                  </GlassCard>
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -337,23 +339,8 @@ export default function IntegrationsLanding() {
                 transition={{ duration: 0.45, delay: 0.08 * i }}
                 className="text-center p-6"
               >
-                <div
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                  style={{
-                    background:
-                      "radial-gradient(circle at 30% 30%, rgba(99,102,241,0.25), rgba(99,102,241,0.10))",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    boxShadow:
-                      "0 12px 32px rgba(99,102,241,0.18), inset 0 1px 0 rgba(255,255,255,0.08)",
-                    color: "var(--accent-indigo)",
-                  }}
-                >
-                  <div
-                    style={{
-                      filter:
-                        "drop-shadow(0 8px 14px rgba(0,0,0,0.45)) drop-shadow(0 0 10px rgba(255,255,255,0.06))",
-                    }}
-                  >
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-indigo-500/10 ring-1 ring-indigo-500/20">
+                  <div className="text-indigo-400 drop-shadow-[0_10px_20px_rgba(0,0,0,0.35)]">
                     {feature.icon}
                   </div>
                 </div>
@@ -381,22 +368,13 @@ export default function IntegrationsLanding() {
             viewport={{ once: true }}
             transition={{ duration: 0.55 }}
           >
-            <div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6 border"
-              style={{
-                backgroundColor: "rgba(16, 185, 129, 0.1)",
-                borderColor: "rgba(16, 185, 129, 0.2)",
-              }}
-            >
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6 border border-emerald-500/20 bg-emerald-500/10">
               <CheckCircle
                 size={16}
                 weight="fill"
-                style={{ color: "var(--accent-emerald)" }}
+                className="text-emerald-400"
               />
-              <span
-                className="text-sm font-medium"
-                style={{ color: "var(--accent-emerald)" }}
-              >
+              <span className="text-sm font-medium text-emerald-400">
                 Free to start
               </span>
             </div>
@@ -408,17 +386,14 @@ export default function IntegrationsLanding() {
               Ready to connect?
             </h2>
             <p className="text-lg mb-8" style={{ color: "var(--text-muted)" }}>
-              Start using NoteStream for free and connect your favorite tools in minutes.
+              Start using NoteStream for free and connect your favorite tools in
+              minutes.
             </p>
 
             <button
               onClick={() => navigate("/signup")}
-              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-semibold text-white transition-all duration-300 hover:scale-[1.02]"
-              style={{
-                background:
-                  "linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))",
-                boxShadow: "0 4px 20px rgba(99, 102, 241, 0.35)",
-              }}
+              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-semibold text-white transition-all duration-300 hover:scale-[1.02]
+                         bg-gradient-to-r from-indigo-500 to-purple-500 shadow-[0_4px_20px_rgba(99,102,241,0.35)]"
             >
               Get Started <Plugs size={18} />
             </button>
@@ -443,5 +418,6 @@ export default function IntegrationsLanding() {
     </div>
   );
 }
+
 
 

@@ -9,7 +9,7 @@ const navLinks = [
     dropdown: [
       { label: "Smart Notes", to: "/smart-notes" },
       { label: "AI Summary", to: "/ai-summary" },
-      { label: "Integrations", to: "/integrations" },
+      { label: "Integrations", to: "/integrations-landing" },
     ],
   },
   { name: "How it Works", to: "/how-it-works" },

@@ -4,9 +4,10 @@ import {
   Routes,
   Route,
   useLocation,
+  Navigate,
 } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 // Theme Provider
 import { ThemeProvider } from "./context/ThemeContext";
@@ -78,6 +79,49 @@ import DashboardIntegrations from "./pages/dashboard/Integrations";
 import IntegrationConnect from "./pages/dashboard/IntegrationConnect";
 
 // ----------------------------------------------------------------
+// ROUTE TITLE (updates browser tab title)
+// ----------------------------------------------------------------
+function RouteTitle() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    // Dashboard titles
+    if (pathname.startsWith("/dashboard/integrations/connect/")) {
+      document.title = "Connect Integration | NoteStream";
+      return;
+    }
+    if (pathname.startsWith("/dashboard/integrations")) {
+      document.title = "Dashboard Integrations | NoteStream";
+      return;
+    }
+    if (pathname.startsWith("/dashboard")) {
+      document.title = "Dashboard | NoteStream";
+      return;
+    }
+
+    // Public titles
+    const map = {
+      "/": "NoteStream",
+      "/smart-notes": "Smart Notes | NoteStream",
+      "/ai-summary": "AI Summary | NoteStream",
+      "/integrations-landing": "Integrations | NoteStream",
+      "/how-it-works": "How It Works | NoteStream",
+      "/updates": "Updates | NoteStream",
+      "/support": "Support | NoteStream",
+      "/faq": "FAQ | NoteStream",
+      "/signup": "Sign Up | NoteStream",
+      "/login": "Login | NoteStream",
+      "/search": "Search | NoteStream",
+      "/terms": "Terms | NoteStream",
+    };
+
+    document.title = map[pathname] || "NoteStream";
+  }, [pathname]);
+
+  return null;
+}
+
+// ----------------------------------------------------------------
 // PUBLIC PAGE ANIMATION WRAPPER
 // ----------------------------------------------------------------
 function PublicRoutesFadeWrapper() {
@@ -126,7 +170,15 @@ function PublicRoutesFadeWrapper() {
             {/* Features - PUBLIC pages linked from Navbar */}
             <Route path="/smart-notes" element={<SmartNotes />} />
             <Route path="/ai-summary" element={<AISummary />} />
-            <Route path="/integrations" element={<IntegrationsLanding />} />
+
+            {/* PUBLIC Integrations Landing (renamed path) */}
+            <Route path="/integrations-landing" element={<IntegrationsLanding />} />
+
+            {/* Back-compat redirect so old /integrations still works */}
+            <Route
+              path="/integrations"
+              element={<Navigate to="/integrations-landing" replace />}
+            />
 
             {/* Main */}
             <Route path="/how-it-works" element={<HowItWorks />} />
@@ -189,7 +241,8 @@ function PublicSiteWrapper() {
 // ROOT APP - Wrapped with all Providers
 // ----------------------------------------------------------------
 export default function App() {
-const routerBasename = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+  const routerBasename = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+
   const [docs, setDocs] = useState([
     {
       id: "1",
@@ -197,8 +250,6 @@ const routerBasename = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
       type: "PDF",
       size: "1.2 MB",
       updated: "2 days ago",
-      // safest for both domains:
-      // (BASE_URL already includes trailing slash)
       fileUrl: `${import.meta.env.BASE_URL}docs/projectRoadmap.pdf`,
       summary: null,
     },
@@ -213,6 +264,7 @@ const routerBasename = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
           <WorkspaceProvider>
             <Router basename={routerBasename}>
               <ScrollToTop />
+              <RouteTitle />
 
               <Routes>
                 {/* PUBLIC SITE */}
@@ -243,16 +295,11 @@ const routerBasename = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
                   />
                   <Route
                     path="documents/rewrite/:id"
-                    element={
-                      <RewriteDocument docs={docs} setDocs={setDocs} />
-                    }
+                    element={<RewriteDocument docs={docs} setDocs={setDocs} />}
                   />
 
                   {/* INTEGRATIONS - Dashboard version for logged-in users */}
-                  <Route
-                    path="integrations"
-                    element={<DashboardIntegrations />}
-                  />
+                  <Route path="integrations" element={<DashboardIntegrations />} />
                   <Route
                     path="integrations/connect/:integrationId"
                     element={<IntegrationConnect />}
@@ -264,31 +311,16 @@ const routerBasename = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
 
                   {/* SUPPORT (Dashboard) */}
                   <Route path="help-center" element={<HelpCenter />} />
-                  <Route
-                    path="contact-support"
-                    element={<ContactSupport />}
-                  />
+                  <Route path="contact-support" element={<ContactSupport />} />
 
                   {/* Integration Docs (Dashboard) */}
-                  <Route
-                    path="integration-docs"
-                    element={<IntegrationDocs />}
-                  />
+                  <Route path="integration-docs" element={<IntegrationDocs />} />
 
                   {/* AI LAB & SUB-PAGES */}
                   <Route path="ai-lab" element={<AiLab />} />
-                  <Route
-                    path="ai-lab/training"
-                    element={<CustomTraining />}
-                  />
-                  <Route
-                    path="ai-lab/cloud-sync"
-                    element={<CloudSync />}
-                  />
-                  <Route
-                    path="ai-lab/voice-notes"
-                    element={<VoiceNotes />}
-                  />
+                  <Route path="ai-lab/training" element={<CustomTraining />} />
+                  <Route path="ai-lab/cloud-sync" element={<CloudSync />} />
+                  <Route path="ai-lab/voice-notes" element={<VoiceNotes />} />
                   <Route
                     path="ai-lab/team-collaboration"
                     element={<TeamCollaboration />}
@@ -305,6 +337,7 @@ const routerBasename = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
     </ThemeProvider>
   );
 }
+
 
 
 

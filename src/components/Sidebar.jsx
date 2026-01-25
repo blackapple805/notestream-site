@@ -91,7 +91,7 @@ export default function Sidebar() {
         {/* Nav container */}
         <div className="relative px-4 pb-2">
           <div
-            className="mx-auto max-w-[320px] rounded-2xl px-2 py-2 flex items-center justify-around"
+            className="mx-auto max-w-[320px] rounded-2xl px-1 py-2 flex items-center justify-between"
             style={{
               backgroundColor: "var(--bg-surface)",
               border: "1px solid var(--border-secondary)",
@@ -107,7 +107,7 @@ export default function Sidebar() {
                   key={i}
                   to={item.to}
                   aria-label={item.label}
-                  className="relative flex flex-col items-center justify-center py-1.5 px-3"
+                  className="relative flex flex-col items-center justify-center py-1.5 flex-1"
                 >
                   <motion.div
                     whileTap={{ scale: 0.9 }}
@@ -180,9 +180,12 @@ export default function Sidebar() {
                 <Link
                   key={i}
                   to={item.to}
-                  className="group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200"
+                  className="group relative flex items-center gap-3 py-2.5 rounded-xl transition-all duration-200"
                   style={{
                     backgroundColor: active ? "var(--bg-hover)" : "transparent",
+                    paddingLeft: collapsed ? "12px" : "12px",
+                    paddingRight: collapsed ? "12px" : "12px",
+                    justifyContent: collapsed ? "center" : "flex-start",
                   }}
                 >
                   {/* Active indicator bar */}
@@ -193,7 +196,10 @@ export default function Sidebar() {
                       opacity: active ? 1 : 0,
                     }}
                     className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full"
-                    style={{ backgroundColor: "var(--accent-indigo)" }}
+                    style={{ 
+                      backgroundColor: "var(--accent-indigo)",
+                      display: collapsed ? "none" : "block",
+                    }}
                     transition={{ duration: 0.2 }}
                   />
 
@@ -205,6 +211,7 @@ export default function Sidebar() {
                         ? "rgba(99, 102, 241, 0.15)" 
                         : "var(--bg-tertiary)",
                       border: `1px solid ${active ? "rgba(99, 102, 241, 0.3)" : "var(--border-secondary)"}`,
+                      boxShadow: active ? "0 0 12px rgba(99, 102, 241, 0.25)" : "none",
                     }}
                   >
                     <Icon
@@ -222,7 +229,8 @@ export default function Sidebar() {
                     className="text-sm whitespace-nowrap flex items-center gap-2 transition-all duration-300"
                     style={{
                       opacity: collapsed ? 0 : 1,
-                      transform: collapsed ? "translateX(8px)" : "translateX(0)",
+                      width: collapsed ? 0 : "auto",
+                      overflow: "hidden",
                       color: active ? "var(--accent-indigo)" : "var(--text-secondary)",
                       fontWeight: active ? 500 : 400,
                     }}
@@ -261,16 +269,16 @@ export default function Sidebar() {
             
             {/* Logo / Brand area - now at bottom */}
             <div 
-              className="flex items-center gap-3 px-2 overflow-hidden"
+              className="flex items-center gap-3 px-2 overflow-hidden transition-all duration-300"
               style={{ 
-                opacity: collapsed ? 0.8 : 1,
-                transition: "opacity 0.3s ease"
+                justifyContent: collapsed ? "center" : "flex-start",
               }}
             >
               <div 
                 className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{
                   background: "linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))",
+                  boxShadow: "0 0 12px rgba(99, 102, 241, 0.3)",
                 }}
               >
                 <Note size={18} weight="fill" color="white" />
@@ -279,7 +287,7 @@ export default function Sidebar() {
                 className="transition-all duration-300 overflow-hidden"
                 style={{
                   opacity: collapsed ? 0 : 1,
-                  transform: collapsed ? "translateX(8px)" : "translateX(0)",
+                  width: collapsed ? 0 : "auto",
                 }}
               >
                 <span 
