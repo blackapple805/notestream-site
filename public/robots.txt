@@ -1,6 +1,11 @@
 User-agent: *
 Disallow: /
 
+User-agent: *
+Disallow: /.git/
+Disallow: /.env
+
+
 # Block AI / LLM crawlers
 User-agent: GPTBot
 Disallow: /
