@@ -591,7 +591,7 @@ function ToggleSetting({ label, description, enabled, onChange }) {
     <div className="flex items-center justify-between bg-theme-input border border-theme-secondary rounded-xl px-4 py-3">
       <div className="pr-4">
         <p className="text-sm text-theme-secondary">{label}</p>
-        {description && <p className="text-[11px] text-theme-muted mt-0.5">{description}</p>}
+        {description && <p className="text-[10px] text-theme-muted mt-0.5">{description}</p>}
       </div>
       <button
         onClick={() => onChange(!enabled)}

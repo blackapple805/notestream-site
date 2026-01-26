@@ -44,6 +44,9 @@ import IntegrationsLanding from "./pages/IntegrationsLanding";
 // Support Pages
 import Support from "./pages/Support";
 import FAQ from "./pages/FAQ";
+import ResetPassword from "./pages/ResetPassword";
+import Pricing from "./pages/Pricing";
+import Privacy from "./pages/Privacy";
 
 // Support sub-pages (Dashboard)
 import HelpCenter from "./pages/HelpCenter";
@@ -57,6 +60,7 @@ import SignupPage from "./pages/Signup";
 import LoginPage from "./pages/Login";
 import SearchPage from "./pages/Search";
 import TermsPage from "./pages/Terms";
+import StatusPage from "./pages/Status";
 
 // Dashboard Layout & Pages
 import DashboardLayout from "./layouts/DashboardLayout";
@@ -109,10 +113,14 @@ function RouteTitle() {
       "/updates": "Updates | NoteStream",
       "/support": "Support | NoteStream",
       "/faq": "FAQ | NoteStream",
+      "/reset-password": "Reset Password | NoteStream",
+      "/pricing": "Billing & Plans | NoteStream",
+      "/privacy": "Privacy Policy | NoteStream",
       "/signup": "Sign Up | NoteStream",
       "/login": "Login | NoteStream",
       "/search": "Search | NoteStream",
       "/terms": "Terms | NoteStream",
+      "/status": "Status | NoteStream",
     };
 
     document.title = map[pathname] || "NoteStream";
@@ -187,12 +195,16 @@ function PublicRoutesFadeWrapper() {
             {/* Support */}
             <Route path="/support" element={<Support />} />
             <Route path="/faq" element={<FAQ />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/privacy" element={<Privacy />} />
 
             {/* Auth */}
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/terms" element={<TermsPage />} />
+            <Route path="/status" element={<StatusPage />} />
           </Routes>
         </motion.div>
       </AnimatePresence>
@@ -228,7 +240,7 @@ function PublicSiteWrapper() {
         </div>
       )}
 
-      <div className={!isDashboard ? "pt-[80px]" : ""}>
+      <div className={!isDashboard ? "pt-[20px]" : ""}>
         <PublicRoutesFadeWrapper />
       </div>
 

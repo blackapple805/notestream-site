@@ -165,6 +165,108 @@
   --page-header-icon-border: rgba(99, 102, 241, 0.25);
 }
 
+/* ============================================
+   SECTION ICON TILE SYSTEM (Cards / Blocks)
+   Use these for consistent card icons everywhere
+============================================ */
+:root {
+  --section-icon-size: 44px;      /* outer tile size */
+  --section-icon-radius: 14px;    /* tile corner radius */
+  --section-icon-inner: 20px;     /* SVG size */
+  --section-icon-border-width: 1px;
+
+  --section-icon-bg: rgba(99, 102, 241, 0.12);
+  --section-icon-border: rgba(99, 102, 241, 0.25);
+}
+
+/* optional: light mode tweaks (keeps it crisp) */
+:root.light,
+[data-theme="light"] {
+  --section-icon-bg: rgba(99, 102, 241, 0.10);
+  --section-icon-border: rgba(99, 102, 241, 0.28);
+}
+
+.section-icon {
+  width: var(--section-icon-size);
+  height: var(--section-icon-size);
+  border-radius: var(--section-icon-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--section-icon-bg);
+  border: var(--section-icon-border-width) solid var(--section-icon-border);
+  flex-shrink: 0;
+}
+
+.section-icon svg {
+  width: var(--section-icon-inner);
+  height: var(--section-icon-inner);
+  color: var(--accent-indigo);
+}
+
+/* Bullet dot tile used in the list rows */
+.section-bullet-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-secondary);
+  flex-shrink: 0;
+}
+
+.section-bullet-dot {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent-indigo);
+}
+
+/* ==============================================================
+   PRIVACY / POLICY SECTION ICONS (uses global header vars)
+============================================================== */
+
+.section-icon {
+  width: var(--page-header-icon-size);
+  height: var(--page-header-icon-size);
+  border-radius: var(--page-header-icon-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--page-header-icon-bg);
+  border: var(--page-header-icon-border-width) solid var(--page-header-icon-border);
+  flex-shrink: 0;
+}
+
+.section-icon svg {
+  width: var(--page-header-icon-inner);
+  height: var(--page-header-icon-inner);
+  color: var(--accent-indigo);
+}
+
+/* Bullet icon box uses a scaled-down version of header sizing */
+.section-bullet-icon {
+  width: calc(var(--page-header-icon-inner) + 6px);
+  height: calc(var(--page-header-icon-inner) + 6px);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-secondary);
+  flex-shrink: 0;
+}
+
+.section-bullet-dot {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--accent-indigo);
+  line-height: 1;
+}
+
+
 /* ==============================================================
    2. BASE & RESET
 ============================================================== */
@@ -291,13 +393,13 @@ nav {
 nav.scrolled {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  background-color: rgba(21, 21, 29, 0.92);
+  background-color: rgba(0, 0, 0, 0);
   border-bottom-color: var(--border-secondary);
 }
 
 :root.light nav.scrolled,
 [data-theme="light"] nav.scrolled {
-  background-color: rgba(255, 255, 255, 0.92);
+  background-color: rgba(255, 255, 255, 0);
   border-bottom-color: var(--border-secondary);
 }
 
