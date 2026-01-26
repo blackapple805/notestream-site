@@ -166,6 +166,82 @@
 }
 
 /* ============================================
+   AUTH / LOGIN ICON TILE SYSTEM
+   Keeps icon proportions consistent on iPhone
+============================================ */
+:root {
+  /* Header tiles on auth pages */
+  --auth-icon-size: 44px;
+  --auth-icon-radius: 14px;
+  --auth-icon-inner: 20px;
+
+  /* Field + small tiles on auth pages */
+  --auth-field-icon-size: 40px;
+  --auth-field-icon-radius: 14px;
+  --auth-field-icon-inner: 18px;
+}
+
+/* iPhone-ish widths: keep them proportionally smaller */
+@media (max-width: 430px) {
+  :root {
+    --auth-icon-size: 42px;
+    --auth-icon-inner: 19px;
+
+    --auth-field-icon-size: 38px;
+    --auth-field-icon-inner: 17px;
+  }
+}
+
+.ns-auth-icon-tile {
+  width: var(--auth-icon-size);
+  height: var(--auth-icon-size);
+  border-radius: var(--auth-icon-radius);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ns-auth-icon-tile svg {
+  width: var(--auth-icon-inner);
+  height: var(--auth-icon-inner);
+  display: block;
+}
+
+.ns-auth-field-icon-tile {
+  width: var(--auth-field-icon-size);
+  height: var(--auth-field-icon-size);
+  border-radius: var(--auth-field-icon-radius);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ns-auth-field-icon-tile svg {
+  width: var(--auth-field-icon-inner);
+  height: var(--auth-field-icon-inner);
+  display: block;
+}
+
+/* Login: remove mobile focus rectangle on inputs */
+#login-page .ns-auth-input {
+  -webkit-appearance: none;
+  appearance: none;
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+#login-page .ns-auth-input:focus,
+#login-page .ns-auth-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+}
+
+
+/* ============================================
    SECTION ICON TILE SYSTEM (Cards / Blocks)
    Use these for consistent card icons everywhere
 ============================================ */
@@ -179,13 +255,14 @@
   --section-icon-border: rgba(99, 102, 241, 0.25);
 }
 
-/* optional: light mode tweaks (keeps it crisp) */
+/* optional: light mode tweaks */
 :root.light,
 [data-theme="light"] {
   --section-icon-bg: rgba(99, 102, 241, 0.10);
   --section-icon-border: rgba(99, 102, 241, 0.28);
 }
 
+/* SECTION icons (cards/blocks) */
 .section-icon {
   width: var(--section-icon-size);
   height: var(--section-icon-size);
@@ -224,11 +301,12 @@
   color: var(--accent-indigo);
 }
 
-/* ==============================================================
-   PRIVACY / POLICY SECTION ICONS (uses global header vars)
-============================================================== */
 
-.section-icon {
+/* ============================================
+   PAGE-SECTION ICONS (Privacy / Policy etc.)
+   Uses global page-header vars but avoids collision
+============================================ */
+.page-section-icon {
   width: var(--page-header-icon-size);
   height: var(--page-header-icon-size);
   border-radius: var(--page-header-icon-radius);
@@ -240,14 +318,14 @@
   flex-shrink: 0;
 }
 
-.section-icon svg {
+.page-section-icon svg {
   width: var(--page-header-icon-inner);
   height: var(--page-header-icon-inner);
   color: var(--accent-indigo);
 }
 
 /* Bullet icon box uses a scaled-down version of header sizing */
-.section-bullet-icon {
+.page-section-bullet-icon {
   width: calc(var(--page-header-icon-inner) + 6px);
   height: calc(var(--page-header-icon-inner) + 6px);
   border-radius: 10px;
@@ -259,7 +337,7 @@
   flex-shrink: 0;
 }
 
-.section-bullet-dot {
+.page-section-bullet-dot {
   font-size: 14px;
   font-weight: 800;
   color: var(--accent-indigo);
@@ -372,8 +450,10 @@ textarea:focus,
 select:focus {
   outline: none;
   border-color: var(--accent-indigo) !important;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.10);
 }
+
+
 
 /* ==============================================================
    5. NAVIGATION
