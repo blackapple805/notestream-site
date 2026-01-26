@@ -21,6 +21,7 @@ import {
   FileText,
   FilePdf,
   FileDoc,
+  BezierCurve,
 } from "phosphor-react";
 import { FiX, FiCheck, FiLock, FiCreditCard, FiCalendar, FiDownload } from "react-icons/fi";
 import { useSubscription } from "../hooks/useSubscription";
@@ -253,7 +254,7 @@ export default function AiLab() {
         <header className="page-header">
           <div className="page-header-content">
             <div className="page-header-icon">
-              <Robot weight="duotone" />
+              <BezierCurve weight="duotone" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -1047,37 +1048,75 @@ function CollaborationDemo() {
   );
 }
 
+// Put this OUTSIDE the component (top-level in AiLab.jsx, near the other demo helpers)
+const EXPORT_FORMATS = [
+  { id: "pdf", name: "PDF", icon: FilePdf, color: "text-rose-400", bgColor: "bg-rose-500/10", borderColor: "border-rose-500/30" },
+  { id: "docx", name: "Word", icon: FileDoc, color: "text-blue-400", bgColor: "bg-blue-500/10", borderColor: "border-blue-500/30" },
+  { id: "md", name: "Markdown", icon: FileText, color: "text-slate-400", bgColor: "bg-slate-500/10", borderColor: "border-slate-500/30" },
+  { id: "notion", name: "Notion", icon: FileText, color: "text-theme-secondary", bgColor: "bg-white/5", borderColor: "border-white/20" },
+];
+
 function ExportDemo() {
-  const [selectedFormat, setSelectedFormat] = useState(null);
+  const formats = EXPORT_FORMATS;
+
+  const [selectedFormat, setSelectedFormat] = useState(formats[0]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportComplete, setExportComplete] = useState(false);
 
-  const formats = [
-    { id: "pdf", name: "PDF", icon: FilePdf, color: "text-rose-400", bgColor: "bg-rose-500/10", borderColor: "border-rose-500/30" },
-    { id: "docx", name: "Word", icon: FileDoc, color: "text-blue-400", bgColor: "bg-blue-500/10", borderColor: "border-blue-500/30" },
-    { id: "md", name: "Markdown", icon: FileText, color: "text-slate-400", bgColor: "bg-slate-500/10", borderColor: "border-slate-500/30" },
-    { id: "notion", name: "Notion", icon: FileText, color: "text-theme-secondary", bgColor: "bg-white/5", borderColor: "border-white/20" },
-  ];
+  // prevents stacked timeouts + cleans up on unmount
+  const timerRef = useRef(null);
 
-  const handleExport = (format) => {
+  const startExport = (format) => {
+    if (!format) return;
+
+    // kill any in-flight "export"
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
     setSelectedFormat(format);
     setIsExporting(true);
     setExportComplete(false);
 
-    setTimeout(() => {
+    timerRef.current = setTimeout(() => {
       setIsExporting(false);
       setExportComplete(true);
+      timerRef.current = null;
     }, 2000);
   };
 
   const handleReset = () => {
-    setSelectedFormat(null);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsExporting(false);
     setExportComplete(false);
   };
+
+  useEffect(() => {
+    startExport(formats[0]);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 rounded-lg p-3 mb-4 relative" style={{ backgroundColor: "var(--bg-surface)" }}>
+        {/* Preview header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-xs text-theme-muted">Preview mode</div>
+          <div className="text-[11px] text-theme-secondary">
+            Format:{" "}
+            <span className="text-theme-primary font-medium">
+              {selectedFormat?.name}
+            </span>
+          </div>
+        </div>
+
+        {/* Skeleton preview */}
         <div className="space-y-2">
           <div className="h-3 w-3/4 rounded bg-theme-muted/20" />
           <div className="h-2 w-full rounded bg-theme-muted/10" />
@@ -1095,26 +1134,37 @@ function ExportDemo() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
+              style={{ backgroundColor: "var(--overlay-strong)" }}
             >
               {isExporting ? (
                 <div className="text-center">
                   <div className="w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                  <p className="text-sm text-theme-primary">Exporting to {selectedFormat?.name}...</p>
+                  <p className="text-sm text-theme-primary">
+                    Exporting to {selectedFormat?.name}...
+                  </p>
                 </div>
-              ) : exportComplete ? (
-                <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center">
+              ) : (
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="text-center"
+                >
                   <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-3">
                     <CheckCircle size={28} weight="fill" className="text-emerald-500" />
                   </div>
                   <p className="text-sm text-theme-primary mb-1">Export Complete!</p>
-                  <p className="text-xs text-theme-muted mb-3">note_export.{selectedFormat?.id}</p>
-                  <button onClick={handleReset} className="text-xs text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1 mx-auto">
+                  <p className="text-xs text-theme-muted mb-3">
+                    note_export.{selectedFormat?.id}
+                  </p>
+                  <button
+                    onClick={handleReset}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1 mx-auto"
+                  >
                     <FiDownload size={12} />
                     Try another format
                   </button>
                 </motion.div>
-              ) : null}
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -1125,17 +1175,24 @@ function ExportDemo() {
         <div className="grid grid-cols-4 gap-2">
           {formats.map((format) => {
             const Icon = format.icon;
+            const active = selectedFormat?.id === format.id;
+
             return (
               <motion.button
                 key={format.id}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => handleExport(format)}
-                disabled={isExporting}
-                className={`p-3 rounded-xl border ${format.bgColor} ${format.borderColor} flex flex-col items-center gap-1.5 transition disabled:opacity-50`}
+                onClick={() => startExport(format)}   
+                disabled={isExporting}                
+                className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition disabled:opacity-50
+                  ${active ? "ring-1 ring-indigo-500/40" : ""}
+                  ${format.bgColor} ${format.borderColor}
+                `}
               >
                 <Icon size={20} weight="duotone" className={format.color} />
-                <span className={`text-[10px] font-medium ${format.color}`}>{format.name}</span>
+                <span className={`text-[10px] font-medium ${format.color}`}>
+                  {format.name}
+                </span>
               </motion.button>
             );
           })}
@@ -1144,6 +1201,8 @@ function ExportDemo() {
     </div>
   );
 }
+
+
 
 function CloudSyncDemo({ unlocked }) {
   const [enabled, setEnabled] = useState(true);

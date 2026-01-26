@@ -70,7 +70,7 @@ export default function NoteCard({ note, onMenu, onOpen }) {
 
   return (
     <div
-      className="group rounded-xl p-3 flex flex-col cursor-pointer transition-all duration-200 border active:scale-[0.98]"
+      className="group rounded-xl p-2.5 sm:p-3 flex flex-col cursor-pointer transition-all duration-200 border active:scale-[0.98]"
       style={{
         backgroundColor: 'var(--bg-surface)',
         borderColor: 'var(--border-secondary)',
@@ -104,28 +104,39 @@ export default function NoteCard({ note, onMenu, onOpen }) {
               style={{ color: 'var(--accent-rose)', fill: 'var(--accent-rose)' }} 
             />
           )}
-          <button
-            className="p-1 rounded-md transition opacity-0 group-hover:opacity-100"
-            style={{ color: 'var(--text-muted)' }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onMenu(e);
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-            }}
-          >
-            <FiMoreVertical size={14} />
-          </button>
+        <button
+          type="button"
+          className="
+            p-1 rounded-md transition
+            opacity-100
+            sm:opacity-0 sm:group-hover:opacity-100
+            focus:opacity-100 focus-visible:opacity-100
+          "
+          style={{ color: "var(--text-muted)" }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onMenu(e);
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
+            e.currentTarget.style.color = "var(--text-secondary)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "transparent";
+            e.currentTarget.style.color = "var(--text-muted)";
+          }}
+          aria-label="Open note actions"
+          title="Actions"
+        >
+          <FiMoreVertical size={14} />
+        </button>
+
         </div>
       </div>
 
       {/* Preview Area - Compact */}
       <div
-        className="relative w-full aspect-[4/3] rounded-lg flex items-center justify-center overflow-hidden mb-2"
+        className="relative w-full h-24 sm:h-28 md:h-32 rounded-lg flex items-center justify-center overflow-hidden mb-2"
         style={{
           backgroundColor: typeConfig.bg,
           border: `1px solid ${typeConfig.border}`,

@@ -636,8 +636,8 @@ export default function Support() {
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 p-3 rounded-xl border transition-all hover:scale-[1.02]"
                   style={{
-                    backgroundColor: "rgba(255, 255, 255, 0.06)",
-                    borderColor: "rgba(255, 255, 255, 0.14)",
+                    backgroundColor: "rgba(255, 255, 255, 0.4)",
+                    borderColor: "rgba(27, 13, 13, 0.34)",
                   }}
                 >
                   <XIcon size={20} style={{ color: "var(--text-primary)" }} />
@@ -645,7 +645,6 @@ export default function Support() {
                     className="text-sm font-medium"
                     style={{ color: "var(--text-primary)" }}
                   >
-                    X
                   </span>
                 </a>
               </div>

@@ -1,6 +1,4 @@
 // src/pages/Notes.jsx
-// Rebuilt with cleaner design matching universal page-header CSS system
-// Removed complex mobile-specific handling
 
 import {
   FiPlus,
@@ -23,6 +21,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import GlassCard from "../components/GlassCard";
 import NoteCard from "../components/NoteCard";
+import NoteRow from "../components/NoteRow";
 import NoteView from "./NoteView";
 import { useSubscription } from "../hooks/useSubscription";
 
@@ -310,16 +309,14 @@ export default function Notes() {
   };
 
   // Voice recording
-  const stopTracks = useCallback(() => {
+  const pickAudioMime = () => {
+    const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+    return candidates.find((t) => window.MediaRecorder?.isTypeSupported?.(t)) || "";
+  };
+
+  const cleanupStream = useCallback(() => {
     try {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-        mediaRecorderRef.current.stop();
-      }
-    } catch {}
-    try {
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
-      }
+      mediaStreamRef.current?.getTracks()?.forEach((t) => t.stop());
     } catch {}
     mediaRecorderRef.current = null;
     mediaStreamRef.current = null;
@@ -345,15 +342,27 @@ export default function Notes() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
 
-      const recorder = new MediaRecorder(stream);
+      const mimeType = pickAudioMime();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (evt) => {
         if (evt.data && evt.data.size > 0) chunksRef.current.push(evt.data);
       };
 
+      recorder.onerror = () => setRecError("Recorder error. Please try again.");
+
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const finalType = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: finalType });
+
+        if (!blob || blob.size === 0) {
+          setRecError("Recording was empty. Try again and speak closer to the mic.");
+          setRecState("idle");
+          cleanupStream();
+          return;
+        }
+
         const url = URL.createObjectURL(blob);
 
         const newVoiceNote = {
@@ -365,11 +374,12 @@ export default function Notes() {
           favorite: false,
           locked: false,
           audioUrl: url,
-          audioMime: "audio/webm",
+          audioMime: finalType,
         };
 
         setNotes((prev) => [newVoiceNote, ...prev]);
         setRecState("stopped");
+        cleanupStream();
       };
     } catch {
       setRecError("Microphone permission denied or unavailable.");
@@ -379,9 +389,10 @@ export default function Notes() {
   const startRecording = () => {
     const r = mediaRecorderRef.current;
     if (!r) return;
+
     chunksRef.current = [];
     try {
-      r.start();
+      r.start(250); // timeslice helps ensure dataavailable fires reliably
       setRecState("recording");
     } catch {
       setRecError("Could not start recording.");
@@ -391,19 +402,28 @@ export default function Notes() {
   const stopRecording = () => {
     const r = mediaRecorderRef.current;
     if (!r) return;
+
     try {
-      r.stop();
+      r.stop(); // do NOT stop tracks here; onstop finalizes first
     } catch {}
-    stopTracks();
     setRecState("stopped");
   };
 
   const closeRecorder = () => {
-    stopTracks();
+    const r = mediaRecorderRef.current;
+
+    // If currently recording, stop first so audio is saved.
+    if (r && r.state !== "inactive") {
+      stopRecording();
+    } else {
+      cleanupStream();
+      setRecState("idle");
+    }
+
     setRecOpen(false);
-    setRecState("idle");
     setRecError("");
   };
+
 
   // Close menus on outside click
   useEffect(() => {
@@ -577,7 +597,7 @@ export default function Notes() {
       </div>
 
       {/* Notes Grid - 2 columns on mobile, 3 on larger screens */}
-      <div className={`grid gap-3 ${gridView ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-1"}`}>
+      <div className={`grid ${gridView ? "grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3" : "grid-cols-1 gap-2"}`}>
         {filteredNotes.length === 0 ? (
           <div className="col-span-2">
             <GlassCard>
@@ -636,19 +656,42 @@ export default function Notes() {
             </GlassCard>
           </div>
         ) : (
-          filteredNotes.map((note) => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              onMenu={(e) => {
-                e.stopPropagation();
-                const rect = e.currentTarget.getBoundingClientRect();
-                setMenuPos({ x: Math.min(rect.right - 180, window.innerWidth - 200), y: rect.bottom + 8 });
-                setActiveMenuId(note.id);
-              }}
-              onOpen={() => tryOpenNote(note)}
-            />
-          ))
+          filteredNotes.map((note) =>
+            gridView ? (
+              <NoteCard
+                key={note.id}
+                note={note}
+                onMenu={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setMenuPos({
+                    x: Math.min(rect.right - 180, window.innerWidth - 200),
+                    y: rect.bottom + 8,
+                  });
+                  setActiveMenuId(note.id);
+                }}
+                onOpen={() => tryOpenNote(note)}
+              />
+            ) : (
+              <NoteRow
+                key={note.id}
+                note={note}
+                onOpen={() => tryOpenNote(note)}
+                onLongPress={() => {}}
+                onArchive={() => {}}
+                onDelete={() => handleDelete(note.id)}
+                onMenu={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setMenuPos({
+                    x: Math.min(rect.right - 180, window.innerWidth - 200),
+                    y: rect.bottom + 8,
+                  });
+                  setActiveMenuId(note.id);
+                }}
+              />
+            )
+          )
         )}
       </div>
 
@@ -675,7 +718,11 @@ export default function Notes() {
                 <ContextMenuItem
                   icon={<FiEdit2 size={15} />}
                   label="Open"
-                  onClick={() => { tryOpenNote(notes.find((n) => n.id === activeMenuId)); setActiveMenuId(null); }}
+                  onClick={() => {
+                    const n = notes.find((x) => x.id === activeMenuId);
+                    if (n) tryOpenNote(n);
+                    setActiveMenuId(null);
+                  }}
                 />
                 <ContextMenuItem
                   icon={<FiHeart size={15} style={notes.find((n) => n.id === activeMenuId)?.favorite ? { color: 'var(--accent-rose)', fill: 'var(--accent-rose)' } : {}} />}

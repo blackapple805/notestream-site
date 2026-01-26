@@ -45,20 +45,32 @@ function PriorityTag({ priority, children }) {
 ----------------------------------------- */
 function FileTypeIcon({ type, size = 20 }) {
   const iconProps = { size, weight: "duotone" };
-  
-  switch (type?.toUpperCase()) {
+  const t = (type || "").toUpperCase();
+
+  // Use your theme variables (adjust names if your theme uses different ones)
+  const styles = {
+    PDF:  { color: "var(--accent-rose)" },
+    DOCX: { color: "var(--accent-indigo)" },
+    DOC:  { color: "var(--accent-indigo)" },
+    XLSX: { color: "var(--accent-emerald)" },
+    XLS:  { color: "var(--accent-emerald)" },
+    FILE: { color: "var(--text-secondary)" },
+  };
+
+  switch (t) {
     case "PDF":
-      return <FilePdf {...iconProps} className="text-rose-500" />;
+      return <FilePdf {...iconProps} style={styles.PDF} />;
     case "DOCX":
     case "DOC":
-      return <FileDoc {...iconProps} className="text-blue-500" />;
+      return <FileDoc {...iconProps} style={styles.DOCX} />;
     case "XLSX":
     case "XLS":
-      return <FileXls {...iconProps} className="text-emerald-500" />;
+      return <FileXls {...iconProps} style={styles.XLSX} />;
     default:
-      return <FiFile size={size} className="text-theme-muted" />;
+      return <FiFile size={size} style={styles.FILE} />;
   }
 }
+
 
 /* -----------------------------------------
    Toggle Button Component
@@ -498,10 +510,40 @@ export default function Documents({ docs = [], setDocs }) {
                   </div>
                 </div>
                 {!synthesizeMode && (
-                  <div className="flex gap-1 items-center opacity-60 group-hover:opacity-100 transition">
-                    <button className="text-theme-muted hover:text-indigo-500 p-2 rounded-lg hover:bg-indigo-500/10 transition" onClick={(e) => { e.stopPropagation(); handlePreview(doc); }} title="Preview"><FiEye size={18} /></button>
-                    <button className="text-theme-muted hover:text-indigo-500 p-2 rounded-lg hover:bg-indigo-500/10 transition disabled:opacity-50" onClick={(e) => { e.stopPropagation(); handleSummarize(doc); }} title="AI Summary" disabled={isAutoSummarizing}><FiFileText size={18} /></button>
-                    <button className="text-theme-muted hover:text-emerald-500 p-2 rounded-lg hover:bg-emerald-500/10 transition" onClick={(e) => { e.stopPropagation(); handleDownload(doc); }} title="Download"><FiDownload size={18} /></button>
+                  <div className="flex gap-1 items-center transition">
+                    <button
+                      className="p-2 rounded-lg transition"
+                      style={{ color: "var(--text-secondary)" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-hover)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                      onClick={(e) => { e.stopPropagation(); handlePreview(doc); }}
+                      title="Preview"
+                    >
+                      <FiEye size={18} />
+                    </button>
+
+                    <button
+                      className="p-2 rounded-lg transition disabled:opacity-50"
+                      style={{ color: "var(--text-secondary)" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-hover)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                      onClick={(e) => { e.stopPropagation(); handleSummarize(doc); }}
+                      title="AI Summary"
+                      disabled={isAutoSummarizing}
+                    >
+                      <FiFileText size={18} />
+                    </button>
+
+                    <button
+                      className="p-2 rounded-lg transition"
+                      style={{ color: "var(--text-secondary)" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-hover)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                      onClick={(e) => { e.stopPropagation(); handleDownload(doc); }}
+                      title="Download"
+                    >
+                      <FiDownload size={18} />
+                    </button>
                   </div>
                 )}
               </motion.div>

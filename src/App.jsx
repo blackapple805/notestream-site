@@ -240,7 +240,7 @@ function PublicSiteWrapper() {
         </div>
       )}
 
-      <div className={!isDashboard ? "pt-[20px]" : ""}>
+      <div className={!isDashboard ? "pt-[0px]" : ""}>
         <PublicRoutesFadeWrapper />
       </div>
 

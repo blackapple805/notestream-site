@@ -34,7 +34,8 @@ export default function NoteView({
   const isPro = !!subscription?.plan && subscription.plan !== "free";
   const canUseVoice =
     typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("voice") : isPro;
-  const canUseExport =
+  const isVoiceNote = !!note?.audioUrl || note?.tag === "Voice";
+    const canUseExport =
     typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("export") : isPro;
 
   const [showToast, setShowToast] = useState(false);
@@ -298,14 +299,21 @@ export default function NoteView({
     setShowExportMenu((v) => !v);
   };
 
-  const handleVoiceClick = () => {
-    if (!canUseVoice) {
-      setShowUpgrade(true);
-    } else {
-      setVoiceToast(true);
-      setTimeout(() => setVoiceToast(false), 3000);
-    }
-  };
+const handleVoiceClick = () => {
+  if (!canUseVoice) {
+    setShowUpgrade(true);
+    return;
+  }
+  if (isVoiceNote) {
+    const el = document.getElementById("voice-player");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  setVoiceToast(true);
+  setTimeout(() => setVoiceToast(false), 3000);
+};
+  
 
   const noteBadge = useMemo(() => {
     if (note.tag === "Voice") {
@@ -441,8 +449,8 @@ export default function NoteView({
                 active={isAnalyzing}
                 activeColor="var(--accent-indigo)"
                 onClick={fakeSmartNotes}
-                disabled={isAnalyzing}
-                title="AI Analysis"
+                disabled={isAnalyzing || isVoiceNote}
+                title={isVoiceNote ? "AI Analysis (not for voice notes)" : "AI Analysis"}
                 pulse={isAnalyzing}
               />
 
@@ -468,8 +476,10 @@ export default function NoteView({
                 active={isEditing}
                 activeColor="var(--accent-emerald)"
                 onClick={handleEditToggle}
-                disabled={isAnalyzing || isLocked}
-                title={isLocked ? "Locked" : isEditing ? "Save" : "Edit"}
+                disabled={isAnalyzing || isLocked || isVoiceNote}
+                title={
+                  isVoiceNote ? "Voice note" : isLocked ? "Locked" : isEditing ? "Save" : "Edit"
+                }
               />
             </div>
           </div>
@@ -611,14 +621,15 @@ export default function NoteView({
           {/* MAIN NOTE CONTENT */}
           <div className="flex-1 lg:flex-[7] space-y-4">
             {/* Attachments */}
-            {note.audioUrl && (
-              <div
-                className="p-4 rounded-2xl border"
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  borderColor: "var(--border-secondary)",
-                }}
-              >
+              {note.audioUrl && (
+                <div
+                  id="voice-player"
+                  className="p-4 rounded-2xl border"
+                  style={{
+                    backgroundColor: "var(--bg-surface)",
+                    borderColor: "var(--border-secondary)",
+                  }}
+                >
                 <div className="flex items-center gap-3 mb-3">
                   <div
                     className="h-10 w-10 rounded-2xl flex items-center justify-center"
@@ -638,14 +649,11 @@ export default function NoteView({
                     </p>
                   </div>
                 </div>
-                <audio controls className="w-full" style={{ height: "40px" }}>
-                  <source
-                    src={note.audioUrl}
-                    type={note.audioMime || "audio/webm"}
-                  />
-                </audio>
-              </div>
-            )}
+              <audio controls className="w-full" style={{ height: "40px" }}>
+                    <source src={note.audioUrl} type={note.audioMime || "audio/webm"} />
+                  </audio>
+                </div>
+             )}
 
             {note.imageUrl && (
               <div

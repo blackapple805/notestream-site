@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../../components/GlassCard";
 import { useSubscription } from "../../hooks/useSubscription";
-
+import {Plugs} from "phosphor-react";
 import {
   FiX,
   FiCheck,
@@ -216,7 +216,7 @@ export default function Integrations() {
       <header className="page-header">
         <div className="page-header-content">
           <div className="page-header-icon">
-            <FiSettings size={20} />
+            <Plugs size={20} />
           </div>
           <div>
             <h1 className="page-header-title">Integrations</h1>
