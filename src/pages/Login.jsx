@@ -24,6 +24,10 @@ const supabase =
     ? createClient(supabaseUrl, supabaseAnonKey)
     : null;
 
+// IMPORTANT: set this to your actual table name in Supabase
+// Example: const NOTES_TABLE = 'NoteStreams Table';
+const NOTES_TABLE = "NoteStreams Table";
+
 const toneStyles = {
   indigo: {
     text: "text-indigo-400",
@@ -180,13 +184,27 @@ export default function LoginPage() {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // 1) Sign in
+      const { data: authData, error: authErr } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      if (error) throw error;
+      if (authErr) throw authErr;
 
+      const user = authData?.user;
+      if (!user?.id) throw new Error("Login succeeded but no user returned.");
+
+      // 2) Create (or ensure) the user's row exists
+      // Requires your table to have: user_id uuid UNIQUE (or PK)
+      const { error: upsertErr } = await supabase
+        .from(NOTES_TABLE)
+        .upsert({ user_id: user.id }, { onConflict: "user_id" });
+
+      if (upsertErr) throw upsertErr;
+
+      // 3) Go to dashboard
       navigate("/dashboard");
     } catch (err) {
       setErrorMsg(err?.message || "Login failed. Please try again.");
@@ -414,7 +432,10 @@ export default function LoginPage() {
 
                   <span className="text-theme-muted">
                     New here?{" "}
-                    <a className="text-indigo-400 hover:text-indigo-300" href="/signup">
+                    <a
+                      className="text-indigo-400 hover:text-indigo-300"
+                      href="/signup"
+                    >
                       Create account
                     </a>
                   </span>
@@ -423,7 +444,9 @@ export default function LoginPage() {
                 <motion.button
                   whileHover={{
                     scale: submitting ? 1 : 1.02,
-                    boxShadow: submitting ? undefined : "0 12px 40px rgba(99,102,241,0.28)",
+                    boxShadow: submitting
+                      ? undefined
+                      : "0 12px 40px rgba(99,102,241,0.28)",
                   }}
                   whileTap={{ scale: submitting ? 1 : 0.98 }}
                   type="submit"
@@ -482,5 +505,6 @@ export default function LoginPage() {
     </section>
   );
 }
+
 
 
