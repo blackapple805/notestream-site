@@ -1,5 +1,5 @@
 // src/pages/Signup.jsx
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { motion, useInView } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
@@ -12,7 +12,23 @@ import {
   FiArrowRight,
   FiInfo,
 } from "react-icons/fi";
+import { createClient } from "@supabase/supabase-js";
 
+/* ---------------------------
+   Supabase client (Vite)
+--------------------------- */
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Fail fast in dev if env vars missing
+const supabase =
+  supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : null;
+
+/* ---------------------------
+   Styles
+--------------------------- */
 const signupToneStyles = {
   indigo: {
     text: "text-indigo-400",
@@ -53,7 +69,16 @@ const IconTile = ({ children, tone = "indigo", size = "md" }) => {
   );
 };
 
-const Field = ({ label, icon, type = "text", placeholder, autoComplete }) => {
+const Field = ({
+  label,
+  icon,
+  type = "text",
+  placeholder,
+  autoComplete,
+  value,
+  onChange,
+  name,
+}) => {
   return (
     <div className="space-y-2">
       <label className="text-[11px] font-semibold tracking-wide uppercase text-theme-muted">
@@ -80,9 +105,12 @@ const Field = ({ label, icon, type = "text", placeholder, autoComplete }) => {
         </div>
 
         <input
+          name={name}
           type={type}
           placeholder={placeholder}
           autoComplete={autoComplete}
+          value={value}
+          onChange={onChange}
           className="ns-auth-input w-full bg-transparent text-theme-primary placeholder:text-theme-muted text-[0.95rem] outline-none"
         />
 
@@ -101,6 +129,14 @@ const Field = ({ label, icon, type = "text", placeholder, autoComplete }) => {
 export default function SignupPage() {
   const navigate = useNavigate();
 
+  const [form, setForm] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
   const fadeVariants = {
     hidden: { opacity: 0, y: 30 },
     visible: { opacity: 1, y: 0 },
@@ -111,31 +147,94 @@ export default function SignupPage() {
   const leftInView = useInView(leftRef, { amount: 0.25 });
   const rightInView = useInView(rightRef, { amount: 0.25 });
 
-  const handleSignup = (e) => {
-    e.preventDefault();
-    navigate("/dashboard");
+  const features = [
+    { tone: "indigo", icon: <FiShield />, label: "Secure", sub: "Protected workspace" },
+    { tone: "purple", icon: <FiBarChart2 />, label: "Analytics", sub: "Trends & insights" },
+    { tone: "emerald", icon: <FiZap />, label: "Fast", sub: "Upload → summary" },
+  ];
+
+  const onChange = (e) => {
+    setErrorMsg("");
+    const { name, value } = e.target;
+    setForm((s) => ({ ...s, [name]: value }));
   };
 
-  const features = [
-    {
-      tone: "indigo",
-      icon: <FiShield />,
-      label: "Secure",
-      sub: "Protected workspace",
-    },
-    {
-      tone: "purple",
-      icon: <FiBarChart2 />,
-      label: "Analytics",
-      sub: "Trends & insights",
-    },
-    {
-      tone: "emerald",
-      icon: <FiZap />,
-      label: "Fast",
-      sub: "Upload → summary",
-    },
-  ];
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    setErrorMsg("");
+
+    if (!supabase) {
+      setErrorMsg(
+        "Supabase env vars missing. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY."
+      );
+      return;
+    }
+
+    const fullName = form.fullName.trim();
+    const email = form.email.trim();
+    const password = form.password;
+
+    if (!fullName || !email || !password) {
+      setErrorMsg("Please fill out all fields.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      // 1) Create auth user
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          // stores name in auth.user_metadata
+          data: { full_name: fullName },
+          // if you enable email confirmations, this determines where they return
+          emailRedirectTo: `${window.location.origin}/login`,
+        },
+      });
+
+      if (error) throw error;
+
+      // If email confirmation is ON, user may be null until confirmed.
+      // If confirmation is OFF, you'll usually have a user immediately.
+      const userId = data?.user?.id;
+
+      // 2) OPTIONAL: create an initial row in your table when user exists.
+      // If you want to skip until after login, remove this block.
+      if (userId) {
+        // Example table: public."NoteStreams Table"
+        // Adjust table name/columns to your schema.
+        const { error: insertError } = await supabase
+          .from("NoteStreams Table")
+          .insert([
+            {
+              user_id: userId,
+              // Add whatever initial fields your table expects:
+              // title: "My first workspace",
+              // created_at: new Date().toISOString(),
+            },
+          ]);
+
+        // If RLS is enabled, insert will only work if:
+        // - you set user_id default auth.uid() and omit user_id, OR
+        // - you have an INSERT policy with WITH CHECK (user_id = auth.uid())
+        // AND the request is authenticated. During signUp, you should be authenticated.
+        if (insertError) {
+          // Don’t hard-fail signup if this optional row fails; show a helpful message.
+          console.warn("Table insert failed:", insertError.message);
+        }
+      }
+
+      // 3) UX: if confirmations ON, tell them to check email.
+      // We'll route to login either way.
+      navigate("/login");
+    } catch (err) {
+      setErrorMsg(err?.message || "Signup failed. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <section
@@ -143,7 +242,7 @@ export default function SignupPage() {
       className="relative w-full min-h-screen overflow-hidden"
       style={{ backgroundColor: "var(--bg-primary)" }}
     >
-      {/* Background wash (match Login) */}
+      {/* Background wash */}
       <div className="absolute inset-0 pointer-events-none">
         <div
           className="absolute inset-0"
@@ -170,7 +269,7 @@ export default function SignupPage() {
 
       <div className="relative z-10 w-full max-w-6xl mx-auto px-6 py-[10vh]">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-stretch">
-          {/* LEFT: SIGNUP FORM */}
+          {/* LEFT */}
           <motion.div
             ref={leftRef}
             variants={fadeVariants}
@@ -194,7 +293,6 @@ export default function SignupPage() {
             />
 
             <div className="relative h-full flex flex-col">
-              {/* TOP */}
               <div>
                 <div className="flex items-center gap-3 min-w-0 mb-6">
                   <IconTile tone="indigo" size="md">
@@ -211,8 +309,7 @@ export default function SignupPage() {
                 </div>
 
                 <h2 className="text-[2rem] md:text-[2.4rem] font-extrabold leading-tight text-theme-primary">
-                  Create your{" "}
-                  <span className="text-indigo-400">NoteStream</span> account
+                  Create your <span className="text-indigo-400">NoteStream</span> account
                 </h2>
 
                 <p className="text-theme-muted leading-relaxed mt-3 max-w-md text-[0.98rem]">
@@ -220,49 +317,72 @@ export default function SignupPage() {
                   understand your notes instantly.
                 </p>
 
+                {/* Error banner */}
+                {errorMsg ? (
+                  <div
+                    className="mt-6 rounded-2xl border p-3.5"
+                    style={{
+                      backgroundColor: "rgba(244,63,94,0.08)",
+                      borderColor: "rgba(244,63,94,0.22)",
+                      boxShadow: "0 0 0 1px rgba(244,63,94,0.10) inset",
+                    }}
+                  >
+                    <p className="text-[12px] text-rose-200/90">{errorMsg}</p>
+                  </div>
+                ) : null}
+
                 <form onSubmit={handleSignup} className="space-y-5 mt-8">
                   <Field
+                    name="fullName"
                     label="Full Name"
                     icon={<FiUser />}
                     type="text"
                     placeholder="John Doe"
                     autoComplete="name"
+                    value={form.fullName}
+                    onChange={onChange}
                   />
                   <Field
+                    name="email"
                     label="Email"
                     icon={<FiMail />}
                     type="email"
                     placeholder="you@email.com"
                     autoComplete="email"
+                    value={form.email}
+                    onChange={onChange}
                   />
                   <Field
+                    name="password"
                     label="Password"
                     icon={<FiLock />}
                     type="password"
                     placeholder="••••••••"
                     autoComplete="new-password"
+                    value={form.password}
+                    onChange={onChange}
                   />
 
                   <motion.button
                     whileHover={{
-                      scale: 1.02,
-                      boxShadow: "0 12px 40px rgba(99,102,241,0.28)",
+                      scale: submitting ? 1 : 1.02,
+                      boxShadow: submitting ? undefined : "0 12px 40px rgba(99,102,241,0.28)",
                     }}
-                    whileTap={{ scale: 0.98 }}
+                    whileTap={{ scale: submitting ? 1 : 0.98 }}
                     type="submit"
-                    className="w-full py-4 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all"
+                    disabled={submitting}
+                    className="w-full py-4 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     style={{
                       background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
                       boxShadow: "0 6px 24px rgba(99,102,241,0.22)",
                     }}
                   >
-                    <span>Create Account</span>
+                    <span>{submitting ? "Creating..." : "Create Account"}</span>
                     <FiArrowRight />
                   </motion.button>
                 </form>
               </div>
 
-              {/* BOTTOM (fills desktop) */}
               <div className="pt-6 mt-auto">
                 <p className="text-theme-muted text-sm text-center">
                   Already have an account?{" "}
@@ -282,7 +402,7 @@ export default function SignupPage() {
             </div>
           </motion.div>
 
-          {/* RIGHT: WHY SIGN UP */}
+          {/* RIGHT */}
           <motion.div
             ref={rightRef}
             variants={fadeVariants}
@@ -306,7 +426,6 @@ export default function SignupPage() {
             />
 
             <div className="relative h-full flex flex-col">
-              {/* TOP */}
               <div>
                 <div className="flex items-center justify-between gap-4 mb-6">
                   <div className="flex items-center gap-3 min-w-0">
@@ -340,7 +459,6 @@ export default function SignupPage() {
                   and use AI-powered clarity tools in a unified workspace.
                 </p>
 
-                {/* Desktop-only filler (prevents empty card on large screens) */}
                 <div
                   className="hidden lg:block mt-6 rounded-2xl border p-4"
                   style={{
@@ -408,7 +526,6 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {/* BOTTOM */}
               <div
                 className="mt-6 rounded-2xl border p-3.5 sm:p-4 mt-auto"
                 style={{
@@ -429,16 +546,20 @@ export default function SignupPage() {
                     <FiInfo />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-theme-secondary">
-                      Tip
-                    </p>
+                    <p className="text-sm font-semibold text-theme-secondary">Tip</p>
                     <p className="text-[11px] text-theme-muted leading-relaxed">
-                      Use a password manager to create a strong password and keep
-                      your account secure.
+                      Use a password manager to create a strong password and keep your
+                      account secure.
                     </p>
                   </div>
                 </div>
               </div>
+
+              {!supabaseUrl || !supabaseAnonKey ? (
+                <div className="mt-4 text-[11px] text-rose-200/80">
+                  Missing env vars: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
+                </div>
+              ) : null}
             </div>
           </motion.div>
         </div>
@@ -446,4 +567,5 @@ export default function SignupPage() {
     </section>
   );
 }
+
 

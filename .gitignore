@@ -22,3 +22,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# env
+.env
+.env.*
+!.env.example
+
+# node/vite
+node_modules
+dist
+.vite
+
+# misc
+.DS_Store

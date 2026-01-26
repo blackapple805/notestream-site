@@ -12,6 +12,7 @@
   "dependencies": {
     "@nextui-org/react": "2.6.11",
     "@nextui-org/system": "^2.4.6",
+    "@supabase/supabase-js": "2.93.1",
     "framer-motion": "11.2.13",
     "phosphor-react": "1.4.1",
     "react": "18.3.1",
