@@ -196,13 +196,20 @@ export default function LoginPage() {
       const user = authData?.user;
       if (!user?.id) throw new Error("Login succeeded but no user returned.");
 
-      // 2) Create (or ensure) the user's row exists
-      // Requires your table to have: user_id uuid UNIQUE (or PK)
+      // 2) Ensure the user's row exists (1 row per user via UNIQUE user_id index)
+      // Requires an INSERT RLS policy like:
+      //   with check (auth.uid() = user_id)
       const { error: upsertErr } = await supabase
         .from(NOTES_TABLE)
         .upsert({ user_id: user.id }, { onConflict: "user_id" });
 
-      if (upsertErr) throw upsertErr;
+      if (upsertErr) {
+        // Common causes:
+        // - RLS INSERT policy missing
+        // - table name mismatch (spaces/case)
+        // - user_id column name mismatch
+        throw upsertErr;
+      }
 
       // 3) Go to dashboard
       navigate("/dashboard");
@@ -432,10 +439,7 @@ export default function LoginPage() {
 
                   <span className="text-theme-muted">
                     New here?{" "}
-                    <a
-                      className="text-indigo-400 hover:text-indigo-300"
-                      href="/signup"
-                    >
+                    <a className="text-indigo-400 hover:text-indigo-300" href="/signup">
                       Create account
                     </a>
                   </span>
@@ -505,6 +509,7 @@ export default function LoginPage() {
     </section>
   );
 }
+
 
 
 
