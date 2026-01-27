@@ -36,3 +36,7 @@ dist
 # misc
 .DS_Store
 
+# local HTTPS certs (mkcert)
+.certs/
+*.pem
+*.key
