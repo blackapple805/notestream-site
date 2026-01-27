@@ -40,3 +40,4 @@ dist
 .certs/
 *.pem
 *.key
+.certs/*
