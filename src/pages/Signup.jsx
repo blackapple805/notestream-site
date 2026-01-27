@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { motion, useInView } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import {
   FiLock,
   FiMail,
@@ -12,19 +13,6 @@ import {
   FiArrowRight,
   FiInfo,
 } from "react-icons/fi";
-import { createClient } from "@supabase/supabase-js";
-
-/* ---------------------------
-   Supabase client (Vite)
---------------------------- */
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Fail fast in dev if env vars missing
-const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : null;
 
 /* ---------------------------
    Styles
@@ -52,8 +40,7 @@ const signupToneStyles = {
 
 const IconTile = ({ children, tone = "indigo", size = "md" }) => {
   const t = signupToneStyles[tone] || signupToneStyles.indigo;
-  const tileClass =
-    size === "sm" ? "ns-auth-field-icon-tile" : "ns-auth-icon-tile";
+  const tileClass = size === "sm" ? "ns-auth-field-icon-tile" : "ns-auth-icon-tile";
 
   return (
     <div
@@ -163,7 +150,7 @@ export default function SignupPage() {
     e.preventDefault();
     setErrorMsg("");
 
-    if (!supabase) {
+    if (!isSupabaseConfigured || !supabase) {
       setErrorMsg(
         "Supabase env vars missing. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY."
       );
@@ -187,47 +174,26 @@ export default function SignupPage() {
         email,
         password,
         options: {
-          // stores name in auth.user_metadata
           data: { full_name: fullName },
-          // if you enable email confirmations, this determines where they return
           emailRedirectTo: `${window.location.origin}/login`,
         },
       });
 
       if (error) throw error;
 
-      // If email confirmation is ON, user may be null until confirmed.
-      // If confirmation is OFF, you'll usually have a user immediately.
       const userId = data?.user?.id;
 
-      // 2) OPTIONAL: create an initial row in your table when user exists.
-      // If you want to skip until after login, remove this block.
+      // 2) OPTIONAL: create initial row in your table
       if (userId) {
-        // Example table: public."NoteStreams Table"
-        // Adjust table name/columns to your schema.
         const { error: insertError } = await supabase
           .from("NoteStreams Table")
-          .insert([
-            {
-              user_id: userId,
-              // Add whatever initial fields your table expects:
-              // title: "My first workspace",
-              // created_at: new Date().toISOString(),
-            },
-          ]);
+          .insert([{ user_id: userId }]);
 
-        // If RLS is enabled, insert will only work if:
-        // - you set user_id default auth.uid() and omit user_id, OR
-        // - you have an INSERT policy with WITH CHECK (user_id = auth.uid())
-        // AND the request is authenticated. During signUp, you should be authenticated.
         if (insertError) {
-          // Don’t hard-fail signup if this optional row fails; show a helpful message.
           console.warn("Table insert failed:", insertError.message);
         }
       }
 
-      // 3) UX: if confirmations ON, tell them to check email.
-      // We'll route to login either way.
       navigate("/login");
     } catch (err) {
       setErrorMsg(err?.message || "Signup failed. Please try again.");
@@ -366,11 +332,13 @@ export default function SignupPage() {
                   <motion.button
                     whileHover={{
                       scale: submitting ? 1 : 1.02,
-                      boxShadow: submitting ? undefined : "0 12px 40px rgba(99,102,241,0.28)",
+                      boxShadow: submitting
+                        ? undefined
+                        : "0 12px 40px rgba(99,102,241,0.28)",
                     }}
                     whileTap={{ scale: submitting ? 1 : 0.98 }}
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || !isSupabaseConfigured}
                     className="w-full py-4 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     style={{
                       background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
@@ -546,7 +514,9 @@ export default function SignupPage() {
                     <FiInfo />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-theme-secondary">Tip</p>
+                    <p className="text-sm font-semibold text-theme-secondary">
+                      Tip
+                    </p>
                     <p className="text-[11px] text-theme-muted leading-relaxed">
                       Use a password manager to create a strong password and keep your
                       account secure.
@@ -555,7 +525,7 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {!supabaseUrl || !supabaseAnonKey ? (
+              {!isSupabaseConfigured ? (
                 <div className="mt-4 text-[11px] text-rose-200/80">
                   Missing env vars: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
                 </div>
@@ -567,5 +537,7 @@ export default function SignupPage() {
     </section>
   );
 }
+
+
 
 

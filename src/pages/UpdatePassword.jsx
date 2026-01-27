@@ -1,37 +1,34 @@
-
-// src/pages/ResetPassword.jsx
+// src/pages/UpdatePassword.jsx
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiArrowLeft, FiMail, FiCheck, FiArrowRight } from "react-icons/fi";
-import { Envelope } from "phosphor-react";
+import { FiArrowLeft, FiCheck, FiLock, FiArrowRight } from "react-icons/fi";
+import { ShieldCheck } from "phosphor-react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
-export default function ResetPassword() {
+export default function UpdatePassword() {
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [success, setSuccess] = useState(false);
 
-  // Resend cooldown (prevents spamming + gives clear UX)
-  const [cooldown, setCooldown] = useState(0); // seconds
+  const params = useMemo(() => new URLSearchParams(window.location.search), []);
+  const token_hash = params.get("token_hash");
+  const type = params.get("type"); // expected: "recovery"
+
+  const hasQueryRecovery = Boolean(token_hash && type === "recovery");
+
+  const canSubmit = useMemo(() => {
+    if (!password || password.length < 8) return false;
+    if (password !== confirm) return false;
+    return true;
+  }, [password, confirm]);
 
   useEffect(() => {
-    if (cooldown <= 0) return;
-    const t = setInterval(() => setCooldown((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(t);
-  }, [cooldown]);
-
-  const isValidEmail = useMemo(() => {
-    if (!email) return false;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  }, [email]);
-
-  const sendResetEmail = async (targetEmail) => {
-    setErrorMsg("");
-
+    // Basic configuration guard
     if (!isSupabaseConfigured || !supabase) {
       setErrorMsg(
         "Supabase is not configured. Check VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY."
@@ -39,37 +36,19 @@ export default function ResetPassword() {
       return;
     }
 
-    const cleanEmail = (targetEmail || "").trim();
-    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      setErrorMsg("Enter a valid email address.");
-      return;
-    }
+    // If you're using the custom email template, the link must include token_hash + type=recovery
+    // But we also support the legacy flow where Supabase puts a session in the URL hash.
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      const hasSession = Boolean(data?.session);
 
-    if (isSubmitting) return;
-
-    setIsSubmitting(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-        // must match your Supabase Redirect URLs allowlist
-        redirectTo: `${window.location.origin}/update-password`,
-      });
-      if (error) throw error;
-
-      setSent(true);
-      // Start / reset cooldown after a successful send
-      setCooldown(30);
-    } catch (err) {
-      setErrorMsg(err?.message || "Failed to send reset email. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const onSubmit = async (e) => {
-    e.preventDefault();
-    if (!isValidEmail || isSubmitting) return;
-    await sendResetEmail(email);
-  };
+      if (!hasQueryRecovery && !hasSession) {
+        setErrorMsg(
+          "Invalid or expired recovery link. Please request a new password reset."
+        );
+      }
+    })();
+  }, [hasQueryRecovery]);
 
   const primaryBtn = {
     background:
@@ -82,6 +61,50 @@ export default function ResetPassword() {
     backgroundColor: "var(--bg-tertiary)",
     border: "1px solid var(--border-secondary)",
     color: "var(--text-primary)",
+  };
+
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    setErrorMsg("");
+
+    if (!isSupabaseConfigured || !supabase) return;
+    if (!canSubmit || submitting) return;
+
+    setSubmitting(true);
+    try {
+      // If token_hash link (recommended template)
+      if (hasQueryRecovery) {
+        const { error: verifyErr } = await supabase.auth.verifyOtp({
+          type: "recovery",
+          token_hash,
+        });
+        if (verifyErr) throw verifyErr;
+      } else {
+        // Legacy flow: session may already exist via URL hash
+        const { data } = await supabase.auth.getSession();
+        if (!data?.session) {
+          throw new Error(
+            "Recovery session not found. Please request a new password reset."
+          );
+        }
+      }
+
+      const { error: updErr } = await supabase.auth.updateUser({ password });
+      if (updErr) throw updErr;
+
+      // Optional but clean: force re-login after change
+      await supabase.auth.signOut();
+
+      setSuccess(true);
+      setTimeout(() => navigate("/login"), 900);
+    } catch (err) {
+      setErrorMsg(
+        err?.message ||
+          "Failed to update password. Please request a new reset link."
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -119,6 +142,7 @@ export default function ResetPassword() {
               border: "1px solid var(--border-secondary)",
             }}
             aria-label="Go back"
+            type="button"
           >
             <FiArrowLeft className="w-5 h-5" />
           </button>
@@ -143,7 +167,7 @@ export default function ResetPassword() {
                 borderColor: "rgba(99, 102, 241, 0.25)",
               }}
             >
-              <Envelope
+              <ShieldCheck
                 size={16}
                 weight="duotone"
                 style={{ color: "var(--accent-indigo)" }}
@@ -152,7 +176,7 @@ export default function ResetPassword() {
                 className="text-sm font-medium"
                 style={{ color: "var(--accent-indigo)" }}
               >
-                Account Recovery
+                Secure Password Update
               </span>
             </div>
           </div>
@@ -161,10 +185,10 @@ export default function ResetPassword() {
             className="text-4xl md:text-5xl font-bold mb-3"
             style={{ color: "var(--text-primary)" }}
           >
-            Reset <span style={{ color: "var(--accent-indigo)" }}>Password</span>
+            Update <span style={{ color: "var(--accent-indigo)" }}>Password</span>
           </h1>
           <p className="mb-8 text-base md:text-lg" style={{ color: "var(--text-muted)" }}>
-            Enter your email and we’ll send a secure reset link.
+            Choose a new password (minimum 8 characters).
           </p>
 
           {/* Main card */}
@@ -177,7 +201,7 @@ export default function ResetPassword() {
               minHeight: "340px",
             }}
           >
-            {/* Error banner (shows for both states) */}
+            {/* Error banner */}
             {errorMsg ? (
               <div
                 className="mb-5 rounded-2xl border p-3.5"
@@ -188,10 +212,29 @@ export default function ResetPassword() {
                 }}
               >
                 <p className="text-[12px] text-rose-200/90">{errorMsg}</p>
+
+                <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/reset-password")}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold transition active:scale-[0.98]"
+                    style={primaryBtn}
+                  >
+                    Request new link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/login")}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold transition active:scale-[0.98]"
+                    style={secondaryBtn}
+                  >
+                    Back to login
+                  </button>
+                </div>
               </div>
             ) : null}
 
-            {sent ? (
+            {success ? (
               <div className="space-y-4">
                 <div
                   className="p-5 rounded-2xl border flex items-start gap-3"
@@ -212,134 +255,113 @@ export default function ResetPassword() {
 
                   <div>
                     <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                      Check your inbox
+                      Password updated
                     </p>
                     <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-                      If an account exists for{" "}
-                      <span style={{ color: "var(--text-primary)" }}>{email}</span>, you’ll receive a reset link shortly.
-                    </p>
-                    <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
-                      Tip: Check spam/junk folders if you don’t see it within a few minutes.
+                      Redirecting you to login…
                     </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    onClick={() => navigate("/login")}
-                    className="w-full py-3 rounded-xl text-sm font-semibold transition hover:opacity-95 active:scale-[0.98]"
-                    style={primaryBtn}
-                    type="button"
-                  >
-                    Go to Login
-                  </button>
-
-                  {/* Resend without leaving this screen */}
-                  <button
-                    onClick={() => sendResetEmail(email)}
-                    disabled={isSubmitting || cooldown > 0}
-                    className="w-full py-3 rounded-xl text-sm font-semibold transition active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
-                    style={secondaryBtn}
-                    type="button"
-                  >
-                    {isSubmitting
-                      ? "Resending…"
-                      : cooldown > 0
-                      ? `Resend available in ${cooldown}s`
-                      : "Resend email"}
-                  </button>
-                </div>
-
                 <button
-                  onClick={() => {
-                    setSent(false);
-                    setErrorMsg("");
-                    // keep the email so they can edit it quickly
-                  }}
+                  onClick={() => navigate("/login")}
                   className="w-full py-3 rounded-xl text-sm font-semibold transition hover:opacity-95 active:scale-[0.98]"
-                  style={secondaryBtn}
+                  style={primaryBtn}
                   type="button"
                 >
-                  Edit email
+                  Go to Login
                 </button>
               </div>
             ) : (
               <form onSubmit={onSubmit} className="space-y-4">
                 <div>
                   <label className="text-xs font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>
-                    Email
+                    New password
                   </label>
 
                   <div
                     className="relative rounded-xl border transition-all"
                     style={{
                       backgroundColor: "var(--bg-tertiary)",
-                      borderColor: email ? "rgba(99, 102, 241, 0.35)" : "var(--border-secondary)",
-                      boxShadow: email ? "0 0 0 4px rgba(99, 102, 241, 0.10)" : "none",
+                      borderColor: password ? "rgba(99, 102, 241, 0.35)" : "var(--border-secondary)",
+                      boxShadow: password ? "0 0 0 4px rgba(99, 102, 241, 0.10)" : "none",
                     }}
                   >
-                    <FiMail
+                    <FiLock
                       className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4"
                       style={{ color: "var(--text-muted)" }}
                     />
                     <input
-                      type="email"
+                      type="password"
                       required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
                       className="w-full pl-11 pr-4 py-3 rounded-xl bg-transparent outline-none text-sm"
                       style={{ color: "var(--text-primary)" }}
-                      autoComplete="email"
-                      inputMode="email"
+                      autoComplete="new-password"
                     />
                   </div>
 
-                  {!email ? null : !isValidEmail ? (
+                  {password && password.length < 8 ? (
                     <p className="mt-2 text-xs" style={{ color: "var(--accent-rose)" }}>
-                      Enter a valid email address.
+                      Use at least 8 characters.
                     </p>
                   ) : (
                     <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                      We’ll send a link to this address.
+                      Make it strong and unique.
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>
+                    Confirm password
+                  </label>
+
+                  <div
+                    className="relative rounded-xl border transition-all"
+                    style={{
+                      backgroundColor: "var(--bg-tertiary)",
+                      borderColor: confirm ? "rgba(99, 102, 241, 0.35)" : "var(--border-secondary)",
+                      boxShadow: confirm ? "0 0 0 4px rgba(99, 102, 241, 0.10)" : "none",
+                    }}
+                  >
+                    <FiLock
+                      className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4"
+                      style={{ color: "var(--text-muted)" }}
+                    />
+                    <input
+                      type="password"
+                      required
+                      value={confirm}
+                      onChange={(e) => setConfirm(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-11 pr-4 py-3 rounded-xl bg-transparent outline-none text-sm"
+                      style={{ color: "var(--text-primary)" }}
+                      autoComplete="new-password"
+                    />
+                  </div>
+
+                  {confirm && confirm !== password ? (
+                    <p className="mt-2 text-xs" style={{ color: "var(--accent-rose)" }}>
+                      Passwords do not match.
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                      Re-enter the same password.
                     </p>
                   )}
                 </div>
 
                 <button
                   type="submit"
-                  disabled={!isValidEmail || isSubmitting}
+                  disabled={!canSubmit || submitting || !!errorMsg}
                   className="w-full py-3 rounded-xl font-semibold text-sm transition active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
                   style={primaryBtn}
                 >
-                  {isSubmitting ? "Sending…" : "Send reset link"}
+                  {submitting ? "Updating…" : "Update password"}
                 </button>
-
-                <div
-                  className="rounded-2xl border p-4"
-                  style={{
-                    backgroundColor: "rgba(255,255,255,0.03)",
-                    borderColor: "var(--border-secondary)",
-                  }}
-                >
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    If you don’t see the email, check spam/junk folders. For help, contact{" "}
-                    <a
-                      href="mailto:support@notestream.ai"
-                      className="font-semibold"
-                      style={{ color: "var(--accent-indigo)" }}
-                    >
-                      support@notestream.ai
-                    </a>
-                    .
-                  </p>
-                </div>
-
-                {!isSupabaseConfigured ? (
-                  <div className="text-[11px] text-rose-200/80">
-                    Missing env vars: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
-                  </div>
-                ) : null}
               </form>
             )}
           </div>
@@ -348,6 +370,3 @@ export default function ResetPassword() {
     </section>
   );
 }
-
-
-

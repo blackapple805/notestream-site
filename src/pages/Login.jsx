@@ -11,21 +11,9 @@ import {
   FiGrid,
   FiInfo,
 } from "react-icons/fi";
-import { createClient } from "@supabase/supabase-js";
-
-/* ---------------------------
-   Supabase client (Vite)
---------------------------- */
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : null;
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 // IMPORTANT: set this to your actual table name in Supabase
-// Example: const NOTES_TABLE = 'NoteStreams Table';
 const NOTES_TABLE = "NoteStreams Table";
 
 const toneStyles = {
@@ -51,8 +39,7 @@ const toneStyles = {
 
 const IconTile = ({ children, tone = "indigo", size = "md" }) => {
   const t = toneStyles[tone] || toneStyles.indigo;
-  const tileClass =
-    size === "sm" ? "ns-auth-field-icon-tile" : "ns-auth-icon-tile";
+  const tileClass = size === "sm" ? "ns-auth-field-icon-tile" : "ns-auth-icon-tile";
 
   return (
     <div
@@ -143,18 +130,8 @@ export default function LoginPage() {
   const rightInView = useInView(rightRef, { amount: 0.25 });
 
   const features = [
-    {
-      tone: "indigo",
-      icon: <FiTrendingUp />,
-      label: "Smarter insights",
-      sub: "Track progress",
-    },
-    {
-      tone: "purple",
-      icon: <FiGrid />,
-      label: "Clean UI",
-      sub: "Neon glass theme",
-    },
+    { tone: "indigo", icon: <FiTrendingUp />, label: "Smarter insights", sub: "Track progress" },
+    { tone: "purple", icon: <FiGrid />, label: "Clean UI", sub: "Neon glass theme" },
   ];
 
   const onChange = (e) => {
@@ -167,7 +144,7 @@ export default function LoginPage() {
     e.preventDefault();
     setErrorMsg("");
 
-    if (!supabase) {
+    if (!isSupabaseConfigured || !supabase) {
       setErrorMsg(
         "Supabase env vars missing. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY."
       );
@@ -186,32 +163,20 @@ export default function LoginPage() {
     try {
       // 1) Sign in
       const { data: authData, error: authErr } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        await supabase.auth.signInWithPassword({ email, password });
 
       if (authErr) throw authErr;
 
       const user = authData?.user;
       if (!user?.id) throw new Error("Login succeeded but no user returned.");
 
-      // 2) Ensure the user's row exists (1 row per user via UNIQUE user_id index)
-      // Requires an INSERT RLS policy like:
-      //   with check (auth.uid() = user_id)
+      // 2) Ensure the user's row exists
       const { error: upsertErr } = await supabase
         .from(NOTES_TABLE)
         .upsert({ user_id: user.id }, { onConflict: "user_id" });
 
-      if (upsertErr) {
-        // Common causes:
-        // - RLS INSERT policy missing
-        // - table name mismatch (spaces/case)
-        // - user_id column name mismatch
-        throw upsertErr;
-      }
+      if (upsertErr) throw upsertErr;
 
-      // 3) Go to dashboard
       navigate("/dashboard");
     } catch (err) {
       setErrorMsg(err?.message || "Login failed. Please try again.");
@@ -285,9 +250,7 @@ export default function LoginPage() {
                   <p className="text-[11px] uppercase tracking-wider text-theme-muted font-semibold">
                     Welcome back
                   </p>
-                  <p className="text-sm text-theme-secondary">
-                    Continue where you left off
-                  </p>
+                  <p className="text-sm text-theme-secondary">Continue where you left off</p>
                 </div>
               </div>
 
@@ -303,7 +266,6 @@ export default function LoginPage() {
               <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-8">
                 {features.map((f, i) => {
                   const t = toneStyles[f.tone] || toneStyles.indigo;
-
                   return (
                     <div
                       key={i}
@@ -371,12 +333,8 @@ export default function LoginPage() {
                     <FiLock />
                   </IconTile>
                   <div>
-                    <h2 className="text-lg font-semibold text-theme-primary">
-                      Sign in
-                    </h2>
-                    <p className="text-[11px] text-theme-muted">
-                      Use your account credentials
-                    </p>
+                    <h2 className="text-lg font-semibold text-theme-primary">Sign in</h2>
+                    <p className="text-[11px] text-theme-muted">Use your account credentials</p>
                   </div>
                 </div>
 
@@ -432,7 +390,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     className="text-theme-muted hover:text-theme-primary transition"
-                    onClick={() => navigate("/forgot-password")}
+                    onClick={() => navigate("/reset-password")}
                   >
                     Forgot password?
                   </button>
@@ -448,13 +406,11 @@ export default function LoginPage() {
                 <motion.button
                   whileHover={{
                     scale: submitting ? 1 : 1.02,
-                    boxShadow: submitting
-                      ? undefined
-                      : "0 12px 40px rgba(99,102,241,0.28)",
+                    boxShadow: submitting ? undefined : "0 12px 40px rgba(99,102,241,0.28)",
                   }}
                   whileTap={{ scale: submitting ? 1 : 0.98 }}
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || !isSupabaseConfigured}
                   className="w-full py-4 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{
                     background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
@@ -486,18 +442,15 @@ export default function LoginPage() {
                     <FiInfo />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-theme-secondary">
-                      Tip
-                    </p>
+                    <p className="text-sm font-semibold text-theme-secondary">Tip</p>
                     <p className="text-[11px] text-theme-muted leading-relaxed">
-                      You can enable smart notifications and weekly digests after
-                      signing in from Settings.
+                      You can enable smart notifications and weekly digests after signing in from Settings.
                     </p>
                   </div>
                 </div>
               </div>
 
-              {!supabaseUrl || !supabaseAnonKey ? (
+              {!isSupabaseConfigured ? (
                 <div className="mt-4 text-[11px] text-rose-200/80">
                   Missing env vars: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
                 </div>
@@ -509,6 +462,7 @@ export default function LoginPage() {
     </section>
   );
 }
+
 
 
 

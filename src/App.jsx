@@ -45,6 +45,7 @@ import IntegrationsLanding from "./pages/IntegrationsLanding";
 import Support from "./pages/Support";
 import FAQ from "./pages/FAQ";
 import ResetPassword from "./pages/ResetPassword";
+import UpdatePassword from "./pages/UpdatePassword";
 import Pricing from "./pages/Pricing";
 import Privacy from "./pages/Privacy";
 
@@ -114,6 +115,7 @@ function RouteTitle() {
       "/support": "Support | NoteStream",
       "/faq": "FAQ | NoteStream",
       "/reset-password": "Reset Password | NoteStream",
+      "/update-password": "Update Password | NoteStream",
       "/pricing": "Billing & Plans | NoteStream",
       "/privacy": "Privacy Policy | NoteStream",
       "/signup": "Sign Up | NoteStream",
@@ -180,7 +182,10 @@ function PublicRoutesFadeWrapper() {
             <Route path="/ai-summary" element={<AISummary />} />
 
             {/* PUBLIC Integrations Landing (renamed path) */}
-            <Route path="/integrations-landing" element={<IntegrationsLanding />} />
+            <Route
+              path="/integrations-landing"
+              element={<IntegrationsLanding />}
+            />
 
             {/* Back-compat redirect so old /integrations still works */}
             <Route
@@ -195,7 +200,11 @@ function PublicRoutesFadeWrapper() {
             {/* Support */}
             <Route path="/support" element={<Support />} />
             <Route path="/faq" element={<FAQ />} />
+
+            {/* Password Recovery Flow */}
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/update-password" element={<UpdatePassword />} />
+
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/privacy" element={<Privacy />} />
 
@@ -349,6 +358,8 @@ export default function App() {
     </ThemeProvider>
   );
 }
+
+
 
 
 
