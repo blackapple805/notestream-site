@@ -253,7 +253,14 @@ export default function Notes() {
   };
 
   // ✅ FIX: define createNote (this was crashing your page)
-  const createNote = async () => {
+const creatingRef = useRef(false);
+console.count("createNote called");
+
+const createNote = async () => {
+  if (creatingRef.current) return;
+  creatingRef.current = true;
+
+  try {
     const now = new Date().toISOString();
     const title = (newNote.title || "").trim() || "Untitled";
     const body = (newNote.body || "").trim() || "";
@@ -283,7 +290,10 @@ export default function Notes() {
         aiModel: null,
       };
 
-      setNotes((prev) => [localNote, ...(prev || [])]);
+      setNotes((prev) => [
+        localNote,
+        ...(prev || []).filter((n) => n.id !== localNote.id),
+      ]);
       setNewNote({ title: "", body: "" });
       setSelectedNote(localNote);
       return;
@@ -320,10 +330,13 @@ export default function Notes() {
     }
 
     const ui = mapDbNoteToUi(data);
-    setNotes((prev) => [ui, ...(prev || [])]);
+    setNotes((prev) => [ui, ...(prev || []).filter((n) => n.id !== ui.id)]);
     setNewNote({ title: "", body: "" });
     setSelectedNote(ui);
-  };
+  } finally {
+    creatingRef.current = false;
+  }
+};
 
   const handleDelete = async (id) => {
     const prevNotes = notes;
@@ -1293,13 +1306,21 @@ export default function Notes() {
                 backgroundColor: "var(--bg-tertiary)",
               }}
             >
-              <button
-                onClick={createNote}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium transition hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2"
+                    <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  createNote();
+                }}
               >
-                <FiPlus size={18} />
-                Create Note
-              </button>
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium transition hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  <FiPlus size={18} />
+                  Create Note
+                </button>
+              </form>
+
             </div>
           </Modal>
         )}
