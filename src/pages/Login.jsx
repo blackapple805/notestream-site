@@ -1,5 +1,5 @@
 // src/pages/Login.jsx
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useInView } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
@@ -13,8 +13,15 @@ import {
 } from "react-icons/fi";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
-// IMPORTANT: set this to your actual table name in Supabase
+// IMPORTANT: set this to your actual table name in Supabase (ONLY if you truly use it)
 const NOTES_TABLE = "NoteStreams Table";
+
+// Engagement stats table (your real table)
+const USER_STATS_TABLE = "user_engagement_stats";
+
+// Dev-only: only show on localhost + dev build
+const SHOW_DEV_RLS =
+  import.meta.env.DEV && window.location.hostname === "localhost";
 
 const toneStyles = {
   indigo: {
@@ -39,7 +46,8 @@ const toneStyles = {
 
 const IconTile = ({ children, tone = "indigo", size = "md" }) => {
   const t = toneStyles[tone] || toneStyles.indigo;
-  const tileClass = size === "sm" ? "ns-auth-field-icon-tile" : "ns-auth-icon-tile";
+  const tileClass =
+    size === "sm" ? "ns-auth-field-icon-tile" : "ns-auth-icon-tile";
 
   return (
     <div
@@ -119,6 +127,35 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Dev-only test output
+  const [testOut, setTestOut] = useState(null);
+
+  // Only show Test RLS if a session exists
+  const [canShowRlsTest, setCanShowRlsTest] = useState(false);
+
+  useEffect(() => {
+    if (!SHOW_DEV_RLS || !supabase) return;
+
+    let alive = true;
+
+    // initial check
+    supabase.auth.getSession().then(({ data }) => {
+      if (!alive) return;
+      setCanShowRlsTest(!!data?.session?.user?.id);
+    });
+
+    // live updates
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
+      if (!alive) return;
+      setCanShowRlsTest(!!session?.user?.id);
+    });
+
+    return () => {
+      alive = false;
+      sub?.subscription?.unsubscribe();
+    };
+  }, []);
+
   const fadeVariants = {
     hidden: { opacity: 0, y: 30 },
     visible: { opacity: 1, y: 0 },
@@ -130,12 +167,23 @@ export default function LoginPage() {
   const rightInView = useInView(rightRef, { amount: 0.25 });
 
   const features = [
-    { tone: "indigo", icon: <FiTrendingUp />, label: "Smarter insights", sub: "Track progress" },
-    { tone: "purple", icon: <FiGrid />, label: "Clean UI", sub: "Neon glass theme" },
+    {
+      tone: "indigo",
+      icon: <FiTrendingUp />,
+      label: "Smarter insights",
+      sub: "Track progress",
+    },
+    {
+      tone: "purple",
+      icon: <FiGrid />,
+      label: "Clean UI",
+      sub: "Neon glass theme",
+    },
   ];
 
   const onChange = (e) => {
     setErrorMsg("");
+    setTestOut(null);
     const { name, value } = e.target;
     setForm((s) => ({ ...s, [name]: value }));
   };
@@ -143,6 +191,7 @@ export default function LoginPage() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMsg("");
+    setTestOut(null);
 
     if (!isSupabaseConfigured || !supabase) {
       setErrorMsg(
@@ -170,18 +219,72 @@ export default function LoginPage() {
       const user = authData?.user;
       if (!user?.id) throw new Error("Login succeeded but no user returned.");
 
-      // 2) Ensure the user's row exists
-      const { error: upsertErr } = await supabase
-        .from(NOTES_TABLE)
-        .upsert({ user_id: user.id }, { onConflict: "user_id" });
+      // 2) (Optional) Only keep this if NOTES_TABLE exists and you use it.
+      // Right now it's set to a placeholder string, so we skip it.
+      if (NOTES_TABLE && NOTES_TABLE !== "NoteStreams Table") {
+        const { error: notesUpsertErr } = await supabase
+          .from(NOTES_TABLE)
+          .upsert({ user_id: user.id }, { onConflict: "user_id" });
 
-      if (upsertErr) throw upsertErr;
+        if (notesUpsertErr) throw notesUpsertErr;
+      }
+
+      // 3) Ensure engagement stats row exists
+      const displayName =
+        user.user_metadata?.full_name ??
+        user.user_metadata?.name ??
+        (user.email ? user.email.split("@")[0] : null);
+
+      const { error: statsUpsertErr } = await supabase
+        .from(USER_STATS_TABLE)
+        .upsert(
+          {
+            user_id: user.id,
+            display_name: displayName,
+          },
+          { onConflict: "user_id" }
+        );
+
+      if (statsUpsertErr) throw statsUpsertErr;
 
       navigate("/dashboard");
     } catch (err) {
       setErrorMsg(err?.message || "Login failed. Please try again.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Safe RLS test: only runs if a session exists, never queries with undefined
+  const handleTestRls = async () => {
+    setErrorMsg("");
+    setTestOut(null);
+
+    if (!isSupabaseConfigured || !supabase) {
+      setErrorMsg("Supabase is not configured.");
+      return;
+    }
+
+    try {
+      const { data: sessRes, error: sessErr } = await supabase.auth.getSession();
+      if (sessErr) throw sessErr;
+
+      const user = sessRes?.session?.user;
+      if (!user?.id) {
+        setTestOut({ ok: false, message: "No session yet. Log in first." });
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from(USER_STATS_TABLE)
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      setTestOut({ ok: !error, data: data ?? null, error: error ?? null });
+      console.log("RLS test:", { data, error });
+    } catch (err) {
+      setTestOut({ ok: false, message: err?.message ?? String(err) });
     }
   };
 
@@ -250,7 +353,9 @@ export default function LoginPage() {
                   <p className="text-[11px] uppercase tracking-wider text-theme-muted font-semibold">
                     Welcome back
                   </p>
-                  <p className="text-sm text-theme-secondary">Continue where you left off</p>
+                  <p className="text-sm text-theme-secondary">
+                    Continue where you left off
+                  </p>
                 </div>
               </div>
 
@@ -333,8 +438,12 @@ export default function LoginPage() {
                     <FiLock />
                   </IconTile>
                   <div>
-                    <h2 className="text-lg font-semibold text-theme-primary">Sign in</h2>
-                    <p className="text-[11px] text-theme-muted">Use your account credentials</p>
+                    <h2 className="text-lg font-semibold text-theme-primary">
+                      Sign in
+                    </h2>
+                    <p className="text-[11px] text-theme-muted">
+                      Use your account credentials
+                    </p>
                   </div>
                 </div>
 
@@ -386,7 +495,7 @@ export default function LoginPage() {
                   onChange={onChange}
                 />
 
-                <div className="flex items-center justify-between text-xs pt-1">
+                <div className="flex items-center justify-between text-xs pt-1 gap-3">
                   <button
                     type="button"
                     className="text-theme-muted hover:text-theme-primary transition"
@@ -395,18 +504,55 @@ export default function LoginPage() {
                     Forgot password?
                   </button>
 
+                  {/* Dev-only helper. Only shows on localhost AND only when session exists */}
+                  {SHOW_DEV_RLS && canShowRlsTest ? (
+                    <button
+                      type="button"
+                      onClick={handleTestRls}
+                      className="text-theme-muted hover:text-theme-primary transition"
+                      title="Dev-only (localhost)"
+                    >
+                      Test RLS
+                    </button>
+                  ) : null}
+
                   <span className="text-theme-muted">
                     New here?{" "}
-                    <a className="text-indigo-400 hover:text-indigo-300" href="/signup">
+                    <a
+                      className="text-indigo-400 hover:text-indigo-300"
+                      href="/signup"
+                    >
                       Create account
                     </a>
                   </span>
                 </div>
 
+                {testOut ? (
+                  <div
+                    className="rounded-2xl border p-3.5"
+                    style={{
+                      backgroundColor: "rgba(255,255,255,0.03)",
+                      borderColor: "var(--border-secondary)",
+                    }}
+                  >
+                    <p className="text-[11px] text-theme-muted">
+                      RLS test result:
+                    </p>
+                    <pre
+                      className="mt-2 text-[11px] whitespace-pre-wrap break-words"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      {JSON.stringify(testOut, null, 2)}
+                    </pre>
+                  </div>
+                ) : null}
+
                 <motion.button
                   whileHover={{
                     scale: submitting ? 1 : 1.02,
-                    boxShadow: submitting ? undefined : "0 12px 40px rgba(99,102,241,0.28)",
+                    boxShadow: submitting
+                      ? undefined
+                      : "0 12px 40px rgba(99,102,241,0.28)",
                   }}
                   whileTap={{ scale: submitting ? 1 : 0.98 }}
                   type="submit"
@@ -442,9 +588,12 @@ export default function LoginPage() {
                     <FiInfo />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-theme-secondary">Tip</p>
+                    <p className="text-sm font-semibold text-theme-secondary">
+                      Tip
+                    </p>
                     <p className="text-[11px] text-theme-muted leading-relaxed">
-                      You can enable smart notifications and weekly digests after signing in from Settings.
+                      You can enable smart notifications and weekly digests after
+                      signing in from Settings.
                     </p>
                   </div>
                 </div>
@@ -462,6 +611,9 @@ export default function LoginPage() {
     </section>
   );
 }
+
+
+
 
 
 

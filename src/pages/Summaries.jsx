@@ -1,20 +1,24 @@
 // src/pages/Summaries.jsx - "Insight Explorer"
-// Rebuilt with cleaner search bar matching Search.jsx style
-// Uses universal page-header CSS classes for consistent styling
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FiSend, FiFile, FiSearch, FiZap, FiTrash2, FiX, FiChevronDown } from "react-icons/fi";
+import {
+  FiSend,
+  FiFile,
+  FiSearch,
+  FiZap,
+  FiTrash2,
+  FiX,
+  FiChevronDown,
+} from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
-// Mock workspace files for context
-const workspaceFiles = [
-  { id: 1, name: "Meeting_summary_jan.pdf", type: "pdf" },
-  { id: 2, name: "Project_roadmap.docx", type: "doc" },
-  { id: 3, name: "Lecture_05_recording.mp4", type: "video" },
-  { id: 4, name: "Research_notes.md", type: "note" },
-  { id: 5, name: "Q1_Budget.xlsx", type: "spreadsheet" },
-];
+const DOCS_TABLE = "documents";
+const NOTES_TABLE = "notes";
+const USER_STATS_TABLE = "user_engagement_stats";
+const EVENTS_TABLE = "activity_events";
+const AI_USES_KEY = "notestream-aiUses";
 
 // Example prompts
 const exampleQuestions = [
@@ -25,14 +29,46 @@ const exampleQuestions = [
 ];
 
 const typeLabel = (t) => {
-  switch (t) {
-    case "pdf": return "PDF";
-    case "doc": return "Doc";
-    case "video": return "Video";
-    case "note": return "Note";
-    case "spreadsheet": return "Sheet";
-    default: return "File";
+  switch (String(t || "").toLowerCase()) {
+    case "pdf":
+      return "PDF";
+    case "doc":
+    case "docx":
+      return "Doc";
+    case "video":
+    case "mp4":
+      return "Video";
+    case "note":
+      return "Note";
+    case "spreadsheet":
+    case "xls":
+    case "xlsx":
+      return "Sheet";
+    default:
+      return "File";
   }
+};
+
+// Local day helpers
+const toLocalYMD = (d = new Date()) => {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const parseYMDToDate = (ymd) => {
+  const [y, m, d] = String(ymd || "").split("-").map((n) => Number(n));
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+};
+
+const diffDaysLocal = (aYmd, bYmd) => {
+  const a = parseYMDToDate(aYmd);
+  const b = parseYMDToDate(bYmd);
+  if (!a || !b) return null;
+  const ms = b.getTime() - a.getTime();
+  return Math.floor(ms / (24 * 60 * 60 * 1000));
 };
 
 /**
@@ -60,7 +96,8 @@ function RichText({ text, className = "" }) {
           break;
         }
 
-        const useBold = boldIdx !== -1 && (italIdx === -1 || boldIdx <= italIdx);
+        const useBold =
+          boldIdx !== -1 && (italIdx === -1 || boldIdx <= italIdx);
 
         if (useBold) {
           const start = boldIdx;
@@ -70,18 +107,27 @@ function RichText({ text, className = "" }) {
             break;
           }
           pushText(remaining.slice(0, start));
-          tokens.push({ type: "bold", value: remaining.slice(start + 2, end) });
+          tokens.push({
+            type: "bold",
+            value: remaining.slice(start + 2, end),
+          });
           remaining = remaining.slice(end + 2);
         } else {
           const start = italIdx;
-          if (remaining.slice(start, start + 2) === "**") continue;
+          if (remaining.slice(start, start + 2) === "**") {
+            remaining = remaining.slice(start + 2);
+            continue;
+          }
           const end = remaining.indexOf("*", start + 1);
           if (end === -1) {
             pushText(remaining);
             break;
           }
           pushText(remaining.slice(0, start));
-          tokens.push({ type: "italic", value: remaining.slice(start + 1, end) });
+          tokens.push({
+            type: "italic",
+            value: remaining.slice(start + 1, end),
+          });
           remaining = remaining.slice(end + 1);
         }
       }
@@ -110,12 +156,23 @@ function RichText({ text, className = "" }) {
 export default function Summaries() {
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+
   const [conversations, setConversations] = useState([]);
+
+  const [workspaceFiles, setWorkspaceFiles] = useState([]);
+  const [filesLoading, setFilesLoading] = useState(true);
+  const [filesError, setFilesError] = useState(null);
+
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [showFileSelector, setShowFileSelector] = useState(false);
 
   const inputRef = useRef(null);
   const chatEndRef = useRef(null);
+
+  const supabaseReady =
+    typeof isSupabaseConfigured === "function"
+      ? isSupabaseConfigured()
+      : !!isSupabaseConfigured;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -125,7 +182,8 @@ export default function Summaries() {
   useEffect(() => {
     const onKeyDown = (e) => {
       const tag = (e.target?.tagName || "").toLowerCase();
-      const isTypingField = tag === "input" || tag === "textarea" || e.target?.isContentEditable;
+      const isTypingField =
+        tag === "input" || tag === "textarea" || e.target?.isContentEditable;
 
       if (!isTypingField && e.key === "/") {
         e.preventDefault();
@@ -136,13 +194,100 @@ export default function Summaries() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Load workspace context from Supabase (documents + optional notes)
+  useEffect(() => {
+    let alive = true;
+
+    const loadWorkspace = async () => {
+      setFilesLoading(true);
+      setFilesError(null);
+
+      try {
+        if (!supabaseReady || !supabase) {
+          if (!alive) return;
+          setWorkspaceFiles([]);
+          setFilesLoading(false);
+          return;
+        }
+
+        const { data: auth } = await supabase.auth.getUser();
+        const user = auth?.user;
+
+        if (!user?.id) {
+          if (!alive) return;
+          setWorkspaceFiles([]);
+          setFilesLoading(false);
+          return;
+        }
+
+        const docsRes = await supabase
+          .from(DOCS_TABLE)
+          .select("id,user_id,name,type,status,created_at,updated_at")
+          .eq("user_id", user.id)
+          .order("updated_at", { ascending: false });
+
+        if (docsRes.error) throw docsRes.error;
+
+        const docs = (docsRes.data || []).map((d) => ({
+          id: `doc:${d.id}`,
+          raw_id: d.id,
+          user_id: d.user_id,
+          name: d.name,
+          type: d.type,
+          status: d.status,
+          source: "documents",
+          created_at: d.created_at,
+          updated_at: d.updated_at,
+        }));
+
+        // Optional notes as context items (only user-owned)
+        let notes = [];
+        const notesRes = await supabase
+          .from(NOTES_TABLE)
+          .select("id,user_id,title,created_at,updated_at")
+          .eq("user_id", user.id)
+          .order("updated_at", { ascending: false });
+
+        if (!notesRes.error && Array.isArray(notesRes.data)) {
+          notes = notesRes.data.map((n) => ({
+            id: `note:${n.id}`,
+            raw_id: n.id,
+            user_id: n.user_id,
+            name: n.title || "Untitled note",
+            type: "note",
+            source: "notes",
+            created_at: n.created_at,
+            updated_at: n.updated_at,
+          }));
+        }
+
+        if (!alive) return;
+        setWorkspaceFiles([...docs, ...notes]);
+        setFilesLoading(false);
+      } catch (err) {
+        if (!alive) return;
+        setFilesError(err?.message || "Failed to load workspace files");
+        setWorkspaceFiles([]);
+        setFilesLoading(false);
+      }
+    };
+
+    loadWorkspace();
+    return () => {
+      alive = false;
+    };
+  }, [supabaseReady]);
+
   const contextLabel = useMemo(() => {
     if (selectedFiles.length === 0) return "All workspace files";
     if (selectedFiles.length === 1) return selectedFiles[0].name;
     return `${selectedFiles.length} files selected`;
   }, [selectedFiles]);
 
-  const fileIdSet = useMemo(() => new Set(selectedFiles.map((f) => f.id)), [selectedFiles]);
+  const fileIdSet = useMemo(
+    () => new Set(selectedFiles.map((f) => f.id)),
+    [selectedFiles]
+  );
 
   const toggleFileSelection = (file) => {
     setSelectedFiles((prev) =>
@@ -161,39 +306,139 @@ export default function Summaries() {
 
   const generateMockResponse = (q, files) => {
     const lowerQuery = q.toLowerCase();
+    const pickedSources =
+      files?.length > 0 ? files.map((f) => f.name) : ["Multiple files"];
 
     if (lowerQuery.includes("meeting") || lowerQuery.includes("action")) {
       return {
-        answer: "Based on your meeting notes, here are the key action items:\n\n• **Complete UI mockups** - Due Friday\n• **Review budget proposal** - Pending Sarah's input\n• **Schedule follow-up** with design team\n• **Update project timeline** in shared doc",
-        sources: ["Meeting_summary_jan.pdf", "Project_roadmap.docx"],
+        answer:
+          "Based on your workspace, here are the key action items:\n\n• **Complete UI mockups** - Due Friday\n• **Review budget proposal** - Pending Sarah's input\n• **Schedule follow-up** with design team\n• **Update project timeline** in shared doc",
+        sources: pickedSources.slice(0, 2),
       };
     }
 
     if (lowerQuery.includes("deadline") || lowerQuery.includes("due")) {
       return {
-        answer: "I found the following deadlines across your workspace:\n\n• **Jan 15** - Q1 Budget review\n• **Jan 20** - UI mockups delivery\n• **Feb 01** - Project milestone 1\n• **Feb 15** - Research presentation",
-        sources: ["Project_roadmap.docx", "Q1_Budget.xlsx"],
+        answer:
+          "I found the following deadlines across your workspace:\n\n• **Jan 15** - Q1 Budget review\n• **Jan 20** - UI mockups delivery\n• **Feb 01** - Project milestone 1\n• **Feb 15** - Research presentation",
+        sources: pickedSources.slice(0, 2),
       };
     }
 
     if (lowerQuery.includes("budget") || lowerQuery.includes("cost")) {
       return {
-        answer: "Here's a summary of budget-related information:\n\n• **Total Q1 Budget**: $45,000\n• **Spent to date**: $12,500 (28%)\n• **Largest expense**: Software licenses ($5,200)\n• **Pending approvals**: $3,800",
-        sources: ["Q1_Budget.xlsx", "Meeting_summary_jan.pdf"],
+        answer:
+          "Here's a summary of budget-related information:\n\n• **Total Q1 Budget**: $45,000\n• **Spent to date**: $12,500 (28%)\n• **Largest expense**: Software licenses ($5,200)\n• **Pending approvals**: $3,800",
+        sources: pickedSources.slice(0, 2),
       };
     }
 
     if (lowerQuery.includes("research") || lowerQuery.includes("notes")) {
       return {
-        answer: "From your research notes, the main points are:\n\n• **Key finding**: User engagement increased 40% with new UI\n• **Recommendation**: Implement progressive onboarding\n• **Next steps**: A/B testing scheduled for next sprint\n• **Resources needed**: 2 additional developers",
-        sources: ["Research_notes.md", "Lecture_05_recording.mp4"],
+        answer:
+          "From your workspace notes, the main points are:\n\n• **Key finding**: User engagement increased 40% with new UI\n• **Recommendation**: Implement progressive onboarding\n• **Next steps**: A/B testing scheduled for next sprint\n• **Resources needed**: 2 additional developers",
+        sources: pickedSources.slice(0, 2),
       };
     }
 
     return {
-      answer: "I searched across your workspace and found relevant information.\n\n• Your query relates to multiple documents\n• I found **3 relevant mentions** across your files\n• Tell me which file you want to drill into, or ask for a tighter summary",
-      sources: files.length > 0 ? files.map((f) => f.name) : ["Multiple files"],
+      answer:
+        "I searched across your workspace and found relevant information.\n\n• Your query relates to multiple items\n• I found **3 relevant mentions** across your workspace\n• Tell me which file you want to drill into, or ask for a tighter summary",
+      sources: pickedSources,
     };
+  };
+
+  const trackAiUse = async () => {
+    if (!supabaseReady || !supabase) return;
+
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const user = auth?.user;
+      if (!user?.id) return;
+
+      // optional activity event (ignore failures)
+      try {
+        await supabase.from(EVENTS_TABLE).insert({
+          user_id: user.id,
+          type: "ai_used",
+          entity_id: null,
+          meta: { feature: "insight_explorer" },
+        });
+      } catch {}
+
+      const today = toLocalYMD();
+
+      const { data: row, error: rowErr } = await supabase
+        .from(USER_STATS_TABLE)
+        .select("user_id,ai_uses,active_days,streak_days,last_active_date")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (rowErr) return;
+
+      if (!row) {
+        const nextAiUses = 1;
+
+        await supabase.from(USER_STATS_TABLE).insert({
+          user_id: user.id,
+          ai_uses: nextAiUses,
+          active_days: 1,
+          streak_days: 1,
+          last_active_date: today,
+          updated_at: new Date().toISOString(),
+        });
+
+        try {
+          localStorage.setItem(AI_USES_KEY, String(nextAiUses));
+          window.dispatchEvent(
+            new CustomEvent("notestream:ai_uses_updated", {
+              detail: { aiUses: nextAiUses },
+            })
+          );
+        } catch {}
+        return;
+      }
+
+      const prevYmd = row.last_active_date;
+      const delta = prevYmd ? diffDaysLocal(prevYmd, today) : null;
+
+      const nextAiUses = Number(row.ai_uses ?? 0) + 1;
+      const nextActiveDays =
+        delta === null
+          ? Number(row.active_days ?? 0) + 1
+          : delta >= 1
+          ? Number(row.active_days ?? 0) + 1
+          : Number(row.active_days ?? 0);
+
+      const nextStreak =
+        delta === 0
+          ? Number(row.streak_days ?? 0)
+          : delta === 1
+          ? Number(row.streak_days ?? 0) + 1
+          : 1;
+
+      await supabase
+        .from(USER_STATS_TABLE)
+        .update({
+          ai_uses: nextAiUses,
+          active_days: nextActiveDays,
+          streak_days: nextStreak,
+          last_active_date: today,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", user.id);
+
+      try {
+        localStorage.setItem(AI_USES_KEY, String(nextAiUses));
+        window.dispatchEvent(
+          new CustomEvent("notestream:ai_uses_updated", {
+            detail: { aiUses: nextAiUses },
+          })
+        );
+      } catch {}
+    } catch {
+      // silent fail
+    }
   };
 
   const runSearch = async (userQuery) => {
@@ -208,6 +453,7 @@ export default function Summaries() {
     await new Promise((r) => setTimeout(r, 900 + Math.random() * 700));
 
     const aiResponse = generateMockResponse(userQuery, selectedFiles);
+
     setConversations((prev) => [
       ...prev,
       {
@@ -218,6 +464,7 @@ export default function Summaries() {
       },
     ]);
 
+    await trackAiUse();
     setIsSearching(false);
   };
 
@@ -230,9 +477,18 @@ export default function Summaries() {
     await runSearch(userQuery);
   };
 
+  // ✅ Reuse the exact same loader used in Notes.jsx (page-open load)
+  if (filesLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+140px)] animate-fadeIn">
-      {/* Header - Using universal page-header CSS classes */}
+      {/* Header */}
       <header className="page-header">
         <div className="page-header-content">
           <div className="page-header-icon">
@@ -240,7 +496,9 @@ export default function Summaries() {
           </div>
           <div>
             <h1 className="page-header-title">Insight Explorer</h1>
-            <p className="page-header-subtitle">Ask questions across your workspace. AI-powered search and analysis.</p>
+            <p className="page-header-subtitle">
+              Ask questions across your workspace. AI-powered search and analysis.
+            </p>
           </div>
         </div>
       </header>
@@ -251,9 +509,12 @@ export default function Summaries() {
           <div className="flex items-center gap-2">
             <FiFile className="text-indigo-400" size={16} />
             <span className="text-sm text-theme-secondary">Search context:</span>
-            <span 
+            <span
               className="text-xs px-2 py-1 rounded-full border"
-              style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
+              style={{
+                backgroundColor: "var(--bg-tertiary)",
+                borderColor: "var(--border-secondary)",
+              }}
             >
               {contextLabel}
             </span>
@@ -265,7 +526,10 @@ export default function Summaries() {
                 type="button"
                 onClick={() => setSelectedFiles([])}
                 className="text-xs text-theme-muted hover:text-theme-secondary px-2 py-1 rounded-full border transition"
-                style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
+                style={{
+                  backgroundColor: "var(--bg-tertiary)",
+                  borderColor: "var(--border-secondary)",
+                }}
               >
                 Clear
               </button>
@@ -274,13 +538,27 @@ export default function Summaries() {
               type="button"
               onClick={() => setShowFileSelector((s) => !s)}
               className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 px-3 py-1.5 rounded-full border transition"
-              style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', borderColor: 'rgba(99, 102, 241, 0.25)' }}
+              style={{
+                backgroundColor: "rgba(99, 102, 241, 0.1)",
+                borderColor: "rgba(99, 102, 241, 0.25)",
+              }}
+              disabled={filesLoading}
+              title={filesLoading ? "Loading…" : "Select files"}
             >
               Select files
-              <FiChevronDown size={12} className={`${showFileSelector ? "rotate-180" : ""} transition`} />
+              <FiChevronDown
+                size={12}
+                className={`${showFileSelector ? "rotate-180" : ""} transition`}
+              />
             </button>
           </div>
         </div>
+
+        {filesError && (
+          <p className="text-[11px] mt-3" style={{ color: "var(--text-muted)" }}>
+            {filesError}
+          </p>
+        )}
 
         {/* Selected file pills */}
         {selectedFiles.length > 0 && (
@@ -289,16 +567,27 @@ export default function Summaries() {
               <span
                 key={file.id}
                 className="text-xs px-3 py-1.5 rounded-full border flex items-center gap-2"
-                style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', borderColor: 'rgba(99, 102, 241, 0.25)', color: 'rgb(165, 180, 252)' }}
+                style={{
+                  backgroundColor: "rgba(99, 102, 241, 0.1)",
+                  borderColor: "rgba(99, 102, 241, 0.25)",
+                  color: "rgb(165, 180, 252)",
+                }}
               >
-                <span 
+                <span
                   className="text-[10px] px-2 py-0.5 rounded-full border"
-                  style={{ backgroundColor: 'rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99, 102, 241, 0.3)' }}
+                  style={{
+                    backgroundColor: "rgba(99, 102, 241, 0.15)",
+                    borderColor: "rgba(99, 102, 241, 0.3)",
+                  }}
                 >
                   {typeLabel(file.type)}
                 </span>
                 <span className="truncate max-w-[180px]">{file.name}</span>
-                <button type="button" onClick={() => toggleFileSelection(file)} className="hover:text-white">
+                <button
+                  type="button"
+                  onClick={() => toggleFileSelection(file)}
+                  className="hover:text-white"
+                >
                   <FiX size={12} />
                 </button>
               </span>
@@ -314,46 +603,83 @@ export default function Summaries() {
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               className="mt-4 pt-4 border-t overflow-hidden"
-              style={{ borderColor: 'var(--border-secondary)' }}
+              style={{ borderColor: "var(--border-secondary)" }}
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {workspaceFiles.map((file) => {
-                  const selected = fileIdSet.has(file.id);
-                  return (
-                    <button
-                      key={file.id}
-                      type="button"
-                      onClick={() => toggleFileSelection(file)}
-                      className="text-left px-3 py-3 rounded-xl border transition flex items-center justify-between gap-3"
-                      style={{
-                        backgroundColor: selected ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-input)',
-                        borderColor: selected ? 'rgba(99, 102, 241, 0.3)' : 'var(--border-secondary)',
-                      }}
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span 
-                            className="text-[10px] px-2 py-0.5 rounded-full border"
-                            style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
-                          >
-                            {typeLabel(file.type)}
-                          </span>
-                          <span className="text-sm text-theme-primary truncate">{file.name}</span>
-                        </div>
-                      </div>
-                      <div
-                        className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0"
+              {(workspaceFiles || []).length === 0 ? (
+                <div
+                  className="text-xs rounded-xl border p-3"
+                  style={{
+                    backgroundColor: "var(--bg-input)",
+                    borderColor: "var(--border-secondary)",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  No files found yet. Upload a document or create a note to see it
+                  here.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {(workspaceFiles || []).map((file) => {
+                    const selected = fileIdSet.has(file.id);
+                    return (
+                      <button
+                        key={file.id}
+                        type="button"
+                        onClick={() => toggleFileSelection(file)}
+                        className="text-left px-3 py-3 rounded-xl border transition flex items-center justify-between gap-3"
                         style={{
-                          borderColor: selected ? 'rgba(99, 102, 241, 0.4)' : 'var(--border-secondary)',
-                          backgroundColor: selected ? 'rgba(99, 102, 241, 0.2)' : 'var(--bg-tertiary)',
+                          backgroundColor: selected
+                            ? "rgba(99, 102, 241, 0.1)"
+                            : "var(--bg-input)",
+                          borderColor: selected
+                            ? "rgba(99, 102, 241, 0.3)"
+                            : "var(--border-secondary)",
                         }}
                       >
-                        {selected && <div className="w-2.5 h-2.5 rounded-full bg-indigo-400" />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="text-[10px] px-2 py-0.5 rounded-full border"
+                              style={{
+                                backgroundColor: "var(--bg-tertiary)",
+                                borderColor: "var(--border-secondary)",
+                              }}
+                            >
+                              {typeLabel(file.type)}
+                            </span>
+                            <span className="text-sm text-theme-primary truncate">
+                              {file.name}
+                            </span>
+                          </div>
+                          {file.source && (
+                            <p
+                              className="text-[10px] mt-1"
+                              style={{ color: "var(--text-muted)" }}
+                            >
+                              {file.source === "documents" ? "Document" : "Note"}
+                            </p>
+                          )}
+                        </div>
+                        <div
+                          className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0"
+                          style={{
+                            borderColor: selected
+                              ? "rgba(99, 102, 241, 0.4)"
+                              : "var(--border-secondary)",
+                            backgroundColor: selected
+                              ? "rgba(99, 102, 241, 0.2)"
+                              : "var(--bg-tertiary)",
+                          }}
+                        >
+                          {selected && (
+                            <div className="w-2.5 h-2.5 rounded-full bg-indigo-400" />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -364,13 +690,18 @@ export default function Summaries() {
         {conversations.length === 0 ? (
           <GlassCard>
             <div className="text-center mb-6">
-              <div 
+              <div
                 className="mx-auto w-12 h-12 rounded-xl flex items-center justify-center mb-3"
-                style={{ backgroundColor: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.25)' }}
+                style={{
+                  backgroundColor: "rgba(99, 102, 241, 0.15)",
+                  border: "1px solid rgba(99, 102, 241, 0.25)",
+                }}
               >
                 <FiSearch className="text-indigo-400" size={22} />
               </div>
-              <h3 className="text-lg text-theme-primary mb-2">Ask anything about your workspace</h3>
+              <h3 className="text-lg text-theme-primary mb-2">
+                Ask anything about your workspace
+              </h3>
               <p className="text-sm text-theme-muted">
                 Search across documents, notes, and files. Summaries include sources.
               </p>
@@ -381,9 +712,16 @@ export default function Summaries() {
                 <button
                   key={chip}
                   type="button"
-                  onClick={() => handleExampleClick(`Find ${chip.toLowerCase()} across my documents`)}
+                  onClick={() =>
+                    handleExampleClick(
+                      `Find ${chip.toLowerCase()} across my documents`
+                    )
+                  }
                   className="text-xs px-3 py-1.5 rounded-full border text-theme-secondary hover:border-indigo-500/30 transition"
-                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
+                  style={{
+                    backgroundColor: "var(--bg-tertiary)",
+                    borderColor: "var(--border-secondary)",
+                  }}
                 >
                   {chip}
                 </button>
@@ -398,7 +736,10 @@ export default function Summaries() {
                   type="button"
                   onClick={() => handleExampleClick(q)}
                   className="w-full text-left text-sm text-theme-secondary border rounded-xl px-4 py-3 transition hover:border-indigo-500/30"
-                  style={{ backgroundColor: 'var(--bg-input)', borderColor: 'var(--border-secondary)' }}
+                  style={{
+                    backgroundColor: "var(--bg-input)",
+                    borderColor: "var(--border-secondary)",
+                  }}
                 >
                   "{q}"
                 </button>
@@ -427,37 +768,60 @@ export default function Summaries() {
               >
                 {msg.type === "user" ? (
                   <div className="flex justify-end">
-                    <div 
+                    <div
                       className="rounded-2xl rounded-tr-md px-4 py-3 max-w-[85%]"
-                      style={{ backgroundColor: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.25)' }}
+                      style={{
+                        backgroundColor: "rgba(99, 102, 241, 0.15)",
+                        border: "1px solid rgba(99, 102, 241, 0.25)",
+                      }}
                     >
-                      <RichText text={msg.content} className="text-sm text-theme-primary whitespace-pre-wrap" />
+                      <RichText
+                        text={msg.content}
+                        className="text-sm text-theme-primary whitespace-pre-wrap"
+                      />
                       <p className="text-[10px] text-theme-muted mt-1 text-right">
-                        {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {msg.timestamp.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </p>
                     </div>
                   </div>
                 ) : (
                   <GlassCard className="max-w-[95%]">
                     <div className="flex items-start gap-3">
-                      <div 
+                      <div
                         className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.25)' }}
+                        style={{
+                          backgroundColor: "rgba(99, 102, 241, 0.15)",
+                          border: "1px solid rgba(99, 102, 241, 0.25)",
+                        }}
                       >
                         <FiZap className="text-indigo-400" size={14} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <RichText text={msg.content} className="text-sm text-theme-primary leading-relaxed" />
+                        <RichText
+                          text={msg.content}
+                          className="text-sm text-theme-primary leading-relaxed"
+                        />
 
                         {msg.sources && msg.sources.length > 0 && (
-                          <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border-secondary)' }}>
-                            <p className="text-[10px] text-theme-muted mb-2">Sources</p>
+                          <div
+                            className="mt-3 pt-3 border-t"
+                            style={{ borderColor: "var(--border-secondary)" }}
+                          >
+                            <p className="text-[10px] text-theme-muted mb-2">
+                              Sources
+                            </p>
                             <div className="flex flex-wrap gap-1">
                               {msg.sources.map((source, j) => (
                                 <span
                                   key={j}
                                   className="text-[10px] px-2 py-1 rounded-full border"
-                                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
+                                  style={{
+                                    backgroundColor: "var(--bg-tertiary)",
+                                    borderColor: "var(--border-secondary)",
+                                  }}
                                 >
                                   {source}
                                 </span>
@@ -467,7 +831,10 @@ export default function Summaries() {
                         )}
 
                         <p className="text-[10px] text-theme-muted mt-2">
-                          {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {msg.timestamp.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </p>
                       </div>
                     </div>
@@ -476,32 +843,12 @@ export default function Summaries() {
               </motion.div>
             ))}
 
-            {isSearching && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <GlassCard className="max-w-[200px]">
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-9 h-9 rounded-xl flex items-center justify-center"
-                      style={{ backgroundColor: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.25)' }}
-                    >
-                      <FiZap className="text-indigo-400 animate-pulse" size={14} />
-                    </div>
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                    </div>
-                  </div>
-                </GlassCard>
-              </motion.div>
-            )}
-
             <div ref={chatEndRef} />
           </div>
         )}
       </div>
 
-      {/* Search Bar - Clean style matching Search.jsx */}
+      {/* Search Bar */}
       <div className="fixed bottom-[calc(var(--mobile-nav-height)+16px)] left-0 right-0 px-4 z-40 md:left-[220px] md:bottom-6">
         <div className="max-w-3xl mx-auto">
           <form onSubmit={handleSearch}>
@@ -509,14 +856,14 @@ export default function Summaries() {
               className={`flex items-center w-full rounded-full px-4 py-3 transition-all duration-300 border shadow-lg ${
                 query ? "border-indigo-500 shadow-[0_0_25px_rgba(99,102,241,0.2)]" : ""
               }`}
-              style={{ 
-                backgroundColor: 'var(--bg-surface)', 
-                borderColor: query ? 'rgb(99, 102, 241)' : 'var(--border-secondary)',
-                backdropFilter: 'blur(12px)',
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                borderColor: query ? "rgb(99, 102, 241)" : "var(--border-secondary)",
+                backdropFilter: "blur(12px)",
               }}
             >
               <FiSearch className="text-theme-muted w-5 h-5 mr-3 flex-shrink-0" />
-              
+
               <input
                 ref={inputRef}
                 type="text"
@@ -560,9 +907,18 @@ export default function Summaries() {
               </button>
             </div>
 
-            {/* Keyboard hint */}
             <p className="text-center text-[11px] text-theme-muted mt-2 hidden md:block">
-              Press <span className="px-1.5 py-0.5 rounded border text-theme-secondary" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}>/</span> to focus
+              Press{" "}
+              <span
+                className="px-1.5 py-0.5 rounded border text-theme-secondary"
+                style={{
+                  backgroundColor: "var(--bg-tertiary)",
+                  borderColor: "var(--border-secondary)",
+                }}
+              >
+                /
+              </span>{" "}
+              to focus
             </p>
           </form>
         </div>
@@ -570,6 +926,12 @@ export default function Summaries() {
     </div>
   );
 }
+
+
+
+
+
+
 
 
 

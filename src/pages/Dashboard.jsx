@@ -1,5 +1,5 @@
 // src/pages/Dashboard.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FiFileText,
@@ -9,25 +9,16 @@ import {
   FiChevronRight,
   FiPlus,
   FiClock,
-  FiUploadCloud,
   FiFolder,
   FiX,
-  FiBell,
-  FiTrendingUp,
-  FiUpload,
-  FiStar,
-  FiCheckCircle,
-  FiAlertCircle,
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   House,
-  MagnifyingGlass,
   Brain,
   Sparkle,
   Note,
   Bell,
-  CalendarBlank,
   Activity,
   Plugs,
   BezierCurve,
@@ -35,7 +26,6 @@ import {
   FileText,
   ChartLineUp,
   Star,
-  Trophy,
   Target,
   Fire,
   Calendar,
@@ -46,71 +36,30 @@ import {
 } from "phosphor-react";
 import GlassCard from "../components/GlassCard";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
-/* -----------------------------------------
-   Notification Icon Component - Neon styled icons
------------------------------------------ */
-const NotificationIcon = ({ iconType }) => {
-  // Map iconType to styled icon configuration
-  const iconConfig = {
-    calendar: { 
-      icon: Calendar, 
-      color: "text-indigo-400", 
-      bg: "rgba(99,102,241,0.15)", 
-      border: "rgba(99,102,241,0.3)" 
-    },
-    warning: { 
-      icon: Warning, 
-      color: "text-amber-400", 
-      bg: "rgba(245,158,11,0.15)", 
-      border: "rgba(245,158,11,0.3)" 
-    },
-    task: { 
-      icon: CheckSquare, 
-      color: "text-emerald-400", 
-      bg: "rgba(16,185,129,0.15)", 
-      border: "rgba(16,185,129,0.3)" 
-    },
-    bell: { 
-      icon: Bell, 
-      color: "text-amber-400", 
-      bg: "rgba(245,158,11,0.15)", 
-      border: "rgba(245,158,11,0.3)" 
-    },
-    meeting: { 
-      icon: Phone, 
-      color: "text-purple-400", 
-      bg: "rgba(168,85,247,0.15)", 
-      border: "rgba(168,85,247,0.3)" 
-    },
-    // Default fallback
-    default: { 
-      icon: Flag, 
-      color: "text-indigo-400", 
-      bg: "rgba(99,102,241,0.15)", 
-      border: "rgba(99,102,241,0.3)" 
-    },
-  };
+const USER_STATS_TABLE = "user_engagement_stats";
+const NOTES_TABLE = "notes";
+const DOCS_TABLE = "documents";
+const AI_USES_KEY = "notestream-aiUses";
 
-  const config = iconConfig[iconType] || iconConfig.default;
-  const IconComponent = config.icon;
-
-  return (
-    <div 
-      className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 ${config.color}`}
-      style={{ 
-        backgroundColor: config.bg, 
-        border: `1px solid ${config.border}` 
-      }}
-    >
-      <IconComponent size={18} weight="duotone" />
-    </div>
-  );
+const EMPTY_STATS = {
+  user_id: null,
+  display_name: null,
+  notes_created: 0,
+  ai_uses: 0,
+  active_days: 0,
+  streak_days: 0,
+  last_active_date: null,
+  created_at: null,
+  updated_at: null,
 };
 
-/* -----------------------------------------
-   Greeting Logic
------------------------------------------ */
+const supabaseReady =
+  typeof isSupabaseConfigured === "function"
+    ? isSupabaseConfigured()
+    : !!isSupabaseConfigured;
+
 const getGreeting = () => {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
@@ -118,45 +67,139 @@ const getGreeting = () => {
   return "Good evening";
 };
 
-/* -----------------------------------------
-   Sample Data
------------------------------------------ */
-const sampleNotes = [
-  {
-    id: 1,
-    title: "Team Meeting Notes",
-    body: "Discuss deadline for Q2 deliverables. Remind John about the budget review. TODO: send meeting recap.",
-    updated: new Date().toISOString(),
-    favorite: true,
-    tag: "Work",
-  },
-  {
-    id: 2,
-    title: "Project Roadmap Ideas",
-    body: "Urgent: finalize feature list before Friday",
-    updated: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    favorite: false,
-    tag: "Ideas",
-  },
-  {
-    id: 3,
-    title: "Research Summary",
-    body: "Meeting with design team tomorrow. Action item: prepare wireframes",
-    updated: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    favorite: true,
-    tag: "Study",
-  },
-];
+const toLocalYMD = (d = new Date()) => {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
 
-const recentDocs = [
-  { name: "Meeting_summary_jan.pdf", status: "AI summary ready", type: "PDF" },
-  { name: "Ideas_For_Mobile_App.txt", status: "Drafting", type: "TXT" },
-  { name: "Budget_Forecast.xlsx", status: "Uploaded", type: "XLSX" },
-];
+const parseYMDToDate = (ymd) => {
+  const [y, m, d] = String(ymd).split("-").map((n) => Number(n));
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+};
 
-/* -----------------------------------------
-   Icon Tile Component
------------------------------------------ */
+const diffDaysLocal = (aYmd, bYmd) => {
+  const a = parseYMDToDate(aYmd);
+  const b = parseYMDToDate(bYmd);
+  if (!a || !b) return null;
+  const ms = b.getTime() - a.getTime();
+  return Math.floor(ms / (24 * 60 * 60 * 1000));
+};
+
+const formatShortDate = (d) => {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: "numeric",
+      day: "numeric",
+      year: "numeric",
+    }).format(d);
+  } catch {
+    return d.toLocaleDateString();
+  }
+};
+
+const getLast7DaysRange = () => {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - 7);
+  return { start, end };
+};
+
+const safeLocalDateTime = (iso) => {
+  try {
+    return iso ? new Date(iso).toLocaleString() : "";
+  } catch {
+    return "";
+  }
+};
+
+const computeTopTags = (notes, limit = 5) => {
+  const counts = new Map();
+  for (const n of notes || []) {
+    const tags = Array.isArray(n?.tags) ? n.tags : [];
+    for (const t of tags) {
+      const tag = String(t || "").trim();
+      if (!tag) continue;
+      counts.set(tag, (counts.get(tag) || 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([tag, count]) => ({ tag, count }));
+};
+
+const computeHighlights = (notes, limit = 5) => {
+  const list = (notes || [])
+    .filter((n) => n?.is_highlight || n?.is_favorite)
+    .sort((a, b) => {
+      const au = a?.updated_at ? new Date(a.updated_at).getTime() : 0;
+      const bu = b?.updated_at ? new Date(b.updated_at).getTime() : 0;
+      return bu - au;
+    })
+    .slice(0, limit)
+    .map((n) => ({
+      id: n.id,
+      title: n.title || "Untitled note",
+    }));
+  return list;
+};
+
+const NotificationIcon = ({ iconType }) => {
+  const iconConfig = {
+    calendar: {
+      icon: Calendar,
+      color: "text-indigo-400",
+      bg: "rgba(99,102,241,0.15)",
+      border: "rgba(99,102,241,0.3)",
+    },
+    warning: {
+      icon: Warning,
+      color: "text-amber-400",
+      bg: "rgba(245,158,11,0.15)",
+      border: "rgba(245,158,11,0.3)",
+    },
+    task: {
+      icon: CheckSquare,
+      color: "text-emerald-400",
+      bg: "rgba(16,185,129,0.15)",
+      border: "rgba(16,185,129,0.3)",
+    },
+    bell: {
+      icon: Bell,
+      color: "text-amber-400",
+      bg: "rgba(245,158,11,0.15)",
+      border: "rgba(245,158,11,0.3)",
+    },
+    meeting: {
+      icon: Phone,
+      color: "text-purple-400",
+      bg: "rgba(168,85,247,0.15)",
+      border: "rgba(168,85,247,0.3)",
+    },
+    default: {
+      icon: Flag,
+      color: "text-indigo-400",
+      bg: "rgba(99,102,241,0.15)",
+      border: "rgba(99,102,241,0.3)",
+    },
+  };
+
+  const config = iconConfig[iconType] || iconConfig.default;
+  const IconComponent = config.icon;
+
+  return (
+    <div
+      className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 ${config.color}`}
+      style={{ backgroundColor: config.bg, border: `1px solid ${config.border}` }}
+    >
+      <IconComponent size={18} weight="duotone" />
+    </div>
+  );
+};
+
 const IconTile = ({ children, tone = "indigo", size = "md" }) => {
   const sizes = {
     sm: "h-10 w-10 rounded-xl",
@@ -207,19 +250,13 @@ const IconTile = ({ children, tone = "indigo", size = "md" }) => {
   return (
     <div
       className={`${sizes[size]} border flex items-center justify-center ${t.text}`}
-      style={{
-        backgroundColor: t.bg,
-        borderColor: t.border,
-      }}
+      style={{ backgroundColor: t.bg, borderColor: t.border }}
     >
       {children}
     </div>
   );
 };
 
-/* -----------------------------------------
-   Dashboard Component
------------------------------------------ */
 export default function Dashboard() {
   const navigate = useNavigate();
   const {
@@ -228,32 +265,296 @@ export default function Dashboard() {
     parseNotificationsFromNotes,
     dismissNotification,
     clearAllNotifications,
-    generateDigest,
   } = useWorkspaceSettings();
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showDigest, setShowDigest] = useState(false);
   const [digest, setDigest] = useState(null);
 
-  useEffect(() => {
-    if (settings.smartNotifications) {
-      parseNotificationsFromNotes(sampleNotes);
-    }
-  }, [settings.smartNotifications, parseNotificationsFromNotes]);
+  const [stats, setStats] = useState(EMPTY_STATS);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  const [notes, setNotes] = useState([]);
+  const [docs, setDocs] = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
+
+  const notesCreated = Number(stats?.notes_created ?? 0);
+  const activeDays = Number(stats?.active_days ?? 0);
+
+  const [aiUses, setAiUses] = useState(() => {
+    const local = Number(localStorage.getItem(AI_USES_KEY) || 0);
+    const db = Number(stats?.ai_uses ?? 0);
+    return Math.max(local, db);
+  });
+
+  const streakDays = Number(stats?.streak_days ?? 0);
 
   useEffect(() => {
-    if (settings.weeklyDigest) {
-      const digestData = generateDigest(sampleNotes, recentDocs);
-      setDigest(digestData);
-    }
-  }, [settings.weeklyDigest, generateDigest]);
+    const local = Number(localStorage.getItem(AI_USES_KEY) || 0);
+    const db = Number(stats?.ai_uses ?? 0);
+    setAiUses(Math.max(local, db));
+  }, [stats?.ai_uses]);
 
-  const recentNotes = sampleNotes.slice(0, 3).map((note) => ({
-    id: note.id,
-    title: note.title,
-    updated: note.id === 1 ? "Just now" : note.id === 2 ? "2h ago" : "Yesterday",
-    hasAI: note.id !== 2,
-  }));
+  useEffect(() => {
+    const onAi = (e) => {
+      const next = Number(e?.detail?.aiUses);
+      if (!Number.isFinite(next)) return;
+      setAiUses((prev) => (next > prev ? next : prev));
+    };
+
+    window.addEventListener("notestream:ai_uses_updated", onAi);
+    return () => window.removeEventListener("notestream:ai_uses_updated", onAi);
+  }, []);
+
+  const displayName = useMemo(() => {
+    const raw = (stats?.display_name || "").trim();
+    if (!raw) return "";
+    return raw.split(" ")[0];
+  }, [stats?.display_name]);
+
+  const docsUploaded = docs.length;
+  const favoritedNotes = useMemo(
+    () => (notes || []).filter((n) => n?.is_favorite || n?.is_highlight).length,
+    [notes]
+  );
+
+  const productivity = useMemo(() => {
+    return activeDays >= 5 ? "High" : activeDays >= 3 ? "Medium" : "Low";
+  }, [activeDays]);
+
+  /* -----------------------------------------
+   STATS: fetch user_engagement_stats
+----------------------------------------- */
+  useEffect(() => {
+    if (!supabaseReady || !supabase) {
+      setStatsLoading(false);
+      return;
+    }
+
+    let alive = true;
+
+    (async () => {
+      setStatsLoading(true);
+
+      const { data: sessRes } = await supabase.auth.getSession();
+      const user = sessRes?.session?.user;
+
+      if (!user?.id) {
+        if (alive) {
+          setStatsLoading(false);
+          navigate("/login");
+        }
+        return;
+      }
+
+      const fallbackName =
+        user.user_metadata?.full_name ??
+        user.user_metadata?.name ??
+        (user.email ? user.email.split("@")[0] : null);
+
+      if (alive) {
+        setStats((s) => ({
+          ...s,
+          user_id: user.id,
+          display_name: s.display_name ?? fallbackName ?? null,
+        }));
+      }
+
+      let row = null;
+
+      const { data, error } = await supabase
+        .from(USER_STATS_TABLE)
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!error && data) row = data;
+
+      if (!row) {
+        await supabase
+          .from(USER_STATS_TABLE)
+          .upsert(
+            { user_id: user.id, display_name: fallbackName ?? null },
+            { onConflict: "user_id" }
+          );
+
+        const res2 = await supabase
+          .from(USER_STATS_TABLE)
+          .select("*")
+          .eq("user_id", user.id)
+          .single();
+
+        if (!res2?.error && res2?.data) row = res2.data;
+      }
+
+      const merged = { ...EMPTY_STATS, ...(row || {}) };
+
+      // Optional active-day increment
+      const today = toLocalYMD();
+      if (merged.last_active_date !== today) {
+        const diff = merged.last_active_date
+          ? diffDaysLocal(merged.last_active_date, today)
+          : null;
+
+        const nextActiveDays = (merged.active_days || 0) + 1;
+        const nextStreak = diff === 1 ? (merged.streak_days || 0) + 1 : 1;
+
+        merged.active_days = nextActiveDays;
+        merged.streak_days = nextStreak;
+        merged.last_active_date = today;
+
+        supabase
+          .from(USER_STATS_TABLE)
+          .update({
+            active_days: nextActiveDays,
+            streak_days: nextStreak,
+            last_active_date: today,
+            display_name: merged.display_name ?? fallbackName ?? null,
+          })
+          .eq("user_id", user.id);
+      }
+
+      if (!alive) return;
+      setStats(merged);
+      setStatsLoading(false);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [navigate, supabaseReady]);
+
+
+    /* -----------------------------------------
+    DATA: fetch notes + docs (last 7 days)
+  ----------------------------------------- */
+  useEffect(() => {
+    if (!supabaseReady || !supabase) {
+      setNotes([]);
+      setDocs([]);
+      setDataLoading(false);
+      return;
+    }
+
+    let alive = true;
+
+    (async () => {
+      setDataLoading(true);
+
+      const { data: sessRes } = await supabase.auth.getSession();
+      const user = sessRes?.session?.user;
+
+      if (!user?.id) {
+        if (alive) {
+          setDataLoading(false);
+          navigate("/login");
+        }
+        return;
+      }
+
+      const since = new Date();
+      since.setDate(since.getDate() - 7);
+      const sinceIso = since.toISOString();
+
+      const [notesRes, docsRes] = await Promise.all([
+        supabase
+          .from(NOTES_TABLE)
+          .select("id,title,body,tags,is_favorite,is_highlight,created_at,updated_at")
+          .eq("user_id", user.id)
+          .gte("created_at", sinceIso)
+          .order("updated_at", { ascending: false }),
+
+        supabase
+          .from(DOCS_TABLE)
+          .select("id,user_id,name,type,status,created_at,updated_at")
+          .eq("user_id", user.id)
+          .gte("created_at", sinceIso)
+          .order("updated_at", { ascending: false }),
+      ]);
+
+      if (!alive) return;
+
+      setNotes(!notesRes?.error ? notesRes.data || [] : []);
+      setDocs(!docsRes?.error ? docsRes.data || [] : []);
+      setDataLoading(false);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [navigate, supabaseReady]);
+
+  // Smart notifications parse (from DB notes)
+  useEffect(() => {
+    if (!settings.smartNotifications) return;
+
+    // Map DB notes into the shape your smart-notifications parser expects.
+    const notesForNotif = (notes || []).map((n) => ({
+      id: n.id,
+      title: n.title,
+      body: n.body,
+      updated: n.updated_at,
+      favorite: !!n.is_favorite,
+      tag: Array.isArray(n.tags) && n.tags.length ? n.tags[0] : "",
+    }));
+
+    parseNotificationsFromNotes(notesForNotif);
+  }, [settings.smartNotifications, parseNotificationsFromNotes, notes]);
+
+  // Weekly digest generation (from DB notes+docs)
+  useEffect(() => {
+    if (!settings.weeklyDigest) {
+      setDigest(null);
+      return;
+    }
+
+    const { start, end } = getLast7DaysRange();
+
+    const topTags = computeTopTags(notes, 6);
+    const highlights = computeHighlights(notes, 6);
+
+    setDigest({
+      period: {
+        start: formatShortDate(start),
+        end: formatShortDate(end),
+      },
+      stats: {
+        notesCreated, // from user_engagement_stats (lifetime unless you store weekly)
+        docsUploaded, // last-7-days docs fetched above
+        favoritedNotes, // last-7-days favorites/highlights
+        synthesizedDocs: 0,
+        totalItems: Number(notes.length) + Number(docs.length),
+      },
+      insights: {
+        mostActiveDay: stats?.last_active_date || "—",
+        productivity,
+        topTags,
+      },
+      highlights,
+    });
+  }, [
+    settings.weeklyDigest,
+    notes,
+    docs,
+    notesCreated,
+    docsUploaded,
+    favoritedNotes,
+    productivity,
+    stats?.last_active_date,
+  ]);
+
+  const recentNotes = useMemo(() => {
+    return (notes || []).slice(0, 3).map((n) => ({
+      id: n.id,
+      title: n.title || "Untitled note",
+      updated: safeLocalDateTime(n.updated_at),
+      hasAI: true,
+    }));
+  }, [notes]);
+
+  const recentDocs = useMemo(() => {
+    return (docs || []).slice(0, 3);
+  }, [docs]);
 
   const fadeSlide = {
     hidden: { opacity: 0, y: 20 },
@@ -262,9 +563,6 @@ export default function Dashboard() {
 
   return (
     <div className="w-full space-y-6 pb-[calc(var(--mobile-nav-height)+24px)]">
-      {/* ═══════════════════════════════════════════════════════════
-          HEADER SECTION - Fixed layout with bell on far right
-      ═══════════════════════════════════════════════════════════ */}
       <motion.header
         variants={fadeSlide}
         initial="hidden"
@@ -273,20 +571,28 @@ export default function Dashboard() {
         className="pt-2"
       >
         <div className="flex items-center justify-between gap-4">
-          {/* Left side - Icon + Text */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="page-header-icon flex-shrink-0">
               <House size={20} weight="duotone" />
             </div>
             <div className="min-w-0">
-              <h1 className="page-header-title">{getGreeting()}</h1>
-              <p className="page-header-subtitle truncate">
-                Welcome back — ready to continue where you left off?
+              <h1 className="page-header-title">
+                {getGreeting()}
+                {displayName ? `, ${displayName}` : ""}
+              </h1>
+              <p
+                className="page-header-subtitle truncate"
+                style={{
+                  opacity: statsLoading ? 0.7 : 1,
+                  transition: "opacity 180ms ease",
+                }}
+              >
+                Welcome back — {streakDays} day streak • {notesCreated} notes •{" "}
+                {aiUses} AI uses
               </p>
             </div>
           </div>
 
-          {/* Right side - Notification Bell */}
           {settings.smartNotifications && notifications.length > 0 && (
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -305,37 +611,34 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Quick Stats Row */}
         <div className="grid grid-cols-3 gap-3 mt-5">
-          <QuickStat 
+          <QuickStat
+            loading={statsLoading}
             icon={<Note size={16} weight="duotone" />}
-            label="Today" 
-            value="3" 
-            suffix="notes" 
+            label="Notes"
+            value={notesCreated}
+            suffix="created"
             color="indigo"
           />
-          <QuickStat 
+          <QuickStat
+            loading={statsLoading}
             icon={<Fire size={16} weight="fill" />}
-            label="Streak" 
-            value="11" 
-            suffix="days" 
+            label="Active"
+            value={activeDays}
+            suffix="days"
             color="amber"
           />
-          <QuickStat 
+          <QuickStat
+            loading={statsLoading}
             icon={<Lightning size={16} weight="fill" />}
-            label="AI Used" 
-            value="54" 
-            suffix="times" 
+            label="AI Used"
+            value={aiUses}
+            suffix="times"
             color="emerald"
           />
         </div>
       </motion.header>
 
-
-
-      {/* ═══════════════════════════════════════════════════════════
-          WEEKLY DIGEST CARD
-      ═══════════════════════════════════════════════════════════ */}
       <AnimatePresence>
         {settings.weeklyDigest && digest && (
           <motion.div
@@ -347,17 +650,24 @@ export default function Dashboard() {
             <GlassCard className="border-purple-500/20">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div 
+                  <div
                     className="h-10 w-10 rounded-xl flex items-center justify-center"
-                    style={{ 
-                      background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(99,102,241,0.1))',
-                      border: '1px solid rgba(139,92,246,0.3)',
+                    style={{
+                      background:
+                        "linear-gradient(135deg, rgba(139,92,246,0.2), rgba(99,102,241,0.1))",
+                      border: "1px solid rgba(139,92,246,0.3)",
                     }}
                   >
-                    <ChartLineUp size={20} weight="duotone" className="text-purple-400" />
+                    <ChartLineUp
+                      size={20}
+                      weight="duotone"
+                      className="text-purple-400"
+                    />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-theme-primary">Weekly Digest</h3>
+                    <h3 className="text-sm font-semibold text-theme-primary">
+                      Weekly Digest
+                    </h3>
                     <p className="text-xs text-theme-muted">
                       {digest.period.start} - {digest.period.end}
                     </p>
@@ -367,50 +677,51 @@ export default function Dashboard() {
                 <button
                   onClick={() => setShowDigest(true)}
                   className="text-xs transition font-medium px-3 py-1.5 rounded-lg whitespace-nowrap flex-shrink-0"
-                  style={{
-                    color: 'var(--accent-purple)',
-                  }}
+                  style={{ color: "var(--accent-purple)" }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(168, 85, 247, 0.1)';
+                    e.currentTarget.style.backgroundColor =
+                      "rgba(168, 85, 247, 0.1)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.backgroundColor = "transparent";
                   }}
                 >
                   Full report →
                 </button>
               </div>
 
-              {/* Stats Grid */}
               <div className="grid grid-cols-3 gap-3">
-                <DigestStatCard 
+                <DigestStatCard
                   icon={<Note size={18} weight="duotone" />}
-                  value={digest.stats.notesCreated} 
-                  label="Notes" 
-                  color="indigo" 
+                  value={notes.length}
+                  label="Notes (7d)"
+                  color="indigo"
                 />
-                <DigestStatCard 
+                <DigestStatCard
                   icon={<FileText size={18} weight="duotone" />}
-                  value={digest.stats.docsUploaded} 
-                  label="Docs" 
-                  color="purple" 
+                  value={docs.length}
+                  label="Docs (7d)"
+                  color="purple"
                 />
-                <DigestStatCard 
+                <DigestStatCard
                   icon={<Target size={18} weight="duotone" />}
-                  value={digest.insights.productivity} 
-                  label="Activity" 
+                  value={digest.insights.productivity}
+                  label="Activity"
                   color="emerald"
                   isText={true}
                 />
               </div>
+
+              {dataLoading && (
+                <p className="text-[11px] text-theme-muted mt-3 px-1">
+                  Syncing data…
+                </p>
+              )}
             </GlassCard>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ═══════════════════════════════════════════════════════════
-          MAIN CTA BUTTON - Single Upload button
-      ═══════════════════════════════════════════════════════════ */}
       <motion.div
         variants={fadeSlide}
         initial="hidden"
@@ -418,13 +729,16 @@ export default function Dashboard() {
         transition={{ duration: 0.4, delay: 0.15 }}
       >
         <motion.button
-          whileHover={{ scale: 1.02, boxShadow: "0 8px 30px rgba(99, 102, 241, 0.3)" }}
+          whileHover={{
+            scale: 1.02,
+            boxShadow: "0 8px 30px rgba(99, 102, 241, 0.3)",
+          }}
           whileTap={{ scale: 0.98 }}
           onClick={() => navigate("/dashboard/notes")}
           className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-medium text-sm text-white transition-all"
           style={{
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            boxShadow: '0 4px 20px rgba(99, 102, 241, 0.25)',
+            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            boxShadow: "0 4px 20px rgba(99, 102, 241, 0.25)",
           }}
         >
           <FiPlus size={18} />
@@ -432,9 +746,6 @@ export default function Dashboard() {
         </motion.button>
       </motion.div>
 
-      {/* ═══════════════════════════════════════════════════════════
-          QUICK ACCESS GRID
-      ═══════════════════════════════════════════════════════════ */}
       <motion.div
         variants={fadeSlide}
         initial="hidden"
@@ -478,9 +789,6 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* ═══════════════════════════════════════════════════════════
-          RECENT NOTES
-      ═══════════════════════════════════════════════════════════ */}
       <motion.div
         variants={fadeSlide}
         initial="hidden"
@@ -493,7 +801,9 @@ export default function Dashboard() {
               <IconTile tone="indigo" size="sm">
                 <FiClock size={16} />
               </IconTile>
-              <h3 className="text-base font-semibold text-theme-primary">Recent Notes</h3>
+              <h3 className="text-base font-semibold text-theme-primary">
+                Recent Notes
+              </h3>
             </div>
 
             <button
@@ -518,11 +828,11 @@ export default function Dashboard() {
                 }}
               >
                 <div className="flex items-center gap-3">
-                  <div 
+                  <div
                     className="h-10 w-10 rounded-xl flex items-center justify-center"
-                    style={{ 
-                      backgroundColor: 'rgba(99,102,241,0.1)',
-                      border: '1px solid rgba(99,102,241,0.2)',
+                    style={{
+                      backgroundColor: "rgba(99,102,241,0.1)",
+                      border: "1px solid rgba(99,102,241,0.2)",
                     }}
                   >
                     <FiFileText size={16} className="text-indigo-400" />
@@ -544,13 +854,16 @@ export default function Dashboard() {
                 </div>
               </motion.button>
             ))}
+
+            {!dataLoading && recentNotes.length === 0 && (
+              <p className="text-[11px] text-theme-muted px-1 py-2">
+                No notes in the last 7 days.
+              </p>
+            )}
           </div>
         </GlassCard>
       </motion.div>
 
-      {/* ═══════════════════════════════════════════════════════════
-          DOCUMENTS + AI TOOLS GRID
-      ═══════════════════════════════════════════════════════════ */}
       <motion.div
         variants={fadeSlide}
         initial="hidden"
@@ -558,14 +871,15 @@ export default function Dashboard() {
         transition={{ duration: 0.4, delay: 0.3 }}
         className="grid grid-cols-1 xl:grid-cols-2 gap-4"
       >
-        {/* Recent Documents */}
         <GlassCard>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <IconTile tone="purple" size="sm">
                 <FiFolder size={16} />
               </IconTile>
-              <h3 className="text-base font-semibold text-theme-primary">Recent Documents</h3>
+              <h3 className="text-base font-semibold text-theme-primary">
+                Recent Documents
+              </h3>
             </div>
 
             <button
@@ -577,23 +891,30 @@ export default function Dashboard() {
           </div>
 
           <div className="space-y-2">
-            {recentDocs.map((doc, i) => (
+            {recentDocs.map((doc) => (
               <DocumentRow
-                key={i}
-                doc={doc}
+                key={doc.id}
+                doc={{ name: doc.name, status: doc.status, type: doc.type }}
                 onClick={() => navigate("/dashboard/documents")}
               />
             ))}
+
+            {!dataLoading && recentDocs.length === 0 && (
+              <p className="text-[11px] text-theme-muted px-1 py-2">
+                No documents in the last 7 days.
+              </p>
+            )}
           </div>
         </GlassCard>
 
-        {/* AI Tools */}
         <GlassCard>
           <div className="flex items-center gap-3 mb-4">
             <IconTile tone="amber" size="sm">
               <Sparkle size={18} weight="fill" />
             </IconTile>
-            <h3 className="text-base font-semibold text-theme-primary">AI Tools</h3>
+            <h3 className="text-base font-semibold text-theme-primary">
+              AI Tools
+            </h3>
           </div>
 
           <div className="space-y-2">
@@ -629,9 +950,7 @@ export default function Dashboard() {
         </GlassCard>
       </motion.div>
 
-      {/* ═══════════════════════════════════════════════════════════
-          NOTIFICATIONS MODAL - Fixed fullscreen blur
-      ═══════════════════════════════════════════════════════════ */}
+      {/* NOTIFICATIONS MODAL */}
       <AnimatePresence>
         {showNotifications && (
           <motion.div
@@ -646,7 +965,6 @@ export default function Dashboard() {
             }}
             onClick={() => setShowNotifications(false)}
           >
-            {/* Inner container for proper centering with padding */}
             <div className="w-full min-h-full flex items-center justify-center p-4">
               <motion.div
                 initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -660,20 +978,24 @@ export default function Dashboard() {
                   boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
                 }}
               >
-                {/* Header */}
                 <div
                   className="p-4 border-b flex items-center justify-between"
                   style={{ borderColor: "var(--border-secondary)" }}
                 >
                   <div className="flex items-center gap-3">
-                    <div 
+                    <div
                       className="h-10 w-10 rounded-xl flex items-center justify-center"
-                      style={{ 
-                        background: 'linear-gradient(135deg, rgba(245,158,11,0.2), rgba(249,115,22,0.1))',
-                        border: '1px solid rgba(245,158,11,0.3)',
+                      style={{
+                        background:
+                          "linear-gradient(135deg, rgba(245,158,11,0.2), rgba(249,115,22,0.1))",
+                        border: "1px solid rgba(245,158,11,0.3)",
                       }}
                     >
-                      <Bell size={18} weight="duotone" className="text-amber-400" />
+                      <Bell
+                        size={18}
+                        weight="duotone"
+                        className="text-amber-400"
+                      />
                     </div>
                     <div>
                       <h2 className="text-lg font-semibold text-theme-primary">
@@ -690,20 +1012,23 @@ export default function Dashboard() {
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setShowNotifications(false)}
                     className="h-9 w-9 rounded-xl flex items-center justify-center transition"
-                    style={{ 
-                      backgroundColor: 'rgba(244,63,94,0.1)',
-                      border: '1px solid rgba(244,63,94,0.2)',
+                    style={{
+                      backgroundColor: "rgba(244,63,94,0.1)",
+                      border: "1px solid rgba(244,63,94,0.2)",
                     }}
                   >
                     <FiX size={16} className="text-rose-400" />
                   </motion.button>
                 </div>
 
-                {/* Content */}
                 <div className="p-4 overflow-y-auto max-h-[55vh] space-y-2">
                   {notifications.length === 0 ? (
                     <div className="text-center py-12">
-                      <Bell size={40} weight="duotone" className="text-theme-muted mx-auto mb-3 opacity-50" />
+                      <Bell
+                        size={40}
+                        weight="duotone"
+                        className="text-theme-muted mx-auto mb-3 opacity-50"
+                      />
                       <p className="text-theme-muted">No notifications</p>
                     </div>
                   ) : (
@@ -720,7 +1045,9 @@ export default function Dashboard() {
                       >
                         <NotificationIcon iconType={notif.iconType} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-theme-secondary">{notif.message}</p>
+                          <p className="text-sm text-theme-secondary">
+                            {notif.message}
+                          </p>
                           <p className="text-[11px] text-theme-muted mt-1">
                             From: {notif.noteTitle}
                           </p>
@@ -749,7 +1076,6 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                {/* Footer */}
                 {notifications.length > 0 && (
                   <div
                     className="p-4 border-t"
@@ -773,9 +1099,7 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* ═══════════════════════════════════════════════════════════
-          WEEKLY DIGEST MODAL - Fixed fullscreen blur and scrolling
-      ═══════════════════════════════════════════════════════════ */}
+      {/* WEEKLY DIGEST MODAL */}
       <AnimatePresence>
         {showDigest && digest && (
           <motion.div
@@ -790,7 +1114,6 @@ export default function Dashboard() {
             }}
             onClick={() => setShowDigest(false)}
           >
-            {/* Inner container for proper centering with padding */}
             <div className="w-full min-h-full flex items-center justify-center p-4 py-8">
               <motion.div
                 initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -804,21 +1127,30 @@ export default function Dashboard() {
                   boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
                 }}
               >
-                {/* Header */}
-                <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+                <div
+                  className="p-5 border-b"
+                  style={{ borderColor: "var(--border-secondary)" }}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div 
+                      <div
                         className="h-11 w-11 rounded-xl flex items-center justify-center"
-                        style={{ 
-                          background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(99,102,241,0.1))',
-                          border: '1px solid rgba(139,92,246,0.3)',
+                        style={{
+                          background:
+                            "linear-gradient(135deg, rgba(139,92,246,0.2), rgba(99,102,241,0.1))",
+                          border: "1px solid rgba(139,92,246,0.3)",
                         }}
                       >
-                        <ChartLineUp size={22} weight="duotone" className="text-purple-400" />
+                        <ChartLineUp
+                          size={22}
+                          weight="duotone"
+                          className="text-purple-400"
+                        />
                       </div>
                       <div>
-                        <h2 className="text-lg font-semibold text-theme-primary">Weekly Digest</h2>
+                        <h2 className="text-lg font-semibold text-theme-primary">
+                          Weekly Digest
+                        </h2>
                         <p className="text-xs text-theme-muted">
                           {digest.period.start} - {digest.period.end}
                         </p>
@@ -830,9 +1162,9 @@ export default function Dashboard() {
                       whileTap={{ scale: 0.9 }}
                       onClick={() => setShowDigest(false)}
                       className="h-9 w-9 rounded-xl flex items-center justify-center transition"
-                      style={{ 
-                        backgroundColor: 'rgba(244,63,94,0.1)',
-                        border: '1px solid rgba(244,63,94,0.2)',
+                      style={{
+                        backgroundColor: "rgba(244,63,94,0.1)",
+                        border: "1px solid rgba(244,63,94,0.2)",
                       }}
                     >
                       <FiX size={16} className="text-rose-400" />
@@ -840,37 +1172,34 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Content - Scrollable */}
                 <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
-                  {/* Main Stats Grid */}
                   <div className="grid grid-cols-2 gap-3">
-                    <ModalStatCard 
+                    <ModalStatCard
                       icon={<Note size={20} weight="duotone" />}
-                      value={digest.stats.notesCreated} 
-                      label="Notes Created" 
-                      color="indigo" 
+                      value={notes.length}
+                      label="Notes (7d)"
+                      color="indigo"
                     />
-                    <ModalStatCard 
+                    <ModalStatCard
                       icon={<FileText size={20} weight="duotone" />}
-                      value={digest.stats.docsUploaded} 
-                      label="Docs Uploaded" 
-                      color="purple" 
+                      value={docs.length}
+                      label="Docs (7d)"
+                      color="purple"
                     />
-                    <ModalStatCard 
+                    <ModalStatCard
                       icon={<Star size={20} weight="fill" />}
-                      value={digest.stats.favoritedNotes} 
-                      label="Favorites" 
-                      color="rose" 
+                      value={favoritedNotes}
+                      label="Favorites/Highlights (7d)"
+                      color="rose"
                     />
-                    <ModalStatCard 
+                    <ModalStatCard
                       icon={<Brain size={20} weight="duotone" />}
-                      value={digest.stats.synthesizedDocs} 
-                      label="Synthesized" 
-                      color="emerald" 
+                      value={digest.stats.synthesizedDocs}
+                      label="Synthesized"
+                      color="emerald"
                     />
                   </div>
 
-                  {/* Insights Section */}
                   <div
                     className="rounded-xl p-4 border"
                     style={{
@@ -879,25 +1208,37 @@ export default function Dashboard() {
                     }}
                   >
                     <h3 className="text-sm font-semibold text-theme-primary mb-3 flex items-center gap-2">
-                      <Target size={16} weight="duotone" className="text-purple-400" />
+                      <Target
+                        size={16}
+                        weight="duotone"
+                        className="text-purple-400"
+                      />
                       Insights
                     </h3>
                     <div className="space-y-3">
-                      <InsightRow label="Most Active Day" value={digest.insights.mostActiveDay} />
-                      <InsightRow 
-                        label="Productivity Level" 
+                      <InsightRow
+                        label="Most Active Day"
+                        value={digest.insights.mostActiveDay}
+                      />
+                      <InsightRow
+                        label="Productivity Level"
                         value={digest.insights.productivity}
                         valueColor={
-                          digest.insights.productivity === "High" ? "text-emerald-400" :
-                          digest.insights.productivity === "Medium" ? "text-amber-400" : "text-theme-secondary"
+                          digest.insights.productivity === "High"
+                            ? "text-emerald-400"
+                            : digest.insights.productivity === "Medium"
+                            ? "text-amber-400"
+                            : "text-theme-secondary"
                         }
                       />
-                      <InsightRow label="Total Items" value={digest.stats.totalItems} />
+                      <InsightRow
+                        label="Total Items"
+                        value={digest.stats.totalItems}
+                      />
                     </div>
                   </div>
 
-                  {/* Top Tags */}
-                  {digest.insights.topTags.length > 0 && (
+                  {digest.insights.topTags?.length > 0 && (
                     <div
                       className="rounded-xl p-4 border"
                       style={{
@@ -920,15 +1261,16 @@ export default function Dashboard() {
                             }}
                           >
                             <span className="text-theme-secondary">{tag.tag}</span>
-                            <span className="text-theme-muted ml-1.5">({tag.count})</span>
+                            <span className="text-theme-muted ml-1.5">
+                              ({tag.count})
+                            </span>
                           </span>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Highlights */}
-                  {digest.highlights.length > 0 && (
+                  {digest.highlights?.length > 0 && (
                     <div
                       className="rounded-xl p-4 border"
                       style={{
@@ -942,7 +1284,10 @@ export default function Dashboard() {
                       </h3>
                       <div className="space-y-2">
                         {digest.highlights.map((h) => (
-                          <div key={h.id} className="flex items-center gap-2 text-sm text-theme-secondary">
+                          <div
+                            key={h.id}
+                            className="flex items-center gap-2 text-sm text-theme-secondary"
+                          >
                             <span className="text-amber-400">•</span>
                             {h.title}
                           </div>
@@ -960,18 +1305,31 @@ export default function Dashboard() {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   HELPER COMPONENTS
-═══════════════════════════════════════════════════════════ */
+/* -----------------------------------------
+   HELPER COMPONENTS (unchanged from your version)
+----------------------------------------- */
 
-/* Quick Stat - Improved with icon */
-const QuickStat = ({ icon, label, value, suffix, color }) => {
+const QuickStat = ({ icon, label, value, suffix, color, loading = false }) => {
   const colorMap = {
-    indigo: { text: "text-indigo-400", bg: "rgba(99,102,241,0.1)", border: "rgba(99,102,241,0.2)" },
-    amber: { text: "text-amber-400", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.2)" },
-    emerald: { text: "text-emerald-400", bg: "rgba(16,185,129,0.1)", border: "rgba(16,185,129,0.2)" },
+    indigo: {
+      text: "text-indigo-400",
+      bg: "rgba(99,102,241,0.1)",
+      border: "rgba(99,102,241,0.2)",
+    },
+    amber: {
+      text: "text-amber-400",
+      bg: "rgba(245,158,11,0.1)",
+      border: "rgba(245,158,11,0.2)",
+    },
+    emerald: {
+      text: "text-emerald-400",
+      bg: "rgba(16,185,129,0.1)",
+      border: "rgba(16,185,129,0.2)",
+    },
   };
   const c = colorMap[color] || colorMap.indigo;
+
+  const safeValue = typeof value === "number" ? value : Number(value ?? 0) || 0;
 
   return (
     <div
@@ -979,20 +1337,23 @@ const QuickStat = ({ icon, label, value, suffix, color }) => {
       style={{
         backgroundColor: "var(--bg-tertiary)",
         borderColor: "var(--border-secondary)",
+        opacity: loading ? 0.9 : 1,
       }}
     >
       <div className="flex items-center gap-2 mb-1">
         <span className={c.text}>{icon}</span>
-        <p className="text-[10px] text-theme-muted uppercase tracking-wide">{label}</p>
+        <p className="text-[10px] text-theme-muted uppercase tracking-wide">
+          {label}
+        </p>
       </div>
       <p className={`text-xl font-bold ${c.text}`}>
-        {value} <span className="text-sm font-normal text-theme-muted">{suffix}</span>
+        {safeValue}{" "}
+        <span className="text-sm font-normal text-theme-muted">{suffix}</span>
       </p>
     </div>
   );
 };
 
-/* Digest Stat Card - For the banner */
 const DigestStatCard = ({ icon, value, label, color, isText = false }) => {
   const colorMap = {
     indigo: "text-indigo-400",
@@ -1010,19 +1371,40 @@ const DigestStatCard = ({ icon, value, label, color, isText = false }) => {
       }}
     >
       <div className={`${colorMap[color]} mb-1 flex justify-center`}>{icon}</div>
-      <p className={`${isText ? 'text-base' : 'text-xl'} font-bold ${colorMap[color]}`}>{value}</p>
+      <p
+        className={`${isText ? "text-base" : "text-xl"} font-bold ${
+          colorMap[color]
+        }`}
+      >
+        {value}
+      </p>
       <p className="text-[10px] text-theme-muted">{label}</p>
     </div>
   );
 };
 
-/* Modal Stat Card - For the digest modal */
 const ModalStatCard = ({ icon, value, label, color }) => {
   const colorMap = {
-    indigo: { text: "text-indigo-400", bg: "rgba(99,102,241,0.1)", border: "rgba(99,102,241,0.2)" },
-    purple: { text: "text-purple-400", bg: "rgba(139,92,246,0.1)", border: "rgba(139,92,246,0.2)" },
-    rose: { text: "text-rose-400", bg: "rgba(244,63,94,0.1)", border: "rgba(244,63,94,0.2)" },
-    emerald: { text: "text-emerald-400", bg: "rgba(16,185,129,0.1)", border: "rgba(16,185,129,0.2)" },
+    indigo: {
+      text: "text-indigo-400",
+      bg: "rgba(99,102,241,0.1)",
+      border: "rgba(99,102,241,0.2)",
+    },
+    purple: {
+      text: "text-purple-400",
+      bg: "rgba(139,92,246,0.1)",
+      border: "rgba(139,92,246,0.2)",
+    },
+    rose: {
+      text: "text-rose-400",
+      bg: "rgba(244,63,94,0.1)",
+      border: "rgba(244,63,94,0.2)",
+    },
+    emerald: {
+      text: "text-emerald-400",
+      bg: "rgba(16,185,129,0.1)",
+      border: "rgba(16,185,129,0.2)",
+    },
   };
   const c = colorMap[color] || colorMap.indigo;
 
@@ -1034,9 +1416,12 @@ const ModalStatCard = ({ icon, value, label, color }) => {
         borderColor: "var(--border-secondary)",
       }}
     >
-      <div 
+      <div
         className={`${c.text} w-10 h-10 rounded-xl mx-auto mb-2 flex items-center justify-center`}
-        style={{ backgroundColor: c.bg, border: `1px solid ${c.border}` }}
+        style={{
+          backgroundColor: c.bg,
+          border: `1px solid ${c.border}`,
+        }}
       >
         {icon}
       </div>
@@ -1046,7 +1431,6 @@ const ModalStatCard = ({ icon, value, label, color }) => {
   );
 };
 
-/* Insight Row */
 const InsightRow = ({ label, value, valueColor = "text-theme-secondary" }) => (
   <div className="flex items-center justify-between">
     <span className="text-xs text-theme-muted">{label}</span>
@@ -1054,15 +1438,45 @@ const InsightRow = ({ label, value, valueColor = "text-theme-secondary" }) => (
   </div>
 );
 
-/* Quick Action Button */
-const QuickAction = ({ icon, label, desc, onClick, color = "indigo", pro = false }) => {
+const QuickAction = ({
+  icon,
+  label,
+  desc,
+  onClick,
+  color = "indigo",
+  pro = false,
+}) => {
   const colorMap = {
-    indigo: { bg: "from-indigo-500/10 to-indigo-600/5", icon: "text-indigo-400", border: "rgba(99,102,241,0.2)" },
-    purple: { bg: "from-purple-500/10 to-purple-600/5", icon: "text-purple-400", border: "rgba(168,85,247,0.2)" },
-    pink: { bg: "from-pink-500/10 to-pink-600/5", icon: "text-pink-400", border: "rgba(236,72,153,0.2)" },
-    emerald: { bg: "from-emerald-500/10 to-emerald-600/5", icon: "text-emerald-400", border: "rgba(16,185,129,0.2)" },
-    amber: { bg: "from-amber-500/10 to-amber-600/5", icon: "text-amber-400", border: "rgba(245,158,11,0.2)" },
-    cyan: { bg: "from-cyan-500/10 to-cyan-600/5", icon: "text-cyan-400", border: "rgba(6,182,212,0.2)" },
+    indigo: {
+      bg: "from-indigo-500/10 to-indigo-600/5",
+      icon: "text-indigo-400",
+      border: "rgba(99,102,241,0.2)",
+    },
+    purple: {
+      bg: "from-purple-500/10 to-purple-600/5",
+      icon: "text-purple-400",
+      border: "rgba(168,85,247,0.2)",
+    },
+    pink: {
+      bg: "from-pink-500/10 to-pink-600/5",
+      icon: "text-pink-400",
+      border: "rgba(236,72,153,0.2)",
+    },
+    emerald: {
+      bg: "from-emerald-500/10 to-emerald-600/5",
+      icon: "text-emerald-400",
+      border: "rgba(16,185,129,0.2)",
+    },
+    amber: {
+      bg: "from-amber-500/10 to-amber-600/5",
+      icon: "text-amber-400",
+      border: "rgba(245,158,11,0.2)",
+    },
+    cyan: {
+      bg: "from-cyan-500/10 to-cyan-600/5",
+      icon: "text-cyan-400",
+      border: "rgba(6,182,212,0.2)",
+    },
   };
   const c = colorMap[color] ?? colorMap.indigo;
 
@@ -1075,7 +1489,7 @@ const QuickAction = ({ icon, label, desc, onClick, color = "indigo", pro = false
       style={{ borderColor: "var(--border-secondary)" }}
     >
       {pro && (
-        <span 
+        <span
           className="absolute top-2 right-2 text-[9px] px-1.5 py-0.5 rounded-md font-semibold"
           style={{
             backgroundColor: "rgba(245, 158, 11, 0.15)",
@@ -1089,22 +1503,21 @@ const QuickAction = ({ icon, label, desc, onClick, color = "indigo", pro = false
 
       <div
         className="h-12 w-12 rounded-xl border flex items-center justify-center"
-        style={{
-          backgroundColor: "var(--bg-tertiary)",
-          borderColor: c.border,
-        }}
+        style={{ backgroundColor: "var(--bg-tertiary)", borderColor: c.border }}
       >
         <span className={c.icon}>{icon}</span>
       </div>
+
       <div className="text-center">
-        <span className="text-sm font-medium text-theme-secondary block">{label}</span>
+        <span className="text-sm font-medium text-theme-secondary block">
+          {label}
+        </span>
         {desc && <span className="text-[10px] text-theme-muted">{desc}</span>}
       </div>
     </motion.button>
   );
 };
 
-/* Status Tag */
 const StatusTag = ({ children, type = "success" }) => {
   const typeStyles = {
     success: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
@@ -1112,15 +1525,15 @@ const StatusTag = ({ children, type = "success" }) => {
     error: "bg-rose-500/15 text-rose-400 border-rose-500/25",
     info: "bg-indigo-500/15 text-indigo-400 border-indigo-500/25",
   };
-
   return (
-    <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-md border ${typeStyles[type]}`}>
+    <span
+      className={`text-[9px] font-semibold px-2 py-0.5 rounded-md border ${typeStyles[type]}`}
+    >
       {children}
     </span>
   );
 };
 
-/* Document Row */
 const DocumentRow = ({ doc, onClick }) => (
   <motion.button
     whileHover={{ scale: 1.01 }}
@@ -1132,9 +1545,9 @@ const DocumentRow = ({ doc, onClick }) => (
       borderColor: "var(--border-secondary)",
     }}
   >
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 min-w-0">
       <div
-        className="h-10 w-10 rounded-xl border flex items-center justify-center"
+        className="h-10 w-10 rounded-xl border flex items-center justify-center flex-shrink-0"
         style={{
           backgroundColor: "rgba(168,85,247,0.1)",
           borderColor: "rgba(168,85,247,0.2)",
@@ -1143,14 +1556,16 @@ const DocumentRow = ({ doc, onClick }) => (
         <FiFileText className="text-purple-400" size={16} />
       </div>
 
-      <div>
-        <p className="text-sm text-theme-secondary font-medium truncate max-w-[180px]">{doc.name}</p>
+      <div className="min-w-0">
+        <p className="text-sm text-theme-secondary font-medium truncate">
+          {doc.name}
+        </p>
         <p className="text-[11px] text-theme-muted">{doc.status}</p>
       </div>
     </div>
 
     <span
-      className="text-[10px] text-theme-muted px-2 py-1 rounded-lg border"
+      className="text-[10px] text-theme-muted px-2 py-1 rounded-lg border flex-shrink-0"
       style={{
         backgroundColor: "var(--bg-input)",
         borderColor: "var(--border-secondary)",
@@ -1161,13 +1576,28 @@ const DocumentRow = ({ doc, onClick }) => (
   </motion.button>
 );
 
-/* Tool Button */
 const ToolButton = ({ icon, label, desc, onClick, tone = "indigo" }) => {
   const toneMap = {
-    indigo: { text: "text-indigo-400", bg: "rgba(99,102,241,0.1)", border: "rgba(99,102,241,0.2)" },
-    purple: { text: "text-purple-400", bg: "rgba(168,85,247,0.1)", border: "rgba(168,85,247,0.2)" },
-    pink: { text: "text-pink-400", bg: "rgba(236,72,153,0.1)", border: "rgba(236,72,153,0.2)" },
-    emerald: { text: "text-emerald-400", bg: "rgba(16,185,129,0.1)", border: "rgba(16,185,129,0.2)" },
+    indigo: {
+      text: "text-indigo-400",
+      bg: "rgba(99,102,241,0.1)",
+      border: "rgba(99,102,241,0.2)",
+    },
+    purple: {
+      text: "text-purple-400",
+      bg: "rgba(168,85,247,0.1)",
+      border: "rgba(168,85,247,0.2)",
+    },
+    pink: {
+      text: "text-pink-400",
+      bg: "rgba(236,72,153,0.1)",
+      border: "rgba(236,72,153,0.2)",
+    },
+    emerald: {
+      text: "text-emerald-400",
+      bg: "rgba(16,185,129,0.1)",
+      border: "rgba(16,185,129,0.2)",
+    },
   };
   const t = toneMap[tone] || toneMap.indigo;
 
@@ -1185,10 +1615,7 @@ const ToolButton = ({ icon, label, desc, onClick, tone = "indigo" }) => {
       <div className="flex items-center gap-3">
         <div
           className={`h-10 w-10 rounded-xl border flex items-center justify-center ${t.text}`}
-          style={{
-            backgroundColor: t.bg,
-            borderColor: t.border,
-          }}
+          style={{ backgroundColor: t.bg, borderColor: t.border }}
         >
           {icon}
         </div>
@@ -1199,7 +1626,15 @@ const ToolButton = ({ icon, label, desc, onClick, tone = "indigo" }) => {
         </div>
       </div>
 
-      <FiChevronRight className="text-theme-muted group-hover:text-indigo-400 transition" size={16} />
+      <FiChevronRight
+        className="text-theme-muted group-hover:text-indigo-400 transition"
+        size={16}
+      />
     </motion.button>
   );
 };
+
+
+
+
+

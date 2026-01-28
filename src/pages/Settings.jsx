@@ -1,10 +1,11 @@
 // src/pages/Settings.jsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
 import { useTheme } from "../context/ThemeContext";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import {
   FiUser,
   FiLock,
@@ -29,11 +30,35 @@ import {
   Export,
   Question,
   ChatCircle,
+  Fire,
+  Lightning,
+  Calendar,
 } from "phosphor-react";
+
+const USER_STATS_TABLE = "user_engagement_stats";
+
+function formatDateShort(d) {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: "numeric",
+      day: "numeric",
+      year: "numeric",
+    }).format(d);
+  } catch {
+    return d.toLocaleDateString();
+  }
+}
+
+function getLast7DaysRange() {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - 7);
+  return { start, end };
+}
 
 export default function Settings() {
   const navigate = useNavigate();
-  
+
   // Theme from context (persists to localStorage)
   const { theme, setTheme, resolvedTheme } = useTheme();
 
@@ -63,15 +88,112 @@ export default function Settings() {
   // Toast
   const [toast, setToast] = useState(null);
 
+  // Supabase stats preview (for weekly digest + user info)
+  const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState("");
+
   const showToast = (message) => {
     setToast(message);
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleSaveProfile = () => {
+  const ensureStatsRow = async (user) => {
+    if (!user?.id) return;
+
+    const nameFromAuth =
+      user.user_metadata?.full_name ??
+      user.user_metadata?.name ??
+      (user.email ? user.email.split("@")[0] : null);
+
+    await supabase
+      .from(USER_STATS_TABLE)
+      .upsert(
+        { user_id: user.id, display_name: nameFromAuth ?? null },
+        { onConflict: "user_id" }
+      );
+  };
+
+  const loadStats = async () => {
+    if (!isSupabaseConfigured || !supabase) return;
+
+    setStatsError("");
+    setStatsLoading(true);
+
+    try {
+      const { data: sessRes, error: sessErr } = await supabase.auth.getSession();
+      if (sessErr) throw sessErr;
+
+      const user = sessRes?.session?.user;
+      if (!user?.id) {
+        setStats(null);
+        setStatsLoading(false);
+        return;
+      }
+
+      // Ensure row exists (first-time users)
+      await ensureStatsRow(user);
+
+      const { data, error } = await supabase
+        .from(USER_STATS_TABLE)
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      if (error) throw error;
+
+      setStats(data ?? null);
+
+      // Optional: if local display name is still default-ish, sync from DB
+      if (
+        data?.display_name &&
+        (displayName === "Angel" || displayName === "Unknown")
+      ) {
+        setDisplayName(data.display_name);
+        localStorage.setItem("notestream-displayName", data.display_name);
+      }
+    } catch (e) {
+      setStats(null);
+      setStatsError(e?.message || "Failed to load user stats.");
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStats();
+
+    if (!supabase) return;
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      loadStats();
+    });
+
+    return () => sub?.subscription?.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSaveProfile = async () => {
     localStorage.setItem("notestream-displayName", displayName);
     localStorage.setItem("notestream-email", email);
     setIsEditingProfile(false);
+
+    // If logged in, keep Supabase stats display_name in sync (used on dashboard)
+    try {
+      if (isSupabaseConfigured && supabase) {
+        const { data: sessRes } = await supabase.auth.getSession();
+        const user = sessRes?.session?.user;
+        if (user?.id) {
+          await supabase
+            .from(USER_STATS_TABLE)
+            .update({ display_name: displayName })
+            .eq("user_id", user.id);
+          await loadStats();
+        }
+      }
+    } catch {
+      // keep local save even if sync fails
+    }
+
     showToast("Profile updated successfully!");
   };
 
@@ -82,14 +204,18 @@ export default function Settings() {
         exportDate: new Date().toISOString(),
         version: "1.0.0",
         profile: {
-          displayName: localStorage.getItem("notestream-displayName") || "Unknown",
+          displayName:
+            localStorage.getItem("notestream-displayName") || "Unknown",
           email: localStorage.getItem("notestream-email") || "Unknown",
         },
         settings: {
           theme: localStorage.getItem("notestream-theme") || "dark",
-          autoSummarize: localStorage.getItem("notestream-autoSummarize") === "true",
-          smartNotifications: localStorage.getItem("notestream-smartNotifications") === "true",
-          weeklyDigest: localStorage.getItem("notestream-weeklyDigest") === "true",
+          autoSummarize:
+            localStorage.getItem("notestream-autoSummarize") === "true",
+          smartNotifications:
+            localStorage.getItem("notestream-smartNotifications") === "true",
+          weeklyDigest:
+            localStorage.getItem("notestream-weeklyDigest") === "true",
           pinEnabled: localStorage.getItem("ns-note-pin") !== null,
         },
         notes: [],
@@ -97,46 +223,51 @@ export default function Settings() {
         integrations: {},
       };
 
-      // Gather notes (check common localStorage keys)
       const notesData = localStorage.getItem("notestream-notes");
       if (notesData) {
         try {
           exportData.notes = JSON.parse(notesData);
-        } catch (e) {
+        } catch {
           exportData.notes = [];
         }
       }
 
-      // Gather documents
       const docsData = localStorage.getItem("notestream-documents");
       if (docsData) {
         try {
           exportData.documents = JSON.parse(docsData);
-        } catch (e) {
+        } catch {
           exportData.documents = [];
         }
       }
 
-      // Gather integrations
       const integrationsData = localStorage.getItem("notestream-integrations");
       if (integrationsData) {
         try {
           exportData.integrations = JSON.parse(integrationsData);
-        } catch (e) {
+        } catch {
           exportData.integrations = {};
         }
       }
 
-      // Gather any other NoteStream related data
       const allKeys = Object.keys(localStorage);
       const otherData = {};
-      allKeys.forEach(key => {
+      allKeys.forEach((key) => {
         if (key.startsWith("notestream-") || key.startsWith("ns-")) {
-          // Skip already processed keys and sensitive data like PIN
-          if (!["notestream-displayName", "notestream-email", "notestream-theme", 
-               "notestream-autoSummarize", "notestream-smartNotifications", 
-               "notestream-weeklyDigest", "notestream-notes", "notestream-documents",
-               "notestream-integrations", "ns-note-pin"].includes(key)) {
+          if (
+            ![
+              "notestream-displayName",
+              "notestream-email",
+              "notestream-theme",
+              "notestream-autoSummarize",
+              "notestream-smartNotifications",
+              "notestream-weeklyDigest",
+              "notestream-notes",
+              "notestream-documents",
+              "notestream-integrations",
+              "ns-note-pin",
+            ].includes(key)
+          ) {
             try {
               otherData[key] = JSON.parse(localStorage.getItem(key));
             } catch {
@@ -147,14 +278,15 @@ export default function Settings() {
       });
       exportData.otherData = otherData;
 
-      // Create and download the file
       const dataStr = JSON.stringify(exportData, null, 2);
       const blob = new Blob([dataStr], { type: "application/json" });
       const url = URL.createObjectURL(blob);
-      
+
       const link = document.createElement("a");
       link.href = url;
-      link.download = `notestream-export-${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `notestream-export-${
+        new Date().toISOString().split("T")[0]
+      }.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -175,14 +307,31 @@ export default function Settings() {
     showToast(value ? "Auto-summarize enabled" : "Auto-summarize disabled");
   };
 
-  const handleWeeklyDigestChange = (value) => {
+  const handleWeeklyDigestChange = async (value) => {
     updateSetting("weeklyDigest", value);
+
+    // If enabling, ensure stats row exists (so dashboard can render cleanly)
+    if (value && isSupabaseConfigured && supabase) {
+      try {
+        const { data: sessRes } = await supabase.auth.getSession();
+        const user = sessRes?.session?.user;
+        if (user?.id) {
+          await ensureStatsRow(user);
+          await loadStats();
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     showToast(value ? "Weekly digest enabled" : "Weekly digest disabled");
   };
 
   const handleSmartNotificationsChange = (value) => {
     updateSetting("smartNotifications", value);
-    showToast(value ? "Smart notifications enabled" : "Smart notifications disabled");
+    showToast(
+      value ? "Smart notifications enabled" : "Smart notifications disabled"
+    );
   };
 
   const themeOptions = [
@@ -190,6 +339,19 @@ export default function Settings() {
     { value: "light", label: "Light", icon: FiSun },
     { value: "system", label: "System", icon: FiMonitor },
   ];
+
+  const range = getLast7DaysRange();
+  const digestPeriodLabel = `${formatDateShort(range.start)} - ${formatDateShort(
+    range.end
+  )}`;
+
+  const safeStats = stats || {
+    notes_created: 0,
+    ai_uses: 0,
+    active_days: 0,
+    streak_days: 0,
+    last_active_date: null,
+  };
 
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
@@ -216,7 +378,9 @@ export default function Settings() {
           </div>
           <div>
             <h1 className="page-header-title">Settings</h1>
-            <p className="page-header-subtitle">Control how NoteStream behaves across your workspace.</p>
+            <p className="page-header-subtitle">
+              Control how NoteStream behaves across your workspace.
+            </p>
           </div>
         </div>
       </header>
@@ -225,7 +389,11 @@ export default function Settings() {
       <GlassCard>
         <div className="flex items-center gap-2 mb-4">
           <div className="h-8 w-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-            <UserCircle size={18} weight="duotone" className="text-indigo-400" />
+            <UserCircle
+              size={18}
+              weight="duotone"
+              className="text-indigo-400"
+            />
           </div>
           <h2 className="text-sm font-semibold text-indigo-300">Profile</h2>
         </div>
@@ -233,7 +401,9 @@ export default function Settings() {
         <div className="space-y-4">
           {/* Display Name */}
           <div>
-            <label className="text-xs text-theme-muted mb-1.5 block">Display name</label>
+            <label className="text-xs text-theme-muted mb-1.5 block">
+              Display name
+            </label>
             {isEditingProfile ? (
               <input
                 type="text"
@@ -250,7 +420,9 @@ export default function Settings() {
 
           {/* Email */}
           <div>
-            <label className="text-xs text-theme-muted mb-1.5 block">Email</label>
+            <label className="text-xs text-theme-muted mb-1.5 block">
+              Email
+            </label>
             {isEditingProfile ? (
               <input
                 type="email"
@@ -297,7 +469,11 @@ export default function Settings() {
       <GlassCard>
         <div className="flex items-center gap-2 mb-4">
           <div className="h-8 w-8 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
-            <PaintBrush size={18} weight="duotone" className="text-purple-400" />
+            <PaintBrush
+              size={18}
+              weight="duotone"
+              className="text-purple-400"
+            />
           </div>
           <h2 className="text-sm font-semibold text-purple-300">Appearance</h2>
         </div>
@@ -330,8 +506,8 @@ export default function Settings() {
             })}
           </div>
           <p className="text-[11px] text-theme-muted mt-2">
-            {theme === "system" 
-              ? "Theme will match your device settings" 
+            {theme === "system"
+              ? "Theme will match your device settings"
               : `${theme.charAt(0).toUpperCase() + theme.slice(1)} mode is active`}
           </p>
         </div>
@@ -345,7 +521,9 @@ export default function Settings() {
           </div>
           <h2 className="text-sm font-semibold text-emerald-300">Workspace</h2>
         </div>
-        <p className="text-xs text-theme-muted mb-4">Configure how NoteStream uses AI across your workspace.</p>
+        <p className="text-xs text-theme-muted mb-4">
+          Configure how NoteStream uses AI across your workspace.
+        </p>
 
         <div className="space-y-3">
           <ToggleSetting
@@ -361,15 +539,82 @@ export default function Settings() {
             onChange={handleSmartNotificationsChange}
           />
           <ToggleSetting
-            label="Email me weekly digests"
-            description="Receive a summary of your activity every Monday"
+            label="Show weekly digest"
+            description="Show a weekly summary card on your dashboard"
             enabled={settings.weeklyDigest}
             onChange={handleWeeklyDigestChange}
           />
         </div>
 
+        {/* Weekly Digest Preview (real user stats) */}
+        {settings.weeklyDigest && (
+          <div
+            className="mt-4 pt-4 border-t"
+            style={{ borderColor: "var(--border-secondary)" }}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] text-theme-muted">Weekly digest preview</p>
+              <span className="text-[10px] text-theme-muted px-2 py-0.5 rounded-full bg-theme-tertiary flex items-center gap-1">
+                <Calendar size={12} weight="duotone" />
+                {digestPeriodLabel}
+              </span>
+            </div>
+
+            {statsError ? (
+              <div className="text-[11px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+                {statsError}
+              </div>
+            ) : (
+              <div
+                className={`grid grid-cols-2 sm:grid-cols-4 gap-2 ${
+                  statsLoading ? "opacity-80" : ""
+                }`}
+              >
+                <MiniStat
+                  icon={<FiZap size={12} />}
+                  label="AI uses"
+                  value={safeStats.ai_uses ?? 0}
+                />
+                <MiniStat
+                  icon={<Fire size={12} weight="fill" />}
+                  label="Streak"
+                  value={`${safeStats.streak_days ?? 0}d`}
+                />
+                <MiniStat
+                  icon={<Lightning size={12} weight="fill" />}
+                  label="Active days"
+                  value={safeStats.active_days ?? 0}
+                />
+                <MiniStat
+                  icon={<FiUser size={12} />}
+                  label="Notes"
+                  value={safeStats.notes_created ?? 0}
+                />
+              </div>
+            )}
+
+            <div className="mt-2 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={loadStats}
+                className="text-[11px] text-theme-muted hover:text-theme-primary transition"
+              >
+                Refresh stats
+              </button>
+              <span className="text-[10px] text-theme-muted">
+                {safeStats.last_active_date
+                  ? `Last active: ${safeStats.last_active_date}`
+                  : "Last active: —"}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Settings status indicator */}
-        <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border-secondary)' }}>
+        <div
+          className="mt-4 pt-4 border-t"
+          style={{ borderColor: "var(--border-secondary)" }}
+        >
           <p className="text-[11px] text-theme-muted mb-2">Active features:</p>
           <div className="flex flex-wrap gap-2">
             {settings.autoSummarize && (
@@ -387,9 +632,13 @@ export default function Settings() {
                 <FiZap size={10} /> Weekly digest
               </span>
             )}
-            {!settings.autoSummarize && !settings.smartNotifications && !settings.weeklyDigest && (
-              <span className="text-[10px] text-theme-muted">No AI features enabled</span>
-            )}
+            {!settings.autoSummarize &&
+              !settings.smartNotifications &&
+              !settings.weeklyDigest && (
+                <span className="text-[10px] text-theme-muted">
+                  No AI features enabled
+                </span>
+              )}
           </div>
         </div>
       </GlassCard>
@@ -398,7 +647,11 @@ export default function Settings() {
       <GlassCard>
         <div className="flex items-center gap-2 mb-4">
           <div className="h-8 w-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-            <ShieldCheck size={18} weight="duotone" className="text-amber-400" />
+            <ShieldCheck
+              size={18}
+              weight="duotone"
+              className="text-amber-400"
+            />
           </div>
           <h2 className="text-sm font-semibold text-amber-300">Security</h2>
         </div>
@@ -429,7 +682,9 @@ export default function Settings() {
               </div>
               <div className="text-left">
                 <p className="text-sm text-theme-secondary">Export my data</p>
-                <p className="text-[11px] text-theme-muted">Download all your notes and files</p>
+                <p className="text-[11px] text-theme-muted">
+                  Download all your notes and files
+                </p>
               </div>
             </div>
             <FiChevronRight className="text-theme-muted group-hover:text-theme-tertiary transition" />
@@ -474,7 +729,9 @@ export default function Settings() {
           </div>
           <h2 className="text-sm font-semibold text-rose-300">Danger Zone</h2>
         </div>
-        <p className="text-xs text-theme-muted mb-4">These actions are destructive and cannot be undone.</p>
+        <p className="text-xs text-theme-muted mb-4">
+          These actions are destructive and cannot be undone.
+        </p>
 
         <div className="space-y-2">
           <button
@@ -486,7 +743,9 @@ export default function Settings() {
             </div>
             <div>
               <p className="text-sm text-theme-secondary">Log out</p>
-              <p className="text-[11px] text-theme-muted">Sign out of your account</p>
+              <p className="text-[11px] text-theme-muted">
+                Sign out of your account
+              </p>
             </div>
           </button>
 
@@ -499,7 +758,9 @@ export default function Settings() {
             </div>
             <div>
               <p className="text-sm text-rose-300">Delete account</p>
-              <p className="text-[11px] text-theme-muted">Permanently delete all data</p>
+              <p className="text-[11px] text-theme-muted">
+                Permanently delete all data
+              </p>
             </div>
           </button>
         </div>
@@ -508,7 +769,9 @@ export default function Settings() {
       {/* App Version */}
       <div className="text-center py-4">
         <p className="text-xs text-theme-muted">NoteStream v1.0.0</p>
-        <p className="text-[10px] text-theme-muted mt-1">Made with ❤️ for productivity</p>
+        <p className="text-[10px] text-theme-muted mt-1">
+          Made with ❤️ for productivity
+        </p>
       </div>
 
       {/* Delete Account Modal */}
@@ -539,11 +802,17 @@ export default function Settings() {
             confirmLabel="Log Out"
             confirmColor="gray"
             icon={<FiLogOut size={20} className="text-gray-400" />}
-            onConfirm={() => {
+            onConfirm={async () => {
+              try {
+                if (isSupabaseConfigured && supabase) {
+                  await supabase.auth.signOut();
+                }
+              } catch {
+                // ignore
+              }
               setShowLogoutModal(false);
-              localStorage.removeItem("notestream-session");
               showToast("Logged out successfully");
-              setTimeout(() => navigate("/"), 500);
+              setTimeout(() => navigate("/"), 300);
             }}
             onCancel={() => setShowLogoutModal(false)}
           />
@@ -584,6 +853,21 @@ export default function Settings() {
 }
 
 /* -----------------------------------------
+   Small stat pill for digest preview
+----------------------------------------- */
+function MiniStat({ icon, label, value }) {
+  return (
+    <div className="rounded-xl bg-theme-input border border-theme-secondary px-3 py-2">
+      <div className="flex items-center justify-between">
+        <span className="text-theme-muted">{icon}</span>
+        <span className="text-[11px] text-theme-muted">{label}</span>
+      </div>
+      <div className="mt-1 text-sm font-semibold text-theme-primary">{value}</div>
+    </div>
+  );
+}
+
+/* -----------------------------------------
    Toggle Setting Component
 ----------------------------------------- */
 function ToggleSetting({ label, description, enabled, onChange }) {
@@ -591,7 +875,9 @@ function ToggleSetting({ label, description, enabled, onChange }) {
     <div className="flex items-center justify-between bg-theme-input border border-theme-secondary rounded-xl px-4 py-3">
       <div className="pr-4">
         <p className="text-sm text-theme-secondary">{label}</p>
-        {description && <p className="text-[10px] text-theme-muted mt-0.5">{description}</p>}
+        {description && (
+          <p className="text-[10px] text-theme-muted mt-0.5">{description}</p>
+        )}
       </div>
       <button
         onClick={() => onChange(!enabled)}
@@ -635,7 +921,15 @@ function SupportLink({ icon, label, badge, onClick }) {
 /* -----------------------------------------
    Confirm Modal Component
 ----------------------------------------- */
-function ConfirmModal({ title, description, confirmLabel, confirmColor, icon, onConfirm, onCancel }) {
+function ConfirmModal({
+  title,
+  description,
+  confirmLabel,
+  confirmColor,
+  icon,
+  onConfirm,
+  onCancel,
+}) {
   const colorMap = {
     rose: "bg-rose-600 hover:bg-rose-500",
     indigo: "bg-indigo-600 hover:bg-indigo-500",
@@ -747,11 +1041,8 @@ function PinModal({ onSave, onCancel }) {
           value={step === 1 ? pin : confirmPin}
           onChange={(e) => {
             const val = e.target.value.replace(/\D/g, "");
-            if (step === 1) {
-              setPin(val);
-            } else {
-              setConfirmPin(val);
-            }
+            if (step === 1) setPin(val);
+            else setConfirmPin(val);
             setError("");
           }}
           className="w-full bg-theme-input border border-theme-secondary rounded-xl px-4 py-4 text-center tracking-[0.5em] text-xl text-theme-primary font-mono placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 mb-4"
