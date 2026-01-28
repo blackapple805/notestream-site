@@ -325,104 +325,105 @@ export default function Dashboard() {
   /* -----------------------------------------
    STATS: fetch user_engagement_stats
 ----------------------------------------- */
-  useEffect(() => {
-    if (!supabaseReady || !supabase) {
-      setStatsLoading(false);
-      return;
-    }
-
-    let alive = true;
-
-    (async () => {
-      setStatsLoading(true);
-
-      const { data: sessRes } = await supabase.auth.getSession();
-      const user = sessRes?.session?.user;
-
-      if (!user?.id) {
-        if (alive) {
-          setStatsLoading(false);
-          navigate("/login");
-        }
+    useEffect(() => {
+      if (!supabaseReady || !supabase) {
+        setStatsLoading(false);
         return;
       }
 
-      const fallbackName =
-        user.user_metadata?.full_name ??
-        user.user_metadata?.name ??
-        (user.email ? user.email.split("@")[0] : null);
+      let alive = true;
 
-      if (alive) {
-        setStats((s) => ({
-          ...s,
-          user_id: user.id,
-          display_name: s.display_name ?? fallbackName ?? null,
-        }));
-      }
+      (async () => {
+        setStatsLoading(true);
 
-      let row = null;
+        const { data: sessRes, error: sessErr } = await supabase.auth.getSession();
+        if (sessErr) console.error("getSession error:", sessErr);
 
-      const { data, error } = await supabase
-        .from(USER_STATS_TABLE)
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
+        const user = sessRes?.session?.user;
+        if (!user?.id) {
+          if (alive) {
+            setStatsLoading(false);
+            navigate("/login");
+          }
+          return;
+        }
 
-      if (!error && data) row = data;
+        const fallbackName =
+          user.user_metadata?.full_name ??
+          user.user_metadata?.name ??
+          (user.email ? user.email.split("@")[0] : null);
 
-      if (!row) {
+        // Ensure row exists (no overwrite of other columns)
         await supabase
           .from(USER_STATS_TABLE)
-          .upsert(
-            { user_id: user.id, display_name: fallbackName ?? null },
-            { onConflict: "user_id" }
-          );
+          .upsert({ user_id: user.id, display_name: fallbackName ?? null }, { onConflict: "user_id" });
 
-        const res2 = await supabase
+        // Fetch row
+        const { data: row, error: fetchErr } = await supabase
           .from(USER_STATS_TABLE)
           .select("*")
           .eq("user_id", user.id)
           .single();
 
-        if (!res2?.error && res2?.data) row = res2.data;
-      }
+        if (fetchErr) {
+          console.error("Stats fetch error:", fetchErr);
+          if (alive) setStatsLoading(false);
+          return;
+        }
 
-      const merged = { ...EMPTY_STATS, ...(row || {}) };
+        const today = toLocalYMD();
 
-      // Optional active-day increment
-      const today = toLocalYMD();
-      if (merged.last_active_date !== today) {
-        const diff = merged.last_active_date
-          ? diffDaysLocal(merged.last_active_date, today)
-          : null;
+        // Normalize nulls -> 0
+        const base = {
+          ...EMPTY_STATS,
+          ...row,
+          notes_created: Number(row?.notes_created ?? 0),
+          ai_uses: Number(row?.ai_uses ?? 0),
+          active_days: Number(row?.active_days ?? 0),
+          streak_days: Number(row?.streak_days ?? 0),
+        };
 
-        const nextActiveDays = (merged.active_days || 0) + 1;
-        const nextStreak = diff === 1 ? (merged.streak_days || 0) + 1 : 1;
+        // Increment active day if needed
+        if (base.last_active_date !== today) {
+          const diff = base.last_active_date
+            ? diffDaysLocal(base.last_active_date, today)
+            : null;
 
-        merged.active_days = nextActiveDays;
-        merged.streak_days = nextStreak;
-        merged.last_active_date = today;
+          const nextActiveDays = (base.active_days || 0) + 1;
+          const nextStreak = diff === 1 ? (base.streak_days || 0) + 1 : 1;
 
-        supabase
-          .from(USER_STATS_TABLE)
-          .update({
-            active_days: nextActiveDays,
-            streak_days: nextStreak,
-            last_active_date: today,
-            display_name: merged.display_name ?? fallbackName ?? null,
-          })
-          .eq("user_id", user.id);
-      }
+          const { data: updatedRow, error: upErr } = await supabase
+            .from(USER_STATS_TABLE)
+            .update({
+              active_days: nextActiveDays,
+              streak_days: nextStreak,
+              last_active_date: today,
+              display_name: base.display_name ?? fallbackName ?? null,
+            })
+            .eq("user_id", user.id)
+            .select("*")
+            .single();
 
-      if (!alive) return;
-      setStats(merged);
-      setStatsLoading(false);
-    })();
+          if (upErr) {
+            // This is where you'd see RLS problems
+            console.error("Stats update error:", upErr);
+          } else {
+            Object.assign(base, updatedRow, {
+              active_days: Number(updatedRow?.active_days ?? nextActiveDays),
+              streak_days: Number(updatedRow?.streak_days ?? nextStreak),
+            });
+          }
+        }
 
-    return () => {
-      alive = false;
-    };
-  }, [navigate, supabaseReady]);
+        if (!alive) return;
+        setStats(base);
+        setStatsLoading(false);
+      })();
+
+      return () => {
+        alive = false;
+      };
+    }, [navigate]);
 
 
     /* -----------------------------------------
@@ -459,7 +460,7 @@ export default function Dashboard() {
       const [notesRes, docsRes] = await Promise.all([
         supabase
           .from(NOTES_TABLE)
-          .select("id,title,body,tags,is_favorite,is_highlight,created_at,updated_at")
+          .select("id,title,body,tags,is_favorite,is_highlight,ai_payload,ai_generated_at,created_at,updated_at")
           .eq("user_id", user.id)
           .gte("created_at", sinceIso)
           .order("updated_at", { ascending: false }),
@@ -548,9 +549,10 @@ export default function Dashboard() {
       id: n.id,
       title: n.title || "Untitled note",
       updated: safeLocalDateTime(n.updated_at),
-      hasAI: true,
+      hasAI: !!n.ai_generated_at || !!n.ai_payload?.summary,
     }));
   }, [notes]);
+
 
   const recentDocs = useMemo(() => {
     return (docs || []).slice(0, 3);

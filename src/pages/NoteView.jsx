@@ -19,9 +19,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSubscription } from "../hooks/useSubscription";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+
+const USER_STATS_TABLE = "user_engagement_stats";
+const EVENTS_TABLE = "activity_events";
 
 const AI_USES_KEY = "notestream-aiUses";
 const SMART_KEY_PREFIX = "ns-note-smart:";
+
 
 function safeJsonParse(value) {
   try {
@@ -72,6 +77,107 @@ export default function NoteView({
     typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("voice") : isPro;
   const canUseExport =
     typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("export") : isPro;
+
+  const supabaseReady =
+    typeof isSupabaseConfigured === "function"
+      ? isSupabaseConfigured()
+      : !!isSupabaseConfigured;
+
+  const isUuid = (v) =>
+    typeof v === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+
+  const toLocalYMD = (d = new Date()) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const parseYMDToDate = (ymd) => {
+    const [y, m, d] = String(ymd || "").split("-").map((n) => Number(n));
+    if (!y || !m || !d) return null;
+    return new Date(y, m - 1, d);
+  };
+
+  const diffDaysLocal = (aYmd, bYmd) => {
+    const a = parseYMDToDate(aYmd);
+    const b = parseYMDToDate(bYmd);
+    if (!a || !b) return null;
+    const ms = b.getTime() - a.getTime();
+    return Math.floor(ms / (24 * 60 * 60 * 1000));
+  };
+
+  const trackAiUseDb = async () => {
+    if (!supabaseReady || !supabase) return;
+
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const user = auth?.user;
+      if (!user?.id) return;
+
+      // Log event (safe: entity_id can be null if note.id isn't a uuid)
+      await supabase.from(EVENTS_TABLE).insert({
+        user_id: user.id,
+        type: "ai_used",
+        entity_id: isUuid(note?.id) ? note.id : null,
+        meta: { feature: "note_ai", note_id: note?.id ?? null },
+      });
+
+      const today = toLocalYMD();
+
+      const { data: row, error: rowErr } = await supabase
+        .from(USER_STATS_TABLE)
+        .select("user_id,ai_uses,active_days,streak_days,last_active_date")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (rowErr) return;
+
+      if (!row) {
+        // IMPORTANT: your table doesn't have updated_at in the screenshot
+        await supabase.from(USER_STATS_TABLE).insert({
+          user_id: user.id,
+          ai_uses: 1,
+          active_days: 1,
+          streak_days: 1,
+          last_active_date: today,
+        });
+        return;
+      }
+
+      const prevYmd = row.last_active_date;
+      const delta = prevYmd ? diffDaysLocal(prevYmd, today) : null;
+
+      const nextAiUses = Number(row.ai_uses ?? 0) + 1;
+
+      const nextActiveDays =
+        delta === null
+          ? Number(row.active_days ?? 0) + 1
+          : delta >= 1
+          ? Number(row.active_days ?? 0) + 1
+          : Number(row.active_days ?? 0);
+
+      const nextStreak =
+        delta === 0
+          ? Number(row.streak_days ?? 0)
+          : delta === 1
+          ? Number(row.streak_days ?? 0) + 1
+          : 1;
+
+      await supabase
+        .from(USER_STATS_TABLE)
+        .update({
+          ai_uses: nextAiUses,
+          active_days: nextActiveDays,
+          streak_days: nextStreak,
+          last_active_date: today,
+        })
+        .eq("user_id", user.id);
+    } catch {
+      // silent fail
+    }
+  };
 
   if (!note) return null;
 
@@ -213,7 +319,8 @@ export default function NoteView({
 
       persistSmart(newSmartData);
       bumpAiUses();
-
+      trackAiUseDb();
+      
       setIsAnalyzing(false);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
