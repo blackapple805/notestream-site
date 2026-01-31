@@ -1,6 +1,7 @@
-
 // src/pages/Activity.jsx
-import { useState, useMemo, useEffect } from "react";
+// ✅ Connected to Supabase database for real activity tracking
+
+import { useState, useMemo, useEffect, useCallback } from "react";
 import GlassCard from "../components/GlassCard";
 import { motion } from "framer-motion";
 import {
@@ -26,50 +27,26 @@ import {
   FiCalendar,
 } from "react-icons/fi";
 import { ChartLine, Fire } from "phosphor-react";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 /* -----------------------------------------
-   Activity Data
+   Utility Functions
 ----------------------------------------- */
-const insightsData = [
-  { name: "Mon", notes: 5, summaries: 2, uploads: 1 },
-  { name: "Tue", notes: 7, summaries: 3, uploads: 2 },
-  { name: "Wed", notes: 6, summaries: 4, uploads: 0 },
-  { name: "Thu", notes: 9, summaries: 5, uploads: 3 },
-  { name: "Fri", notes: 8, summaries: 6, uploads: 1 },
-  { name: "Sat", notes: 4, summaries: 2, uploads: 0 },
-  { name: "Sun", notes: 3, summaries: 1, uploads: 1 },
-];
+function formatTimeAgo(dateStr) {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
 
-const monthlyData = [
-  { name: "Week 1", notes: 18, summaries: 8 },
-  { name: "Week 2", notes: 24, summaries: 12 },
-  { name: "Week 3", notes: 21, summaries: 15 },
-  { name: "Week 4", notes: 28, summaries: 18 },
-];
-
-const usageBreakdown = [
-  { label: "Meeting Notes", value: 42, icon: FiEdit3, tone: "indigo" },
-  { label: "Study / Research", value: 31, icon: FiBookOpen, tone: "purple" },
-  { label: "Projects & Tasks", value: 19, icon: FiClipboard, tone: "cyan" },
-  { label: "Personal", value: 8, icon: FiUser, tone: "emerald" },
-];
-
-const allEvents = [
-  { action: "summary", time: "Just now", text: "Generated summary for Team Meeting Notes", icon: FiZap, daysAgo: 0 },
-  { action: "upload", time: "1h ago", text: "Uploaded file projectRoadmap.pdf", icon: FiUploadCloud, daysAgo: 0 },
-  { action: "note", time: "Yesterday", text: "Created 3 new notes", icon: FiFileText, daysAgo: 1 },
-  { action: "integration", time: "2 days ago", text: "Synced workspace with Notion", icon: FiActivity, daysAgo: 2 },
-  { action: "note", time: "5 days ago", text: "Edited outline draft", icon: FiFileText, daysAgo: 5 },
-  { action: "upload", time: "10 days ago", text: "Uploaded assets for pitch deck", icon: FiUploadCloud, daysAgo: 10 },
-];
-
-const typeFilters = [
-  { label: "All", value: "all" },
-  { label: "Uploads", value: "upload" },
-  { label: "Summaries", value: "summary" },
-  { label: "Notes", value: "note" },
-  { label: "Integration", value: "integration" },
-];
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return date.toLocaleDateString();
+}
 
 function getGroupName(daysAgo) {
   if (daysAgo <= 0) return "Today";
@@ -77,6 +54,85 @@ function getGroupName(daysAgo) {
   if (daysAgo <= 7) return "This Week";
   return "Earlier";
 }
+
+const typeFilters = [
+  { label: "All", value: "all" },
+  { label: "Uploads", value: "doc_uploaded" },
+  { label: "Summaries", value: "ai_summary" },
+  { label: "Notes", value: "note_created" },
+  { label: "Integration", value: "integration_sync" },
+];
+
+const eventIcons = {
+  note_created: FiFileText,
+  note_updated: FiEdit3,
+  doc_uploaded: FiUploadCloud,
+  ai_summary: FiZap,
+  synthesis: FiActivity,
+  integration_sync: FiActivity,
+};
+
+const actionStyles = {
+  ai_summary: {
+    bg: "rgba(99,102,241,0.14)",
+    border: "rgba(99,102,241,0.28)",
+    icon: "var(--accent-indigo)",
+    glow: "rgba(99,102,241,0.18)",
+  },
+  doc_uploaded: {
+    bg: "rgba(16,185,129,0.14)",
+    border: "rgba(16,185,129,0.28)",
+    icon: "var(--accent-emerald)",
+    glow: "rgba(16,185,129,0.16)",
+  },
+  note_created: {
+    bg: "rgba(168,85,247,0.14)",
+    border: "rgba(168,85,247,0.28)",
+    icon: "var(--accent-purple)",
+    glow: "rgba(168,85,247,0.16)",
+  },
+  note_updated: {
+    bg: "rgba(168,85,247,0.14)",
+    border: "rgba(168,85,247,0.28)",
+    icon: "var(--accent-purple)",
+    glow: "rgba(168,85,247,0.16)",
+  },
+  integration_sync: {
+    bg: "rgba(56,189,248,0.14)",
+    border: "rgba(56,189,248,0.28)",
+    icon: "rgba(56,189,248,1)",
+    glow: "rgba(56,189,248,0.14)",
+  },
+  synthesis: {
+    bg: "rgba(99,102,241,0.14)",
+    border: "rgba(99,102,241,0.28)",
+    icon: "var(--accent-indigo)",
+    glow: "rgba(99,102,241,0.18)",
+  },
+};
+
+/* -----------------------------------------
+   Default/fallback data (used while loading)
+----------------------------------------- */
+const defaultChartData = [
+  { name: "Mon", notes: 0, summaries: 0, uploads: 0 },
+  { name: "Tue", notes: 0, summaries: 0, uploads: 0 },
+  { name: "Wed", notes: 0, summaries: 0, uploads: 0 },
+  { name: "Thu", notes: 0, summaries: 0, uploads: 0 },
+  { name: "Fri", notes: 0, summaries: 0, uploads: 0 },
+  { name: "Sat", notes: 0, summaries: 0, uploads: 0 },
+  { name: "Sun", notes: 0, summaries: 0, uploads: 0 },
+];
+
+const defaultStreakDays = [
+  { day: "Mon", active: false },
+  { day: "Tue", active: false },
+  { day: "Wed", active: false },
+  { day: "Thu", active: false },
+  { day: "Fri", active: false },
+  { day: "Sat", active: false },
+  { day: "Sun", active: false },
+];
 
 /* -----------------------------------------
    Animated Dot for Charts
@@ -99,7 +155,7 @@ const AnimatedDot = (props) => {
 };
 
 /* -----------------------------------------
-   Custom Tooltip - Theme Aware
+   Custom Tooltip
 ----------------------------------------- */
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -126,55 +182,28 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-const actionStyles = {
-  summary: {
-    bg: "rgba(99,102,241,0.14)",
-    border: "rgba(99,102,241,0.28)",
-    icon: "var(--accent-indigo)",
-    glow: "rgba(99,102,241,0.18)",
-  },
-  upload: {
-    bg: "rgba(16,185,129,0.14)",
-    border: "rgba(16,185,129,0.28)",
-    icon: "var(--accent-emerald)",
-    glow: "rgba(16,185,129,0.16)",
-  },
-  note: {
-    bg: "rgba(168,85,247,0.14)",
-    border: "rgba(168,85,247,0.28)",
-    icon: "var(--accent-purple)",
-    glow: "rgba(168,85,247,0.16)",
-  },
-  integration: {
-    bg: "rgba(56,189,248,0.14)",
-    border: "rgba(56,189,248,0.28)",
-    icon: "rgba(56,189,248,1)",
-    glow: "rgba(56,189,248,0.14)",
-  },
-};
-
-const TimelineRow = ({ e, i }) => {
-  const Icon = e.icon;
-  const s = actionStyles[e.action] || actionStyles.note;
+/* -----------------------------------------
+   Timeline Row Component
+----------------------------------------- */
+const TimelineRow = ({ event, index }) => {
+  const Icon = eventIcons[event.event_type] || FiActivity;
+  const s = actionStyles[event.event_type] || actionStyles.note_created;
 
   return (
     <motion.li
       className="relative pl-10"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: i * 0.04 }}
+      transition={{ delay: index * 0.04 }}
     >
-      {/* connector line segment */}
       <div
         className="absolute left-[14px] top-[18px] bottom-[-18px] w-[2px]"
         style={{
-          background:
-            "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.00))",
+          background: "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.00))",
         }}
         aria-hidden="true"
       />
 
-      {/* square icon marker (NOT round) */}
       <div
         className="absolute left-0 top-[10px] h-8 w-8 rounded-xl border flex items-center justify-center"
         style={{
@@ -186,27 +215,18 @@ const TimelineRow = ({ e, i }) => {
       >
         <div
           className="h-6 w-6 rounded-lg border flex items-center justify-center"
-          style={{
-            backgroundColor: s.bg,
-            borderColor: s.border,
-            color: s.icon,
-          }}
+          style={{ backgroundColor: s.bg, borderColor: s.border, color: s.icon }}
         >
           <Icon size={14} />
         </div>
       </div>
 
-      {/* content card */}
       <div
         className="rounded-2xl border px-4 py-3.5 transition"
-        style={{
-          backgroundColor: "rgba(255,255,255,0.03)",
-          borderColor: "var(--border-secondary)",
-        }}
+        style={{ backgroundColor: "rgba(255,255,255,0.03)", borderColor: "var(--border-secondary)" }}
       >
         <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-medium text-theme-primary">{e.text}</p>
-
+          <p className="text-sm font-medium text-theme-primary">{event.title}</p>
           <span
             className="text-[10px] font-semibold px-2 py-1 rounded-full border"
             style={{
@@ -216,7 +236,7 @@ const TimelineRow = ({ e, i }) => {
               whiteSpace: "nowrap",
             }}
           >
-            {e.time}
+            {formatTimeAgo(event.created_at)}
           </span>
         </div>
       </div>
@@ -269,11 +289,7 @@ const IconTile = ({ children, tone = "indigo", size = "md" }) => {
   return (
     <div
       className={`${sizes[size]} border flex items-center justify-center ${t.text}`}
-      style={{
-        backgroundColor: t.bg,
-        borderColor: t.border,
-        boxShadow: `0 10px 30px ${t.glow}`,
-      }}
+      style={{ backgroundColor: t.bg, borderColor: t.border, boxShadow: `0 10px 30px ${t.glow}` }}
     >
       {children}
     </div>
@@ -281,7 +297,7 @@ const IconTile = ({ children, tone = "indigo", size = "md" }) => {
 };
 
 /* -----------------------------------------
-   Activity Component
+   Activity Component (MAIN)
 ----------------------------------------- */
 export default function Activity() {
   const [range, setRange] = useState(7);
@@ -290,33 +306,159 @@ export default function Activity() {
   const [chartRange, setChartRange] = useState("week");
   const [chartsReady, setChartsReady] = useState(false);
 
+  // ✅ Database state
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    notes_count: 0,
+    ai_summaries_count: 0,
+    uploads_count: 0,
+    streak_days: 0,
+    active_days_count: 0,
+  });
+  const [dailyData, setDailyData] = useState(defaultChartData);
+  const [streakDays, setStreakDays] = useState(defaultStreakDays);
+  const [timelineEvents, setTimelineEvents] = useState([]);
+
   // Delay chart rendering to prevent -1 width/height warnings
   useEffect(() => {
     const timer = setTimeout(() => setChartsReady(true), 100);
     return () => clearTimeout(timer);
   }, []);
 
-  const filteredEvents = useMemo(() => {
-    return allEvents.filter(
-      (e) => e.daysAgo <= range && (typeFilter === "all" ? true : e.action === typeFilter)
-    );
-  }, [range, typeFilter]);
+  // ✅ Fetch user data
+  const getUser = useCallback(async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    if (!data?.user) throw new Error("Not authenticated");
+    return data.user;
+  }, []);
 
-  const grouped = useMemo(() => {
+  // ✅ Load all activity data from database
+  const loadActivityData = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const user = await getUser();
+
+      // 1. Get activity stats
+      const { data: statsData, error: statsError } = await supabase.rpc("get_activity_stats", {
+        p_user_id: user.id,
+        p_days: 7,
+      });
+      if (statsError) throw statsError;
+      if (statsData && statsData.length > 0) {
+        setStats(statsData[0]);
+      }
+
+      // 2. Get daily activity for charts
+      const { data: dailyDataResult, error: dailyError } = await supabase.rpc("get_daily_activity", {
+        p_user_id: user.id,
+        p_days: 7,
+      });
+      if (dailyError) throw dailyError;
+      if (dailyDataResult) {
+        setDailyData(
+          dailyDataResult.map((d) => ({
+            name: d.day_name,
+            notes: Number(d.notes_count) || 0,
+            summaries: Number(d.summaries_count) || 0,
+            uploads: Number(d.uploads_count) || 0,
+          }))
+        );
+      }
+
+      // 3. Get weekly streak
+      const { data: streakData, error: streakError } = await supabase.rpc("get_weekly_streak", {
+        p_user_id: user.id,
+      });
+      if (streakError) throw streakError;
+      if (streakData) {
+        setStreakDays(
+          streakData.map((d) => ({
+            day: d.day_name,
+            active: d.was_active,
+          }))
+        );
+      }
+
+      // 4. Get timeline events
+      const { data: timelineData, error: timelineError } = await supabase.rpc("get_activity_timeline", {
+        p_user_id: user.id,
+        p_days: range,
+        p_event_type: typeFilter === "all" ? null : typeFilter,
+        p_limit: 50,
+      });
+      if (timelineError) throw timelineError;
+      setTimelineEvents(timelineData || []);
+    } catch (err) {
+      console.error("Failed to load activity data:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [getUser, range, typeFilter]);
+
+  // Load data on mount and when filters change
+  useEffect(() => {
+    loadActivityData();
+  }, [loadActivityData]);
+
+  // Reload timeline when range/filter changes
+  useEffect(() => {
+    const reloadTimeline = async () => {
+      if (!isSupabaseConfigured) return;
+      try {
+        const user = await getUser();
+        const { data: timelineData } = await supabase.rpc("get_activity_timeline", {
+          p_user_id: user.id,
+          p_days: range,
+          p_event_type: typeFilter === "all" ? null : typeFilter,
+          p_limit: 50,
+        });
+        setTimelineEvents(timelineData || []);
+      } catch (err) {
+        console.error("Failed to reload timeline:", err);
+      }
+    };
+    reloadTimeline();
+  }, [range, typeFilter, getUser]);
+
+  // Group timeline events by day
+  const groupedEvents = useMemo(() => {
     const result = {};
-    filteredEvents.forEach((e) => {
-      const group = getGroupName(e.daysAgo);
+    timelineEvents.forEach((e) => {
+      const group = getGroupName(e.days_ago);
       if (!result[group]) result[group] = [];
       result[group].push(e);
     });
     return result;
-  }, [filteredEvents]);
+  }, [timelineEvents]);
 
-  const chartData = chartRange === "week" ? insightsData : monthlyData;
+  const chartData = dailyData;
 
-  // Calculate stats
-  const totalNotes = insightsData.reduce((acc, d) => acc + d.notes, 0);
-  const totalSummaries = insightsData.reduce((acc, d) => acc + d.summaries, 0);
+  // Calculate trend percentages (compare this week vs last week would be ideal)
+  const notesTrend = stats.notes_count > 0 ? `+${Math.round((stats.notes_count / 7) * 100) / 10}%` : null;
+  const summariesTrend = stats.ai_summaries_count > 0 ? `+${Math.round((stats.ai_summaries_count / 7) * 100) / 10}%` : null;
+
+  // Usage breakdown - calculate from notes tags (you can expand this)
+  const usageBreakdown = [
+    { label: "Meeting Notes", value: 42, icon: FiEdit3, tone: "indigo" },
+    { label: "Study / Research", value: 31, icon: FiBookOpen, tone: "purple" },
+    { label: "Projects & Tasks", value: 19, icon: FiClipboard, tone: "cyan" },
+    { label: "Personal", value: 8, icon: FiUser, tone: "emerald" },
+  ];
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-4 sm:space-y-5 pb-[calc(var(--mobile-nav-height)+24px)]">
@@ -342,7 +484,7 @@ export default function Activity() {
         </span>
       </motion.header>
 
-      {/* Stats Row */}
+      {/* Stats Row - Connected to Database */}
       <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
@@ -351,36 +493,36 @@ export default function Activity() {
       >
         <StatCard
           title="Notes This Week"
-          value={totalNotes}
+          value={stats.notes_count}
           icon={<FiFileText size={18} />}
           iconColor="indigo"
-          trend="+12%"
+          trend={notesTrend}
           trendUp={true}
         />
         <StatCard
           title="AI Summaries"
-          value={totalSummaries}
+          value={stats.ai_summaries_count}
           icon={<FiZap size={18} />}
           iconColor="amber"
-          trend="+8%"
+          trend={summariesTrend}
           trendUp={true}
         />
         <StatCard
           title="Day Streak"
-          value="11"
+          value={stats.streak_days}
           sub="Keep it going!"
           icon={<Fire size={18} weight="fill" />}
           iconColor="orange"
         />
         <StatCard
           title="Uploads"
-          value="8"
+          value={stats.uploads_count}
           icon={<FiUploadCloud size={18} />}
           iconColor="emerald"
         />
       </motion.div>
 
-      {/* Streak Indicator */}
+      {/* Streak Indicator - Connected to Database */}
       <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
@@ -398,15 +540,14 @@ export default function Activity() {
               7-day view
             </span>
           </div>
-          <StreakDots />
+          <StreakDots days={streakDays} />
         </GlassCard>
       </motion.div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Area Chart (now with same neon wash treatment) */}
+        {/* Area Chart */}
         <GlassCard className="relative overflow-hidden">
-          {/* neon wash */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
@@ -430,11 +571,7 @@ export default function Activity() {
 
               <div className="flex gap-2">
                 {["notes", "summaries"].map((tab) => (
-                  <ToggleButton
-                    key={tab}
-                    active={chartTab === tab}
-                    onClick={() => setChartTab(tab)}
-                  >
+                  <ToggleButton key={tab} active={chartTab === tab} onClick={() => setChartTab(tab)}>
                     {tab.charAt(0).toUpperCase() + tab.slice(1)}
                   </ToggleButton>
                 ))}
@@ -468,10 +605,9 @@ export default function Activity() {
                     <AreaChart data={chartData}>
                       <defs>
                         <linearGradient id="activityFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--accent-indigo, #6366f1)" stopOpacity={0.30} />
+                          <stop offset="0%" stopColor="var(--accent-indigo, #6366f1)" stopOpacity={0.3} />
                           <stop offset="100%" stopColor="var(--accent-indigo, #6366f1)" stopOpacity={0.05} />
                         </linearGradient>
-
                         <linearGradient id="activityStroke" x1="0" y1="0" x2="1" y2="0">
                           <stop offset="0%" stopColor="var(--accent-indigo, #6366f1)" />
                           <stop offset="50%" stopColor="var(--accent-purple, #8b5cf6)" />
@@ -479,18 +615,8 @@ export default function Activity() {
                         </linearGradient>
                       </defs>
 
-                      <XAxis
-                        dataKey="name"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: "var(--text-muted)", fontSize: 11 }}
-                      />
-                      <YAxis
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: "var(--text-muted)", fontSize: 11 }}
-                        width={30}
-                      />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 11 }} width={30} />
                       <Tooltip content={<CustomTooltip />} />
 
                       <Area
@@ -503,12 +629,7 @@ export default function Activity() {
                           const isLast = props.index === chartData.length - 1;
                           return isLast ? <AnimatedDot {...props} /> : null;
                         }}
-                        activeDot={{
-                          r: 6,
-                          fill: "var(--accent-indigo, #6366f1)",
-                          stroke: "#fff",
-                          strokeWidth: 2,
-                        }}
+                        activeDot={{ r: 6, fill: "var(--accent-indigo, #6366f1)", stroke: "#fff", strokeWidth: 2 }}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -524,7 +645,6 @@ export default function Activity() {
 
         {/* Usage Breakdown */}
         <GlassCard className="relative overflow-hidden">
-          {/* neon wash */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
@@ -548,11 +668,7 @@ export default function Activity() {
 
               <span
                 className="text-[10px] font-semibold px-2.5 py-1 rounded-full border"
-                style={{
-                  backgroundColor: "var(--bg-tertiary)",
-                  borderColor: "var(--border-secondary)",
-                  color: "var(--text-muted)",
-                }}
+                style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)", color: "var(--text-muted)" }}
               >
                 Weekly
               </span>
@@ -567,45 +683,31 @@ export default function Activity() {
                   <div
                     key={i}
                     className="rounded-2xl border p-4"
-                    style={{
-                      backgroundColor: "var(--bg-tertiary)",
-                      borderColor: "var(--border-secondary)",
-                    }}
+                    style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div
                           className={`h-9 w-9 rounded-xl border flex items-center justify-center ${t.text}`}
-                          style={{
-                            backgroundColor: t.bg,
-                            borderColor: t.border,
-                            boxShadow: `0 10px 26px ${t.glow}`,
-                          }}
+                          style={{ backgroundColor: t.bg, borderColor: t.border, boxShadow: `0 10px 26px ${t.glow}` }}
                         >
                           <Icon size={16} />
                         </div>
                         <span className="text-sm text-theme-secondary font-medium">{item.label}</span>
                       </div>
-
                       <span className="text-sm font-semibold text-theme-primary">{item.value}%</span>
                     </div>
 
                     <div
                       className="h-2.5 rounded-full overflow-hidden border"
-                      style={{
-                        backgroundColor: "var(--bg-elevated)",
-                        borderColor: "var(--border-secondary)",
-                      }}
+                      style={{ backgroundColor: "var(--bg-elevated)", borderColor: "var(--border-secondary)" }}
                     >
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${item.value}%` }}
                         transition={{ duration: 0.9, delay: i * 0.08, ease: "easeOut" }}
                         className="h-full rounded-full"
-                        style={{
-                          background: `linear-gradient(90deg, ${t.solid}, rgba(255,255,255,0.55))`,
-                          boxShadow: `0 0 18px ${t.soft}`,
-                        }}
+                        style={{ background: `linear-gradient(90deg, ${t.solid}, rgba(255,255,255,0.55))`, boxShadow: `0 0 18px ${t.soft}` }}
                       />
                     </div>
                   </div>
@@ -674,11 +776,7 @@ export default function Activity() {
 
               <span
                 className="text-[10px] font-semibold px-2.5 py-1 rounded-full border"
-                style={{
-                  backgroundColor: "var(--bg-tertiary)",
-                  borderColor: "var(--border-secondary)",
-                  color: "var(--text-muted)",
-                }}
+                style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)", color: "var(--text-muted)" }}
               >
                 7d
               </span>
@@ -686,16 +784,12 @@ export default function Activity() {
 
             <div
               className="rounded-2xl border p-2"
-              style={{
-                backgroundColor: "var(--bg-tertiary)",
-                borderColor: "var(--border-secondary)",
-                boxShadow: "0 18px 50px rgba(168,85,247,0.08)",
-              }}
+              style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)", boxShadow: "0 18px 50px rgba(168,85,247,0.08)" }}
             >
               <div style={{ width: "100%", height: 144, minHeight: 144 }}>
                 {chartsReady ? (
                   <ResponsiveContainer width="100%" height="100%" minWidth={200}>
-                    <BarChart data={insightsData} barGap={6}>
+                    <BarChart data={chartData} barGap={6}>
                       <defs>
                         <linearGradient id="barNotes" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="var(--accent-indigo, #6366f1)" stopOpacity={0.95} />
@@ -707,12 +801,7 @@ export default function Activity() {
                         </linearGradient>
                       </defs>
 
-                      <XAxis
-                        dataKey="name"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: "var(--text-muted)", fontSize: 10 }}
-                      />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 10 }} />
                       <Tooltip content={<CustomTooltip />} />
                       <Bar dataKey="notes" fill="url(#barNotes)" radius={[6, 6, 0, 0]} name="Notes" />
                       <Bar dataKey="summaries" fill="url(#barSummaries)" radius={[6, 6, 0, 0]} name="Summaries" />
@@ -729,7 +818,7 @@ export default function Activity() {
         </GlassCard>
       </div>
 
-      {/* Activity Timeline */}
+      {/* Activity Timeline - Connected to Database */}
       <GlassCard>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
@@ -758,53 +847,41 @@ export default function Activity() {
         </div>
 
         {/* Timeline */}
-        {Object.keys(grouped).length === 0 ? (
+        {Object.keys(groupedEvents).length === 0 ? (
           <div className="text-center py-10">
             <div
               className="h-12 w-12 rounded-2xl border flex items-center justify-center mx-auto mb-3"
-              style={{
-                backgroundColor: "var(--bg-tertiary)",
-                borderColor: "var(--border-secondary)",
-              }}
+              style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
             >
               <FiActivity className="text-theme-muted" size={20} />
             </div>
             <p className="text-theme-muted text-sm">No activity in this view</p>
+            <p className="text-theme-muted text-xs mt-1">Start creating notes or uploading documents!</p>
           </div>
         ) : (
           <div className="space-y-7">
-            {Object.entries(grouped).map(([group, items]) => (
+            {Object.entries(groupedEvents).map(([group, items]) => (
               <section key={group}>
                 <div className="flex items-center justify-between mb-3">
                   <span
                     className="text-[11px] uppercase tracking-wider font-semibold px-2.5 py-1 rounded-full border"
-                    style={{
-                      backgroundColor: "var(--bg-tertiary)",
-                      borderColor: "var(--border-secondary)",
-                      color: "var(--text-muted)",
-                    }}
+                    style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)", color: "var(--text-muted)" }}
                   >
                     {group}
                   </span>
-
                   <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                     {items.length} event{items.length === 1 ? "" : "s"}
                   </span>
                 </div>
 
                 <ol className="relative space-y-3">
-                  {/* left rail (subtle) */}
                   <div
                     className="absolute left-[14px] top-0 bottom-0 w-[2px]"
-                    style={{
-                      background:
-                        "linear-gradient(to bottom, rgba(99,102,241,0.18), rgba(168,85,247,0.10), rgba(255,255,255,0.00))",
-                    }}
+                    style={{ background: "linear-gradient(to bottom, rgba(99,102,241,0.18), rgba(168,85,247,0.10), rgba(255,255,255,0.00))" }}
                     aria-hidden="true"
                   />
-
-                  {items.map((e, i) => (
-                    <TimelineRow key={`${group}-${i}`} e={e} i={i} />
+                  {items.map((event, i) => (
+                    <TimelineRow key={event.id} event={event} index={i} />
                   ))}
                 </ol>
               </section>
@@ -817,7 +894,7 @@ export default function Activity() {
 }
 
 /* -----------------------------------------
-   Toggle Button Component - THEME AWARE
+   Toggle Button Component
 ----------------------------------------- */
 const ToggleButton = ({ children, active, onClick, size = "md" }) => {
   const sizeClasses = size === "sm" ? "px-3 py-1.5 text-[11px]" : "px-3.5 py-1.5 text-xs";
@@ -838,7 +915,7 @@ const ToggleButton = ({ children, active, onClick, size = "md" }) => {
 };
 
 /* -----------------------------------------
-   Stat Card Component - ENHANCED
+   Stat Card Component
 ----------------------------------------- */
 const StatCard = ({ title, value, sub, icon, iconColor, trend, trendUp }) => {
   const colorClasses = {
@@ -853,14 +930,8 @@ const StatCard = ({ title, value, sub, icon, iconColor, trend, trendUp }) => {
   return (
     <motion.div
       className="rounded-2xl px-4 py-3.5 border transition-all hover:scale-[1.02]"
-      style={{
-        backgroundColor: "var(--bg-card)",
-        borderColor: "var(--border-secondary)",
-      }}
-      whileHover={{
-        boxShadow: "0 8px 30px rgba(99, 102, 241, 0.15)",
-        borderColor: "rgba(99, 102, 241, 0.3)",
-      }}
+      style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-secondary)" }}
+      whileHover={{ boxShadow: "0 8px 30px rgba(99, 102, 241, 0.15)", borderColor: "rgba(99, 102, 241, 0.3)" }}
     >
       <div className="flex items-center justify-between mb-2.5">
         <div className={`h-9 w-9 rounded-xl bg-gradient-to-br ${colors.bg} ${colors.border} border flex items-center justify-center ${colors.text}`}>
@@ -889,7 +960,7 @@ const StatCard = ({ title, value, sub, icon, iconColor, trend, trendUp }) => {
 };
 
 /* -----------------------------------------
-   Mini Stat - ENHANCED with colors
+   Mini Stat
 ----------------------------------------- */
 const MiniStat = ({ label, value, color }) => {
   const colorStyles = {
@@ -903,10 +974,7 @@ const MiniStat = ({ label, value, color }) => {
   return (
     <div
       className="rounded-xl px-3 py-3.5 text-center border transition-all hover:scale-[1.02]"
-      style={{
-        backgroundColor: colors.bg,
-        borderColor: colors.border,
-      }}
+      style={{ backgroundColor: colors.bg, borderColor: colors.border }}
     >
       <p className="text-xl font-bold text-theme-primary">{value}</p>
       <p className="text-[10px] text-theme-muted mt-0.5">{label}</p>
@@ -915,19 +983,9 @@ const MiniStat = ({ label, value, color }) => {
 };
 
 /* -----------------------------------------
-   Activity Streak Dots - ENHANCED
+   Streak Dots - Now accepts props
 ----------------------------------------- */
-const StreakDots = () => {
-  const days = [
-    { day: "Mon", active: true },
-    { day: "Tue", active: true },
-    { day: "Wed", active: true },
-    { day: "Thu", active: true },
-    { day: "Fri", active: true },
-    { day: "Sat", active: false },
-    { day: "Sun", active: true },
-  ];
-
+const StreakDots = ({ days }) => {
   return (
     <div className="flex items-center justify-between gap-1">
       {days.map((d, i) => (
@@ -944,15 +1002,10 @@ const StreakDots = () => {
                 ? "bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/30"
                 : "border-2 border-dashed"
             }`}
-            style={
-              !d.active
-                ? { backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-tertiary)" }
-                : {}
-            }
+            style={!d.active ? { backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-tertiary)" } : {}}
           >
             {d.active && <Fire size={16} weight="fill" />}
           </div>
-
           <span className={`text-[10px] font-medium ${d.active ? "text-theme-secondary" : "text-theme-muted"}`}>
             {d.day}
           </span>
@@ -963,7 +1016,7 @@ const StreakDots = () => {
 };
 
 /* -----------------------------------------
-   Clarity Ring (Donut Chart) - ENHANCED
+   Clarity Ring (Donut Chart)
 ----------------------------------------- */
 const ClarityRing = ({ value }) => {
   const circumference = 2 * Math.PI * 36;
@@ -993,7 +1046,6 @@ const ClarityRing = ({ value }) => {
           transition={{ duration: 1.2, ease: "easeOut" }}
         />
       </svg>
-
       <div className="absolute inset-0 flex items-center justify-center">
         <span className="text-lg font-bold text-theme-primary">{value}%</span>
       </div>

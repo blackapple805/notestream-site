@@ -1,4 +1,5 @@
 // src/pages/Documents.jsx - "Research Synthesizer"
+// ✅ FIXED: Uses RPC functions for atomic stat updates
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -24,7 +25,6 @@ import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 const DOCS_TABLE = "documents";
 const NOTES_TABLE = "notes";
-const USER_STATS_TABLE = "user_engagement_stats";
 const STORAGE_BUCKET = "documents";
 
 const TAG_DOC_SUMMARY = "ai:doc_summary";
@@ -175,56 +175,97 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
     return data.user;
   }, []);
 
-  // Replace your current ensureUserStatsRow with this
+  // ✅ FIXED: Use RPC function instead of problematic upsert
+  // This function ensures a stats row exists WITHOUT overwriting existing data
   const ensureUserStatsRow = useCallback(async (user) => {
     if (!user?.id) return;
 
+    try {
+      // Use the RPC function that does INSERT ... ON CONFLICT DO NOTHING
+      const { error } = await supabase.rpc('ensure_user_stats_exists', {
+        p_user_id: user.id,
+        p_display_name: user.user_metadata?.full_name || user.user_metadata?.name || null
+      });
 
-  // Insert-only behavior (do nothing if row exists)
-    const { error } = await supabase
-      .from(USER_STATS_TABLE)
-      .upsert({ user_id: user.id }, { onConflict: "user_id", ignoreDuplicates: true });
-
-    if (error) {
-      // optional: log but keep non-blocking
-      console.warn("ensureUserStatsRow failed:", error);
+      if (error) {
+        // Fallback: Try simple select to see if row exists
+        console.warn("ensure_user_stats_exists RPC failed, trying fallback:", error);
+        
+        const { data: existing } = await supabase
+          .from('user_engagement_stats')
+          .select('user_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        // Only insert if no row exists
+        if (!existing) {
+          await supabase
+            .from('user_engagement_stats')
+            .insert({
+              user_id: user.id,
+              display_name: user.user_metadata?.full_name || null,
+              notes_created: 0,
+              ai_uses: 0,
+              active_days: 1,
+              streak_days: 1,
+              last_active_date: new Date().toISOString().split('T')[0]
+            });
+        }
+      }
+    } catch (err) {
+      console.warn("ensureUserStatsRow error (non-blocking):", err);
     }
   }, []);
 
-  const incrementAiUses = useCallback(
-    async (user, amount = 1) => {
-      try {
+  // ✅ FIXED: Use RPC function for atomic increment
+  const incrementAiUses = useCallback(async (user, amount = 1) => {
+    if (!user?.id) return;
+
+    try {
+      // Use the RPC function for atomic increment
+      const { error } = await supabase.rpc('increment_ai_uses', {
+        p_user_id: user.id,
+        p_amount: amount
+      });
+
+      if (error) {
+        console.warn("increment_ai_uses RPC failed, trying fallback:", error);
+        
+        // Fallback: Manual select + update (less safe but works without RPC)
         await ensureUserStatsRow(user);
-
-        const { data: row, error: selErr } = await supabase
-          .from(USER_STATS_TABLE)
-          .select("ai_uses")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (selErr) throw selErr;
+        
+        const { data: row } = await supabase
+          .from('user_engagement_stats')
+          .select('ai_uses')
+          .eq('user_id', user.id)
+          .single();
 
         const current = Number(row?.ai_uses ?? 0);
-        const next = current + amount;
-
-        const { error: updErr } = await supabase
-          .from(USER_STATS_TABLE)
-          .update({ ai_uses: next, updated_at: nowIso() })
-          .eq("user_id", user.id);
-
-        if (updErr) throw updErr;
-      } catch {
-        // non-blocking
+        
+        await supabase
+          .from('user_engagement_stats')
+          .update({ 
+            ai_uses: current + amount,
+            updated_at: nowIso()
+          })
+          .eq('user_id', user.id);
       }
-    },
-    [ensureUserStatsRow]
-  );
+
+      // Dispatch event for other components (like Dashboard) to update
+      window.dispatchEvent(
+        new CustomEvent("notestream:ai_uses_updated", {
+          detail: { increment: amount },
+        })
+      );
+    } catch (err) {
+      console.warn("incrementAiUses error (non-blocking):", err);
+    }
+  }, [ensureUserStatsRow]);
 
   const mapDocRowToUi = useCallback((row) => {
     const type = (row?.type || "FILE").toUpperCase();
     const status = row?.status || "ready";
-
-    // If you later add size_bytes to documents, this will start showing real sizes automatically.
+    // size_bytes column may not exist - handle gracefully
     const size = row?.size_bytes ? bytesToLabel(row.size_bytes) : "—";
 
     return {
@@ -250,6 +291,8 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
 
     try {
       const user = await getUser();
+      
+      // ✅ Ensure stats row exists (won't overwrite if already exists)
       await ensureUserStatsRow(user);
 
       // Documents
@@ -318,7 +361,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
       showToast(e?.message || "Failed to load documents", "error");
       setDocs([]);
     } finally {
-       setFilesLoading(false);
+      setFilesLoading(false);
     }
   }, [ensureUserStatsRow, getUser, mapDocRowToUi, setDocs]);
 
@@ -362,7 +405,6 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
       const extension = file.name.split(".").pop()?.toUpperCase() || "FILE";
       const type = ["PDF", "DOCX", "XLSX"].includes(extension) ? extension : "FILE";
 
-      // Generate a doc UUID client-side (Chrome supports crypto.randomUUID()).
       if (!globalThis.crypto?.randomUUID) {
         throw new Error("This browser cannot generate UUIDs (crypto.randomUUID missing).");
       }
@@ -378,6 +420,9 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
       if (upErr) throw upErr;
 
       // Insert row into documents table
+      // NOTE: size_bytes column doesn't exist in your schema
+      // If you want to track file size, run:
+      // ALTER TABLE documents ADD COLUMN IF NOT EXISTS size_bytes BIGINT;
       const insertPayload = {
         id: docId,
         user_id: user.id,
@@ -465,6 +510,8 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
       const summary = buildSmartSummary(doc);
 
       // Persist summary as a note
+      // ✅ NOTE: When we INSERT a note, the database trigger will automatically
+      // increment notes_created in user_engagement_stats
       const existingId = await findExistingSummaryNoteId(user.id, doc.id);
 
       const notePayload = {
@@ -479,6 +526,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
       };
 
       if (existingId) {
+        // UPDATE existing note (doesn't trigger notes_created increment)
         const { error } = await supabase
           .from(NOTES_TABLE)
           .update({ ...notePayload, created_at: undefined })
@@ -489,6 +537,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
 
         setSummaryIndex((prev) => ({ ...(prev || {}), [doc.id]: { noteId: existingId } }));
       } else {
+        // INSERT new note (triggers notes_created increment via DB trigger)
         const { data: inserted, error } = await supabase
           .from(NOTES_TABLE)
           .insert(notePayload)
@@ -500,7 +549,20 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
         setSummaryIndex((prev) => ({ ...(prev || {}), [doc.id]: { noteId: inserted.id } }));
       }
 
+      // ✅ Increment AI uses using RPC function
       await incrementAiUses(user, 1);
+
+      // ✅ Log activity event for AI summary
+      try {
+        await supabase.rpc('log_activity_event', {
+          p_user_id: user.id,
+          p_event_type: 'ai_summary',
+          p_title: `Generated summary for ${doc.name.replace(/\.[^/.]+$/, "")}`,
+          p_metadata: { doc_id: doc.id, doc_name: doc.name }
+        });
+      } catch (logErr) {
+        console.warn("Activity log failed (non-blocking):", logErr);
+      }
 
       if (isAutomatic) {
         setAutoSummarizing(null);
@@ -603,7 +665,20 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
         (prev || []).map((d) => (docIds.includes(d.id) ? { ...d, status: "synthesized", updated: "Just now" } : d))
       );
 
+      // ✅ Increment AI uses using RPC function
       await incrementAiUses(user, 1);
+
+      // ✅ Log activity event for synthesis
+      try {
+        await supabase.rpc('log_activity_event', {
+          p_user_id: user.id,
+          p_event_type: 'synthesis',
+          p_title: `Synthesized ${selectedDocs.length} documents into research brief`,
+          p_metadata: { doc_count: selectedDocs.length, doc_ids: docIds }
+        });
+      } catch (logErr) {
+        console.warn("Activity log failed (non-blocking):", logErr);
+      }
 
       setIsSynthesizing(false);
       setSynthesizeMode(false);
@@ -634,6 +709,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
         updated_at: nowIso(),
       };
 
+      // ✅ INSERT will trigger notes_created increment via DB trigger
       const { data: inserted, error } = await supabase.from(NOTES_TABLE).insert(payload).select("id").single();
       if (error) throw error;
 
@@ -650,6 +726,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
 
     try {
       const user = await getUser();
+      // ✅ DELETE will trigger notes_created decrement via DB trigger
       const { error } = await supabase.from(NOTES_TABLE).delete().eq("id", noteId).eq("user_id", user.id);
       if (error) throw error;
 
@@ -675,8 +752,8 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
   const totalDocs = (docs || []).length;
   const synthesizedCount = (docs || []).filter((d) => (d.status || "") === "synthesized").length;
   const summarizedCount = (docs || []).filter((d) => !!summaryIndex?.[d.id]).length;
- 
-  // ✅ Reuse the exact same loader used in Notes.jsx (page-open load)
+
+  // Loading state
   if (filesLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -684,7 +761,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
       </div>
     );
   }
-    
+
   return (
     <div className="space-y-5 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
       {/* Toast */}
@@ -704,7 +781,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
         )}
       </AnimatePresence>
 
-      {/* Upload Overlay (keep if you want) */}
+      {/* Upload Overlay */}
       <AnimatePresence>
         {isUploading && (
           <motion.div
@@ -714,7 +791,16 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
             className="fixed inset-0 z-[9998] flex items-center justify-center backdrop-blur-sm"
             style={{ backgroundColor: "var(--bg-overlay)" }}
           >
-            {/* keep your existing upload card here */}
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              className="text-center p-8 rounded-2xl border shadow-2xl max-w-sm mx-4"
+              style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+            >
+              <div className="w-12 h-12 mx-auto mb-4 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+              <h3 className="text-lg font-semibold text-theme-primary mb-2">Uploading Document</h3>
+              <p className="text-sm text-theme-muted">Please wait...</p>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
