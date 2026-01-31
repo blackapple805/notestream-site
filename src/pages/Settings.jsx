@@ -1,4 +1,6 @@
 // src/pages/Settings.jsx
+// ✅ FIXED: Uses safe RPC functions to prevent data overwrites
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -98,6 +100,7 @@ export default function Settings() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  // ✅ FIXED: Use RPC function instead of problematic upsert
   const ensureStatsRow = async (user) => {
     if (!user?.id) return;
 
@@ -106,12 +109,39 @@ export default function Settings() {
       user.user_metadata?.name ??
       (user.email ? user.email.split("@")[0] : null);
 
-    await supabase
-      .from(USER_STATS_TABLE)
-      .upsert(
-        { user_id: user.id, display_name: nameFromAuth ?? null },
-        { onConflict: "user_id" }
-      );
+    try {
+      // Try using the RPC function first (safest - does INSERT ... ON CONFLICT DO NOTHING)
+      const { error: rpcError } = await supabase.rpc("ensure_user_stats_exists", {
+        p_user_id: user.id,
+        p_display_name: nameFromAuth,
+      });
+
+      if (rpcError) {
+        // Fallback: Check if row exists, only insert if not
+        console.warn("RPC ensure_user_stats_exists failed, using fallback:", rpcError);
+        
+        const { data: existing } = await supabase
+          .from(USER_STATS_TABLE)
+          .select("user_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (!existing) {
+          // No row exists, safe to insert
+          await supabase.from(USER_STATS_TABLE).insert({
+            user_id: user.id,
+            display_name: nameFromAuth,
+            notes_created: 0,
+            ai_uses: 0,
+            active_days: 1,
+            streak_days: 1,
+            last_active_date: new Date().toISOString().split("T")[0],
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("ensureStatsRow error (non-blocking):", err);
+    }
   };
 
   const loadStats = async () => {
@@ -131,7 +161,13 @@ export default function Settings() {
         return;
       }
 
-      // Ensure row exists (first-time users)
+      // Update email from auth if available
+      if (user.email && email === "you@example.com") {
+        setEmail(user.email);
+        localStorage.setItem("notestream-email", user.email);
+      }
+
+      // Ensure row exists (first-time users) - won't overwrite existing data
       await ensureStatsRow(user);
 
       const { data, error } = await supabase
@@ -144,7 +180,7 @@ export default function Settings() {
 
       setStats(data ?? null);
 
-      // Optional: if local display name is still default-ish, sync from DB
+      // Sync display name from DB if local is default
       if (
         data?.display_name &&
         (displayName === "Angel" || displayName === "Unknown")
@@ -177,54 +213,98 @@ export default function Settings() {
     localStorage.setItem("notestream-email", email);
     setIsEditingProfile(false);
 
-    // If logged in, keep Supabase stats display_name in sync (used on dashboard)
+    // Sync display_name to Supabase (only updates that field, not others)
     try {
       if (isSupabaseConfigured && supabase) {
         const { data: sessRes } = await supabase.auth.getSession();
         const user = sessRes?.session?.user;
         if (user?.id) {
+          // ✅ Only update display_name, preserving all other stats
           await supabase
             .from(USER_STATS_TABLE)
-            .update({ display_name: displayName })
+            .update({ display_name: displayName, updated_at: new Date().toISOString() })
             .eq("user_id", user.id);
           await loadStats();
         }
       }
-    } catch {
-      // keep local save even if sync fails
+    } catch (err) {
+      console.warn("Profile sync failed:", err);
     }
 
     showToast("Profile updated successfully!");
   };
 
-  const handleExportData = () => {
+  const handleExportData = async () => {
     try {
-      // Gather all user data from localStorage
+      // Gather all user data
       const exportData = {
         exportDate: new Date().toISOString(),
         version: "1.0.0",
         profile: {
-          displayName:
-            localStorage.getItem("notestream-displayName") || "Unknown",
+          displayName: localStorage.getItem("notestream-displayName") || "Unknown",
           email: localStorage.getItem("notestream-email") || "Unknown",
         },
         settings: {
           theme: localStorage.getItem("notestream-theme") || "dark",
-          autoSummarize:
-            localStorage.getItem("notestream-autoSummarize") === "true",
-          smartNotifications:
-            localStorage.getItem("notestream-smartNotifications") === "true",
-          weeklyDigest:
-            localStorage.getItem("notestream-weeklyDigest") === "true",
+          autoSummarize: localStorage.getItem("notestream-autoSummarize") === "true",
+          smartNotifications: localStorage.getItem("notestream-smartNotifications") === "true",
+          weeklyDigest: localStorage.getItem("notestream-weeklyDigest") === "true",
           pinEnabled: localStorage.getItem("ns-note-pin") !== null,
         },
+        stats: stats || {},
         notes: [],
         documents: [],
-        integrations: {},
       };
 
+      // Try to export from Supabase if available
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const { data: sessRes } = await supabase.auth.getSession();
+          const user = sessRes?.session?.user;
+          
+          if (user?.id) {
+            // Export notes
+            const { data: notesData } = await supabase
+              .from("notes")
+              .select("*")
+              .eq("user_id", user.id)
+              .order("created_at", { ascending: false });
+            
+            if (notesData) {
+              exportData.notes = notesData;
+            }
+
+            // Export documents metadata
+            const { data: docsData } = await supabase
+              .from("documents")
+              .select("*")
+              .eq("user_id", user.id)
+              .order("created_at", { ascending: false });
+            
+            if (docsData) {
+              exportData.documents = docsData;
+            }
+
+            // Export activity events
+            const { data: activityData } = await supabase
+              .from("activity_events")
+              .select("*")
+              .eq("user_id", user.id)
+              .order("created_at", { ascending: false })
+              .limit(500);
+            
+            if (activityData) {
+              exportData.activity = activityData;
+            }
+          }
+        } catch (dbErr) {
+          console.warn("Database export failed, using localStorage only:", dbErr);
+        }
+      }
+
+      // Fallback to localStorage data
       const notesData = localStorage.getItem("notestream-notes");
-      if (notesData) {
+      if (notesData && exportData.notes.length === 0) {
         try {
           exportData.notes = JSON.parse(notesData);
         } catch {
@@ -233,7 +313,7 @@ export default function Settings() {
       }
 
       const docsData = localStorage.getItem("notestream-documents");
-      if (docsData) {
+      if (docsData && exportData.documents.length === 0) {
         try {
           exportData.documents = JSON.parse(docsData);
         } catch {
@@ -241,52 +321,14 @@ export default function Settings() {
         }
       }
 
-      const integrationsData = localStorage.getItem("notestream-integrations");
-      if (integrationsData) {
-        try {
-          exportData.integrations = JSON.parse(integrationsData);
-        } catch {
-          exportData.integrations = {};
-        }
-      }
-
-      const allKeys = Object.keys(localStorage);
-      const otherData = {};
-      allKeys.forEach((key) => {
-        if (key.startsWith("notestream-") || key.startsWith("ns-")) {
-          if (
-            ![
-              "notestream-displayName",
-              "notestream-email",
-              "notestream-theme",
-              "notestream-autoSummarize",
-              "notestream-smartNotifications",
-              "notestream-weeklyDigest",
-              "notestream-notes",
-              "notestream-documents",
-              "notestream-integrations",
-              "ns-note-pin",
-            ].includes(key)
-          ) {
-            try {
-              otherData[key] = JSON.parse(localStorage.getItem(key));
-            } catch {
-              otherData[key] = localStorage.getItem(key);
-            }
-          }
-        }
-      });
-      exportData.otherData = otherData;
-
+      // Create and download file
       const dataStr = JSON.stringify(exportData, null, 2);
       const blob = new Blob([dataStr], { type: "application/json" });
       const url = URL.createObjectURL(blob);
 
       const link = document.createElement("a");
       link.href = url;
-      link.download = `notestream-export-${
-        new Date().toISOString().split("T")[0]
-      }.json`;
+      link.download = `notestream-export-${new Date().toISOString().split("T")[0]}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -301,7 +343,7 @@ export default function Settings() {
     }
   };
 
-  // Workspace settings handlers using shared context
+  // Workspace settings handlers
   const handleAutoSummarizeChange = (value) => {
     updateSetting("autoSummarize", value);
     showToast(value ? "Auto-summarize enabled" : "Auto-summarize disabled");
@@ -310,7 +352,6 @@ export default function Settings() {
   const handleWeeklyDigestChange = async (value) => {
     updateSetting("weeklyDigest", value);
 
-    // If enabling, ensure stats row exists (so dashboard can render cleanly)
     if (value && isSupabaseConfigured && supabase) {
       try {
         const { data: sessRes } = await supabase.auth.getSession();
@@ -329,9 +370,7 @@ export default function Settings() {
 
   const handleSmartNotificationsChange = (value) => {
     updateSetting("smartNotifications", value);
-    showToast(
-      value ? "Smart notifications enabled" : "Smart notifications disabled"
-    );
+    showToast(value ? "Smart notifications enabled" : "Smart notifications disabled");
   };
 
   const themeOptions = [
@@ -341,9 +380,7 @@ export default function Settings() {
   ];
 
   const range = getLast7DaysRange();
-  const digestPeriodLabel = `${formatDateShort(range.start)} - ${formatDateShort(
-    range.end
-  )}`;
+  const digestPeriodLabel = `${formatDateShort(range.start)} - ${formatDateShort(range.end)}`;
 
   const safeStats = stats || {
     notes_created: 0,
@@ -389,11 +426,7 @@ export default function Settings() {
       <GlassCard>
         <div className="flex items-center gap-2 mb-4">
           <div className="h-8 w-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-            <UserCircle
-              size={18}
-              weight="duotone"
-              className="text-indigo-400"
-            />
+            <UserCircle size={18} weight="duotone" className="text-indigo-400" />
           </div>
           <h2 className="text-sm font-semibold text-indigo-300">Profile</h2>
         </div>
@@ -401,9 +434,7 @@ export default function Settings() {
         <div className="space-y-4">
           {/* Display Name */}
           <div>
-            <label className="text-xs text-theme-muted mb-1.5 block">
-              Display name
-            </label>
+            <label className="text-xs text-theme-muted mb-1.5 block">Display name</label>
             {isEditingProfile ? (
               <input
                 type="text"
@@ -420,9 +451,7 @@ export default function Settings() {
 
           {/* Email */}
           <div>
-            <label className="text-xs text-theme-muted mb-1.5 block">
-              Email
-            </label>
+            <label className="text-xs text-theme-muted mb-1.5 block">Email</label>
             {isEditingProfile ? (
               <input
                 type="email"
@@ -469,11 +498,7 @@ export default function Settings() {
       <GlassCard>
         <div className="flex items-center gap-2 mb-4">
           <div className="h-8 w-8 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
-            <PaintBrush
-              size={18}
-              weight="duotone"
-              className="text-purple-400"
-            />
+            <PaintBrush size={18} weight="duotone" className="text-purple-400" />
           </div>
           <h2 className="text-sm font-semibold text-purple-300">Appearance</h2>
         </div>
@@ -513,7 +538,7 @@ export default function Settings() {
         </div>
       </GlassCard>
 
-      {/* Workspace Section - Using shared context */}
+      {/* Workspace Section */}
       <GlassCard>
         <div className="flex items-center gap-2 mb-4">
           <div className="h-8 w-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
@@ -548,10 +573,7 @@ export default function Settings() {
 
         {/* Weekly Digest Preview (real user stats) */}
         {settings.weeklyDigest && (
-          <div
-            className="mt-4 pt-4 border-t"
-            style={{ borderColor: "var(--border-secondary)" }}
-          >
+          <div className="mt-4 pt-4 border-t" style={{ borderColor: "var(--border-secondary)" }}>
             <div className="flex items-center justify-between mb-2">
               <p className="text-[11px] text-theme-muted">Weekly digest preview</p>
               <span className="text-[10px] text-theme-muted px-2 py-0.5 rounded-full bg-theme-tertiary flex items-center gap-1">
@@ -565,31 +587,11 @@ export default function Settings() {
                 {statsError}
               </div>
             ) : (
-              <div
-                className={`grid grid-cols-2 sm:grid-cols-4 gap-2 ${
-                  statsLoading ? "opacity-80" : ""
-                }`}
-              >
-                <MiniStat
-                  icon={<FiZap size={12} />}
-                  label="AI uses"
-                  value={safeStats.ai_uses ?? 0}
-                />
-                <MiniStat
-                  icon={<Fire size={12} weight="fill" />}
-                  label="Streak"
-                  value={`${safeStats.streak_days ?? 0}d`}
-                />
-                <MiniStat
-                  icon={<Lightning size={12} weight="fill" />}
-                  label="Active days"
-                  value={safeStats.active_days ?? 0}
-                />
-                <MiniStat
-                  icon={<FiUser size={12} />}
-                  label="Notes"
-                  value={safeStats.notes_created ?? 0}
-                />
+              <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2 ${statsLoading ? "opacity-80" : ""}`}>
+                <MiniStat icon={<FiZap size={12} />} label="AI uses" value={safeStats.ai_uses ?? 0} />
+                <MiniStat icon={<Fire size={12} weight="fill" />} label="Streak" value={`${safeStats.streak_days ?? 0}d`} />
+                <MiniStat icon={<Lightning size={12} weight="fill" />} label="Active days" value={safeStats.active_days ?? 0} />
+                <MiniStat icon={<FiUser size={12} />} label="Notes" value={safeStats.notes_created ?? 0} />
               </div>
             )}
 
@@ -597,24 +599,20 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={loadStats}
-                className="text-[11px] text-theme-muted hover:text-theme-primary transition"
+                disabled={statsLoading}
+                className="text-[11px] text-theme-muted hover:text-theme-primary transition disabled:opacity-50"
               >
-                Refresh stats
+                {statsLoading ? "Loading..." : "Refresh stats"}
               </button>
               <span className="text-[10px] text-theme-muted">
-                {safeStats.last_active_date
-                  ? `Last active: ${safeStats.last_active_date}`
-                  : "Last active: —"}
+                {safeStats.last_active_date ? `Last active: ${safeStats.last_active_date}` : "Last active: —"}
               </span>
             </div>
           </div>
         )}
 
         {/* Settings status indicator */}
-        <div
-          className="mt-4 pt-4 border-t"
-          style={{ borderColor: "var(--border-secondary)" }}
-        >
+        <div className="mt-4 pt-4 border-t" style={{ borderColor: "var(--border-secondary)" }}>
           <p className="text-[11px] text-theme-muted mb-2">Active features:</p>
           <div className="flex flex-wrap gap-2">
             {settings.autoSummarize && (
@@ -632,13 +630,9 @@ export default function Settings() {
                 <FiZap size={10} /> Weekly digest
               </span>
             )}
-            {!settings.autoSummarize &&
-              !settings.smartNotifications &&
-              !settings.weeklyDigest && (
-                <span className="text-[10px] text-theme-muted">
-                  No AI features enabled
-                </span>
-              )}
+            {!settings.autoSummarize && !settings.smartNotifications && !settings.weeklyDigest && (
+              <span className="text-[10px] text-theme-muted">No AI features enabled</span>
+            )}
           </div>
         </div>
       </GlassCard>
@@ -647,11 +641,7 @@ export default function Settings() {
       <GlassCard>
         <div className="flex items-center gap-2 mb-4">
           <div className="h-8 w-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-            <ShieldCheck
-              size={18}
-              weight="duotone"
-              className="text-amber-400"
-            />
+            <ShieldCheck size={18} weight="duotone" className="text-amber-400" />
           </div>
           <h2 className="text-sm font-semibold text-amber-300">Security</h2>
         </div>
@@ -682,9 +672,7 @@ export default function Settings() {
               </div>
               <div className="text-left">
                 <p className="text-sm text-theme-secondary">Export my data</p>
-                <p className="text-[11px] text-theme-muted">
-                  Download all your notes and files
-                </p>
+                <p className="text-[11px] text-theme-muted">Download all your notes and files</p>
               </div>
             </div>
             <FiChevronRight className="text-theme-muted group-hover:text-theme-tertiary transition" />
@@ -702,22 +690,9 @@ export default function Settings() {
         </div>
 
         <div className="space-y-2">
-          <SupportLink
-            icon={<FiHelpCircle size={16} />}
-            label="Help Center"
-            onClick={() => navigate("/dashboard/help-center")}
-          />
-          <SupportLink
-            icon={<ChatCircle size={16} weight="duotone" />}
-            label="Contact Support"
-            onClick={() => navigate("/dashboard/contact-support")}
-          />
-          <SupportLink
-            icon={<Crown size={16} weight="duotone" />}
-            label="Upgrade to Pro"
-            badge="NEW"
-            onClick={() => navigate("/dashboard/ai-lab")}
-          />
+          <SupportLink icon={<FiHelpCircle size={16} />} label="Help Center" onClick={() => navigate("/dashboard/help-center")} />
+          <SupportLink icon={<ChatCircle size={16} weight="duotone" />} label="Contact Support" onClick={() => navigate("/dashboard/contact-support")} />
+          <SupportLink icon={<Crown size={16} weight="duotone" />} label="Upgrade to Pro" badge="NEW" onClick={() => navigate("/dashboard/ai-lab")} />
         </div>
       </GlassCard>
 
@@ -729,9 +704,7 @@ export default function Settings() {
           </div>
           <h2 className="text-sm font-semibold text-rose-300">Danger Zone</h2>
         </div>
-        <p className="text-xs text-theme-muted mb-4">
-          These actions are destructive and cannot be undone.
-        </p>
+        <p className="text-xs text-theme-muted mb-4">These actions are destructive and cannot be undone.</p>
 
         <div className="space-y-2">
           <button
@@ -743,9 +716,7 @@ export default function Settings() {
             </div>
             <div>
               <p className="text-sm text-theme-secondary">Log out</p>
-              <p className="text-[11px] text-theme-muted">
-                Sign out of your account
-              </p>
+              <p className="text-[11px] text-theme-muted">Sign out of your account</p>
             </div>
           </button>
 
@@ -758,9 +729,7 @@ export default function Settings() {
             </div>
             <div>
               <p className="text-sm text-rose-300">Delete account</p>
-              <p className="text-[11px] text-theme-muted">
-                Permanently delete all data
-              </p>
+              <p className="text-[11px] text-theme-muted">Permanently delete all data</p>
             </div>
           </button>
         </div>
@@ -769,9 +738,7 @@ export default function Settings() {
       {/* App Version */}
       <div className="text-center py-4">
         <p className="text-xs text-theme-muted">NoteStream v1.0.0</p>
-        <p className="text-[10px] text-theme-muted mt-1">
-          Made with ❤️ for productivity
-        </p>
+        <p className="text-[10px] text-theme-muted mt-1">Made with ❤️ for productivity</p>
       </div>
 
       {/* Delete Account Modal */}
@@ -783,10 +750,27 @@ export default function Settings() {
             confirmLabel="Delete Forever"
             confirmColor="rose"
             icon={<FiTrash2 size={20} className="text-rose-400" />}
-            onConfirm={() => {
+            onConfirm={async () => {
+              try {
+                if (isSupabaseConfigured && supabase) {
+                  const { data: sessRes } = await supabase.auth.getSession();
+                  const user = sessRes?.session?.user;
+                  if (user?.id) {
+                    // Delete user data from database
+                    await supabase.from("activity_events").delete().eq("user_id", user.id);
+                    await supabase.from("notes").delete().eq("user_id", user.id);
+                    await supabase.from("documents").delete().eq("user_id", user.id);
+                    await supabase.from("user_engagement_stats").delete().eq("user_id", user.id);
+                    await supabase.auth.signOut();
+                  }
+                }
+              } catch (err) {
+                console.error("Delete account error:", err);
+              }
               localStorage.clear();
               setShowDeleteModal(false);
-              showToast("Account deletion requested");
+              showToast("Account deleted");
+              setTimeout(() => navigate("/"), 300);
             }}
             onCancel={() => setShowDeleteModal(false)}
           />
@@ -824,7 +808,7 @@ export default function Settings() {
         {showExportModal && (
           <ConfirmModal
             title="Export Your Data"
-            description="Download all your notes, documents, and settings as a JSON file. This file can be used for backup or to import your data elsewhere."
+            description="Download all your notes, documents, stats, and settings as a JSON file. This includes data from your cloud account."
             confirmLabel="Download Export"
             confirmColor="indigo"
             icon={<Export size={20} weight="duotone" className="text-sky-400" />}
@@ -875,15 +859,11 @@ function ToggleSetting({ label, description, enabled, onChange }) {
     <div className="flex items-center justify-between bg-theme-input border border-theme-secondary rounded-xl px-4 py-3">
       <div className="pr-4">
         <p className="text-sm text-theme-secondary">{label}</p>
-        {description && (
-          <p className="text-[10px] text-theme-muted mt-0.5">{description}</p>
-        )}
+        {description && <p className="text-[10px] text-theme-muted mt-0.5">{description}</p>}
       </div>
       <button
         onClick={() => onChange(!enabled)}
-        className={`relative w-11 h-6 rounded-full transition-colors ${
-          enabled ? "bg-indigo-600" : "bg-[#2a2a34]"
-        }`}
+        className={`relative w-11 h-6 rounded-full transition-colors ${enabled ? "bg-indigo-600" : "bg-[#2a2a34]"}`}
       >
         <motion.div
           className="absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow"
@@ -908,9 +888,7 @@ function SupportLink({ icon, label, badge, onClick }) {
         <span className="text-theme-muted">{icon}</span>
         <span className="text-sm text-theme-secondary">{label}</span>
         {badge && (
-          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">
-            {badge}
-          </span>
+          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">{badge}</span>
         )}
       </div>
       <FiChevronRight className="text-theme-muted group-hover:text-theme-tertiary transition" />
@@ -921,15 +899,7 @@ function SupportLink({ icon, label, badge, onClick }) {
 /* -----------------------------------------
    Confirm Modal Component
 ----------------------------------------- */
-function ConfirmModal({
-  title,
-  description,
-  confirmLabel,
-  confirmColor,
-  icon,
-  onConfirm,
-  onCancel,
-}) {
+function ConfirmModal({ title, description, confirmLabel, confirmColor, icon, onConfirm, onCancel }) {
   const colorMap = {
     rose: "bg-rose-600 hover:bg-rose-500",
     indigo: "bg-indigo-600 hover:bg-indigo-500",
@@ -950,9 +920,7 @@ function ConfirmModal({
         className="bg-theme-card border border-theme-secondary rounded-2xl p-5 max-w-sm w-full"
       >
         <div className="flex items-center gap-3 mb-4">
-          <div className="h-10 w-10 rounded-xl bg-theme-button flex items-center justify-center">
-            {icon}
-          </div>
+          <div className="h-10 w-10 rounded-xl bg-theme-button flex items-center justify-center">{icon}</div>
           <h3 className="text-lg font-semibold text-theme-primary">{title}</h3>
         </div>
         <p className="text-sm text-theme-muted mb-5">{description}</p>
@@ -963,10 +931,7 @@ function ConfirmModal({
           >
             Cancel
           </button>
-          <button
-            onClick={onConfirm}
-            className={`flex-1 py-2.5 rounded-xl text-white text-sm font-medium transition ${colorMap[confirmColor]}`}
-          >
+          <button onClick={onConfirm} className={`flex-1 py-2.5 rounded-xl text-white text-sm font-medium transition ${colorMap[confirmColor]}`}>
             {confirmLabel}
           </button>
         </div>
@@ -1020,19 +985,13 @@ function PinModal({ onSave, onCancel }) {
             <FiLock size={18} className="text-indigo-400" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-theme-primary">
-              {step === 1 ? "Create PIN" : "Confirm PIN"}
-            </h3>
-            <p className="text-xs text-theme-muted">
-              {step === 1 ? "Enter a 4-digit PIN" : "Re-enter your PIN"}
-            </p>
+            <h3 className="text-lg font-semibold text-theme-primary">{step === 1 ? "Create PIN" : "Confirm PIN"}</h3>
+            <p className="text-xs text-theme-muted">{step === 1 ? "Enter a 4-digit PIN" : "Re-enter your PIN"}</p>
           </div>
         </div>
 
         {error && (
-          <div className="mb-3 px-3 py-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
-            {error}
-          </div>
+          <div className="mb-3 px-3 py-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">{error}</div>
         )}
 
         <input

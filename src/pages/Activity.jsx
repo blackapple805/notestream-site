@@ -1,5 +1,6 @@
 // src/pages/Activity.jsx
 // ✅ Connected to Supabase database for real activity tracking
+// ✅ Filters timeline events that reference deleted notes/documents (orphan events)
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import GlassCard from "../components/GlassCard";
@@ -55,6 +56,24 @@ function getGroupName(daysAgo) {
   return "Earlier";
 }
 
+function safeTitle(e) {
+  if (e?.title && String(e.title).trim()) return e.title;
+
+  const md = e?.metadata || {};
+  const type = e?.event_type || "activity";
+
+  if (type === "doc_uploaded") return "Uploaded document";
+  if (type === "note_created") return "Created note";
+  if (type === "note_updated") return "Updated note";
+  if (type === "ai_summary") return "Generated AI summary";
+  if (type === "ai_used") return "AI used";
+
+  return md?.name ? String(md.name) : String(type).replaceAll("_", " ");
+}
+
+/* -----------------------------------------
+   Filters / Icons / Styles
+----------------------------------------- */
 const typeFilters = [
   { label: "All", value: "all" },
   { label: "Uploads", value: "doc_uploaded" },
@@ -226,7 +245,7 @@ const TimelineRow = ({ event, index }) => {
         style={{ backgroundColor: "rgba(255,255,255,0.03)", borderColor: "var(--border-secondary)" }}
       >
         <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-medium text-theme-primary">{event.title}</p>
+          <p className="text-sm font-medium text-theme-primary">{safeTitle(event)}</p>
           <span
             className="text-[10px] font-semibold px-2 py-1 rounded-full border"
             style={{
@@ -302,8 +321,8 @@ const IconTile = ({ children, tone = "indigo", size = "md" }) => {
 export default function Activity() {
   const [range, setRange] = useState(7);
   const [typeFilter, setTypeFilter] = useState("all");
-  const [chartTab, setChartTab] = useState("notes");
-  const [chartRange, setChartRange] = useState("week");
+  const [chartTab, setChartTab] = useState("notes"); // "notes" | "summaries"
+  const [chartRange, setChartRange] = useState("week"); // UI-only for now
   const [chartsReady, setChartsReady] = useState(false);
 
   // ✅ Database state
@@ -333,7 +352,7 @@ export default function Activity() {
     return data.user;
   }, []);
 
-  // ✅ Load all activity data from database
+  // ✅ Load stats + charts + streak (NO timeline here)
   const loadActivityData = useCallback(async () => {
     if (!isSupabaseConfigured) {
       setLoading(false);
@@ -344,17 +363,15 @@ export default function Activity() {
       setLoading(true);
       const user = await getUser();
 
-      // 1. Get activity stats
+      // 1) Stats
       const { data: statsData, error: statsError } = await supabase.rpc("get_activity_stats", {
         p_user_id: user.id,
         p_days: 7,
       });
       if (statsError) throw statsError;
-      if (statsData && statsData.length > 0) {
-        setStats(statsData[0]);
-      }
+      if (statsData && statsData.length > 0) setStats(statsData[0]);
 
-      // 2. Get daily activity for charts
+      // 2) Daily chart
       const { data: dailyDataResult, error: dailyError } = await supabase.rpc("get_daily_activity", {
         p_user_id: user.id,
         p_days: 7,
@@ -371,7 +388,7 @@ export default function Activity() {
         );
       }
 
-      // 3. Get weekly streak
+      // 3) Weekly streak
       const { data: streakData, error: streakError } = await supabase.rpc("get_weekly_streak", {
         p_user_id: user.id,
       });
@@ -384,47 +401,82 @@ export default function Activity() {
           }))
         );
       }
-
-      // 4. Get timeline events
-      const { data: timelineData, error: timelineError } = await supabase.rpc("get_activity_timeline", {
-        p_user_id: user.id,
-        p_days: range,
-        p_event_type: typeFilter === "all" ? null : typeFilter,
-        p_limit: 50,
-      });
-      if (timelineError) throw timelineError;
-      setTimelineEvents(timelineData || []);
     } catch (err) {
       console.error("Failed to load activity data:", err);
     } finally {
       setLoading(false);
     }
-  }, [getUser, range, typeFilter]);
+  }, [getUser]);
 
-  // Load data on mount and when filters change
-  useEffect(() => {
-    loadActivityData();
-  }, [loadActivityData]);
+  // ✅ Load timeline only (with orphan filtering)
+  const loadTimeline = useCallback(async () => {
+    if (!isSupabaseConfigured) return;
 
-  // Reload timeline when range/filter changes
-  useEffect(() => {
-    const reloadTimeline = async () => {
-      if (!isSupabaseConfigured) return;
-      try {
-        const user = await getUser();
-        const { data: timelineData } = await supabase.rpc("get_activity_timeline", {
+    try {
+      const user = await getUser();
+
+      const [
+        { data: timelineData, error: timelineError },
+        { data: docs, error: docsError },
+        { data: notes, error: notesError },
+      ] = await Promise.all([
+        supabase.rpc("get_activity_timeline", {
           p_user_id: user.id,
           p_days: range,
           p_event_type: typeFilter === "all" ? null : typeFilter,
           p_limit: 50,
-        });
-        setTimelineEvents(timelineData || []);
-      } catch (err) {
-        console.error("Failed to reload timeline:", err);
-      }
+        }),
+        supabase.from("documents").select("id").eq("user_id", user.id),
+        supabase.from("notes").select("id").eq("user_id", user.id),
+      ]);
+
+      if (timelineError) throw timelineError;
+
+      // If docs/notes select fails (RLS, etc.), don't block timeline.
+      // In that case we skip filtering by leaving the sets empty.
+      const existingDocIds = new Set((docsError ? [] : docs || []).map((d) => d.id));
+      const existingNoteIds = new Set((notesError ? [] : notes || []).map((n) => n.id));
+
+     const isOrphanEvent = (e) => {
+      const md = e?.metadata || {};
+      const rawTitle = (e?.title ?? "").toString().trim();
+      const metaName = (md?.name ?? "").toString().trim();
+      const type = e?.event_type;
+
+      const hasAnyLabel = rawTitle.length > 0 || metaName.length > 0;
+
+      // If the event points at a note/doc but has no label, it's almost always a deleted target (or bad backfill).
+      // Drop it even if we can't confirm IDs (RLS / permissions).
+      if ((md.note_id || md.doc_id) && !hasAnyLabel) return true;
+
+      // If we CAN load ids, filter true orphans too.
+      if (md.doc_id) return existingDocIds.size > 0 && !existingDocIds.has(md.doc_id);
+      if (md.note_id) return existingNoteIds.size > 0 && !existingNoteIds.has(md.note_id);
+
+      // Optional: also hide placeholder "Created note" events that lost their target
+      // (keeps generic events like "AI used" if you want them).
+      if (!hasAnyLabel && (type === "note_created" || type === "note_updated")) return true;
+
+      return false;
     };
-    reloadTimeline();
-  }, [range, typeFilter, getUser]);
+
+
+      setTimelineEvents((timelineData || []).filter((e) => !isOrphanEvent(e)));
+    } catch (err) {
+      console.error("Failed to load timeline:", err);
+      setTimelineEvents([]);
+    }
+  }, [getUser, range, typeFilter]);
+
+  // Load stats/charts on mount
+  useEffect(() => {
+    loadActivityData();
+  }, [loadActivityData]);
+
+  // Load timeline on mount + when range/filter changes
+  useEffect(() => {
+    loadTimeline();
+  }, [loadTimeline]);
 
   // Group timeline events by day
   const groupedEvents = useMemo(() => {
@@ -439,11 +491,15 @@ export default function Activity() {
 
   const chartData = dailyData;
 
-  // Calculate trend percentages (compare this week vs last week would be ideal)
-  const notesTrend = stats.notes_count > 0 ? `+${Math.round((stats.notes_count / 7) * 100) / 10}%` : null;
-  const summariesTrend = stats.ai_summaries_count > 0 ? `+${Math.round((stats.ai_summaries_count / 7) * 100) / 10}%` : null;
+  // Calculate trend percentages (simple placeholder)
+  const notesTrend =
+    stats.notes_count > 0 ? `+${Math.round((stats.notes_count / 7) * 100) / 10}%` : null;
+  const summariesTrend =
+    stats.ai_summaries_count > 0
+      ? `+${Math.round((stats.ai_summaries_count / 7) * 100) / 10}%`
+      : null;
 
-  // Usage breakdown - calculate from notes tags (you can expand this)
+  // Usage breakdown (static placeholder)
   const usageBreakdown = [
     { label: "Meeting Notes", value: 42, icon: FiEdit3, tone: "indigo" },
     { label: "Study / Research", value: 31, icon: FiBookOpen, tone: "purple" },
@@ -480,11 +536,15 @@ export default function Activity() {
         </div>
 
         <span className="text-xs text-theme-muted px-3 py-1.5 rounded-full bg-theme-tertiary border border-theme-secondary">
-          {new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+          {new Date().toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })}
         </span>
       </motion.header>
 
-      {/* Stats Row - Connected to Database */}
+      {/* Stats Row */}
       <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
@@ -522,7 +582,7 @@ export default function Activity() {
         />
       </motion.div>
 
-      {/* Streak Indicator - Connected to Database */}
+      {/* Streak Indicator */}
       <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
@@ -605,8 +665,16 @@ export default function Activity() {
                     <AreaChart data={chartData}>
                       <defs>
                         <linearGradient id="activityFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--accent-indigo, #6366f1)" stopOpacity={0.3} />
-                          <stop offset="100%" stopColor="var(--accent-indigo, #6366f1)" stopOpacity={0.05} />
+                          <stop
+                            offset="0%"
+                            stopColor="var(--accent-indigo, #6366f1)"
+                            stopOpacity={0.3}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="var(--accent-indigo, #6366f1)"
+                            stopOpacity={0.05}
+                          />
                         </linearGradient>
                         <linearGradient id="activityStroke" x1="0" y1="0" x2="1" y2="0">
                           <stop offset="0%" stopColor="var(--accent-indigo, #6366f1)" />
@@ -615,8 +683,18 @@ export default function Activity() {
                         </linearGradient>
                       </defs>
 
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 11 }} width={30} />
+                      <XAxis
+                        dataKey="name"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+                        width={30}
+                      />
                       <Tooltip content={<CustomTooltip />} />
 
                       <Area
@@ -629,7 +707,12 @@ export default function Activity() {
                           const isLast = props.index === chartData.length - 1;
                           return isLast ? <AnimatedDot {...props} /> : null;
                         }}
-                        activeDot={{ r: 6, fill: "var(--accent-indigo, #6366f1)", stroke: "#fff", strokeWidth: 2 }}
+                        activeDot={{
+                          r: 6,
+                          fill: "var(--accent-indigo, #6366f1)",
+                          stroke: "#fff",
+                          strokeWidth: 2,
+                        }}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -668,7 +751,11 @@ export default function Activity() {
 
               <span
                 className="text-[10px] font-semibold px-2.5 py-1 rounded-full border"
-                style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)", color: "var(--text-muted)" }}
+                style={{
+                  backgroundColor: "var(--bg-tertiary)",
+                  borderColor: "var(--border-secondary)",
+                  color: "var(--text-muted)",
+                }}
               >
                 Weekly
               </span>
@@ -683,13 +770,20 @@ export default function Activity() {
                   <div
                     key={i}
                     className="rounded-2xl border p-4"
-                    style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
+                    style={{
+                      backgroundColor: "var(--bg-tertiary)",
+                      borderColor: "var(--border-secondary)",
+                    }}
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div
                           className={`h-9 w-9 rounded-xl border flex items-center justify-center ${t.text}`}
-                          style={{ backgroundColor: t.bg, borderColor: t.border, boxShadow: `0 10px 26px ${t.glow}` }}
+                          style={{
+                            backgroundColor: t.bg,
+                            borderColor: t.border,
+                            boxShadow: `0 10px 26px ${t.glow}`,
+                          }}
                         >
                           <Icon size={16} />
                         </div>
@@ -700,14 +794,20 @@ export default function Activity() {
 
                     <div
                       className="h-2.5 rounded-full overflow-hidden border"
-                      style={{ backgroundColor: "var(--bg-elevated)", borderColor: "var(--border-secondary)" }}
+                      style={{
+                        backgroundColor: "var(--bg-elevated)",
+                        borderColor: "var(--border-secondary)",
+                      }}
                     >
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${item.value}%` }}
                         transition={{ duration: 0.9, delay: i * 0.08, ease: "easeOut" }}
                         className="h-full rounded-full"
-                        style={{ background: `linear-gradient(90deg, ${t.solid}, rgba(255,255,255,0.55))`, boxShadow: `0 0 18px ${t.soft}` }}
+                        style={{
+                          background: `linear-gradient(90deg, ${t.solid}, rgba(255,255,255,0.55))`,
+                          boxShadow: `0 0 18px ${t.soft}`,
+                        }}
                       />
                     </div>
                   </div>
@@ -776,7 +876,11 @@ export default function Activity() {
 
               <span
                 className="text-[10px] font-semibold px-2.5 py-1 rounded-full border"
-                style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)", color: "var(--text-muted)" }}
+                style={{
+                  backgroundColor: "var(--bg-tertiary)",
+                  borderColor: "var(--border-secondary)",
+                  color: "var(--text-muted)",
+                }}
               >
                 7d
               </span>
@@ -784,7 +888,11 @@ export default function Activity() {
 
             <div
               className="rounded-2xl border p-2"
-              style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)", boxShadow: "0 18px 50px rgba(168,85,247,0.08)" }}
+              style={{
+                backgroundColor: "var(--bg-tertiary)",
+                borderColor: "var(--border-secondary)",
+                boxShadow: "0 18px 50px rgba(168,85,247,0.08)",
+              }}
             >
               <div style={{ width: "100%", height: 144, minHeight: 144 }}>
                 {chartsReady ? (
@@ -792,19 +900,45 @@ export default function Activity() {
                     <BarChart data={chartData} barGap={6}>
                       <defs>
                         <linearGradient id="barNotes" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--accent-indigo, #6366f1)" stopOpacity={0.95} />
-                          <stop offset="100%" stopColor="var(--accent-indigo, #6366f1)" stopOpacity={0.25} />
+                          <stop
+                            offset="0%"
+                            stopColor="var(--accent-indigo, #6366f1)"
+                            stopOpacity={0.95}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="var(--accent-indigo, #6366f1)"
+                            stopOpacity={0.25}
+                          />
                         </linearGradient>
                         <linearGradient id="barSummaries" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--accent-purple, #8b5cf6)" stopOpacity={0.9} />
-                          <stop offset="100%" stopColor="var(--accent-purple, #8b5cf6)" stopOpacity={0.22} />
+                          <stop
+                            offset="0%"
+                            stopColor="var(--accent-purple, #8b5cf6)"
+                            stopOpacity={0.9}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="var(--accent-purple, #8b5cf6)"
+                            stopOpacity={0.22}
+                          />
                         </linearGradient>
                       </defs>
 
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 10 }} />
+                      <XAxis
+                        dataKey="name"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "var(--text-muted)", fontSize: 10 }}
+                      />
                       <Tooltip content={<CustomTooltip />} />
                       <Bar dataKey="notes" fill="url(#barNotes)" radius={[6, 6, 0, 0]} name="Notes" />
-                      <Bar dataKey="summaries" fill="url(#barSummaries)" radius={[6, 6, 0, 0]} name="Summaries" />
+                      <Bar
+                        dataKey="summaries"
+                        fill="url(#barSummaries)"
+                        radius={[6, 6, 0, 0]}
+                        name="Summaries"
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -818,7 +952,7 @@ export default function Activity() {
         </GlassCard>
       </div>
 
-      {/* Activity Timeline - Connected to Database */}
+      {/* Activity Timeline */}
       <GlassCard>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
@@ -840,7 +974,11 @@ export default function Activity() {
         {/* Type Filters */}
         <div className="flex flex-wrap gap-2 text-xs mb-5">
           {typeFilters.map((f) => (
-            <ToggleButton key={f.value} active={typeFilter === f.value} onClick={() => setTypeFilter(f.value)}>
+            <ToggleButton
+              key={f.value}
+              active={typeFilter === f.value}
+              onClick={() => setTypeFilter(f.value)}
+            >
               {f.label}
             </ToggleButton>
           ))}
@@ -865,7 +1003,11 @@ export default function Activity() {
                 <div className="flex items-center justify-between mb-3">
                   <span
                     className="text-[11px] uppercase tracking-wider font-semibold px-2.5 py-1 rounded-full border"
-                    style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)", color: "var(--text-muted)" }}
+                    style={{
+                      backgroundColor: "var(--bg-tertiary)",
+                      borderColor: "var(--border-secondary)",
+                      color: "var(--text-muted)",
+                    }}
                   >
                     {group}
                   </span>
@@ -877,7 +1019,10 @@ export default function Activity() {
                 <ol className="relative space-y-3">
                   <div
                     className="absolute left-[14px] top-0 bottom-0 w-[2px]"
-                    style={{ background: "linear-gradient(to bottom, rgba(99,102,241,0.18), rgba(168,85,247,0.10), rgba(255,255,255,0.00))" }}
+                    style={{
+                      background:
+                        "linear-gradient(to bottom, rgba(99,102,241,0.18), rgba(168,85,247,0.10), rgba(255,255,255,0.00))",
+                    }}
                     aria-hidden="true"
                   />
                   {items.map((event, i) => (
@@ -908,6 +1053,7 @@ const ToggleButton = ({ children, active, onClick, size = "md" }) => {
       }`}
       style={!active ? { backgroundColor: "var(--bg-button)" } : {}}
       onClick={onClick}
+      type="button"
     >
       {children}
     </button>
@@ -919,10 +1065,26 @@ const ToggleButton = ({ children, active, onClick, size = "md" }) => {
 ----------------------------------------- */
 const StatCard = ({ title, value, sub, icon, iconColor, trend, trendUp }) => {
   const colorClasses = {
-    indigo: { bg: "from-indigo-500/20 to-indigo-600/10", border: "border-indigo-500/30", text: "text-indigo-400" },
-    amber: { bg: "from-amber-500/20 to-amber-600/10", border: "border-amber-500/30", text: "text-amber-400" },
-    orange: { bg: "from-orange-500/20 to-orange-600/10", border: "border-orange-500/30", text: "text-orange-400" },
-    emerald: { bg: "from-emerald-500/20 to-emerald-600/10", border: "border-emerald-500/30", text: "text-emerald-400" },
+    indigo: {
+      bg: "from-indigo-500/20 to-indigo-600/10",
+      border: "border-indigo-500/30",
+      text: "text-indigo-400",
+    },
+    amber: {
+      bg: "from-amber-500/20 to-amber-600/10",
+      border: "border-amber-500/30",
+      text: "text-amber-400",
+    },
+    orange: {
+      bg: "from-orange-500/20 to-orange-600/10",
+      border: "border-orange-500/30",
+      text: "text-orange-400",
+    },
+    emerald: {
+      bg: "from-emerald-500/20 to-emerald-600/10",
+      border: "border-emerald-500/30",
+      text: "text-emerald-400",
+    },
   };
 
   const colors = colorClasses[iconColor] || colorClasses.indigo;
@@ -931,10 +1093,15 @@ const StatCard = ({ title, value, sub, icon, iconColor, trend, trendUp }) => {
     <motion.div
       className="rounded-2xl px-4 py-3.5 border transition-all hover:scale-[1.02]"
       style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-secondary)" }}
-      whileHover={{ boxShadow: "0 8px 30px rgba(99, 102, 241, 0.15)", borderColor: "rgba(99, 102, 241, 0.3)" }}
+      whileHover={{
+        boxShadow: "0 8px 30px rgba(99, 102, 241, 0.15)",
+        borderColor: "rgba(99, 102, 241, 0.3)",
+      }}
     >
       <div className="flex items-center justify-between mb-2.5">
-        <div className={`h-9 w-9 rounded-xl bg-gradient-to-br ${colors.bg} ${colors.border} border flex items-center justify-center ${colors.text}`}>
+        <div
+          className={`h-9 w-9 rounded-xl bg-gradient-to-br ${colors.bg} ${colors.border} border flex items-center justify-center ${colors.text}`}
+        >
           {icon}
         </div>
 
@@ -983,7 +1150,7 @@ const MiniStat = ({ label, value, color }) => {
 };
 
 /* -----------------------------------------
-   Streak Dots - Now accepts props
+   Streak Dots
 ----------------------------------------- */
 const StreakDots = ({ days }) => {
   return (
