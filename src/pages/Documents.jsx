@@ -175,23 +175,19 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
     return data.user;
   }, []);
 
+  // Replace your current ensureUserStatsRow with this
   const ensureUserStatsRow = useCallback(async (user) => {
-    // Create row if missing (new user)
-    try {
-      await supabase.from(USER_STATS_TABLE).upsert(
-        {
-          user_id: user.id,
-          notes_created: 0,
-          ai_uses: 0,
-          active_days: 0,
-          streak_days: 0,
-          updated_at: nowIso(),
-          created_at: nowIso(),
-        },
-        { onConflict: "user_id" }
-      );
-    } catch {
-      // ignore
+    if (!user?.id) return;
+
+
+  // Insert-only behavior (do nothing if row exists)
+    const { error } = await supabase
+      .from(USER_STATS_TABLE)
+      .upsert({ user_id: user.id }, { onConflict: "user_id", ignoreDuplicates: true });
+
+    if (error) {
+      // optional: log but keep non-blocking
+      console.warn("ensureUserStatsRow failed:", error);
     }
   }, []);
 

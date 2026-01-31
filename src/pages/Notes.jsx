@@ -29,6 +29,7 @@ import { useSubscription } from "../hooks/useSubscription";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 const PIN_KEY = "ns-note-pin";
+const USER_STATS_TABLE = "user_engagement_stats";
 
 // Optional fallback data (only used if Supabase isn't configured)
 const initialNotes = [
@@ -115,6 +116,12 @@ export default function Notes() {
   const mediaStreamRef = useRef(null);
   const chunksRef = useRef([]);
 
+  // ✅ FIX: Use ref to track create operation + unique request ID
+  const createOperationRef = useRef({
+    inProgress: false,
+    lastRequestId: null,
+  });
+
   // ----------------------------
   // Supabase helpers
   // ----------------------------
@@ -155,6 +162,43 @@ export default function Notes() {
       return null;
     }
     return user;
+  };
+
+  // ✅ FIX: Helper to increment notes_created stat (only if needed)
+  // Remove this if you have a Supabase database trigger doing this automatically
+  const incrementNotesCreatedStat = async (userId) => {
+    if (!supabaseReady || !supabase || !userId) return;
+
+    try {
+      // Use RPC for atomic increment, or fallback to select + update
+      // Option 1: If you have an RPC function:
+      // await supabase.rpc('increment_notes_created', { user_id: userId });
+      
+      // Option 2: Select current value and update
+      const { data: current, error: fetchErr } = await supabase
+        .from(USER_STATS_TABLE)
+        .select("notes_created")
+        .eq("user_id", userId)
+        .single();
+
+      if (fetchErr) {
+        console.error("Failed to fetch current notes_created:", fetchErr);
+        return;
+      }
+
+      const newCount = (Number(current?.notes_created) || 0) + 1;
+
+      const { error: updateErr } = await supabase
+        .from(USER_STATS_TABLE)
+        .update({ notes_created: newCount })
+        .eq("user_id", userId);
+
+      if (updateErr) {
+        console.error("Failed to update notes_created:", updateErr);
+      }
+    } catch (err) {
+      console.error("incrementNotesCreatedStat error:", err);
+    }
   };
 
   // ✅ Load notes from DB on page open
@@ -252,91 +296,116 @@ export default function Notes() {
     );
   };
 
-  // ✅ FIX: define createNote (this was crashing your page)
-const creatingRef = useRef(false);
-console.count("createNote called");
+  // ✅ FIX: Improved createNote with better debouncing and single execution
+  const createNote = useCallback(async () => {
+    // Generate unique request ID to track this specific call
+    const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Check if already in progress
+    if (createOperationRef.current.inProgress) {
+      console.log("createNote: Already in progress, skipping duplicate call");
+      return;
+    }
 
-const createNote = async () => {
-  if (creatingRef.current) return;
-  creatingRef.current = true;
+    // Mark as in progress with this request ID
+    createOperationRef.current.inProgress = true;
+    createOperationRef.current.lastRequestId = requestId;
 
-  try {
-    const now = new Date().toISOString();
-    const title = (newNote.title || "").trim() || "Untitled";
-    const body = (newNote.body || "").trim() || "";
+    console.log("createNote: Starting operation", requestId);
 
-    // Close modal UI immediately (feels snappy)
-    setEditorOpen(false);
-    setShowAddMenu(false);
+    try {
+      const now = new Date().toISOString();
+      const title = (newNote.title || "").trim() || "Untitled";
+      const body = (newNote.body || "").trim() || "";
 
-    // Local/demo fallback
-    if (!supabaseReady || !supabase) {
-      const id = crypto?.randomUUID?.() ?? String(Date.now());
-      const localNote = {
-        id,
+      // Close modal UI immediately (feels snappy)
+      setEditorOpen(false);
+      setShowAddMenu(false);
+
+      // Local/demo fallback
+      if (!supabaseReady || !supabase) {
+        const id = crypto?.randomUUID?.() ?? String(Date.now());
+        const localNote = {
+          id,
+          title,
+          body,
+          tag: "Note",
+          updated: now,
+          favorite: false,
+          locked: false,
+          summary: null,
+          SmartTasks: null,
+          SmartHighlights: null,
+          SmartSchedule: null,
+          aiGeneratedAt: null,
+          aiModel: null,
+        };
+
+        setNotes((prev) => [
+          localNote,
+          ...(prev || []).filter((n) => n.id !== localNote.id),
+        ]);
+        setNewNote({ title: "", body: "" });
+        setSelectedNote(localNote);
+        return;
+      }
+
+      const user = await getAuthedUser();
+      if (!user) return;
+
+      // Check if this request is still the current one (handles race conditions)
+      if (createOperationRef.current.lastRequestId !== requestId) {
+        console.log("createNote: Request superseded, aborting", requestId);
+        return;
+      }
+
+      const insertPayload = {
+        user_id: user.id,
         title,
         body,
-        tag: "Note",
-        updated: now,
-        favorite: false,
-        locked: false,
-
-        // Smart fields present (null by default)
-        summary: null,
-        SmartTasks: null,
-        SmartHighlights: null,
-        SmartSchedule: null,
-        aiGeneratedAt: null,
-        aiModel: null,
+        tags: ["Note"],
+        is_favorite: false,
+        is_highlight: false,
+        ai_payload: null,
+        ai_generated_at: null,
+        ai_model: null,
+        created_at: now,
+        updated_at: now,
       };
 
-      setNotes((prev) => [
-        localNote,
-        ...(prev || []).filter((n) => n.id !== localNote.id),
-      ]);
+      const { data, error } = await supabase
+        .from(NOTES_TABLE)
+        .insert(insertPayload)
+        .select(
+          "id,title,body,tags,is_favorite,is_highlight,ai_payload,ai_generated_at,ai_model,created_at,updated_at"
+        )
+        .single();
+
+      if (error) {
+        console.error("Create note error:", error);
+        return;
+      }
+
+      // ✅ FIX: Increment notes_created stat ONLY HERE (remove if you have a DB trigger)
+      // IMPORTANT: If you have a Supabase database trigger that already increments
+      // notes_created when a note is inserted, COMMENT OUT this line:
+      await incrementNotesCreatedStat(user.id);
+
+      const ui = mapDbNoteToUi(data);
+      setNotes((prev) => [ui, ...(prev || []).filter((n) => n.id !== ui.id)]);
       setNewNote({ title: "", body: "" });
-      setSelectedNote(localNote);
-      return;
+      setSelectedNote(ui);
+
+      console.log("createNote: Successfully created note", requestId);
+    } catch (err) {
+      console.error("createNote: Unexpected error", err);
+    } finally {
+      // Reset the guard after a small delay to handle any pending React re-renders
+      setTimeout(() => {
+        createOperationRef.current.inProgress = false;
+      }, 100);
     }
-
-    const user = await getAuthedUser();
-    if (!user) return;
-
-    const insertPayload = {
-      user_id: user.id,
-      title,
-      body,
-      tags: ["Note"],
-      is_favorite: false,
-      is_highlight: false,
-      ai_payload: null,
-      ai_generated_at: null,
-      ai_model: null,
-      created_at: now,
-      updated_at: now,
-    };
-
-    const { data, error } = await supabase
-      .from(NOTES_TABLE)
-      .insert(insertPayload)
-      .select(
-        "id,title,body,tags,is_favorite,is_highlight,ai_payload,ai_generated_at,ai_model,created_at,updated_at"
-      )
-      .single();
-
-    if (error) {
-      console.error("Create note error:", error);
-      return;
-    }
-
-    const ui = mapDbNoteToUi(data);
-    setNotes((prev) => [ui, ...(prev || []).filter((n) => n.id !== ui.id)]);
-    setNewNote({ title: "", body: "" });
-    setSelectedNote(ui);
-  } finally {
-    creatingRef.current = false;
-  }
-};
+  }, [newNote.title, newNote.body, supabaseReady, navigate]);
 
   const handleDelete = async (id) => {
     const prevNotes = notes;
@@ -1306,21 +1375,15 @@ const createNote = async () => {
                 backgroundColor: "var(--bg-tertiary)",
               }}
             >
-                    <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  createNote();
-                }}
+              {/* ✅ FIX: Use button with onClick instead of form submit to avoid double-firing */}
+              <button
+                type="button"
+                onClick={createNote}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium transition hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2"
               >
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium transition hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2"
-                >
-                  <FiPlus size={18} />
-                  Create Note
-                </button>
-              </form>
-
+                <FiPlus size={18} />
+                Create Note
+              </button>
             </div>
           </Modal>
         )}
@@ -1808,5 +1871,4 @@ const FABOption = ({ icon, label, onClick, pro }) => (
     </span>
   </button>
 );
-
 

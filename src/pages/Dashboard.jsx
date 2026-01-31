@@ -88,6 +88,33 @@ const diffDaysLocal = (aYmd, bYmd) => {
   return Math.floor(ms / (24 * 60 * 60 * 1000));
 };
 
+/**
+ * Insert-only seed for user_engagement_stats.
+ * Uses upsert + ignoreDuplicates so it will NOT overwrite existing rows.
+ * IMPORTANT: include initial defaults so new users don't start at 0/NULL.
+ */
+const ensureUserStatsRow = async (userId, fallbackName = null) => {
+  if (!supabase || !userId) return;
+
+  const today = toLocalYMD();
+
+  const payload = {
+    user_id: userId,
+    ...(fallbackName ? { display_name: fallbackName } : {}),
+    notes_created: 0,
+    ai_uses: 0,
+    active_days: 1,
+    streak_days: 1,
+    last_active_date: today,
+  };
+
+  const { error } = await supabase
+    .from(USER_STATS_TABLE)
+    .upsert(payload, { onConflict: "user_id", ignoreDuplicates: true });
+
+  if (error) console.warn("ensureUserStatsRow failed:", error);
+};
+
 const formatShortDate = (d) => {
   try {
     return new Intl.DateTimeFormat(undefined, {
@@ -324,6 +351,7 @@ export default function Dashboard() {
 
   /* -----------------------------------------
     STATS: fetch user_engagement_stats
+    ✅ Insert-only seed + safe daily increment
   ----------------------------------------- */
   useEffect(() => {
     if (!supabaseReady || !supabase) {
@@ -353,30 +381,15 @@ export default function Dashboard() {
         user.user_metadata?.name ??
         (user.email ? user.email.split("@")[0] : null);
 
-      // Ensure row exists (insert defaults for NEW users only; don't overwrite existing)
-      const { error: ensureErr } = await supabase
-        .from(USER_STATS_TABLE)
-        .upsert(
-          {
-            user_id: user.id,
-            display_name: fallbackName ?? null,
-            notes_created: 0,
-            ai_uses: 0,
-            active_days: 0,
-            streak_days: 0,
-            last_active_date: null,
-          },
-          { onConflict: "user_id", ignoreDuplicates: true }
-        );
-
-      if (ensureErr) console.error("Stats ensure row error:", ensureErr);
+      // ✅ Seed row if missing (insert-only; will NOT overwrite)
+      await ensureUserStatsRow(user.id, fallbackName);
 
       // Fetch row
-      const { data: row, error: fetchErr } = await supabase
+      const { data: rowMaybe, error: fetchErr } = await supabase
         .from(USER_STATS_TABLE)
         .select("*")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (fetchErr) {
         console.error("Stats fetch error:", fetchErr);
@@ -384,34 +397,35 @@ export default function Dashboard() {
         return;
       }
 
+      if (!rowMaybe) {
+        // If RLS prevented insert or row truly missing, don't crash UI.
+        if (alive) {
+          setStats(EMPTY_STATS);
+          setStatsLoading(false);
+        }
+        return;
+      }
+
       // Normalize nulls -> 0
       const base = {
         ...EMPTY_STATS,
-        ...row,
-        notes_created: Number(row?.notes_created ?? 0),
-        ai_uses: Number(row?.ai_uses ?? 0),
-        active_days: Number(row?.active_days ?? 0),
-        streak_days: Number(row?.streak_days ?? 0),
+        ...rowMaybe,
+        notes_created: Number(rowMaybe?.notes_created ?? 0),
+        ai_uses: Number(rowMaybe?.ai_uses ?? 0),
+        active_days: Number(rowMaybe?.active_days ?? 0),
+        streak_days: Number(rowMaybe?.streak_days ?? 0),
       };
 
       const today = toLocalYMD();
 
-      // Fix: if last_active_date is already today but active_days is 0 (bad init), set to 1
-      const isToday = base.last_active_date === today;
-      const needsInitFix = isToday && Number(base.active_days || 0) === 0;
-
-      if (base.last_active_date !== today || needsInitFix) {
+      // Increment only if not already counted today
+      if (base.last_active_date !== today) {
         const diff = base.last_active_date
           ? diffDaysLocal(base.last_active_date, today)
           : null;
 
-        const nextActiveDays = needsInitFix ? 1 : (base.active_days || 0) + 1;
-
-        const nextStreak = needsInitFix
-          ? 1
-          : diff === 1
-          ? (base.streak_days || 0) + 1
-          : 1;
+        const nextActiveDays = (base.active_days || 0) + 1;
+        const nextStreak = diff === 1 ? (base.streak_days || 0) + 1 : 1;
 
         const { data: updatedRow, error: upErr } = await supabase
           .from(USER_STATS_TABLE)
@@ -419,7 +433,7 @@ export default function Dashboard() {
             active_days: nextActiveDays,
             streak_days: nextStreak,
             last_active_date: today,
-            display_name: base.display_name ?? fallbackName ?? null,
+            ...(base.display_name ? {} : { display_name: fallbackName ?? null }),
           })
           .eq("user_id", user.id)
           .select("*")
@@ -443,9 +457,9 @@ export default function Dashboard() {
     return () => {
       alive = false;
     };
-  }, [navigate]);
+  }, [navigate, supabaseReady]);
 
-    /* -----------------------------------------
+  /* -----------------------------------------
     DATA: fetch notes + docs (last 7 days)
   ----------------------------------------- */
   useEffect(() => {
@@ -479,7 +493,9 @@ export default function Dashboard() {
       const [notesRes, docsRes] = await Promise.all([
         supabase
           .from(NOTES_TABLE)
-          .select("id,title,body,tags,is_favorite,is_highlight,ai_payload,ai_generated_at,created_at,updated_at")
+          .select(
+            "id,title,body,tags,is_favorite,is_highlight,ai_payload,ai_generated_at,created_at,updated_at"
+          )
           .eq("user_id", user.id)
           .gte("created_at", sinceIso)
           .order("updated_at", { ascending: false }),
@@ -508,7 +524,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (!settings.smartNotifications) return;
 
-    // Map DB notes into the shape your smart-notifications parser expects.
     const notesForNotif = (notes || []).map((n) => ({
       id: n.id,
       title: n.title,
@@ -539,9 +554,9 @@ export default function Dashboard() {
         end: formatShortDate(end),
       },
       stats: {
-        notesCreated, // from user_engagement_stats (lifetime unless you store weekly)
-        docsUploaded, // last-7-days docs fetched above
-        favoritedNotes, // last-7-days favorites/highlights
+        notesCreated,
+        docsUploaded,
+        favoritedNotes,
         synthesizedDocs: 0,
         totalItems: Number(notes.length) + Number(docs.length),
       },
@@ -571,7 +586,6 @@ export default function Dashboard() {
       hasAI: !!n.ai_generated_at || !!n.ai_payload?.summary,
     }));
   }, [notes]);
-
 
   const recentDocs = useMemo(() => {
     return (docs || []).slice(0, 3);
@@ -1281,7 +1295,9 @@ export default function Dashboard() {
                               borderColor: "var(--border-secondary)",
                             }}
                           >
-                            <span className="text-theme-secondary">{tag.tag}</span>
+                            <span className="text-theme-secondary">
+                              {tag.tag}
+                            </span>
                             <span className="text-theme-muted ml-1.5">
                               ({tag.count})
                             </span>
@@ -1300,7 +1316,11 @@ export default function Dashboard() {
                       }}
                     >
                       <h3 className="text-sm font-semibold text-theme-primary mb-3 flex items-center gap-2">
-                        <Star size={16} weight="fill" className="text-amber-400" />
+                        <Star
+                          size={16}
+                          weight="fill"
+                          className="text-amber-400"
+                        />
                         Highlights
                       </h3>
                       <div className="space-y-2">
@@ -1327,7 +1347,7 @@ export default function Dashboard() {
 }
 
 /* -----------------------------------------
-   HELPER COMPONENTS (unchanged from your version)
+   HELPER COMPONENTS
 ----------------------------------------- */
 
 const QuickStat = ({ icon, label, value, suffix, color, loading = false }) => {
