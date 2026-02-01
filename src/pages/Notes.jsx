@@ -222,40 +222,6 @@ export default function Notes() {
     setTagCounts(data || []);
   }, [supabaseReady]);
 
-  // Only needed if you do NOT have a DB trigger already.
-  const incrementNotesCreatedStat = useCallback(
-    async (userId) => {
-      if (!supabaseReady || !supabase || !userId) return;
-
-      try {
-        const { data: current, error: fetchErr } = await supabase
-          .from(USER_STATS_TABLE)
-          .select("notes_created")
-          .eq("user_id", userId)
-          .single();
-
-        if (fetchErr) {
-          console.error("Failed to fetch current notes_created:", fetchErr);
-          return;
-        }
-
-        const newCount = (Number(current?.notes_created) || 0) + 1;
-
-        const { error: updateErr } = await supabase
-          .from(USER_STATS_TABLE)
-          .update({ notes_created: newCount })
-          .eq("user_id", userId);
-
-        if (updateErr) {
-          console.error("Failed to update notes_created:", updateErr);
-        }
-      } catch (err) {
-        console.error("incrementNotesCreatedStat error:", err);
-      }
-    },
-    [supabaseReady]
-  );
-
   // ----------------------------
   // Load notes from DB on page open
   // ----------------------------
@@ -452,8 +418,7 @@ export default function Notes() {
         return;
       }
 
-      // Comment out if you already have a trigger for notes_created
-      await incrementNotesCreatedStat(user.id);
+
 
       const ui = mapDbNoteToUi(data);
 
@@ -480,7 +445,6 @@ export default function Notes() {
     getAuthedUser,
     buildNoteTags,
     parseTagsInput,
-    incrementNotesCreatedStat,
     mapDbNoteToUi,
     loadTagCounts,
   ]);

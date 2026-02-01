@@ -319,7 +319,6 @@ export default function ContactSupport() {
       const user = sessRes?.session?.user;
       if (!user?.id) throw new Error("You must be signed in to submit a ticket.");
 
-      // Insert ticket
       const payload = {
         user_id: user.id,
         name: formData.name.trim(),
@@ -329,8 +328,7 @@ export default function ContactSupport() {
         subject: formData.subject.trim(),
         message: formData.message.trim(),
         status: "open",
-        // Optional helpful metadata (safe to store)
-        meta: {
+        metadata: {
           plan: subscription?.plan || "free",
           app_version: "1.0.0",
           ua: typeof navigator !== "undefined" ? navigator.userAgent : "",

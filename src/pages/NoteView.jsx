@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSubscription } from "../hooks/useSubscription";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { logActivityEvent } from "../lib/activityEvents";
 
 const USER_STATS_TABLE = "user_engagement_stats";
 const EVENTS_TABLE = "activity_events";
@@ -117,14 +118,15 @@ export default function NoteView({
       if (!user?.id) return;
 
       // Log event (safe: entity_id can be null if note.id isn't a uuid)
-      await supabase.from(EVENTS_TABLE).insert({
-        user_id: user.id,
-        type: "ai_used",
-        entity_id: isUuid(note?.id) ? note.id : null,
-        meta: { feature: "note_ai", note_id: note?.id ?? null },
+      await logActivityEvent({
+        userId: user.id,
+        eventType: "ai_used",
+        entityId: isUuid(note?.id) ? note.id : null,
+        metadata: { feature: "note_ai", note_id: note?.id ?? null },
+        title: "AI used on note",
       });
 
-      const today = toLocalYMD();
+            const today = toLocalYMD();
 
       const { data: row, error: rowErr } = await supabase
         .from(USER_STATS_TABLE)

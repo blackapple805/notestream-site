@@ -586,12 +586,18 @@ export function SubscriptionProvider({ children }) {
   useEffect(() => {
     loadSubscription();
 
+    const inFlight = { current: false };
+
     const {
       data: { subscription: authSub },
     } = supabase.auth.onAuthStateChange((event) => {
-      // ✅ Only reload on SIGNED_IN (avoid TOKEN_REFRESHED spam)
-      if (event === "SIGNED_IN") {
-        loadSubscription();
+      if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+        if (inFlight.current) return;
+        inFlight.current = true;
+
+        Promise.resolve(loadSubscription()).finally(() => {
+          inFlight.current = false;
+        });
       } else if (event === "SIGNED_OUT") {
         setSubscription({
           id: null,
@@ -610,10 +616,9 @@ export function SubscriptionProvider({ children }) {
       }
     });
 
-    return () => {
-      authSub?.unsubscribe();
-    };
+    return () => authSub?.unsubscribe();
   }, [loadSubscription]);
+
 
   // ----------------------------------------------------------
   // Cache to localStorage when data changes

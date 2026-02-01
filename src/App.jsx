@@ -15,11 +15,15 @@ import { ThemeProvider } from "./context/ThemeContext";
 // Integrations Provider
 import { IntegrationsProvider } from "./hooks/useIntegrations";
 
-// Subscription Provider (remove useSubscription + SubscriptionBridge)
+// Subscription Provider (no SubscriptionBridge needed)
 import { SubscriptionProvider } from "./hooks/useSubscription";
 
 // Workspace Settings Provider
 import { WorkspaceProvider } from "./hooks/useWorkspaceSettings";
+
+// ✅ Activity logger + session
+import { logActivityEvent } from "./lib/activityEvents";
+import { supabase } from "./lib/supabaseClient";
 
 // Global Components
 import Navbar from "./components/Navbar";
@@ -90,7 +94,6 @@ function RouteTitle() {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    // Dashboard titles
     if (pathname.startsWith("/dashboard/integrations/connect/")) {
       document.title = "Connect Integration | NoteStream";
       return;
@@ -104,7 +107,6 @@ function RouteTitle() {
       return;
     }
 
-    // Public titles
     const map = {
       "/": "NoteStream",
       "/smart-notes": "Smart Notes | NoteStream",
@@ -126,6 +128,46 @@ function RouteTitle() {
     };
 
     document.title = map[pathname] || "NoteStream";
+  }, [pathname]);
+
+  return null;
+}
+
+// ----------------------------------------------------------------
+// ✅ Route-change activity logging (page views)
+// ----------------------------------------------------------------
+function RouteActivityLogger() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!alive) return;
+
+        const userId = session?.user?.id;
+        if (!userId) return;
+
+        await logActivityEvent({
+          userId,
+          eventType: "page_view",
+          entityId: null,
+          metadata: { path: pathname },
+          title: `Visited ${pathname}`,
+        });
+      } catch {
+        // never block navigation
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
   }, [pathname]);
 
   return null;
@@ -174,41 +216,32 @@ function PublicRoutesFadeWrapper() {
           className="min-h-screen"
         >
           <Routes>
-            {/* Landing */}
             <Route path="/" element={<HomeLanding />} />
 
-            {/* Features - PUBLIC pages linked from Navbar */}
             <Route path="/smart-notes" element={<SmartNotes />} />
             <Route path="/ai-summary" element={<AISummary />} />
 
-            {/* PUBLIC Integrations Landing (renamed path) */}
             <Route
               path="/integrations-landing"
               element={<IntegrationsLanding />}
             />
-
-            {/* Back-compat redirect so old /integrations still works */}
             <Route
               path="/integrations"
               element={<Navigate to="/integrations-landing" replace />}
             />
 
-            {/* Main */}
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/updates" element={<Updates />} />
 
-            {/* Support */}
             <Route path="/support" element={<Support />} />
             <Route path="/faq" element={<FAQ />} />
 
-            {/* Password Recovery Flow */}
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/update-password" element={<UpdatePassword />} />
 
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/privacy" element={<Privacy />} />
 
-            {/* Auth */}
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/search" element={<SearchPage />} />
@@ -287,11 +320,14 @@ export default function App() {
               <ScrollToTop />
               <RouteTitle />
 
+              {/* ✅ matches what I provided: logs page_view events */}
+              <RouteActivityLogger />
+
               <Routes>
                 {/* PUBLIC SITE */}
                 <Route path="/*" element={<PublicSiteWrapper />} />
 
-                {/* DASHBOARD PAGES (for logged-in users) */}
+                {/* DASHBOARD PAGES */}
                 <Route path="/dashboard" element={<DashboardLayout />}>
                   <Route index element={<Dashboard />} />
 
@@ -319,8 +355,11 @@ export default function App() {
                     element={<RewriteDocument docs={docs} setDocs={setDocs} />}
                   />
 
-                  {/* INTEGRATIONS - Dashboard version for logged-in users */}
-                  <Route path="integrations" element={<DashboardIntegrations />} />
+                  {/* INTEGRATIONS */}
+                  <Route
+                    path="integrations"
+                    element={<DashboardIntegrations />}
+                  />
                   <Route
                     path="integrations/connect/:integrationId"
                     element={<IntegrationConnect />}
@@ -330,14 +369,17 @@ export default function App() {
                   <Route path="summaries" element={<Summaries />} />
                   <Route path="activity" element={<Activity />} />
 
-                  {/* SUPPORT (Dashboard) */}
+                  {/* SUPPORT */}
                   <Route path="help-center" element={<HelpCenter />} />
                   <Route path="contact-support" element={<ContactSupport />} />
 
-                  {/* Integration Docs (Dashboard) */}
-                  <Route path="integration-docs" element={<IntegrationDocs />} />
+                  {/* Integration Docs */}
+                  <Route
+                    path="integration-docs"
+                    element={<IntegrationDocs />}
+                  />
 
-                  {/* AI LAB & SUB-PAGES */}
+                  {/* AI LAB */}
                   <Route path="ai-lab" element={<AiLab />} />
                   <Route path="ai-lab/training" element={<CustomTraining />} />
                   <Route path="ai-lab/cloud-sync" element={<CloudSync />} />
@@ -358,6 +400,7 @@ export default function App() {
     </ThemeProvider>
   );
 }
+
 
 
 
