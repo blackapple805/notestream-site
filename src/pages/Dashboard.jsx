@@ -38,6 +38,7 @@ import GlassCard from "../components/GlassCard";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
+const TAG_RESEARCH_BRIEF = "ai:research_brief";
 const USER_STATS_TABLE = "user_engagement_stats";
 const NOTES_TABLE = "notes";
 const DOCS_TABLE = "documents";
@@ -497,16 +498,17 @@ export default function Dashboard() {
             "id,title,body,tags,is_favorite,is_highlight,ai_payload,ai_generated_at,created_at,updated_at"
           )
           .eq("user_id", user.id)
-          .gte("created_at", sinceIso)
+          .gte("updated_at", sinceIso)
           .order("updated_at", { ascending: false }),
 
         supabase
           .from(DOCS_TABLE)
           .select("id,user_id,name,type,status,created_at,updated_at")
           .eq("user_id", user.id)
-          .gte("created_at", sinceIso)
+          .gte("updated_at", sinceIso)
           .order("updated_at", { ascending: false }),
       ]);
+
 
       if (!alive) return;
 
@@ -547,6 +549,14 @@ export default function Dashboard() {
 
     const topTags = computeTopTags(notes, 6);
     const highlights = computeHighlights(notes, 6);
+    const synthesizedDocs7d = (docs || []).filter(
+    (d) => (d?.status || "") === "synthesized").length;
+
+    const synthesizedBriefs7d = (notes || []).filter((n) => {
+    const tags = Array.isArray(n?.tags) ? n.tags : [];
+    return tags.includes(TAG_RESEARCH_BRIEF);
+  }).length;
+
 
     setDigest({
       period: {
@@ -557,7 +567,7 @@ export default function Dashboard() {
         notesCreated,
         docsUploaded,
         favoritedNotes,
-        synthesizedDocs: 0,
+        synthesizedDocs: synthesizedDocs7d,
         totalItems: Number(notes.length) + Number(docs.length),
       },
       insights: {
@@ -725,7 +735,7 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <DigestStatCard
                   icon={<Note size={18} weight="duotone" />}
                   value={notes.length}
@@ -737,6 +747,12 @@ export default function Dashboard() {
                   value={docs.length}
                   label="Docs (7d)"
                   color="purple"
+                />
+                <DigestStatCard
+                  icon={<Brain size={18} weight="duotone" />}
+                  value={digest.stats.synthesizedDocs}
+                  label="Synthesized (7d)"
+                  color="emerald"
                 />
                 <DigestStatCard
                   icon={<Target size={18} weight="duotone" />}

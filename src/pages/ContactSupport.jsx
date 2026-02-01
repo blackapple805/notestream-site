@@ -1,9 +1,14 @@
 // src/pages/ContactSupport.jsx
-import { useState, useRef, useEffect } from "react";
+// ✅ DB-first profile prefill (no localStorage for name/email)
+// ✅ Stale-response guard to prevent “revert”
+// ✅ Saves support tickets to Supabase (support_tickets)
+
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
 import { useSubscription } from "../hooks/useSubscription";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import {
   FiArrowLeft,
   FiSend,
@@ -28,6 +33,10 @@ import {
   Clock,
 } from "phosphor-react";
 
+// Tables
+const USER_STATS_TABLE = "user_engagement_stats";
+const SUPPORT_TICKETS_TABLE = "support_tickets";
+
 // Support categories
 const supportCategories = [
   { id: "general", label: "General Question", icon: Question, color: "sky" },
@@ -47,29 +56,46 @@ const priorityLevels = [
 
 // Simulated support bot responses
 const liveChatResponses = {
-  greeting: "Hi! 👋 I'm connecting you with our support team. While you wait, can you briefly describe your issue?",
-  received: "Thanks for the details! I've notified our team. A support agent will be with you shortly.\n\nIn the meantime, have you checked our **Help Center**? Many common questions are answered there.",
-  waiting: "Our team is reviewing your message. Pro and Team members get priority support with faster response times! 🚀",
-  agent: "**Sarah from Support** has joined the chat.\n\nHi there! I've reviewed your message. How can I help you today?",
+  greeting:
+    "Hi! 👋 I'm connecting you with our support team. While you wait, can you briefly describe your issue?",
+  received:
+    "Thanks for the details! I've notified our team. A support agent will be with you shortly.\n\nIn the meantime, have you checked our **Help Center**? Many common questions are answered there.",
+  waiting:
+    "Our team is reviewing your message. Pro and Team members get priority support with faster response times! 🚀",
+  agent:
+    "**Sarah from Support** has joined the chat.\n\nHi there! I've reviewed your message. How can I help you today?",
 };
 
 export default function ContactSupport() {
   const navigate = useNavigate();
   const { subscription } = useSubscription();
   const isPro = subscription?.plan && subscription.plan !== "free";
-  
-  // Form state
+
+  // ✅ Profile state (DB/Auth is source of truth)
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [profile, setProfile] = useState({ name: "", email: "" });
+
+  // ✅ Form state (name/email are hydrated from profile, not localStorage)
   const [formData, setFormData] = useState({
-    name: localStorage.getItem("notestream-displayName") || "",
-    email: localStorage.getItem("notestream-email") || "",
+    name: "",
+    email: "",
     category: "",
     priority: "medium",
     subject: "",
     message: "",
   });
+
+  // Track if user has edited name/email so hydration can’t overwrite it
+  const touchedRef = useRef({ name: false, email: false });
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [errors, setErrors] = useState({});
+
+  // Stale-response guard (prevents revert)
+  const loadReqIdRef = useRef(0);
 
   // Live chat state
   const [showLiveChat, setShowLiveChat] = useState(false);
@@ -87,6 +113,118 @@ export default function ContactSupport() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
+  const colorMap = useMemo(
+    () => ({
+      sky: "bg-sky-500/15 border-sky-500/25 text-sky-400",
+      rose: "bg-rose-500/15 border-rose-500/25 text-rose-400",
+      amber: "bg-amber-500/15 border-amber-500/25 text-amber-400",
+      emerald: "bg-emerald-500/15 border-emerald-500/25 text-emerald-400",
+      purple: "bg-purple-500/15 border-purple-500/25 text-purple-400",
+      indigo: "bg-indigo-500/15 border-indigo-500/25 text-indigo-400",
+    }),
+    []
+  );
+
+  const selectedCategory = supportCategories.find((c) => c.id === formData.category);
+
+  // ✅ Insert stats row if missing (safe)
+  const ensureStatsRow = async (user) => {
+    if (!user?.id) return;
+
+    const nameFromAuth =
+      user.user_metadata?.full_name ??
+      user.user_metadata?.name ??
+      (user.email ? user.email.split("@")[0] : null);
+
+    try {
+      const { error } = await supabase.rpc("ensure_user_stats_exists", {
+        p_user_id: user.id,
+        p_display_name: nameFromAuth,
+      });
+      if (error) console.warn("ensure_user_stats_exists error:", error);
+    } catch (err) {
+      console.warn("ensureStatsRow error (non-blocking):", err);
+    }
+  };
+
+  // ✅ Load profile from Auth + DB display_name (DB wins)
+  const loadProfile = async () => {
+    if (!isSupabaseConfigured || !supabase) return;
+
+    const reqId = ++loadReqIdRef.current;
+    setProfileError("");
+    setProfileLoading(true);
+
+    try {
+      const { data: sessRes, error: sessErr } = await supabase.auth.getSession();
+      if (sessErr) throw sessErr;
+
+      const user = sessRes?.session?.user;
+      if (!user?.id) {
+        if (reqId !== loadReqIdRef.current) return;
+        setProfile({ name: "", email: "" });
+        setFormData((p) => ({
+          ...p,
+          name: touchedRef.current.name ? p.name : "",
+          email: touchedRef.current.email ? p.email : "",
+        }));
+        return;
+      }
+
+      await ensureStatsRow(user);
+
+      // Auth email is reliable
+      const authEmail = user.email || "";
+
+      // DB display name (single source of truth)
+      let dbName = "";
+      const { data, error } = await supabase
+        .from(USER_STATS_TABLE)
+        .select("display_name")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!error) dbName = data?.display_name || "";
+      // If RLS blocks read, we’ll fall back to auth metadata (but won’t overwrite user edits)
+      if (error) {
+        dbName =
+          user.user_metadata?.full_name ??
+          user.user_metadata?.name ??
+          (authEmail ? authEmail.split("@")[0] : "");
+      }
+
+      if (reqId !== loadReqIdRef.current) return;
+
+      const nextProfile = { name: dbName, email: authEmail };
+      setProfile(nextProfile);
+
+      // Prefill form fields, but do not override user edits
+      setFormData((prev) => ({
+        ...prev,
+        name: touchedRef.current.name ? prev.name : nextProfile.name,
+        email: touchedRef.current.email ? prev.email : nextProfile.email,
+      }));
+    } catch (e) {
+      if (reqId !== loadReqIdRef.current) return;
+      setProfileError(e?.message || "Failed to load profile.");
+    } finally {
+      if (reqId === loadReqIdRef.current) setProfileLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProfile();
+
+    if (!supabase) return;
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      // Re-hydrate safely (guard prevents revert)
+      loadProfile();
+    });
+
+    return () => sub?.subscription?.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Open live chat
   const openLiveChat = () => {
     setShowLiveChat(true);
@@ -101,40 +239,48 @@ export default function ContactSupport() {
 
     const userMessage = chatInput.trim();
     setChatInput("");
-    setChatMessages(prev => [...prev, { type: "user", text: userMessage }]);
+    setChatMessages((prev) => [...prev, { type: "user", text: userMessage }]);
     setIsTyping(true);
 
-    // Simulate response based on chat phase
-    await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
+    await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1000));
 
     let response = "";
     if (chatPhase === 0) {
       response = liveChatResponses.received;
       setChatPhase(1);
-      // Simulate agent joining after a delay
       setTimeout(async () => {
         setIsTyping(true);
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 2000));
         setIsTyping(false);
-        setChatMessages(prev => [...prev, { type: "bot", text: liveChatResponses.waiting }]);
+        setChatMessages((prev) => [...prev, { type: "bot", text: liveChatResponses.waiting }]);
         setChatPhase(2);
-        
-        // Agent joins
+
         setTimeout(async () => {
           setIsTyping(true);
-          await new Promise(r => setTimeout(r, 3000));
+          await new Promise((r) => setTimeout(r, 3000));
           setIsTyping(false);
-          setChatMessages(prev => [...prev, { type: "agent", text: liveChatResponses.agent, agentName: "Sarah" }]);
+          setChatMessages((prev) => [
+            ...prev,
+            { type: "agent", text: liveChatResponses.agent, agentName: "Sarah" },
+          ]);
           setChatPhase(3);
         }, 4000);
       }, 3000);
     } else if (chatPhase >= 2) {
-      response = "I understand. Let me look into that for you. Can you provide any additional details that might help?";
+      response =
+        "I understand. Let me look into that for you. Can you provide any additional details that might help?";
     }
 
     setIsTyping(false);
     if (response) {
-      setChatMessages(prev => [...prev, { type: chatPhase >= 3 ? "agent" : "bot", text: response, agentName: chatPhase >= 3 ? "Sarah" : undefined }]);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          type: chatPhase >= 3 ? "agent" : "bot",
+          text: response,
+          agentName: chatPhase >= 3 ? "Sarah" : undefined,
+        },
+      ]);
     }
   };
 
@@ -147,48 +293,82 @@ export default function ContactSupport() {
     if (!formData.category) newErrors.category = "Please select a category";
     if (!formData.subject.trim()) newErrors.subject = "Subject is required";
     if (!formData.message.trim()) newErrors.message = "Message is required";
-    else if (formData.message.trim().length < 20) newErrors.message = "Please provide more details (at least 20 characters)";
-    
+    else if (formData.message.trim().length < 20)
+      newErrors.message = "Please provide more details (at least 20 characters)";
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Submit form
+  // ✅ Submit form -> saves to DB
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError("");
     if (!validateForm()) return;
 
     setIsSubmitting(true);
-    
-    // Simulate API call
-    await new Promise(r => setTimeout(r, 1500));
-    
-    setIsSubmitting(false);
-    setSubmitSuccess(true);
+
+    try {
+      if (!isSupabaseConfigured || !supabase) {
+        throw new Error("Supabase not configured.");
+      }
+
+      const { data: sessRes, error: sessErr } = await supabase.auth.getSession();
+      if (sessErr) throw sessErr;
+
+      const user = sessRes?.session?.user;
+      if (!user?.id) throw new Error("You must be signed in to submit a ticket.");
+
+      // Insert ticket
+      const payload = {
+        user_id: user.id,
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        category: formData.category,
+        priority: formData.priority,
+        subject: formData.subject.trim(),
+        message: formData.message.trim(),
+        status: "open",
+        // Optional helpful metadata (safe to store)
+        meta: {
+          plan: subscription?.plan || "free",
+          app_version: "1.0.0",
+          ua: typeof navigator !== "undefined" ? navigator.userAgent : "",
+        },
+      };
+
+      const { data, error } = await supabase
+        .from(SUPPORT_TICKETS_TABLE)
+        .insert(payload)
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      if (!data?.id) throw new Error("Ticket insert failed.");
+
+      setSubmitSuccess(true);
+      setErrors({});
+    } catch (err) {
+      setSubmitError(err?.message || "Failed to submit ticket.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // Reset form
+  // Reset form (keep name/email)
   const resetForm = () => {
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
+      name: profile.name || prev.name,
+      email: profile.email || prev.email,
       category: "",
       priority: "medium",
       subject: "",
       message: "",
-    });
+    }));
     setSubmitSuccess(false);
+    setSubmitError("");
     setErrors({});
-  };
-
-  const selectedCategory = supportCategories.find(c => c.id === formData.category);
-
-  const colorMap = {
-    sky: "bg-sky-500/15 border-sky-500/25 text-sky-400",
-    rose: "bg-rose-500/15 border-rose-500/25 text-rose-400",
-    amber: "bg-amber-500/15 border-amber-500/25 text-amber-400",
-    emerald: "bg-emerald-500/15 border-emerald-500/25 text-emerald-400",
-    purple: "bg-purple-500/15 border-purple-500/25 text-purple-400",
-    indigo: "bg-indigo-500/15 border-indigo-500/25 text-indigo-400",
   };
 
   return (
@@ -209,7 +389,9 @@ export default function ContactSupport() {
                 <ChatCircleDots size={18} weight="duotone" className="text-emerald-400" />
               </div>
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">Contact Support</h1>
+                <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">
+                  Contact Support
+                </h1>
                 <p className="text-theme-muted text-sm">We're here to help</p>
               </div>
             </div>
@@ -232,6 +414,7 @@ export default function ContactSupport() {
             <p className="text-xs text-theme-muted">Chat with us now</p>
           </div>
         </button>
+
         <button
           onClick={() => document.getElementById("ticket-form")?.scrollIntoView({ behavior: "smooth" })}
           className="flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all hover:border-emerald-500/30 hover:bg-emerald-500/5"
@@ -250,9 +433,11 @@ export default function ContactSupport() {
       {/* Response Time Info */}
       <GlassCard className="p-4">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-            isPro ? "bg-amber-500/15 border border-amber-500/25" : "bg-theme-tertiary"
-          }`}>
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+              isPro ? "bg-amber-500/15 border border-amber-500/25" : "bg-theme-tertiary"
+            }`}
+          >
             {isPro ? (
               <Crown size={20} weight="fill" className="text-amber-400" />
             ) : (
@@ -264,10 +449,7 @@ export default function ContactSupport() {
               {isPro ? "Priority Support" : "Standard Support"}
             </p>
             <p className="text-xs text-theme-muted">
-              {isPro 
-                ? "Average response time: 2-4 hours" 
-                : "Average response time: 24-48 hours"
-              }
+              {isPro ? "Average response time: 2-4 hours" : "Average response time: 24-48 hours"}
             </p>
           </div>
           {!isPro && (
@@ -281,14 +463,10 @@ export default function ContactSupport() {
         </div>
       </GlassCard>
 
-      {/* Success State */}
+      {/* Success / Form */}
       <AnimatePresence mode="wait">
         {submitSuccess ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
             <GlassCard className="p-8 text-center">
               <motion.div
                 initial={{ scale: 0 }}
@@ -300,8 +478,8 @@ export default function ContactSupport() {
               </motion.div>
               <h3 className="text-xl font-semibold text-theme-primary mb-2">Ticket Submitted!</h3>
               <p className="text-theme-muted text-sm mb-6">
-                We've received your message and will get back to you {isPro ? "within 2-4 hours" : "within 24-48 hours"}.
-                Check your email for confirmation.
+                We've received your message and will get back to you{" "}
+                {isPro ? "within 2-4 hours" : "within 24-48 hours"}. Check your email for confirmation.
               </p>
               <div className="flex gap-3 justify-center">
                 <button
@@ -321,12 +499,7 @@ export default function ContactSupport() {
             </GlassCard>
           </motion.div>
         ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-          >
-            {/* Ticket Form */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
             <GlassCard id="ticket-form">
               <div className="flex items-center gap-2 mb-5">
                 <div className="h-8 w-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
@@ -335,62 +508,98 @@ export default function ContactSupport() {
                 <h2 className="text-sm font-semibold text-emerald-300">Submit a Support Ticket</h2>
               </div>
 
+              {profileError && (
+                <div className="mb-4 text-[11px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+                  {profileError}
+                </div>
+              )}
+
+              {submitError && (
+                <div className="mb-4 text-[11px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+                  {submitError}
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Name & Email Row */}
+                {/* Name & Email */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-theme-muted mb-1.5 block">Your Name *</label>
                     <input
                       type="text"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) => {
+                        touchedRef.current.name = true;
+                        setFormData((p) => ({ ...p, name: e.target.value }));
+                      }}
                       className={`w-full border rounded-xl px-4 py-2.5 text-theme-primary text-sm placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 transition ${
                         errors.name ? "border-rose-500/50" : ""
                       }`}
-                      style={{ backgroundColor: "var(--bg-input)", borderColor: errors.name ? undefined : "var(--border-secondary)" }}
-                      placeholder="John Doe"
+                      style={{
+                        backgroundColor: "var(--bg-input)",
+                        borderColor: errors.name ? undefined : "var(--border-secondary)",
+                      }}
+                      placeholder={profileLoading ? "Loading..." : "John Doe"}
+                      disabled={profileLoading && !formData.name}
                     />
                     {errors.name && <p className="text-xs text-rose-400 mt-1">{errors.name}</p>}
                   </div>
+
                   <div>
                     <label className="text-xs text-theme-muted mb-1.5 block">Email Address *</label>
                     <input
                       type="email"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) => {
+                        touchedRef.current.email = true;
+                        setFormData((p) => ({ ...p, email: e.target.value }));
+                      }}
                       className={`w-full border rounded-xl px-4 py-2.5 text-theme-primary text-sm placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 transition ${
                         errors.email ? "border-rose-500/50" : ""
                       }`}
-                      style={{ backgroundColor: "var(--bg-input)", borderColor: errors.email ? undefined : "var(--border-secondary)" }}
-                      placeholder="you@example.com"
+                      style={{
+                        backgroundColor: "var(--bg-input)",
+                        borderColor: errors.email ? undefined : "var(--border-secondary)",
+                      }}
+                      placeholder={profileLoading ? "Loading..." : "you@example.com"}
+                      disabled={profileLoading && !formData.email}
                     />
                     {errors.email && <p className="text-xs text-rose-400 mt-1">{errors.email}</p>}
                   </div>
                 </div>
 
-                {/* Category Dropdown */}
+                {/* Category */}
                 <div>
                   <label className="text-xs text-theme-muted mb-1.5 block">Category *</label>
                   <div className="relative">
                     <button
                       type="button"
-                      onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                      onClick={() => setShowCategoryDropdown((v) => !v)}
                       className={`w-full flex items-center justify-between border rounded-xl px-4 py-2.5 text-sm transition ${
                         errors.category ? "border-rose-500/50" : ""
                       }`}
-                      style={{ backgroundColor: "var(--bg-input)", borderColor: errors.category ? undefined : "var(--border-secondary)" }}
+                      style={{
+                        backgroundColor: "var(--bg-input)",
+                        borderColor: errors.category ? undefined : "var(--border-secondary)",
+                      }}
                     >
                       {selectedCategory ? (
                         <div className="flex items-center gap-2">
-                          <selectedCategory.icon size={16} className={colorMap[selectedCategory.color].split(" ")[2]} />
+                          <selectedCategory.icon
+                            size={16}
+                            className={colorMap[selectedCategory.color].split(" ")[2]}
+                          />
                           <span className="text-theme-primary">{selectedCategory.label}</span>
                         </div>
                       ) : (
                         <span className="text-theme-muted">Select a category</span>
                       )}
-                      <FiChevronDown size={16} className={`text-theme-muted transition-transform ${showCategoryDropdown ? "rotate-180" : ""}`} />
+                      <FiChevronDown
+                        size={16}
+                        className={`text-theme-muted transition-transform ${showCategoryDropdown ? "rotate-180" : ""}`}
+                      />
                     </button>
-                    
+
                     <AnimatePresence>
                       {showCategoryDropdown && (
                         <motion.div
@@ -398,14 +607,17 @@ export default function ContactSupport() {
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
                           className="absolute top-full left-0 right-0 mt-2 rounded-xl border shadow-xl z-20 overflow-hidden"
-                          style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+                          style={{
+                            backgroundColor: "var(--bg-surface)",
+                            borderColor: "var(--border-secondary)",
+                          }}
                         >
                           {supportCategories.map((cat) => (
                             <button
                               key={cat.id}
                               type="button"
                               onClick={() => {
-                                setFormData({ ...formData, category: cat.id });
+                                setFormData((p) => ({ ...p, category: cat.id }));
                                 setShowCategoryDropdown(false);
                               }}
                               className={`w-full flex items-center gap-3 px-4 py-3 text-left transition hover:bg-white/5 ${
@@ -416,9 +628,7 @@ export default function ContactSupport() {
                                 <cat.icon size={16} />
                               </div>
                               <span className="text-sm text-theme-primary">{cat.label}</span>
-                              {formData.category === cat.id && (
-                                <FiCheck size={16} className="ml-auto text-emerald-400" />
-                              )}
+                              {formData.category === cat.id && <FiCheck size={16} className="ml-auto text-emerald-400" />}
                             </button>
                           ))}
                         </motion.div>
@@ -436,7 +646,7 @@ export default function ContactSupport() {
                       <button
                         key={level.id}
                         type="button"
-                        onClick={() => setFormData({ ...formData, priority: level.id })}
+                        onClick={() => setFormData((p) => ({ ...p, priority: level.id }))}
                         className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition ${
                           formData.priority === level.id
                             ? level.color === "emerald"
@@ -453,7 +663,7 @@ export default function ContactSupport() {
                     ))}
                   </div>
                   <p className="text-[11px] text-theme-muted mt-1.5">
-                    {priorityLevels.find(l => l.id === formData.priority)?.description}
+                    {priorityLevels.find((l) => l.id === formData.priority)?.description}
                   </p>
                 </div>
 
@@ -463,11 +673,14 @@ export default function ContactSupport() {
                   <input
                     type="text"
                     value={formData.subject}
-                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                    onChange={(e) => setFormData((p) => ({ ...p, subject: e.target.value }))}
                     className={`w-full border rounded-xl px-4 py-2.5 text-theme-primary text-sm placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 transition ${
                       errors.subject ? "border-rose-500/50" : ""
                     }`}
-                    style={{ backgroundColor: "var(--bg-input)", borderColor: errors.subject ? undefined : "var(--border-secondary)" }}
+                    style={{
+                      backgroundColor: "var(--bg-input)",
+                      borderColor: errors.subject ? undefined : "var(--border-secondary)",
+                    }}
                     placeholder="Brief description of your issue"
                   />
                   {errors.subject && <p className="text-xs text-rose-400 mt-1">{errors.subject}</p>}
@@ -478,13 +691,16 @@ export default function ContactSupport() {
                   <label className="text-xs text-theme-muted mb-1.5 block">Message *</label>
                   <textarea
                     value={formData.message}
-                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                    onChange={(e) => setFormData((p) => ({ ...p, message: e.target.value }))}
                     rows={5}
                     className={`w-full border rounded-xl px-4 py-3 text-theme-primary text-sm placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 resize-none transition ${
                       errors.message ? "border-rose-500/50" : ""
                     }`}
-                    style={{ backgroundColor: "var(--bg-input)", borderColor: errors.message ? undefined : "var(--border-secondary)" }}
-                    placeholder="Please describe your issue in detail. Include any relevant information like steps to reproduce, error messages, etc."
+                    style={{
+                      backgroundColor: "var(--bg-input)",
+                      borderColor: errors.message ? undefined : "var(--border-secondary)",
+                    }}
+                    placeholder="Please describe your issue in detail. Include steps to reproduce, error messages, etc."
                   />
                   <div className="flex justify-between mt-1">
                     {errors.message && <p className="text-xs text-rose-400">{errors.message}</p>}
@@ -492,7 +708,7 @@ export default function ContactSupport() {
                   </div>
                 </div>
 
-                {/* Submit Button */}
+                {/* Submit */}
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -554,8 +770,10 @@ export default function ContactSupport() {
             className="fixed bottom-[calc(env(safe-area-inset-bottom)+var(--mobile-nav-height)+16px)] right-4 left-4 sm:left-auto sm:w-[380px] z-[100] rounded-2xl border shadow-2xl overflow-hidden"
             style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-emerald-500/10 to-teal-500/10" style={{ borderColor: "var(--border-secondary)" }}>
+            <div
+              className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-emerald-500/10 to-teal-500/10"
+              style={{ borderColor: "var(--border-secondary)" }}
+            >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
                   <ChatCircleDots size={22} weight="fill" className="text-white" />
@@ -577,7 +795,6 @@ export default function ContactSupport() {
               </button>
             </div>
 
-            {/* Messages */}
             <div className="h-[300px] overflow-y-auto p-4 space-y-3">
               {chatMessages.map((msg, idx) => (
                 <motion.div
@@ -587,13 +804,15 @@ export default function ContactSupport() {
                   className={`flex ${msg.type === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div className={`flex items-end gap-2 max-w-[85%] ${msg.type === "user" ? "flex-row-reverse" : ""}`}>
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      msg.type === "user" 
-                        ? "bg-indigo-500/20 border border-indigo-500/30" 
-                        : msg.type === "agent"
-                        ? "bg-gradient-to-br from-emerald-500 to-teal-600"
-                        : "bg-gradient-to-br from-indigo-500 to-purple-600"
-                    }`}>
+                    <div
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        msg.type === "user"
+                          ? "bg-indigo-500/20 border border-indigo-500/30"
+                          : msg.type === "agent"
+                          ? "bg-gradient-to-br from-emerald-500 to-teal-600"
+                          : "bg-gradient-to-br from-indigo-500 to-purple-600"
+                      }`}
+                    >
                       {msg.type === "user" ? (
                         <User size={14} className="text-indigo-400" />
                       ) : msg.type === "agent" ? (
@@ -602,22 +821,21 @@ export default function ContactSupport() {
                         <Robot size={14} weight="fill" className="text-white" />
                       )}
                     </div>
-                    <div className={`px-4 py-2.5 rounded-2xl text-sm ${
-                      msg.type === "user"
-                        ? "bg-indigo-500/15 border border-indigo-500/25 text-theme-primary rounded-br-md"
-                        : "bg-theme-tertiary text-theme-secondary rounded-bl-md"
-                    }`}>
+                    <div
+                      className={`px-4 py-2.5 rounded-2xl text-sm ${
+                        msg.type === "user"
+                          ? "bg-indigo-500/15 border border-indigo-500/25 text-theme-primary rounded-br-md"
+                          : "bg-theme-tertiary text-theme-secondary rounded-bl-md"
+                      }`}
+                    >
                       <ChatMessage text={msg.text} />
                     </div>
                   </div>
                 </motion.div>
               ))}
+
               {isTyping && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex items-end gap-2"
-                >
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-end gap-2">
                   <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
                     <ChatCircleDots size={14} weight="fill" className="text-white" />
                   </div>
@@ -630,10 +848,10 @@ export default function ContactSupport() {
                   </div>
                 </motion.div>
               )}
+
               <div ref={chatEndRef} />
             </div>
 
-            {/* Input */}
             <div className="p-4 border-t" style={{ borderColor: "var(--border-secondary)" }}>
               <form
                 onSubmit={(e) => {
@@ -663,7 +881,6 @@ export default function ContactSupport() {
         )}
       </AnimatePresence>
 
-      {/* Floating Chat Button (when closed) */}
       {!showLiveChat && (
         <motion.button
           initial={{ scale: 0 }}
@@ -682,8 +899,7 @@ export default function ContactSupport() {
 
 // Chat message renderer with markdown-like formatting
 function ChatMessage({ text }) {
-  const lines = text.split('\n');
-  
+  const lines = text.split("\n");
   return (
     <span className="whitespace-pre-wrap">
       {lines.map((line, lineIdx) => {
@@ -692,7 +908,11 @@ function ChatMessage({ text }) {
           <span key={lineIdx}>
             {parts.map((part, idx) => {
               if (part.startsWith("**") && part.endsWith("**")) {
-                return <strong key={idx} className="font-semibold text-theme-primary">{part.slice(2, -2)}</strong>;
+                return (
+                  <strong key={idx} className="font-semibold text-theme-primary">
+                    {part.slice(2, -2)}
+                  </strong>
+                );
               }
               return <span key={idx}>{part}</span>;
             })}

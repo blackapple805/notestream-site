@@ -1,7 +1,10 @@
 // src/pages/Settings.jsx
-// ✅ FIXED: Uses safe RPC functions to prevent data overwrites
+// ✅ DB-first profile (no localStorage for displayName/email)
+// ✅ Race-safe hydration (prevents “revert” from stale async responses)
+// ✅ Save flow: optimistic UI -> DB update -> verify -> optional auth metadata sync
+// Keeps ThemeContext + WorkspaceSettings as-is (they may use localStorage internally)
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
@@ -61,22 +64,19 @@ function getLast7DaysRange() {
 export default function Settings() {
   const navigate = useNavigate();
 
-  // Theme from context (persists to localStorage)
+  // Theme from context (persists to localStorage inside ThemeContext)
   const { theme, setTheme, resolvedTheme } = useTheme();
 
-  // Workspace settings from shared context
+  // Workspace settings from shared context (may persist internally; not changed here)
   const { settings, updateSetting } = useWorkspaceSettings();
 
-  // Profile state
-  const [displayName, setDisplayName] = useState(() => {
-    return localStorage.getItem("notestream-displayName") || "Angel";
-  });
-  const [email, setEmail] = useState(() => {
-    return localStorage.getItem("notestream-email") || "you@example.com";
-  });
+  // ✅ Profile state (DB/Auth is source of truth)
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
 
-  // Security
+  // Security (PIN still local-only unless you add a DB table for it)
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinEnabled, setPinEnabled] = useState(() => {
     return localStorage.getItem("ns-note-pin") !== null;
@@ -95,13 +95,24 @@ export default function Settings() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState("");
 
+  // --- Race-control refs (prevents “revert” caused by stale async calls) ---
+  const reqRef = useRef(0); // increments for each hydrate; older responses ignored
+  const savingRef = useRef(false); // if true, hydration won't overwrite displayName
+
   const showToast = (message) => {
     setToast(message);
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ✅ FIXED: Use RPC function instead of problematic upsert
-  const ensureStatsRow = async (user) => {
+  const getUser = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase) return null;
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    return data?.session?.user ?? null;
+  }, []);
+
+  // ✅ Insert row if missing (does NOT overwrite because ON CONFLICT DO NOTHING)
+  const ensureStatsRow = useCallback(async (user) => {
     if (!user?.id) return;
 
     const nameFromAuth =
@@ -110,218 +121,216 @@ export default function Settings() {
       (user.email ? user.email.split("@")[0] : null);
 
     try {
-      // Try using the RPC function first (safest - does INSERT ... ON CONFLICT DO NOTHING)
-      const { error: rpcError } = await supabase.rpc("ensure_user_stats_exists", {
+      const { error } = await supabase.rpc("ensure_user_stats_exists", {
         p_user_id: user.id,
+        // Only used on first insert; won't overwrite existing row.
         p_display_name: nameFromAuth,
       });
-
-      if (rpcError) {
-        // Fallback: Check if row exists, only insert if not
-        console.warn("RPC ensure_user_stats_exists failed, using fallback:", rpcError);
-        
-        const { data: existing } = await supabase
-          .from(USER_STATS_TABLE)
-          .select("user_id")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (!existing) {
-          // No row exists, safe to insert
-          await supabase.from(USER_STATS_TABLE).insert({
-            user_id: user.id,
-            display_name: nameFromAuth,
-            notes_created: 0,
-            ai_uses: 0,
-            active_days: 1,
-            streak_days: 1,
-            last_active_date: new Date().toISOString().split("T")[0],
-          });
-        }
-      }
+      if (error) console.warn("ensure_user_stats_exists error:", error);
     } catch (err) {
       console.warn("ensureStatsRow error (non-blocking):", err);
     }
-  };
+  }, []);
 
-  const loadStats = async () => {
+  // ✅ One hydration path for BOTH profile + stats (single source of truth, race-safe)
+  const hydrateFromDb = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) return;
 
-    setStatsError("");
+    const myReq = ++reqRef.current;
+
+    setProfileLoading(true);
     setStatsLoading(true);
+    setStatsError("");
 
     try {
-      const { data: sessRes, error: sessErr } = await supabase.auth.getSession();
-      if (sessErr) throw sessErr;
+      const user = await getUser();
 
-      const user = sessRes?.session?.user;
+      // If a newer hydrate started, ignore this one
+      if (myReq !== reqRef.current) return;
+
       if (!user?.id) {
+        if (!savingRef.current) {
+          setDisplayName("");
+          setEmail("");
+        }
         setStats(null);
-        setStatsLoading(false);
         return;
       }
 
-      // Update email from auth if available
-      if (user.email && email === "you@example.com") {
-        setEmail(user.email);
-        localStorage.setItem("notestream-email", user.email);
-      }
+      setEmail(user.email || "");
 
-      // Ensure row exists (first-time users) - won't overwrite existing data
+      // Ensure stats row exists (first time users)
       await ensureStatsRow(user);
 
+      // If a newer hydrate started, ignore this one
+      if (myReq !== reqRef.current) return;
+
+      // Fetch both display_name + stats in one query
       const { data, error } = await supabase
         .from(USER_STATS_TABLE)
-        .select("*")
+        .select("display_name, notes_created, ai_uses, active_days, streak_days, last_active_date")
         .eq("user_id", user.id)
         .single();
 
       if (error) throw error;
 
-      setStats(data ?? null);
-
-      // Sync display name from DB if local is default
-      if (
-        data?.display_name &&
-        (displayName === "Angel" || displayName === "Unknown")
-      ) {
-        setDisplayName(data.display_name);
-        localStorage.setItem("notestream-displayName", data.display_name);
+      // Only overwrite displayName if we're NOT in the middle of saving
+      if (!savingRef.current) {
+        setDisplayName(data?.display_name || "");
       }
+
+      setStats(
+        data
+          ? {
+              notes_created: data.notes_created ?? 0,
+              ai_uses: data.ai_uses ?? 0,
+              active_days: data.active_days ?? 0,
+              streak_days: data.streak_days ?? 0,
+              last_active_date: data.last_active_date ?? null,
+            }
+          : null
+      );
     } catch (e) {
+      // Only show stats error; keep profile UI usable
       setStats(null);
       setStatsError(e?.message || "Failed to load user stats.");
+      console.warn("hydrateFromDb failed:", e);
     } finally {
-      setStatsLoading(false);
+      if (myReq === reqRef.current) {
+        setProfileLoading(false);
+        setStatsLoading(false);
+      }
     }
-  };
+  }, [ensureStatsRow, getUser]);
 
   useEffect(() => {
-    loadStats();
+    hydrateFromDb();
 
     if (!supabase) return;
     const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      loadStats();
+      // Cancel any in-flight responses and re-hydrate
+      reqRef.current += 1;
+      hydrateFromDb();
     });
 
     return () => sub?.subscription?.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ✅ Save profile to DB only. Prevent “revert” by blocking hydration overwrite while saving.
   const handleSaveProfile = async () => {
-    localStorage.setItem("notestream-displayName", displayName);
-    localStorage.setItem("notestream-email", email);
+    const cleanName = (displayName || "").trim();
+    if (!cleanName) return showToast("Display name cannot be empty.");
+
     setIsEditingProfile(false);
 
-    // Sync display_name to Supabase (only updates that field, not others)
-    try {
-      if (isSupabaseConfigured && supabase) {
-        const { data: sessRes } = await supabase.auth.getSession();
-        const user = sessRes?.session?.user;
-        if (user?.id) {
-          // ✅ Only update display_name, preserving all other stats
-          await supabase
-            .from(USER_STATS_TABLE)
-            .update({ display_name: displayName, updated_at: new Date().toISOString() })
-            .eq("user_id", user.id);
-          await loadStats();
-        }
-      }
-    } catch (err) {
-      console.warn("Profile sync failed:", err);
-    }
+    // Optimistic UI + lock
+    savingRef.current = true;
+    setDisplayName(cleanName);
 
-    showToast("Profile updated successfully!");
+    try {
+      if (!isSupabaseConfigured || !supabase) throw new Error("Supabase not configured.");
+
+      const user = await getUser();
+      if (!user?.id) throw new Error("Not signed in.");
+
+      await ensureStatsRow(user);
+
+      // Update DB
+      const { data, error } = await supabase
+        .from(USER_STATS_TABLE)
+        .update({ display_name: cleanName })
+        .eq("user_id", user.id)
+        .select("display_name");
+
+      if (error) throw error;
+
+      // If RLS blocked update, data will be []
+      if (!data || data.length === 0) {
+        throw new Error("Update blocked (RLS) or no row matched user_id.");
+      }
+
+      // Optional: keep auth metadata consistent (best-effort)
+      // This prevents other parts of the app (using user_metadata) from “re-seeding” names.
+      try {
+        await supabase.auth.updateUser({
+          data: { full_name: cleanName, name: cleanName },
+        });
+      } catch (metaErr) {
+        // non-blocking
+        console.warn("auth.updateUser metadata sync failed:", metaErr);
+      }
+
+      showToast("Profile updated successfully!");
+
+      // Verify by re-hydrating from DB (new request id cancels older ones)
+      reqRef.current += 1;
+      savingRef.current = false;
+      hydrateFromDb();
+    } catch (err) {
+      console.warn("Profile save failed:", err);
+      showToast(err?.message || "Save failed.");
+
+      // Unlock and revert to DB truth
+      savingRef.current = false;
+      reqRef.current += 1;
+      hydrateFromDb();
+    }
   };
 
   const handleExportData = async () => {
     try {
-      // Gather all user data
       const exportData = {
         exportDate: new Date().toISOString(),
         version: "1.0.0",
         profile: {
-          displayName: localStorage.getItem("notestream-displayName") || "Unknown",
-          email: localStorage.getItem("notestream-email") || "Unknown",
+          displayName: displayName || "Unknown",
+          email: email || "Unknown",
         },
         settings: {
-          theme: localStorage.getItem("notestream-theme") || "dark",
-          autoSummarize: localStorage.getItem("notestream-autoSummarize") === "true",
-          smartNotifications: localStorage.getItem("notestream-smartNotifications") === "true",
-          weeklyDigest: localStorage.getItem("notestream-weeklyDigest") === "true",
+          theme: theme || "dark",
+          autoSummarize: !!settings.autoSummarize,
+          smartNotifications: !!settings.smartNotifications,
+          weeklyDigest: !!settings.weeklyDigest,
           pinEnabled: localStorage.getItem("ns-note-pin") !== null,
         },
         stats: stats || {},
         notes: [],
         documents: [],
+        activity: [],
       };
 
-      // Try to export from Supabase if available
       if (isSupabaseConfigured && supabase) {
-        try {
-          const { data: sessRes } = await supabase.auth.getSession();
-          const user = sessRes?.session?.user;
-          
-          if (user?.id) {
-            // Export notes
-            const { data: notesData } = await supabase
-              .from("notes")
-              .select("*")
-              .eq("user_id", user.id)
-              .order("created_at", { ascending: false });
-            
-            if (notesData) {
-              exportData.notes = notesData;
-            }
+        const user = await getUser();
 
-            // Export documents metadata
-            const { data: docsData } = await supabase
-              .from("documents")
-              .select("*")
-              .eq("user_id", user.id)
-              .order("created_at", { ascending: false });
-            
-            if (docsData) {
-              exportData.documents = docsData;
-            }
+        if (user?.id) {
+          const { data: notesData } = await supabase
+            .from("notes")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false });
 
-            // Export activity events
-            const { data: activityData } = await supabase
-              .from("activity_events")
-              .select("*")
-              .eq("user_id", user.id)
-              .order("created_at", { ascending: false })
-              .limit(500);
-            
-            if (activityData) {
-              exportData.activity = activityData;
-            }
-          }
-        } catch (dbErr) {
-          console.warn("Database export failed, using localStorage only:", dbErr);
+          if (notesData) exportData.notes = notesData;
+
+          const { data: docsData } = await supabase
+            .from("documents")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false });
+
+          if (docsData) exportData.documents = docsData;
+
+          const { data: activityData } = await supabase
+            .from("activity_events")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(500);
+
+          if (activityData) exportData.activity = activityData;
         }
       }
 
-      // Fallback to localStorage data
-      const notesData = localStorage.getItem("notestream-notes");
-      if (notesData && exportData.notes.length === 0) {
-        try {
-          exportData.notes = JSON.parse(notesData);
-        } catch {
-          exportData.notes = [];
-        }
-      }
-
-      const docsData = localStorage.getItem("notestream-documents");
-      if (docsData && exportData.documents.length === 0) {
-        try {
-          exportData.documents = JSON.parse(docsData);
-        } catch {
-          exportData.documents = [];
-        }
-      }
-
-      // Create and download file
       const dataStr = JSON.stringify(exportData, null, 2);
       const blob = new Blob([dataStr], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -354,12 +363,7 @@ export default function Settings() {
 
     if (value && isSupabaseConfigured && supabase) {
       try {
-        const { data: sessRes } = await supabase.auth.getSession();
-        const user = sessRes?.session?.user;
-        if (user?.id) {
-          await ensureStatsRow(user);
-          await loadStats();
-        }
+        await hydrateFromDb();
       } catch {
         // ignore
       }
@@ -382,13 +386,17 @@ export default function Settings() {
   const range = getLast7DaysRange();
   const digestPeriodLabel = `${formatDateShort(range.start)} - ${formatDateShort(range.end)}`;
 
-  const safeStats = stats || {
-    notes_created: 0,
-    ai_uses: 0,
-    active_days: 0,
-    streak_days: 0,
-    last_active_date: null,
-  };
+  const safeStats = useMemo(
+    () =>
+      stats || {
+        notes_created: 0,
+        ai_uses: 0,
+        active_days: 0,
+        streak_days: 0,
+        last_active_date: null,
+      },
+    [stats]
+  );
 
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
@@ -415,9 +423,7 @@ export default function Settings() {
           </div>
           <div>
             <h1 className="page-header-title">Settings</h1>
-            <p className="page-header-subtitle">
-              Control how NoteStream behaves across your workspace.
-            </p>
+            <p className="page-header-subtitle">Control how NoteStream behaves across your workspace.</p>
           </div>
         </div>
       </header>
@@ -444,33 +450,31 @@ export default function Settings() {
               />
             ) : (
               <div className="flex items-center justify-between bg-theme-input border border-theme-secondary rounded-xl px-4 py-2.5">
-                <span className="text-theme-primary text-sm">{displayName}</span>
+                <span className="text-theme-primary text-sm">
+                  {profileLoading ? "Loading..." : displayName || "—"}
+                </span>
               </div>
             )}
           </div>
 
-          {/* Email */}
+          {/* Email (read-only from auth unless you implement auth.updateUser email) */}
           <div>
             <label className="text-xs text-theme-muted mb-1.5 block">Email</label>
-            {isEditingProfile ? (
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-theme-input border border-theme-secondary rounded-xl px-4 py-2.5 text-theme-primary text-sm focus:outline-none focus:border-indigo-500/50"
-              />
-            ) : (
-              <div className="flex items-center justify-between bg-theme-input border border-theme-secondary rounded-xl px-4 py-2.5">
-                <span className="text-theme-primary text-sm">{email}</span>
-              </div>
-            )}
+            <div className="flex items-center justify-between bg-theme-input border border-theme-secondary rounded-xl px-4 py-2.5">
+              <span className="text-theme-primary text-sm">{email || "—"}</span>
+            </div>
           </div>
 
           {/* Edit/Save Button */}
           {isEditingProfile ? (
             <div className="flex gap-2">
               <button
-                onClick={() => setIsEditingProfile(false)}
+                onClick={() => {
+                  setIsEditingProfile(false);
+                  // Discard edits: re-hydrate from DB
+                  reqRef.current += 1;
+                  hydrateFromDb();
+                }}
                 className="flex-1 py-2.5 rounded-xl bg-theme-button text-theme-tertiary text-sm font-medium hover:bg-theme-button-hover transition"
               >
                 Cancel
@@ -546,9 +550,7 @@ export default function Settings() {
           </div>
           <h2 className="text-sm font-semibold text-emerald-300">Workspace</h2>
         </div>
-        <p className="text-xs text-theme-muted mb-4">
-          Configure how NoteStream uses AI across your workspace.
-        </p>
+        <p className="text-xs text-theme-muted mb-4">Configure how NoteStream uses AI across your workspace.</p>
 
         <div className="space-y-3">
           <ToggleSetting
@@ -598,7 +600,10 @@ export default function Settings() {
             <div className="mt-2 flex items-center justify-between">
               <button
                 type="button"
-                onClick={loadStats}
+                onClick={() => {
+                  reqRef.current += 1;
+                  hydrateFromDb();
+                }}
                 disabled={statsLoading}
                 className="text-[11px] text-theme-muted hover:text-theme-primary transition disabled:opacity-50"
               >
@@ -753,14 +758,12 @@ export default function Settings() {
             onConfirm={async () => {
               try {
                 if (isSupabaseConfigured && supabase) {
-                  const { data: sessRes } = await supabase.auth.getSession();
-                  const user = sessRes?.session?.user;
+                  const user = await getUser();
                   if (user?.id) {
-                    // Delete user data from database
                     await supabase.from("activity_events").delete().eq("user_id", user.id);
                     await supabase.from("notes").delete().eq("user_id", user.id);
                     await supabase.from("documents").delete().eq("user_id", user.id);
-                    await supabase.from("user_engagement_stats").delete().eq("user_id", user.id);
+                    await supabase.from(USER_STATS_TABLE).delete().eq("user_id", user.id);
                     await supabase.auth.signOut();
                   }
                 }
@@ -888,7 +891,9 @@ function SupportLink({ icon, label, badge, onClick }) {
         <span className="text-theme-muted">{icon}</span>
         <span className="text-sm text-theme-secondary">{label}</span>
         {badge && (
-          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">{badge}</span>
+          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">
+            {badge}
+          </span>
         )}
       </div>
       <FiChevronRight className="text-theme-muted group-hover:text-theme-tertiary transition" />
@@ -931,7 +936,10 @@ function ConfirmModal({ title, description, confirmLabel, confirmColor, icon, on
           >
             Cancel
           </button>
-          <button onClick={onConfirm} className={`flex-1 py-2.5 rounded-xl text-white text-sm font-medium transition ${colorMap[confirmColor]}`}>
+          <button
+            onClick={onConfirm}
+            className={`flex-1 py-2.5 rounded-xl text-white text-sm font-medium transition ${colorMap[confirmColor]}`}
+          >
             {confirmLabel}
           </button>
         </div>
@@ -991,7 +999,9 @@ function PinModal({ onSave, onCancel }) {
         </div>
 
         {error && (
-          <div className="mb-3 px-3 py-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">{error}</div>
+          <div className="mb-3 px-3 py-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
+            {error}
+          </div>
         )}
 
         <input
@@ -1027,3 +1037,5 @@ function PinModal({ onSave, onCancel }) {
     </motion.div>
   );
 }
+
+

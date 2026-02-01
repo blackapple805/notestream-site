@@ -1,6 +1,8 @@
 // src/pages/DocumentViewer.jsx
-// Update: Uses the same "Load notes from DB on page open" loader pattern (notesLoading + overlay)
-// Also: Reads the saved AI summary from `notes` table (tags: ["ai:doc_summary", `doc:${id}`])
+// Update: Adds incrementUsage(...) calls after successful feature usage
+// - ✅ AI Summary: incrementUsage("aiSummaries") after summary succeeds
+// - ✅ Rewrite: incrementUsage("insightQueries") after rewrite succeeds (using "insightQueries" as the closest bucket)
+// Notes: Always call incrementUsage with camelCase keys (mapping handled in hook)
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
@@ -21,8 +23,16 @@ import {
   FiMoreHorizontal,
   FiFile,
 } from "react-icons/fi";
-import { Sparkle, PencilSimple, Lightning, FileDoc, FilePdf, FileXls } from "phosphor-react";
+import {
+  Sparkle,
+  PencilSimple,
+  Lightning,
+  FileDoc,
+  FilePdf,
+  FileXls,
+} from "phosphor-react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { useSubscription } from "../hooks/useSubscription";
 
 const DOCS_TABLE = "documents";
 const NOTES_TABLE = "notes";
@@ -65,15 +75,31 @@ function buildSmartSummary(doc) {
     summaryText: `High-level summary for "${baseTitle}".`,
     keyInsights: ["Main objective.", "Notable constraints.", "Timeline impacts."],
     actionPlan: [
-      { priority: "High", title: "Confirm milestone", ownerHint: "Project lead", effort: "2h", dueHint: "1–2 days" },
-      { priority: "Medium", title: "Clarify blockers", ownerHint: "Engineering", effort: "1–3h", dueHint: "This week" },
+      {
+        priority: "High",
+        title: "Confirm milestone",
+        ownerHint: "Project lead",
+        effort: "2h",
+        dueHint: "1–2 days",
+      },
+      {
+        priority: "Medium",
+        title: "Clarify blockers",
+        ownerHint: "Engineering",
+        effort: "1–3h",
+        dueHint: "This week",
+      },
     ],
     risks: ["Timeline slippage.", "Missing assets."],
     meta: { generatedAt: nowIso(), sourceDocId: doc?.id },
   };
 }
 
-function DbLoaderOverlay({ open, title = "Loading Notes From DB", subtitle = "Preparing your workspace…" }) {
+function DbLoaderOverlay({
+  open,
+  title = "Loading Notes From DB",
+  subtitle = "Preparing your workspace…",
+}) {
   return (
     <AnimatePresence>
       {open && (
@@ -89,27 +115,43 @@ function DbLoaderOverlay({ open, title = "Loading Notes From DB", subtitle = "Pr
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.96, opacity: 0 }}
             className="w-full max-w-sm mx-4 rounded-2xl border shadow-2xl p-6"
-            style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              borderColor: "var(--border-secondary)",
+            }}
           >
             <div className="flex items-center gap-4">
               <div
                 className="h-12 w-12 rounded-2xl border flex items-center justify-center"
-                style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
+                style={{
+                  backgroundColor: "var(--bg-tertiary)",
+                  borderColor: "var(--border-secondary)",
+                }}
               >
                 <div className="w-6 h-6 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-theme-primary">{title}</p>
+                <p className="text-sm font-semibold text-theme-primary">
+                  {title}
+                </p>
                 <p className="text-xs text-theme-muted mt-0.5">{subtitle}</p>
               </div>
             </div>
 
-            <div className="mt-4 h-2 rounded-full overflow-hidden" style={{ backgroundColor: "var(--bg-tertiary)" }}>
+            <div
+              className="mt-4 h-2 rounded-full overflow-hidden"
+              style={{ backgroundColor: "var(--bg-tertiary)" }}
+            >
               <motion.div
                 className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
                 initial={{ width: "0%" }}
                 animate={{ width: "100%" }}
-                transition={{ duration: 1.6, ease: "easeInOut", repeat: Infinity, repeatType: "reverse" }}
+                transition={{
+                  duration: 1.6,
+                  ease: "easeInOut",
+                  repeat: Infinity,
+                  repeatType: "reverse",
+                }}
               />
             </div>
           </motion.div>
@@ -124,7 +166,13 @@ export default function DocumentViewer({ docs = [] }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const docFromProps = useMemo(() => docs.find((d) => d.id === id) || null, [docs, id]);
+  // ✅ Subscription usage tracker
+  const { incrementUsage } = useSubscription();
+
+  const docFromProps = useMemo(
+    () => docs.find((d) => d.id === id) || null,
+    [docs, id]
+  );
   const [doc, setDoc] = useState(docFromProps);
 
   const [docLoading, setDocLoading] = useState(false);
@@ -182,7 +230,11 @@ export default function DocumentViewer({ docs = [] }) {
         return;
       }
 
-      const { data, error } = await supabase.from(DOCS_TABLE).select("*").eq("id", id).maybeSingle();
+      const { data, error } = await supabase
+        .from(DOCS_TABLE)
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
 
       if (!alive) return;
 
@@ -216,11 +268,9 @@ export default function DocumentViewer({ docs = [] }) {
     if (location.state?.scrollToSummary) setShowSummary(true);
   }, [location.state]);
 
-  // ✅ NEW: Load notes from DB on page open (your exact loader pattern),
-  // but only fetch the one summary note for this document and map into aiSummary.
+  // ✅ Load saved AI summary note for this document
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) {
-      // fallback for local/demo mode
       setAiSummary(null);
       setNotesLoading(false);
       return;
@@ -290,7 +340,9 @@ export default function DocumentViewer({ docs = [] }) {
       setFileLoading(true);
       try {
         const storagePath = `${doc.user_id}/${doc.id}/${doc.name}`;
-        const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(storagePath, 60 * 60);
+        const { data, error } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .createSignedUrl(storagePath, 60 * 60);
 
         if (!alive) return;
 
@@ -332,7 +384,10 @@ export default function DocumentViewer({ docs = [] }) {
             <FiFile className="text-theme-muted" size={28} />
           </div>
           <p className="text-theme-muted mb-4">Document not found</p>
-          <button onClick={() => navigate("/dashboard/documents")} className="text-indigo-500 hover:text-indigo-400 font-medium">
+          <button
+            onClick={() => navigate("/dashboard/documents")}
+            className="text-indigo-500 hover:text-indigo-400 font-medium"
+          >
             ← Back to Documents
           </button>
         </div>
@@ -349,7 +404,6 @@ export default function DocumentViewer({ docs = [] }) {
   const handleDownload = async () => {
     if (!doc) return;
 
-    // best-effort: use Storage download if configured, else signed URL
     if (!isSupabaseConfigured || !supabase) {
       if (fileUrl) window.open(fileUrl, "_blank", "noopener,noreferrer");
       return;
@@ -357,7 +411,9 @@ export default function DocumentViewer({ docs = [] }) {
 
     try {
       const storagePath = `${doc.user_id}/${doc.id}/${doc.name}`;
-      const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(storagePath);
+      const { data, error } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .download(storagePath);
       if (error) throw error;
 
       const url = URL.createObjectURL(data);
@@ -380,10 +436,24 @@ export default function DocumentViewer({ docs = [] }) {
     }
 
     setIsGenerating(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setAiSummary(buildSmartSummary(doc));
-    setIsGenerating(false);
-    setShowSummary(true);
+
+    try {
+      // Mock generation
+      await new Promise((r) => setTimeout(r, 1200));
+
+      const summary = buildSmartSummary(doc);
+      setAiSummary(summary);
+
+      // ✅ IMPORTANT: count only after success
+      await incrementUsage("aiSummaries");
+
+      setShowSummary(true);
+    } catch (e) {
+      console.error("Generate summary failed:", e);
+      // do not increment
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleRewrite = async (style) => {
@@ -391,18 +461,33 @@ export default function DocumentViewer({ docs = [] }) {
     setIsRewriting(true);
     setRewrittenText("");
 
-    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      // Mock rewrite
+      await new Promise((r) => setTimeout(r, 1500));
 
-    const mockRewriteResults = {
-      Professional:
-        "This document presents a comprehensive analysis of the subject matter. The key findings indicate significant developments that warrant careful consideration. Our recommendations are based on thorough research and industry best practices.",
-      Shorter: "Key points: Document analyzed. Main findings noted. Action items identified. Follow-up recommended.",
-      Friendly:
-        "Hey there! 👋 So here's the deal with this document - it's got some really interesting stuff in it! The main takeaway is that things are looking good, and we've got some cool next steps to explore together.",
-    };
+      const mockRewriteResults = {
+        Professional:
+          "This document presents a comprehensive analysis of the subject matter. The key findings indicate significant developments that warrant careful consideration. Our recommendations are based on thorough research and industry best practices.",
+        Shorter:
+          "Key points: Document analyzed. Main findings noted. Action items identified. Follow-up recommended.",
+        Friendly:
+          "Hey there! 👋 So here's the deal with this document - it's got some really interesting stuff in it! The main takeaway is that things are looking good, and we've got some cool next steps to explore together.",
+      };
 
-    setRewrittenText(mockRewriteResults[style] || "Rewritten content will appear here.");
-    setIsRewriting(false);
+      const result =
+        mockRewriteResults[style] || "Rewritten content will appear here.";
+
+      setRewrittenText(result);
+
+      // ✅ Count only after success
+      // No dedicated "rewrite" bucket exists in your limits; use insightQueries as the closest AI text action.
+      await incrementUsage("insightQueries");
+    } catch (e) {
+      console.error("Rewrite failed:", e);
+      // do not increment
+    } finally {
+      setIsRewriting(false);
+    }
   };
 
   const goToPage = (page) => {
@@ -414,7 +499,6 @@ export default function DocumentViewer({ docs = [] }) {
 
   return (
     <div className="space-y-4 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
-      {/* ✅ NEW loader (same pattern) */}
       <DbLoaderOverlay
         open={notesLoading}
         title="Load Notes From DB"
@@ -423,7 +507,10 @@ export default function DocumentViewer({ docs = [] }) {
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate("/dashboard/documents")} className="flex items-center gap-2 text-theme-muted hover:text-theme-primary transition">
+        <button
+          onClick={() => navigate("/dashboard/documents")}
+          className="flex items-center gap-2 text-theme-muted hover:text-theme-primary transition"
+        >
           <FiArrowLeft size={20} />
           <span className="text-sm font-medium">Back</span>
         </button>
@@ -432,7 +519,10 @@ export default function DocumentViewer({ docs = [] }) {
           <button
             onClick={handleDownload}
             className="p-2.5 rounded-xl text-theme-muted hover:text-emerald-500 transition border hover:border-emerald-500/30 hover:bg-emerald-500/10"
-            style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
+            style={{
+              backgroundColor: "var(--bg-tertiary)",
+              borderColor: "var(--border-secondary)",
+            }}
             title="Download"
           >
             <FiDownload size={18} />
@@ -440,7 +530,10 @@ export default function DocumentViewer({ docs = [] }) {
           <button
             onClick={() => setShowRewrite(true)}
             className="p-2.5 rounded-xl text-theme-muted hover:text-purple-500 transition border hover:border-purple-500/30 hover:bg-purple-500/10"
-            style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
+            style={{
+              backgroundColor: "var(--bg-tertiary)",
+              borderColor: "var(--border-secondary)",
+            }}
             title="Rewrite with AI"
           >
             <PencilSimple size={18} weight="duotone" />
@@ -449,7 +542,10 @@ export default function DocumentViewer({ docs = [] }) {
             onClick={handleGenerateSummary}
             disabled={isGenerating}
             className="p-2.5 rounded-xl text-theme-muted hover:text-indigo-500 transition border hover:border-indigo-500/30 hover:bg-indigo-500/10 disabled:opacity-50"
-            style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
+            style={{
+              backgroundColor: "var(--bg-tertiary)",
+              borderColor: "var(--border-secondary)",
+            }}
             title="AI Summary"
           >
             <FiFileText size={18} />
@@ -458,12 +554,26 @@ export default function DocumentViewer({ docs = [] }) {
       </div>
 
       {/* Document Title Card */}
-      <div className="rounded-xl p-4 border flex items-center gap-3" style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-secondary)" }}>
-        <div className="h-12 w-12 rounded-xl flex items-center justify-center border" style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}>
+      <div
+        className="rounded-xl p-4 border flex items-center gap-3"
+        style={{
+          backgroundColor: "var(--bg-card)",
+          borderColor: "var(--border-secondary)",
+        }}
+      >
+        <div
+          className="h-12 w-12 rounded-xl flex items-center justify-center border"
+          style={{
+            backgroundColor: "var(--bg-tertiary)",
+            borderColor: "var(--border-secondary)",
+          }}
+        >
           <FileTypeIcon type={doc?.type} size={28} />
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-semibold text-theme-primary truncate">{doc?.name}</h1>
+          <h1 className="text-lg font-semibold text-theme-primary truncate">
+            {doc?.name}
+          </h1>
           <p className="text-xs text-theme-muted">
             {doc?.type} · {doc?.size || "—"} · Updated {doc?.updated || "—"}
           </p>
@@ -476,18 +586,37 @@ export default function DocumentViewer({ docs = [] }) {
       </div>
 
       {/* Document Viewer */}
-      <div className="rounded-2xl overflow-hidden border" style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-secondary)" }}>
+      <div
+        className="rounded-2xl overflow-hidden border"
+        style={{
+          backgroundColor: "var(--bg-card)",
+          borderColor: "var(--border-secondary)",
+        }}
+      >
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b" style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}>
+        <div
+          className="flex items-center justify-between px-4 py-2.5 border-b"
+          style={{
+            backgroundColor: "var(--bg-tertiary)",
+            borderColor: "var(--border-secondary)",
+          }}
+        >
           <div className="flex items-center gap-1">
             <button
               onClick={() => setShowPageList(!showPageList)}
-              className={`p-2 rounded-lg transition ${showPageList ? "text-indigo-500 bg-indigo-500/10" : "text-theme-muted hover:text-theme-primary hover:bg-theme-tertiary"}`}
+              className={`p-2 rounded-lg transition ${
+                showPageList
+                  ? "text-indigo-500 bg-indigo-500/10"
+                  : "text-theme-muted hover:text-theme-primary hover:bg-theme-tertiary"
+              }`}
               title="Page list"
             >
               <FiList size={16} />
             </button>
-            <button className="p-2 rounded-lg text-theme-muted hover:text-theme-primary hover:bg-theme-tertiary transition" title="More options">
+            <button
+              className="p-2 rounded-lg text-theme-muted hover:text-theme-primary hover:bg-theme-tertiary transition"
+              title="More options"
+            >
               <FiMoreHorizontal size={16} />
             </button>
           </div>
@@ -507,7 +636,10 @@ export default function DocumentViewer({ docs = [] }) {
                 value={currentPage}
                 onChange={(e) => goToPage(parseInt(e.target.value) || 1)}
                 className="w-10 text-center text-sm rounded-lg py-1.5 text-theme-primary focus:outline-none focus:ring-2 focus:ring-indigo-500/50 border"
-                style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}
+                style={{
+                  backgroundColor: "var(--bg-input)",
+                  borderColor: "var(--border-secondary)",
+                }}
                 min={1}
                 max={totalPages}
               />
@@ -524,15 +656,31 @@ export default function DocumentViewer({ docs = [] }) {
           </div>
 
           <div className="flex items-center gap-1">
-            <button onClick={() => setZoom(Math.max(50, zoom - 25))} className="p-2 rounded-lg text-theme-muted hover:text-theme-primary transition hover:bg-theme-tertiary" title="Zoom out">
+            <button
+              onClick={() => setZoom(Math.max(50, zoom - 25))}
+              className="p-2 rounded-lg text-theme-muted hover:text-theme-primary transition hover:bg-theme-tertiary"
+              title="Zoom out"
+            >
               <FiZoomOut size={16} />
             </button>
-            <span className="text-xs text-theme-muted w-10 text-center font-medium">{zoom}%</span>
-            <button onClick={() => setZoom(Math.min(200, zoom + 25))} className="p-2 rounded-lg text-theme-muted hover:text-theme-primary transition hover:bg-theme-tertiary" title="Zoom in">
+            <span className="text-xs text-theme-muted w-10 text-center font-medium">
+              {zoom}%
+            </span>
+            <button
+              onClick={() => setZoom(Math.min(200, zoom + 25))}
+              className="p-2 rounded-lg text-theme-muted hover:text-theme-primary transition hover:bg-theme-tertiary"
+              title="Zoom in"
+            >
               <FiZoomIn size={16} />
             </button>
-            <div className="w-px h-5 mx-1" style={{ backgroundColor: "var(--border-secondary)" }} />
-            <button className="p-2 rounded-lg text-theme-muted hover:text-theme-primary transition hover:bg-theme-tertiary" title="Search">
+            <div
+              className="w-px h-5 mx-1"
+              style={{ backgroundColor: "var(--border-secondary)" }}
+            />
+            <button
+              className="p-2 rounded-lg text-theme-muted hover:text-theme-primary transition hover:bg-theme-tertiary"
+              title="Search"
+            >
               <FiSearch size={16} />
             </button>
           </div>
@@ -546,25 +694,39 @@ export default function DocumentViewer({ docs = [] }) {
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               className="border-b overflow-hidden"
-              style={{ backgroundColor: "var(--bg-elevated)", borderColor: "var(--border-secondary)" }}
+              style={{
+                backgroundColor: "var(--bg-elevated)",
+                borderColor: "var(--border-secondary)",
+              }}
             >
               <div className="p-4">
-                <p className="text-xs text-theme-muted mb-3 font-medium">Jump to page</p>
+                <p className="text-xs text-theme-muted mb-3 font-medium">
+                  Jump to page
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => goToPage(page)}
-                      className={`w-10 h-10 rounded-xl text-sm font-medium transition border ${
-                        currentPage === page
-                          ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25"
-                          : "text-theme-secondary hover:border-indigo-500/50"
-                      }`}
-                      style={currentPage !== page ? { backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" } : {}}
-                    >
-                      {page}
-                    </button>
-                  ))}
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                    (page) => (
+                      <button
+                        key={page}
+                        onClick={() => goToPage(page)}
+                        className={`w-10 h-10 rounded-xl text-sm font-medium transition border ${
+                          currentPage === page
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25"
+                            : "text-theme-secondary hover:border-indigo-500/50"
+                        }`}
+                        style={
+                          currentPage !== page
+                            ? {
+                                backgroundColor: "var(--bg-input)",
+                                borderColor: "var(--border-secondary)",
+                              }
+                            : {}
+                        }
+                      >
+                        {page}
+                      </button>
+                    )
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -572,7 +734,10 @@ export default function DocumentViewer({ docs = [] }) {
         </AnimatePresence>
 
         {/* Document Content */}
-        <div className="min-h-[60vh] flex items-center justify-center p-6" style={{ backgroundColor: "var(--bg-secondary)" }}>
+        <div
+          className="min-h-[60vh] flex items-center justify-center p-6"
+          style={{ backgroundColor: "var(--bg-secondary)" }}
+        >
           {fileLoading ? (
             <div className="text-center">
               <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mx-auto mb-3" />
@@ -583,22 +748,37 @@ export default function DocumentViewer({ docs = [] }) {
               <iframe
                 src={fileUrl}
                 className="w-full h-[70vh] rounded-xl border shadow-lg"
-                style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center", borderColor: "var(--border-secondary)" }}
+                style={{
+                  transform: `scale(${zoom / 100})`,
+                  transformOrigin: "top center",
+                  borderColor: "var(--border-secondary)",
+                }}
               />
             ) : (
               <div className="text-center">
-                <div className="h-20 w-20 rounded-2xl bg-theme-tertiary flex items-center justify-center mx-auto mb-4 border" style={{ borderColor: "var(--border-secondary)" }}>
+                <div
+                  className="h-20 w-20 rounded-2xl bg-theme-tertiary flex items-center justify-center mx-auto mb-4 border"
+                  style={{ borderColor: "var(--border-secondary)" }}
+                >
                   <FileTypeIcon type={doc.type} size={48} />
                 </div>
-                <p className="text-theme-muted mb-4">Preview not available for {doc.type} files</p>
-                <button onClick={handleDownload} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-500 transition font-medium shadow-lg shadow-indigo-500/25">
+                <p className="text-theme-muted mb-4">
+                  Preview not available for {doc.type} files
+                </p>
+                <button
+                  onClick={handleDownload}
+                  className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-500 transition font-medium shadow-lg shadow-indigo-500/25"
+                >
                   Download to View
                 </button>
               </div>
             )
           ) : (
             <div className="text-center">
-              <div className="h-20 w-20 rounded-2xl bg-theme-tertiary flex items-center justify-center mx-auto mb-4 border" style={{ borderColor: "var(--border-secondary)" }}>
+              <div
+                className="h-20 w-20 rounded-2xl bg-theme-tertiary flex items-center justify-center mx-auto mb-4 border"
+                style={{ borderColor: "var(--border-secondary)" }}
+              >
                 <FiFile className="text-theme-muted" size={40} />
               </div>
               <p className="text-theme-muted">No preview available</p>
@@ -609,13 +789,25 @@ export default function DocumentViewer({ docs = [] }) {
 
       {/* AI Summary Prompt */}
       {!showSummary && !hasSummary && !notesLoading && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl p-4 border flex items-center gap-3" style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-secondary)" }}>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl p-4 border flex items-center gap-3"
+          style={{
+            backgroundColor: "var(--bg-card)",
+            borderColor: "var(--border-secondary)",
+          }}
+        >
           <div className="h-10 w-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center">
             <Sparkle size={20} weight="fill" className="text-indigo-400" />
           </div>
           <div>
-            <p className="text-sm font-medium text-theme-primary">Generate AI Summary</p>
-            <p className="text-xs text-theme-muted">Click the summary button above to extract key insights</p>
+            <p className="text-sm font-medium text-theme-primary">
+              Generate AI Summary
+            </p>
+            <p className="text-xs text-theme-muted">
+              Click the summary button above to extract key insights
+            </p>
           </div>
         </motion.div>
       )}
@@ -623,19 +815,39 @@ export default function DocumentViewer({ docs = [] }) {
       {/* Generating State */}
       <AnimatePresence>
         {isGenerating && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
             <GlassCard>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center">
-                  <Lightning size={24} weight="fill" className="text-indigo-500 animate-pulse" />
+                  <Lightning
+                    size={24}
+                    weight="fill"
+                    className="text-indigo-500 animate-pulse"
+                  />
                 </div>
                 <div>
-                  <p className="text-theme-primary font-semibold">Generating AI Summary...</p>
-                  <p className="text-xs text-theme-muted">Analyzing document content</p>
+                  <p className="text-theme-primary font-semibold">
+                    Generating AI Summary...
+                  </p>
+                  <p className="text-xs text-theme-muted">
+                    Analyzing document content
+                  </p>
                 </div>
               </div>
-              <div className="mt-4 h-2 rounded-full overflow-hidden" style={{ backgroundColor: "var(--bg-tertiary)" }}>
-                <motion.div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 2, ease: "easeInOut" }} />
+              <div
+                className="mt-4 h-2 rounded-full overflow-hidden"
+                style={{ backgroundColor: "var(--bg-tertiary)" }}
+              >
+                <motion.div
+                  className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
+                  initial={{ width: "0%" }}
+                  animate={{ width: "100%" }}
+                  transition={{ duration: 2, ease: "easeInOut" }}
+                />
               </div>
             </GlassCard>
           </motion.div>
@@ -645,33 +857,63 @@ export default function DocumentViewer({ docs = [] }) {
       {/* AI Summary Panel */}
       <AnimatePresence>
         {(showSummary || hasSummary) && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+          >
             <GlassCard>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center">
-                    <Sparkle size={20} weight="fill" className="text-indigo-500" />
+                    <Sparkle
+                      size={20}
+                      weight="fill"
+                      className="text-indigo-500"
+                    />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-theme-primary">AI Summary</h3>
-                    <p className="text-[11px] text-theme-muted">Loaded from your notes</p>
+                    <h3 className="font-semibold text-theme-primary">
+                      AI Summary
+                    </h3>
+                    <p className="text-[11px] text-theme-muted">
+                      Loaded from your notes
+                    </p>
                   </div>
                 </div>
-                <button onClick={() => handleCopy(aiSummary?.summaryText || "")} className="text-theme-muted hover:text-theme-primary p-2 rounded-lg hover:bg-theme-tertiary transition" disabled={!aiSummary?.summaryText}>
-                  {copied ? <FiCheck size={18} className="text-emerald-500" /> : <FiCopy size={18} />}
+                <button
+                  onClick={() => handleCopy(aiSummary?.summaryText || "")}
+                  className="text-theme-muted hover:text-theme-primary p-2 rounded-lg hover:bg-theme-tertiary transition"
+                  disabled={!aiSummary?.summaryText}
+                >
+                  {copied ? (
+                    <FiCheck size={18} className="text-emerald-500" />
+                  ) : (
+                    <FiCopy size={18} />
+                  )}
                 </button>
               </div>
 
               <p className="text-sm text-theme-secondary leading-relaxed mb-5">
-                {aiSummary?.summaryText || "No saved summary for this document yet. Click the AI Summary button to generate one."}
+                {aiSummary?.summaryText ||
+                  "No saved summary for this document yet. Click the AI Summary button to generate one."}
               </p>
 
               {/* Key Insights */}
               <div className="mb-5">
-                <h4 className="text-xs font-semibold text-theme-muted mb-3 uppercase tracking-wide">Key Insights</h4>
+                <h4 className="text-xs font-semibold text-theme-muted mb-3 uppercase tracking-wide">
+                  Key Insights
+                </h4>
                 <ul className="space-y-2">
-                  {(aiSummary?.keyInsights || ["Main objective identified", "Notable constraints found", "Timeline impacts noted"]).map((insight, i) => (
-                    <li key={i} className="text-sm text-theme-secondary flex items-start gap-3">
+                  {(aiSummary?.keyInsights || [
+                    "Main objective identified",
+                    "Notable constraints found",
+                    "Timeline impacts noted",
+                  ]).map((insight, i) => (
+                    <li
+                      key={i}
+                      className="text-sm text-theme-secondary flex items-start gap-3"
+                    >
                       <span className="h-5 w-5 rounded-full bg-indigo-500/15 text-indigo-500 flex items-center justify-center flex-shrink-0 text-xs font-semibold">
                         {i + 1}
                       </span>
@@ -684,12 +926,23 @@ export default function DocumentViewer({ docs = [] }) {
               {/* Action Plan */}
               {aiSummary?.actionPlan && (
                 <div>
-                  <h4 className="text-xs font-semibold text-theme-muted mb-3 uppercase tracking-wide">Action Items</h4>
+                  <h4 className="text-xs font-semibold text-theme-muted mb-3 uppercase tracking-wide">
+                    Action Items
+                  </h4>
                   <div className="space-y-2">
                     {aiSummary.actionPlan.map((action, i) => (
-                      <div key={i} className="rounded-xl p-4 border" style={{ backgroundColor: "var(--bg-elevated)", borderColor: "var(--border-secondary)" }}>
+                      <div
+                        key={i}
+                        className="rounded-xl p-4 border"
+                        style={{
+                          backgroundColor: "var(--bg-elevated)",
+                          borderColor: "var(--border-secondary)",
+                        }}
+                      >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-theme-primary font-medium">{action.title}</span>
+                          <span className="text-sm text-theme-primary font-medium">
+                            {action.title}
+                          </span>
                           <span
                             className={`text-[10px] px-2.5 py-1 rounded-full font-semibold border ${
                               action.priority === "High"
@@ -713,7 +966,7 @@ export default function DocumentViewer({ docs = [] }) {
         )}
       </AnimatePresence>
 
-      {/* Rewrite Modal (unchanged) */}
+      {/* Rewrite Modal */}
       <AnimatePresence>
         {showRewrite && (
           <motion.div
@@ -730,20 +983,34 @@ export default function DocumentViewer({ docs = [] }) {
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-lg rounded-2xl p-6 border relative mb-12 shadow-2xl"
-              style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                borderColor: "var(--border-secondary)",
+              }}
             >
-              <button onClick={() => setShowRewrite(false)} className="absolute top-4 left-4 text-theme-muted hover:text-theme-primary transition">
+              <button
+                onClick={() => setShowRewrite(false)}
+                className="absolute top-4 left-4 text-theme-muted hover:text-theme-primary transition"
+              >
                 <FiArrowLeft size={20} />
               </button>
 
               <div className="mt-8">
                 <div className="flex items-center gap-3 mb-1">
                   <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border border-purple-500/30 flex items-center justify-center">
-                    <PencilSimple size={20} weight="duotone" className="text-purple-500" />
+                    <PencilSimple
+                      size={20}
+                      weight="duotone"
+                      className="text-purple-500"
+                    />
                   </div>
-                  <h2 className="text-xl font-semibold text-theme-primary">Rewrite with AI</h2>
+                  <h2 className="text-xl font-semibold text-theme-primary">
+                    Rewrite with AI
+                  </h2>
                 </div>
-                <p className="text-theme-muted text-sm mb-6 ml-[52px]">{doc?.name}</p>
+                <p className="text-theme-muted text-sm mb-6 ml-[52px]">
+                  {doc?.name}
+                </p>
 
                 <div className="flex gap-3 mb-6">
                   {["Professional", "Shorter", "Friendly"].map((style) => (
@@ -756,38 +1023,67 @@ export default function DocumentViewer({ docs = [] }) {
                           ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/25"
                           : "text-theme-secondary hover:text-theme-primary hover:border-indigo-500/50"
                       }`}
-                      style={rewriteStyle !== style ? { backgroundColor: "var(--bg-button)", borderColor: "var(--border-secondary)" } : {}}
+                      style={
+                        rewriteStyle !== style
+                          ? {
+                              backgroundColor: "var(--bg-button)",
+                              borderColor: "var(--border-secondary)",
+                            }
+                          : {}
+                      }
                     >
                       {style}
                     </button>
                   ))}
                 </div>
 
-                <div className="rounded-xl p-4 min-h-[200px] border" style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}>
+                <div
+                  className="rounded-xl p-4 min-h-[200px] border"
+                  style={{
+                    backgroundColor: "var(--bg-input)",
+                    borderColor: "var(--border-secondary)",
+                  }}
+                >
                   {isRewriting ? (
                     <div className="flex items-center justify-center h-[180px]">
                       <div className="text-center">
                         <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mx-auto mb-3" />
-                        <p className="text-sm text-theme-muted">Rewriting as {rewriteStyle}...</p>
+                        <p className="text-sm text-theme-muted">
+                          Rewriting as {rewriteStyle}...
+                        </p>
                       </div>
                     </div>
                   ) : rewrittenText ? (
                     <div>
-                      <p className="text-sm text-theme-secondary leading-relaxed">{rewrittenText}</p>
+                      <p className="text-sm text-theme-secondary leading-relaxed">
+                        {rewrittenText}
+                      </p>
                       <div className="flex gap-2 mt-4">
                         <button
                           onClick={() => handleCopy(rewrittenText)}
                           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-theme-secondary hover:text-theme-primary transition border hover:border-indigo-500/50"
-                          style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
+                          style={{
+                            backgroundColor: "var(--bg-tertiary)",
+                            borderColor: "var(--border-secondary)",
+                          }}
                         >
-                          {copied ? <FiCheck size={14} className="text-emerald-500" /> : <FiCopy size={14} />}
+                          {copied ? (
+                            <FiCheck
+                              size={14}
+                              className="text-emerald-500"
+                            />
+                          ) : (
+                            <FiCopy size={14} />
+                          )}
                           Copy
                         </button>
                       </div>
                     </div>
                   ) : (
                     <div className="flex items-center justify-center h-[180px]">
-                      <p className="text-theme-muted text-sm">Select a style to generate rewritten text</p>
+                      <p className="text-theme-muted text-sm">
+                        Select a style to generate rewritten text
+                      </p>
                     </div>
                   )}
                 </div>
@@ -799,6 +1095,7 @@ export default function DocumentViewer({ docs = [] }) {
     </div>
   );
 }
+
 
 
 

@@ -1,5 +1,5 @@
 // src/pages/CloudSync.jsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
@@ -15,7 +15,6 @@ import {
   Warning,
   Pause,
   Play,
-  Trash,
   Plus,
   Gear,
   Clock,
@@ -24,67 +23,99 @@ import {
   WifiHigh,
   WifiSlash,
 } from "phosphor-react";
-import { FiX, FiCheck, FiRefreshCw, FiSettings, FiTrash2 } from "react-icons/fi";
+import { FiX, FiTrash2 } from "react-icons/fi";
 import { useSubscription } from "../hooks/useSubscription";
 
-// QR Code Generator Component
+/* -----------------------------------------
+   NoteView-style Loader Overlay (reusable)
+----------------------------------------- */
+function LoaderOverlay({ title = "Working…", subtitle }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      style={{
+        backgroundColor: "rgba(0,0,0,0.55)",
+        backdropFilter: "blur(10px)",
+      }}
+    >
+      <motion.div
+        initial={{ y: 8, scale: 0.98, opacity: 0 }}
+        animate={{ y: 0, scale: 1, opacity: 1 }}
+        exit={{ y: 8, scale: 0.98, opacity: 0 }}
+        className="w-full max-w-sm rounded-2xl border p-5"
+        style={{
+          backgroundColor: "var(--bg-surface)",
+          borderColor: "var(--border-secondary)",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-xl flex items-center justify-center border"
+               style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}>
+            <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-theme-primary truncate">{title}</p>
+            {subtitle && <p className="text-xs text-theme-muted mt-0.5">{subtitle}</p>}
+          </div>
+        </div>
+
+        <div className="mt-4 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--bg-tertiary)" }}>
+          <motion.div
+            initial={{ width: "18%" }}
+            animate={{ width: "60%" }}
+            transition={{ duration: 0.9, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+            className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500"
+          />
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/* -----------------------------------------
+   QR Code (demo)
+----------------------------------------- */
 function QRCode({ value, size = 192 }) {
-  // Simple QR code pattern generator (deterministic based on value)
   const generatePattern = (str) => {
     const pattern = [];
-    const gridSize = 21; // Standard QR code size
-    
-    // Create a hash from the string for deterministic randomness
+    const gridSize = 21;
+
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash;
     }
-    
-    // Generate pattern based on hash
+
     for (let i = 0; i < gridSize * gridSize; i++) {
-      // Use hash to create deterministic pattern
       const seed = (hash * (i + 1) * 9301 + 49297) % 233280;
       const rnd = seed / 233280;
-      
-      // QR codes have specific patterns - finder patterns in corners
+
       const row = Math.floor(i / gridSize);
       const col = i % gridSize;
-      
-      // Finder patterns (7x7 squares in three corners)
+
       const isTopLeftFinder = row < 7 && col < 7;
       const isTopRightFinder = row < 7 && col >= gridSize - 7;
       const isBottomLeftFinder = row >= gridSize - 7 && col < 7;
-      
+
       if (isTopLeftFinder || isTopRightFinder || isBottomLeftFinder) {
-        // Create finder pattern
         const localRow = row < 7 ? row : row - (gridSize - 7);
         const localCol = col < 7 ? col : col - (gridSize - 7);
-        
-        // Outer border
-        if (localRow === 0 || localRow === 6 || localCol === 0 || localCol === 6) {
-          pattern.push(true);
-        }
-        // White ring
-        else if (localRow === 1 || localRow === 5 || localCol === 1 || localCol === 5) {
-          pattern.push(false);
-        }
-        // Inner square
-        else {
-          pattern.push(true);
-        }
-      }
-      // Timing patterns
-      else if (row === 6 || col === 6) {
+
+        if (localRow === 0 || localRow === 6 || localCol === 0 || localCol === 6) pattern.push(true);
+        else if (localRow === 1 || localRow === 5 || localCol === 1 || localCol === 5) pattern.push(false);
+        else pattern.push(true);
+      } else if (row === 6 || col === 6) {
         pattern.push((row + col) % 2 === 0);
-      }
-      // Data area - use deterministic random
-      else {
+      } else {
         pattern.push(rnd > 0.5);
       }
     }
-    
+
     return { pattern, gridSize };
   };
 
@@ -92,40 +123,29 @@ function QRCode({ value, size = 192 }) {
   const cellSize = size / gridSize;
 
   return (
-    <div 
+    <div
       className="rounded-xl overflow-hidden"
-      style={{ 
-        width: size, 
-        height: size, 
-        backgroundColor: 'white',
-        padding: cellSize * 2
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: "white",
+        padding: cellSize * 2,
       }}
     >
-      <svg 
-        width={size - cellSize * 4} 
-        height={size - cellSize * 4} 
-        viewBox={`0 0 ${gridSize} ${gridSize}`}
-      >
+      <svg width={size - cellSize * 4} height={size - cellSize * 4} viewBox={`0 0 ${gridSize} ${gridSize}`}>
         {pattern.map((filled, i) => {
           const row = Math.floor(i / gridSize);
           const col = i % gridSize;
-          return filled ? (
-            <rect
-              key={i}
-              x={col}
-              y={row}
-              width={1}
-              height={1}
-              fill="#1a1a2e"
-            />
-          ) : null;
+          return filled ? <rect key={i} x={col} y={row} width={1} height={1} fill="#1a1a2e" /> : null;
         })}
       </svg>
     </div>
   );
 }
 
-// Reusable Toggle Component
+/* -----------------------------------------
+   Reusable Toggle
+----------------------------------------- */
 function Toggle({ enabled, onChange, disabled = false }) {
   return (
     <button
@@ -147,16 +167,17 @@ function Toggle({ enabled, onChange, disabled = false }) {
 
 export default function CloudSync() {
   const navigate = useNavigate();
-  const { subscription, isFeatureUnlocked } = useSubscription();
-  const isPro = subscription.plan !== "free";
-  const isUnlocked = isFeatureUnlocked("cloud");
+
+  // ✅ include isLoading so we can show the same overlay while auth/subscription resolves
+  const { subscription, isFeatureUnlocked, isLoading } = useSubscription();
+
+  const isPro = subscription?.plan !== "free";
+  const isUnlocked = isFeatureUnlocked?.("cloud");
 
   // Redirect non-Pro users
   useEffect(() => {
-    if (!isPro || !isUnlocked) {
-      navigate("/dashboard/ai-lab");
-    }
-  }, [isPro, isUnlocked, navigate]);
+    if (!isLoading && (!isPro || !isUnlocked)) navigate("/dashboard/ai-lab");
+  }, [isLoading, isPro, isUnlocked, navigate]);
 
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -165,55 +186,19 @@ export default function CloudSync() {
   const [autoSync, setAutoSync] = useState(true);
   const [syncInterval, setSyncInterval] = useState("15");
   const [wifiOnly, setWifiOnly] = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(false); // kept (future settings modal)
   const [showAddDevice, setShowAddDevice] = useState(false);
-  const [qrExpiry, setQrExpiry] = useState(300); // 5 minutes in seconds
+  const [qrExpiry, setQrExpiry] = useState(300);
   const [deviceCode, setDeviceCode] = useState("");
 
   const intervalRef = useRef(null);
   const qrTimerRef = useRef(null);
 
   const [devices, setDevices] = useState([
-    {
-      id: "current",
-      name: "This Device",
-      type: "desktop",
-      status: "connected",
-      lastSync: new Date(),
-      isCurrent: true,
-      notesCount: 24,
-      documentsCount: 12,
-    },
-    {
-      id: "iphone",
-      name: "iPhone 15 Pro",
-      type: "mobile",
-      status: "synced",
-      lastSync: new Date(Date.now() - 1000 * 60 * 3),
-      isCurrent: false,
-      notesCount: 24,
-      documentsCount: 12,
-    },
-    {
-      id: "ipad",
-      name: "iPad Air",
-      type: "tablet",
-      status: "synced",
-      lastSync: new Date(Date.now() - 1000 * 60 * 15),
-      isCurrent: false,
-      notesCount: 22,
-      documentsCount: 10,
-    },
-    {
-      id: "macbook",
-      name: "MacBook Pro",
-      type: "desktop",
-      status: "offline",
-      lastSync: new Date(Date.now() - 1000 * 60 * 60 * 2),
-      isCurrent: false,
-      notesCount: 20,
-      documentsCount: 8,
-    },
+    { id: "current", name: "This Device", type: "desktop", status: "connected", lastSync: new Date(), isCurrent: true, notesCount: 24, documentsCount: 12 },
+    { id: "iphone", name: "iPhone 15 Pro", type: "mobile", status: "synced", lastSync: new Date(Date.now() - 1000 * 60 * 3), isCurrent: false, notesCount: 24, documentsCount: 12 },
+    { id: "ipad", name: "iPad Air", type: "tablet", status: "synced", lastSync: new Date(Date.now() - 1000 * 60 * 15), isCurrent: false, notesCount: 22, documentsCount: 10 },
+    { id: "macbook", name: "MacBook Pro", type: "desktop", status: "offline", lastSync: new Date(Date.now() - 1000 * 60 * 60 * 2), isCurrent: false, notesCount: 20, documentsCount: 8 },
   ]);
 
   const [syncHistory, setSyncHistory] = useState([
@@ -224,61 +209,55 @@ export default function CloudSync() {
     { id: 5, action: "Synced 5 notes", device: "This Device", time: new Date(Date.now() - 1000 * 60 * 60), status: "success" },
   ]);
 
-  const [storageUsed, setStorageUsed] = useState({
-    notes: 12.4,
-    documents: 45.2,
-    total: 57.6,
-    limit: 500,
-  });
+  const [storageUsed, setStorageUsed] = useState({ notes: 12.4, documents: 45.2, total: 57.6, limit: 500 });
 
-  // Generate device pairing code
   const generateDeviceCode = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code = '';
-    for (let i = 0; i < 8; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < 8; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
     return code;
   };
 
-  // Handle opening add device modal
   const handleOpenAddDevice = () => {
     setDeviceCode(generateDeviceCode());
     setQrExpiry(300);
     setShowAddDevice(true);
   };
 
-  // QR code expiry countdown
+  // QR expiry countdown
   useEffect(() => {
-    if (showAddDevice && qrExpiry > 0) {
-      qrTimerRef.current = setInterval(() => {
-        setQrExpiry(prev => {
-          if (prev <= 1) {
-            // Regenerate code when expired
-            setDeviceCode(generateDeviceCode());
-            return 300;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+    if (!showAddDevice) return;
+
+    if (qrTimerRef.current) {
+      clearInterval(qrTimerRef.current);
+      qrTimerRef.current = null;
     }
-    
+
+    qrTimerRef.current = setInterval(() => {
+      setQrExpiry((prev) => {
+        if (prev <= 1) {
+          setDeviceCode(generateDeviceCode());
+          return 300;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
     return () => {
       if (qrTimerRef.current) clearInterval(qrTimerRef.current);
+      qrTimerRef.current = null;
     };
   }, [showAddDevice]);
 
-  // Format expiry time
   const formatExpiry = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const formatTime = (date) => {
     const now = new Date();
     const diff = Math.floor((now - date) / 1000 / 60);
-    
     if (diff < 1) return "Just now";
     if (diff < 60) return `${diff}m ago`;
     if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
@@ -287,20 +266,28 @@ export default function CloudSync() {
 
   const getDeviceIcon = (type) => {
     switch (type) {
-      case "mobile": return DeviceMobile;
-      case "tablet": return DeviceTablet;
-      default: return Desktop;
+      case "mobile":
+        return DeviceMobile;
+      case "tablet":
+        return DeviceTablet;
+      default:
+        return Desktop;
     }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
       case "connected":
-      case "synced": return "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
-      case "syncing": return "text-sky-400 bg-sky-500/10 border-sky-500/30";
-      case "offline": return "text-slate-400 bg-slate-500/10 border-slate-500/30";
-      case "error": return "text-rose-400 bg-rose-500/10 border-rose-500/30";
-      default: return "text-theme-muted bg-white/5 border-white/10";
+      case "synced":
+        return "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
+      case "syncing":
+        return "text-sky-400 bg-sky-500/10 border-sky-500/30";
+      case "offline":
+        return "text-slate-400 bg-slate-500/10 border-slate-500/30";
+      case "error":
+        return "text-rose-400 bg-rose-500/10 border-rose-500/30";
+      default:
+        return "text-theme-muted bg-white/5 border-white/10";
     }
   };
 
@@ -310,37 +297,35 @@ export default function CloudSync() {
     setIsSyncing(true);
     setSyncProgress(0);
 
-    // Update device statuses
-    setDevices(prev => prev.map(d => 
-      d.status !== "offline" ? { ...d, status: "syncing" } : d
-    ));
+    setDevices((prev) => prev.map((d) => (d.status !== "offline" ? { ...d, status: "syncing" } : d)));
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
 
     intervalRef.current = setInterval(() => {
-      setSyncProgress(prev => {
+      setSyncProgress((prev) => {
         const next = Math.min(100, prev + Math.floor(Math.random() * 15) + 5);
-        
+
         if (next >= 100) {
-          clearInterval(intervalRef.current);
-          
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          intervalRef.current = null;
+
           const now = new Date();
           setLastSyncTime(now);
           setIsSyncing(false);
-          
-          // Update devices
-          setDevices(prev => prev.map(d => 
-            d.status !== "offline" 
-              ? { ...d, status: d.isCurrent ? "connected" : "synced", lastSync: now }
-              : d
-          ));
 
-          // Add to history
-          setSyncHistory(prev => [{
-            id: Date.now(),
-            action: "Full sync completed",
-            device: "All devices",
-            time: now,
-            status: "success"
-          }, ...prev.slice(0, 9)]);
+          setDevices((prevD) =>
+            prevD.map((d) =>
+              d.status !== "offline" ? { ...d, status: d.isCurrent ? "connected" : "synced", lastSync: now } : d
+            )
+          );
+
+          setSyncHistory((prevH) => [
+            { id: Date.now(), action: "Full sync completed", device: "All devices", time: now, status: "success" },
+            ...prevH.slice(0, 9),
+          ]);
 
           return 100;
         }
@@ -350,7 +335,7 @@ export default function CloudSync() {
   };
 
   const handleRemoveDevice = (deviceId) => {
-    setDevices(prev => prev.filter(d => d.id !== deviceId));
+    setDevices((prev) => prev.filter((d) => d.id !== deviceId));
   };
 
   useEffect(() => {
@@ -360,12 +345,34 @@ export default function CloudSync() {
     };
   }, []);
 
-  if (!isPro || !isUnlocked) {
-    return null;
+  // While subscription loads, show the same overlay loader
+  if (isLoading) {
+    return (
+      <AnimatePresence>
+        <LoaderOverlay title="Loading Cloud Sync…" subtitle="Checking your plan and access…" />
+      </AnimatePresence>
+    );
   }
+
+  if (!isPro || !isUnlocked) return null;
+
+  const overlayTitle = useMemo(() => {
+    if (!isSyncing) return "";
+    return `Syncing… ${syncProgress}%`;
+  }, [isSyncing, syncProgress]);
 
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
+      {/* ✅ NoteView-style overlay while syncing */}
+      <AnimatePresence>
+        {isSyncing && (
+          <LoaderOverlay
+            title={overlayTitle}
+            subtitle="Uploading changes and reconciling device state…"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <header className="pt-2 px-1">
         <button
@@ -375,7 +382,7 @@ export default function CloudSync() {
           <ArrowLeft size={18} />
           <span className="text-sm">Back to AI Lab</span>
         </button>
-        
+
         <div className="flex items-center gap-3 mb-1">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center">
             <CloudArrowUp size={22} weight="fill" className="text-white" />
@@ -391,13 +398,15 @@ export default function CloudSync() {
       <GlassCard className="border-sky-500/30 bg-gradient-to-br from-sky-500/5 to-cyan-500/5">
         <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className={`h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-              isSyncing 
-                ? "bg-gradient-to-br from-sky-500 to-cyan-600" 
-                : syncEnabled 
+            <div
+              className={`h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                isSyncing
+                  ? "bg-gradient-to-br from-sky-500 to-cyan-600"
+                  : syncEnabled
                   ? "bg-gradient-to-br from-emerald-500 to-teal-600"
                   : "bg-gradient-to-br from-slate-500 to-slate-600"
-            }`}>
+              }`}
+            >
               {isSyncing ? (
                 <ArrowsClockwise size={24} weight="bold" className="text-white animate-spin" />
               ) : syncEnabled ? (
@@ -411,30 +420,30 @@ export default function CloudSync() {
                 <h3 className="text-base font-semibold text-theme-primary">
                   {isSyncing ? "Syncing..." : syncEnabled ? "Sync Active" : "Sync Paused"}
                 </h3>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                  isSyncing 
-                    ? "bg-sky-500/20 text-sky-400" 
-                    : syncEnabled 
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                    isSyncing
+                      ? "bg-sky-500/20 text-sky-400"
+                      : syncEnabled
                       ? "bg-emerald-500/20 text-emerald-400"
                       : "bg-slate-500/20 text-slate-400"
-                }`}>
+                  }`}
+                >
                   {isSyncing ? "IN PROGRESS" : syncEnabled ? "ENABLED" : "PAUSED"}
                 </span>
               </div>
               <p className="text-sm text-theme-muted mt-0.5">
-                {isSyncing 
-                  ? `${syncProgress}% complete` 
-                  : `Last synced ${formatTime(lastSyncTime)}`}
+                {isSyncing ? `${syncProgress}% complete` : `Last synced ${formatTime(lastSyncTime)}`}
               </p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSyncEnabled(!syncEnabled)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-full font-medium text-sm border transition ${
-                syncEnabled 
-                  ? "border-slate-500/30 text-slate-400 hover:bg-slate-500/10" 
+                syncEnabled
+                  ? "border-slate-500/30 text-slate-400 hover:bg-slate-500/10"
                   : "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
               }`}
             >
@@ -488,7 +497,7 @@ export default function CloudSync() {
             </div>
             <div>
               <p className="text-2xl font-bold text-theme-primary">
-                {devices.filter(d => d.status === "synced" || d.status === "connected").length}
+                {devices.filter((d) => d.status === "synced" || d.status === "connected").length}
               </p>
               <p className="text-xs text-theme-muted">Synced</p>
             </div>
@@ -524,10 +533,7 @@ export default function CloudSync() {
       <GlassCard>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-theme-primary">Connected Devices</h3>
-          <button
-            onClick={handleOpenAddDevice}
-            className="flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 transition"
-          >
+          <button onClick={handleOpenAddDevice} className="flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 transition">
             <Plus size={14} />
             Add Device
           </button>
@@ -543,18 +549,18 @@ export default function CloudSync() {
                 style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-input)" }}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
-                    device.isCurrent ? "bg-sky-500/10 border border-sky-500/30" : "bg-white/5 border border-white/10"
-                  }`}>
+                  <div
+                    className={`h-10 w-10 rounded-xl flex items-center justify-center ${
+                      device.isCurrent ? "bg-sky-500/10 border border-sky-500/30" : "bg-white/5 border border-white/10"
+                    }`}
+                  >
                     <DeviceIcon size={20} className={device.isCurrent ? "text-sky-400" : "text-theme-muted"} />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-theme-primary">{device.name}</p>
                       {device.isCurrent && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400 font-medium">
-                          CURRENT
-                        </span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400 font-medium">CURRENT</span>
                       )}
                     </div>
                     <p className="text-xs text-theme-muted">
@@ -603,9 +609,7 @@ export default function CloudSync() {
                   className="h-full rounded-full bg-gradient-to-r from-sky-500 to-cyan-500"
                 />
               </div>
-              <p className="text-xs text-theme-muted mt-2">
-                {((storageUsed.total / storageUsed.limit) * 100).toFixed(1)}% used
-              </p>
+              <p className="text-xs text-theme-muted mt-2">{((storageUsed.total / storageUsed.limit) * 100).toFixed(1)}% used</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -628,13 +632,13 @@ export default function CloudSync() {
             <button
               onClick={() => setShowSettings(true)}
               className="h-8 w-8 rounded-full flex items-center justify-center text-theme-muted hover:text-theme-primary hover:bg-white/5 transition"
+              aria-label="Open settings"
             >
               <Gear size={16} />
             </button>
           </div>
 
           <div className="space-y-3">
-            {/* Auto Sync Toggle */}
             <div className="flex items-center justify-between p-3 rounded-xl border" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-surface)" }}>
               <div>
                 <p className="text-sm text-theme-primary">Auto Sync</p>
@@ -643,7 +647,6 @@ export default function CloudSync() {
               <Toggle enabled={autoSync} onChange={setAutoSync} />
             </div>
 
-            {/* Sync Interval */}
             <div className="flex items-center justify-between p-3 rounded-xl border" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-surface)" }}>
               <div>
                 <p className="text-sm text-theme-primary">Sync Interval</p>
@@ -662,14 +665,9 @@ export default function CloudSync() {
               </select>
             </div>
 
-            {/* WiFi Only Toggle */}
             <div className="flex items-center justify-between p-3 rounded-xl border" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-surface)" }}>
               <div className="flex items-center gap-2">
-                {wifiOnly ? (
-                  <WifiHigh size={16} className="text-sky-400" />
-                ) : (
-                  <WifiSlash size={16} className="text-theme-muted" />
-                )}
+                {wifiOnly ? <WifiHigh size={16} className="text-sky-400" /> : <WifiSlash size={16} className="text-theme-muted" />}
                 <div>
                   <p className="text-sm text-theme-primary">Sync on WiFi Only</p>
                   <p className="text-xs text-theme-muted">Save mobile data</p>
@@ -685,9 +683,7 @@ export default function CloudSync() {
       <GlassCard>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-theme-primary">Recent Activity</h3>
-          <button className="text-xs text-theme-muted hover:text-theme-secondary transition">
-            View All
-          </button>
+          <button className="text-xs text-theme-muted hover:text-theme-secondary transition">View All</button>
         </div>
 
         <div className="space-y-2">
@@ -698,13 +694,11 @@ export default function CloudSync() {
               style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-surface)" }}
             >
               <div className="flex items-center gap-3">
-                <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                  item.status === "success" 
-                    ? "bg-emerald-500/10" 
-                    : item.status === "warning"
-                      ? "bg-amber-500/10"
-                      : "bg-rose-500/10"
-                }`}>
+                <div
+                  className={`h-8 w-8 rounded-full flex items-center justify-center ${
+                    item.status === "success" ? "bg-emerald-500/10" : item.status === "warning" ? "bg-amber-500/10" : "bg-rose-500/10"
+                  }`}
+                >
                   {item.status === "success" ? (
                     <CheckCircle size={16} weight="fill" className="text-emerald-400" />
                   ) : item.status === "warning" ? (
@@ -759,19 +753,15 @@ export default function CloudSync() {
                   <CloudArrowDown size={32} className="text-sky-400" />
                 </div>
                 <h3 className="text-lg font-semibold text-theme-primary mb-2">Scan QR Code</h3>
-                <p className="text-sm text-theme-muted mb-6">
-                  Open NoteStream on your other device and scan this code to connect.
-                </p>
-                
-                {/* QR Code */}
+                <p className="text-sm text-theme-muted mb-6">Open NoteStream on your other device and scan this code to connect.</p>
+
                 <div className="flex justify-center mb-4">
                   <QRCode value={`notestream://pair/${deviceCode}`} size={192} />
                 </div>
 
-                {/* Device Code */}
                 <div className="mb-4">
                   <p className="text-xs text-theme-muted mb-2">Or enter this code manually:</p>
-                  <div 
+                  <div
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border font-mono text-lg tracking-widest"
                     style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}
                   >
@@ -781,7 +771,6 @@ export default function CloudSync() {
                   </div>
                 </div>
 
-                {/* Expiry Timer */}
                 <div className="flex items-center justify-center gap-2 text-xs text-theme-muted">
                   <Clock size={14} />
                   <span>

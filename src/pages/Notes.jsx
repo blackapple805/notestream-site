@@ -1,4 +1,11 @@
 // src/pages/Notes.jsx
+// Fixed black-screen crash + cleaned dependencies + prettier category tag mapping
+// Key fixes:
+// - ✅ add missing newCategory state
+// - ✅ make getAuthedUser stable via useCallback
+// - ✅ map DB tags[] to a pretty category label (cat:meeting -> "Meeting")
+// - ✅ ensure tag counts load in both modes and after DB load
+// - ✅ incrementUsage for voice transcriptions
 
 import {
   FiPlus,
@@ -11,11 +18,10 @@ import {
   FiX,
   FiSearch,
   FiMic,
-  FiMoreVertical,
   FiUpload,
   FiCamera,
 } from "react-icons/fi";
-import { Note, FilePlus, Crown, Sparkle } from "phosphor-react";
+import { Note, FilePlus, Crown } from "phosphor-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -25,13 +31,12 @@ import NoteRow from "../components/NoteRow";
 import NoteView from "./NoteView";
 import { useSubscription } from "../hooks/useSubscription";
 
-// ✅ Supabase client
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 const PIN_KEY = "ns-note-pin";
 const USER_STATS_TABLE = "user_engagement_stats";
+const NOTES_TABLE = "notes";
 
-// Optional fallback data (only used if Supabase isn't configured)
 const initialNotes = [
   {
     id: 1,
@@ -71,7 +76,9 @@ const FILTERS = [
 
 export default function Notes() {
   const navigate = useNavigate();
-  const { subscription, isFeatureUnlocked, isLoading } = useSubscription();
+  // ✅ Added incrementUsage to track voice transcription usage
+  const { subscription, isFeatureUnlocked, isLoading, incrementUsage } = useSubscription();
+
   const isPro = !!subscription?.plan && subscription.plan !== "free";
   const canUseVoice =
     typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("voice") : isPro;
@@ -89,7 +96,6 @@ export default function Notes() {
   const [selectedNote, setSelectedNote] = useState(null);
   const [gridView, setGridView] = useState(true);
 
-  // ✅ DB-backed notes
   const [notes, setNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(true);
 
@@ -99,9 +105,15 @@ export default function Notes() {
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
 
   const [showAddMenu, setShowAddMenu] = useState(false);
+
   const [editorOpen, setEditorOpen] = useState(false);
+  const [newCategory, setNewCategory] = useState("meeting"); // ✅ FIX (missing -> black screen)
   const [newNote, setNewNote] = useState({ title: "", body: "" });
+  const [newTagsInput, setNewTagsInput] = useState("");
   const [uploading, setUploading] = useState(false);
+
+  const [tagCounts, setTagCounts] = useState([]);
+  const [tagsLoading, setTagsLoading] = useState(false);
 
   const [pinModalOpen, setPinModalOpen] = useState(false);
   const [pinMode, setPinMode] = useState(null);
@@ -109,6 +121,7 @@ export default function Notes() {
   const [pendingNoteId, setPendingNoteId] = useState(null);
 
   const [showUpgrade, setShowUpgrade] = useState(false);
+
   const [recOpen, setRecOpen] = useState(false);
   const [recState, setRecState] = useState("idle");
   const [recError, setRecError] = useState("");
@@ -116,31 +129,60 @@ export default function Notes() {
   const mediaStreamRef = useRef(null);
   const chunksRef = useRef([]);
 
-  // ✅ FIX: Use ref to track create operation + unique request ID
   const createOperationRef = useRef({
     inProgress: false,
     lastRequestId: null,
   });
 
   // ----------------------------
-  // Supabase helpers
+  // helpers
   // ----------------------------
-  const NOTES_TABLE = "notes";
+  const normalizeTag = (t) =>
+    String(t || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9:_-]/g, "");
 
-  const mapDbNoteToUi = (row) => {
+  const parseTagsInput = (s) =>
+    String(s || "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+  const buildNoteTags = ({ source = "manual", category = null, extra = [] }) => {
+    const base = ["type:note", `src:${source}`];
+    const cat = category ? [`cat:${normalizeTag(category)}`] : [];
+    const merged = Array.from(
+      new Set([...base, ...cat, ...extra.map(normalizeTag)])
+    );
+    return merged.filter(Boolean);
+  };
+
+  const prettyFromCatTag = (tagsArr) => {
+    const cat = (tagsArr || []).find((t) => String(t).startsWith("cat:"));
+    if (!cat) return null;
+    const raw = String(cat).replace("cat:", "");
+    return raw
+      .replace(/-/g, " ")
+      .replace(/\b\w/g, (m) => m.toUpperCase());
+  };
+
+  const mapDbNoteToUi = useCallback((row) => {
     const p = row?.ai_payload || {};
+    const tagsArr = Array.isArray(row.tags) ? row.tags : [];
 
     return {
       id: row.id,
       title: row.title ?? "Untitled",
       body: row.body ?? "",
-      // UI expects a single tag string; DB is tags[]
-      tag: Array.isArray(row.tags) && row.tags.length ? row.tags[0] : "Note",
+      // ✅ Use cat:* tag as the UI label instead of "type:note"
+      tag: prettyFromCatTag(tagsArr) || "Note",
       updated: row.updated_at ?? row.created_at ?? new Date().toISOString(),
       favorite: !!row.is_favorite,
-      locked: false, // still local unless you add a DB column for it
+      locked: false, // local-only unless you add a DB column
 
-      // ✅ Smart Notes (used by NoteView.jsx)
+      // Smart Notes (NoteView.jsx)
       summary: p.summary ?? null,
       SmartTasks: Array.isArray(p.SmartTasks) ? p.SmartTasks : null,
       SmartHighlights: Array.isArray(p.SmartHighlights) ? p.SmartHighlights : null,
@@ -148,9 +190,9 @@ export default function Notes() {
       aiGeneratedAt: row.ai_generated_at ?? p.generatedAt ?? null,
       aiModel: row.ai_model ?? p.model ?? null,
     };
-  };
+  }, []);
 
-  const getAuthedUser = async () => {
+  const getAuthedUser = useCallback(async () => {
     const { data: sessRes, error } = await supabase.auth.getSession();
     if (error) {
       console.error("getSession error:", error);
@@ -162,56 +204,72 @@ export default function Notes() {
       return null;
     }
     return user;
-  };
+  }, [navigate]);
 
-  // ✅ FIX: Helper to increment notes_created stat (only if needed)
-  // Remove this if you have a Supabase database trigger doing this automatically
-  const incrementNotesCreatedStat = async (userId) => {
-    if (!supabaseReady || !supabase || !userId) return;
+  const loadTagCounts = useCallback(async () => {
+    if (!supabaseReady || !supabase) return;
 
-    try {
-      // Use RPC for atomic increment, or fallback to select + update
-      // Option 1: If you have an RPC function:
-      // await supabase.rpc('increment_notes_created', { user_id: userId });
-      
-      // Option 2: Select current value and update
-      const { data: current, error: fetchErr } = await supabase
-        .from(USER_STATS_TABLE)
-        .select("notes_created")
-        .eq("user_id", userId)
-        .single();
+    setTagsLoading(true);
+    const { data, error } = await supabase.rpc("get_note_tag_counts");
+    setTagsLoading(false);
 
-      if (fetchErr) {
-        console.error("Failed to fetch current notes_created:", fetchErr);
-        return;
-      }
-
-      const newCount = (Number(current?.notes_created) || 0) + 1;
-
-      const { error: updateErr } = await supabase
-        .from(USER_STATS_TABLE)
-        .update({ notes_created: newCount })
-        .eq("user_id", userId);
-
-      if (updateErr) {
-        console.error("Failed to update notes_created:", updateErr);
-      }
-    } catch (err) {
-      console.error("incrementNotesCreatedStat error:", err);
-    }
-  };
-
-  // ✅ Load notes from DB on page open
-  useEffect(() => {
-    if (!supabaseReady || !supabase) {
-      setNotes(initialNotes);
-      setNotesLoading(false);
+    if (error) {
+      console.error("get_note_tag_counts error:", error);
+      setTagCounts([]);
       return;
     }
 
+    setTagCounts(data || []);
+  }, [supabaseReady]);
+
+  // Only needed if you do NOT have a DB trigger already.
+  const incrementNotesCreatedStat = useCallback(
+    async (userId) => {
+      if (!supabaseReady || !supabase || !userId) return;
+
+      try {
+        const { data: current, error: fetchErr } = await supabase
+          .from(USER_STATS_TABLE)
+          .select("notes_created")
+          .eq("user_id", userId)
+          .single();
+
+        if (fetchErr) {
+          console.error("Failed to fetch current notes_created:", fetchErr);
+          return;
+        }
+
+        const newCount = (Number(current?.notes_created) || 0) + 1;
+
+        const { error: updateErr } = await supabase
+          .from(USER_STATS_TABLE)
+          .update({ notes_created: newCount })
+          .eq("user_id", userId);
+
+        if (updateErr) {
+          console.error("Failed to update notes_created:", updateErr);
+        }
+      } catch (err) {
+        console.error("incrementNotesCreatedStat error:", err);
+      }
+    },
+    [supabaseReady]
+  );
+
+  // ----------------------------
+  // Load notes from DB on page open
+  // ----------------------------
+  useEffect(() => {
     let alive = true;
 
     (async () => {
+      // Local/demo fallback
+      if (!supabaseReady || !supabase) {
+        setNotes(initialNotes);
+        setNotesLoading(false);
+        return;
+      }
+
       setNotesLoading(true);
 
       const user = await getAuthedUser();
@@ -244,8 +302,13 @@ export default function Notes() {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigate, supabaseReady]);
+  }, [supabaseReady, getAuthedUser, mapDbNoteToUi]);
+
+  // Tag counts (best-effort) — run when ready and after initial notes load
+  useEffect(() => {
+    if (!supabaseReady || !supabase) return;
+    loadTagCounts();
+  }, [supabaseReady, loadTagCounts]);
 
   // ----------------------------
   // Derived state
@@ -288,7 +351,7 @@ export default function Notes() {
   );
 
   // ----------------------------
-  // Note operations (DB-backed)
+  // Note operations
   // ----------------------------
   const updateSelectedNote = (id, updates) => {
     setSelectedNote((prev) =>
@@ -296,40 +359,38 @@ export default function Notes() {
     );
   };
 
-  // ✅ FIX: Improved createNote with better debouncing and single execution
   const createNote = useCallback(async () => {
-    // Generate unique request ID to track this specific call
-    const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Check if already in progress
-    if (createOperationRef.current.inProgress) {
-      console.log("createNote: Already in progress, skipping duplicate call");
-      return;
-    }
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    // Mark as in progress with this request ID
+    if (createOperationRef.current.inProgress) return;
+
     createOperationRef.current.inProgress = true;
     createOperationRef.current.lastRequestId = requestId;
-
-    console.log("createNote: Starting operation", requestId);
 
     try {
       const now = new Date().toISOString();
       const title = (newNote.title || "").trim() || "Untitled";
       const body = (newNote.body || "").trim() || "";
 
-      // Close modal UI immediately (feels snappy)
       setEditorOpen(false);
       setShowAddMenu(false);
 
       // Local/demo fallback
       if (!supabaseReady || !supabase) {
         const id = crypto?.randomUUID?.() ?? String(Date.now());
+
         const localNote = {
           id,
           title,
           body,
-          tag: "Note",
+          tag: newCategory
+            ? newCategory.charAt(0).toUpperCase() + newCategory.slice(1)
+            : "Note",
+          tags: buildNoteTags({
+            source: "manual",
+            category: newCategory,
+            extra: parseTagsInput(newTagsInput),
+          }),
           updated: now,
           favorite: false,
           locked: false,
@@ -345,7 +406,10 @@ export default function Notes() {
           localNote,
           ...(prev || []).filter((n) => n.id !== localNote.id),
         ]);
+
         setNewNote({ title: "", body: "" });
+        setNewTagsInput("");
+        setNewCategory("meeting");
         setSelectedNote(localNote);
         return;
       }
@@ -353,17 +417,19 @@ export default function Notes() {
       const user = await getAuthedUser();
       if (!user) return;
 
-      // Check if this request is still the current one (handles race conditions)
-      if (createOperationRef.current.lastRequestId !== requestId) {
-        console.log("createNote: Request superseded, aborting", requestId);
-        return;
-      }
+      if (createOperationRef.current.lastRequestId !== requestId) return;
+
+      const dbTags = buildNoteTags({
+        source: "manual",
+        category: newCategory,
+        extra: parseTagsInput(newTagsInput),
+      });
 
       const insertPayload = {
         user_id: user.id,
         title,
         body,
-        tags: ["Note"],
+        tags: dbTags,
         is_favorite: false,
         is_highlight: false,
         ai_payload: null,
@@ -386,31 +452,42 @@ export default function Notes() {
         return;
       }
 
-      // ✅ FIX: Increment notes_created stat ONLY HERE (remove if you have a DB trigger)
-      // IMPORTANT: If you have a Supabase database trigger that already increments
-      // notes_created when a note is inserted, COMMENT OUT this line:
+      // Comment out if you already have a trigger for notes_created
       await incrementNotesCreatedStat(user.id);
 
       const ui = mapDbNoteToUi(data);
+
       setNotes((prev) => [ui, ...(prev || []).filter((n) => n.id !== ui.id)]);
       setNewNote({ title: "", body: "" });
+      setNewTagsInput("");
+      setNewCategory("meeting");
       setSelectedNote(ui);
 
-      console.log("createNote: Successfully created note", requestId);
+      loadTagCounts();
     } catch (err) {
-      console.error("createNote: Unexpected error", err);
+      console.error("createNote unexpected error:", err);
     } finally {
-      // Reset the guard after a small delay to handle any pending React re-renders
       setTimeout(() => {
         createOperationRef.current.inProgress = false;
       }, 100);
     }
-  }, [newNote.title, newNote.body, supabaseReady, navigate]);
+  }, [
+    supabaseReady,
+    newNote.title,
+    newNote.body,
+    newTagsInput,
+    newCategory,
+    getAuthedUser,
+    buildNoteTags,
+    parseTagsInput,
+    incrementNotesCreatedStat,
+    mapDbNoteToUi,
+    loadTagCounts,
+  ]);
 
   const handleDelete = async (id) => {
     const prevNotes = notes;
 
-    // optimistic UI
     setNotes((prev) => prev.filter((n) => n.id !== id));
     if (selectedNote?.id === id) setSelectedNote(null);
     setActiveMenuId(null);
@@ -428,7 +505,7 @@ export default function Notes() {
 
     if (error) {
       console.error("Delete error:", error);
-      setNotes(prevNotes); // revert
+      setNotes(prevNotes);
     }
   };
 
@@ -438,7 +515,6 @@ export default function Notes() {
 
     const newFavorite = !current.favorite;
 
-    // optimistic UI
     setNotes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, favorite: newFavorite } : n))
     );
@@ -458,7 +534,6 @@ export default function Notes() {
 
     if (error) {
       console.error("Favorite update error:", error);
-      // revert
       setNotes((prev) =>
         prev.map((n) => (n.id === id ? { ...n, favorite: !newFavorite } : n))
       );
@@ -469,7 +544,6 @@ export default function Notes() {
   const onEditSave = async (id, newTitle, newBody, updated, smart = null) => {
     const optimisticUpdated = updated || new Date().toISOString();
 
-    // optimistic UI
     setNotes((prev) =>
       prev.map((n) =>
         n.id === id
@@ -483,6 +557,7 @@ export default function Notes() {
           : n
       )
     );
+
     setSelectedNote((prev) =>
       prev && prev.id === id
         ? {
@@ -505,7 +580,6 @@ export default function Notes() {
       body: newBody,
     };
 
-    // ✅ If NoteView passed Smart Notes, persist to DB
     if (
       smart &&
       (smart.summary ||
@@ -640,7 +714,7 @@ export default function Notes() {
   };
 
   // ----------------------------
-  // File upload (still local for now)
+  // File upload (still local)
   // ----------------------------
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -696,7 +770,7 @@ export default function Notes() {
   };
 
   // ----------------------------
-  // Voice recording (still local for now)
+  // Voice recording (still local)
   // ----------------------------
   const pickAudioMime = () => {
     const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
@@ -746,7 +820,7 @@ export default function Notes() {
 
       recorder.onerror = () => setRecError("Recorder error. Please try again.");
 
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         const finalType = recorder.mimeType || mimeType || "audio/webm";
         const blob = new Blob(chunksRef.current, { type: finalType });
 
@@ -776,6 +850,13 @@ export default function Notes() {
         setNotes((prev) => [newVoiceNote, ...prev]);
         setRecState("stopped");
         cleanupStream();
+
+        // ✅ Track voice transcription usage after successful recording
+        try {
+          await incrementUsage("voiceTranscriptions");
+        } catch (err) {
+          console.error("Failed to increment voice usage:", err);
+        }
       };
     } catch {
       setRecError("Microphone permission denied or unavailable.");
@@ -832,8 +913,10 @@ export default function Notes() {
 
   // File input handlers
   useEffect(() => {
-    if (cameraInputRef.current) cameraInputRef.current.onchange = handleScanCapture;
-    if (filePickerRef.current) filePickerRef.current.onchange = handleFileUpload;
+    if (cameraInputRef.current)
+      cameraInputRef.current.onchange = handleScanCapture;
+    if (filePickerRef.current)
+      filePickerRef.current.onchange = handleFileUpload;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -890,7 +973,10 @@ export default function Notes() {
             borderColor: "var(--border-secondary)",
           }}
         >
-          <p className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
+          <p
+            className="text-2xl font-bold"
+            style={{ color: "var(--text-primary)" }}
+          >
             {notes.length}
           </p>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -904,7 +990,10 @@ export default function Notes() {
             borderColor: "var(--border-secondary)",
           }}
         >
-          <p className="text-2xl font-bold" style={{ color: "var(--accent-rose)" }}>
+          <p
+            className="text-2xl font-bold"
+            style={{ color: "var(--accent-rose)" }}
+          >
             {filterCounts.favorites}
           </p>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -918,7 +1007,10 @@ export default function Notes() {
             borderColor: "var(--border-secondary)",
           }}
         >
-          <p className="text-2xl font-bold" style={{ color: "var(--accent-amber)" }}>
+          <p
+            className="text-2xl font-bold"
+            style={{ color: "var(--accent-amber)" }}
+          >
             {filterCounts.locked}
           </p>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -967,7 +1059,9 @@ export default function Notes() {
             onClick={() => setGridView(true)}
             className="p-2 rounded-lg transition"
             style={{
-              backgroundColor: gridView ? "rgba(99, 102, 241, 0.2)" : "transparent",
+              backgroundColor: gridView
+                ? "rgba(99, 102, 241, 0.2)"
+                : "transparent",
               color: gridView ? "var(--accent-indigo)" : "var(--text-muted)",
             }}
           >
@@ -977,7 +1071,9 @@ export default function Notes() {
             onClick={() => setGridView(false)}
             className="p-2 rounded-lg transition"
             style={{
-              backgroundColor: !gridView ? "rgba(99, 102, 241, 0.2)" : "transparent",
+              backgroundColor: !gridView
+                ? "rgba(99, 102, 241, 0.2)"
+                : "transparent",
               color: !gridView ? "var(--accent-indigo)" : "var(--text-muted)",
             }}
           >
@@ -999,8 +1095,12 @@ export default function Notes() {
               onClick={() => setActiveFilter(filter.id)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-medium whitespace-nowrap transition-all border"
               style={{
-                backgroundColor: isActive ? "rgba(99, 102, 241, 0.1)" : "transparent",
-                borderColor: isActive ? "rgba(99, 102, 241, 0.3)" : "transparent",
+                backgroundColor: isActive
+                  ? "rgba(99, 102, 241, 0.1)"
+                  : "transparent",
+                borderColor: isActive
+                  ? "rgba(99, 102, 241, 0.3)"
+                  : "transparent",
                 color: isActive ? "var(--accent-indigo)" : "var(--text-secondary)",
               }}
             >
@@ -1065,9 +1165,7 @@ export default function Notes() {
                 >
                   {query
                     ? "No notes found"
-                    : `No ${
-                        activeFilter === "all" ? "" : activeFilter + " "
-                      }notes yet`}
+                    : `No ${activeFilter === "all" ? "" : activeFilter + " "}notes yet`}
                 </h3>
 
                 <p
@@ -1156,7 +1254,10 @@ export default function Notes() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[90]"
-              style={{ backgroundColor: "var(--bg-overlay)", backdropFilter: "blur(4px)" }}
+              style={{
+                backgroundColor: "var(--bg-overlay)",
+                backdropFilter: "blur(4px)",
+              }}
               onClick={() => setActiveMenuId(null)}
             />
             <motion.div
@@ -1282,9 +1383,7 @@ export default function Notes() {
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowAddMenu(!showAddMenu)}
           className={`w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30 flex items-center justify-center transition-all ${
-            showAddMenu
-              ? "rotate-45 shadow-indigo-500/50"
-              : "hover:shadow-indigo-500/40"
+            showAddMenu ? "rotate-45 shadow-indigo-500/50" : "hover:shadow-indigo-500/40"
           }`}
         >
           <FiPlus size={24} strokeWidth={2.5} />
@@ -1294,11 +1393,7 @@ export default function Notes() {
       {/* New Note Modal */}
       <AnimatePresence>
         {editorOpen && (
-          <Modal
-            onClose={() => {
-              setEditorOpen(false);
-            }}
-          >
+          <Modal onClose={() => setEditorOpen(false)}>
             <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -1309,7 +1404,11 @@ export default function Notes() {
                       border: "1px solid rgba(99, 102, 241, 0.3)",
                     }}
                   >
-                    <FilePlus size={20} weight="duotone" style={{ color: "var(--accent-indigo)" }} />
+                    <FilePlus
+                      size={20}
+                      weight="duotone"
+                      style={{ color: "var(--accent-indigo)" }}
+                    />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -1320,6 +1419,7 @@ export default function Notes() {
                     </p>
                   </div>
                 </div>
+
                 <button
                   onClick={() => setEditorOpen(false)}
                   className="h-8 w-8 rounded-lg flex items-center justify-center transition"
@@ -1331,6 +1431,68 @@ export default function Notes() {
             </div>
 
             <div className="p-5 space-y-4">
+              {/* Category */}
+              <div>
+                <label className="text-xs font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>
+                  Category
+                </label>
+
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: "meeting", label: "Meeting" },
+                    { id: "study", label: "Study" },
+                    { id: "task", label: "Tasks" },
+                    { id: "personal", label: "Personal" },
+                    { id: "idea", label: "Ideas" },
+                  ].map((c) => {
+                    const active = newCategory === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setNewCategory(c.id)}
+                        className="px-3 py-2 rounded-full text-xs font-medium border transition"
+                        style={{
+                          backgroundColor: active ? "rgba(99,102,241,0.14)" : "var(--bg-input)",
+                          borderColor: active ? "rgba(99,102,241,0.35)" : "var(--border-secondary)",
+                          color: active ? "var(--accent-indigo)" : "var(--text-secondary)",
+                        }}
+                      >
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="mt-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                  Used for the note's primary label and analytics grouping.
+                </p>
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="text-xs font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>
+                  Tags (optional)
+                </label>
+                <input
+                  className="w-full border rounded-xl px-4 py-3 focus:outline-none transition"
+                  style={{
+                    backgroundColor: "var(--bg-input)",
+                    borderColor: "var(--border-secondary)",
+                    color: "var(--text-primary)",
+                  }}
+                  placeholder="e.g. sprint, client, budget"
+                  value={newTagsInput}
+                  onChange={(e) => setNewTagsInput(e.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <p className="mt-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                  Comma-separated. These become entries in <code>tags[]</code>.
+                </p>
+              </div>
+
+              {/* Title */}
               <div>
                 <label className="text-xs font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>
                   Title
@@ -1349,6 +1511,8 @@ export default function Notes() {
                   autoFocus
                 />
               </div>
+
+              {/* Content */}
               <div>
                 <label className="text-xs font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>
                   Content
@@ -1375,7 +1539,6 @@ export default function Notes() {
                 backgroundColor: "var(--bg-tertiary)",
               }}
             >
-              {/* ✅ FIX: Use button with onClick instead of form submit to avoid double-firing */}
               <button
                 type="button"
                 onClick={createNote}
@@ -1419,10 +1582,7 @@ export default function Notes() {
                   <FiLock
                     size={18}
                     style={{
-                      color:
-                        pinMode === "set"
-                          ? "var(--accent-indigo)"
-                          : "var(--accent-amber)",
+                      color: pinMode === "set" ? "var(--accent-indigo)" : "var(--accent-amber)",
                     }}
                   />
                 </div>
@@ -1431,9 +1591,7 @@ export default function Notes() {
                     {pinMode === "set" ? "Set PIN" : "Enter PIN"}
                   </h3>
                   <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    {pinMode === "set"
-                      ? "Create a 4-digit PIN"
-                      : "Enter your PIN to unlock"}
+                    {pinMode === "set" ? "Create a 4-digit PIN" : "Enter your PIN to unlock"}
                   </p>
                 </div>
               </div>
@@ -1503,10 +1661,7 @@ export default function Notes() {
                   >
                     <FiMic
                       style={{
-                        color:
-                          recState === "recording"
-                            ? "var(--accent-rose)"
-                            : "var(--accent-indigo)",
+                        color: recState === "recording" ? "var(--accent-rose)" : "var(--accent-indigo)",
                       }}
                       size={18}
                     />
@@ -1713,12 +1868,21 @@ export default function Notes() {
                   Pro includes:
                 </p>
                 <ul className="space-y-1.5">
-                  {["Voice notes & transcription", "Advanced export", "Unlimited AI", "Cloud sync"].map((f, i) => (
-                    <li key={i} className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                      <span className="w-1 h-1 rounded-full" style={{ backgroundColor: "var(--accent-indigo)" }} />{" "}
-                      {f}
-                    </li>
-                  ))}
+                  {["Voice notes & transcription", "Advanced export", "Unlimited AI", "Cloud sync"].map(
+                    (f, i) => (
+                      <li
+                        key={i}
+                        className="flex items-center gap-2 text-xs"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        <span
+                          className="w-1 h-1 rounded-full"
+                          style={{ backgroundColor: "var(--accent-indigo)" }}
+                        />{" "}
+                        {f}
+                      </li>
+                    )
+                  )}
                 </ul>
               </div>
             </div>
@@ -1773,7 +1937,10 @@ export default function Notes() {
             >
               <FiUpload size={32} className="animate-bounce" style={{ color: "var(--accent-indigo)" }} />
             </div>
-            <div className="w-48 h-1.5 rounded-full overflow-hidden mb-4" style={{ backgroundColor: "var(--bg-tertiary)" }}>
+            <div
+              className="w-48 h-1.5 rounded-full overflow-hidden mb-4"
+              style={{ backgroundColor: "var(--bg-tertiary)" }}
+            >
               <motion.div
                 initial={{ x: "-100%" }}
                 animate={{ x: "100%" }}
@@ -1789,8 +1956,19 @@ export default function Notes() {
       </AnimatePresence>
 
       {/* Hidden file inputs */}
-      <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} ref={filePickerRef} />
-      <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} ref={cameraInputRef} />
+      <input
+        type="file"
+        accept="image/*,application/pdf"
+        style={{ display: "none" }}
+        ref={filePickerRef}
+      />
+      <input
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: "none" }}
+        ref={cameraInputRef}
+      />
     </div>
   );
 }
@@ -1851,10 +2029,16 @@ const FABOption = ({ icon, label, onClick, pro }) => (
   <button
     onClick={onClick}
     className="flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg transition active:scale-95"
-    style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+    style={{
+      backgroundColor: "var(--bg-surface)",
+      borderColor: "var(--border-secondary)",
+    }}
   >
     <span style={{ color: "var(--accent-indigo)" }}>{icon}</span>
-    <span className="text-sm font-medium flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
+    <span
+      className="text-sm font-medium flex items-center gap-2"
+      style={{ color: "var(--text-primary)" }}
+    >
       {label}
       {pro && (
         <span
@@ -1871,4 +2055,5 @@ const FABOption = ({ icon, label, onClick, pro }) => (
     </span>
   </button>
 );
+
 

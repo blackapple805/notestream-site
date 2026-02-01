@@ -15,7 +15,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 // Integrations Provider
 import { IntegrationsProvider } from "./hooks/useIntegrations";
 
-// Subscription Provider
+// Subscription Provider (remove useSubscription + SubscriptionBridge)
 import { SubscriptionProvider } from "./hooks/useSubscription";
 
 // Workspace Settings Provider
@@ -358,7 +358,6 @@ export default function App() {
     </ThemeProvider>
   );
 }
-
 
 
 

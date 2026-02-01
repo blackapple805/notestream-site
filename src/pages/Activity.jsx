@@ -1,10 +1,12 @@
+
 // src/pages/Activity.jsx
 // ✅ Connected to Supabase database for real activity tracking
 // ✅ Filters timeline events that reference deleted notes/documents (orphan events)
+// ✅ Replaces mock usageBreakdown + clarity with real RPC-backed state
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import GlassCard from "../components/GlassCard";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   AreaChart,
   Area,
@@ -26,6 +28,7 @@ import {
   FiUser,
   FiTrendingUp,
   FiCalendar,
+  FiChevronDown,
 } from "react-icons/fi";
 import { ChartLine, Fire } from "phosphor-react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
@@ -189,9 +192,15 @@ const CustomTooltip = ({ active, payload, label }) => {
         <p className="text-xs font-medium text-theme-primary mb-1.5">{label}</p>
         {payload.map((entry, index) => (
           <div key={index} className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+            <div
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: entry.color }}
+            />
             <p className="text-xs text-theme-secondary">
-              {entry.name}: <span className="font-semibold text-theme-primary">{entry.value}</span>
+              {entry.name}:{" "}
+              <span className="font-semibold text-theme-primary">
+                {entry.value}
+              </span>
             </p>
           </div>
         ))}
@@ -218,7 +227,8 @@ const TimelineRow = ({ event, index }) => {
       <div
         className="absolute left-[14px] top-[18px] bottom-[-18px] w-[2px]"
         style={{
-          background: "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.00))",
+          background:
+            "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.00))",
         }}
         aria-hidden="true"
       />
@@ -242,12 +252,20 @@ const TimelineRow = ({ event, index }) => {
 
       <div
         className="rounded-2xl border px-4 py-3.5 transition"
-        style={{ backgroundColor: "rgba(255,255,255,0.03)", borderColor: "var(--border-secondary)" }}
+        style={{
+          backgroundColor: "rgba(255,255,255,0.03)",
+          borderColor: "var(--border-secondary)",
+        }}
       >
         <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-medium text-theme-primary">{safeTitle(event)}</p>
+          {/* LEFT: title (shrink + truncate) */}
+          <p className="text-sm font-medium text-theme-primary min-w-0 flex-1 truncate">
+            {safeTitle(event)}
+          </p>
+
+          {/* RIGHT: time pill (never shrink) */}
           <span
-            className="text-[10px] font-semibold px-2 py-1 rounded-full border"
+            className="shrink-0 text-[10px] font-semibold px-2 py-1 rounded-full border"
             style={{
               backgroundColor: "var(--bg-tertiary)",
               borderColor: "var(--border-secondary)",
@@ -308,41 +326,174 @@ const IconTile = ({ children, tone = "indigo", size = "md" }) => {
   return (
     <div
       className={`${sizes[size]} border flex items-center justify-center ${t.text}`}
-      style={{ backgroundColor: t.bg, borderColor: t.border, boxShadow: `0 10px 30px ${t.glow}` }}
+      style={{
+        backgroundColor: t.bg,
+        borderColor: t.border,
+        boxShadow: `0 10px 30px ${t.glow}`,
+      }}
     >
       {children}
     </div>
   );
 };
 
-/* -----------------------------------------
-   Activity Component (MAIN)
------------------------------------------ */
-export default function Activity() {
-  const [range, setRange] = useState(7);
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [chartTab, setChartTab] = useState("notes"); // "notes" | "summaries"
-  const [chartRange, setChartRange] = useState("week"); // UI-only for now
-  const [chartsReady, setChartsReady] = useState(false);
+  /* -----------------------------------------
+    Timeline Group (Accordion)
+  ----------------------------------------- */
+  const TimelineGroup = ({ group, items, isOpen, onToggle }) => {
+    const countLabel = `${items.length} event${items.length === 1 ? "" : "s"}`;
 
-  // ✅ Database state
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    notes_count: 0,
-    ai_summaries_count: 0,
-    uploads_count: 0,
-    streak_days: 0,
-    active_days_count: 0,
-  });
-  const [dailyData, setDailyData] = useState(defaultChartData);
-  const [streakDays, setStreakDays] = useState(defaultStreakDays);
-  const [timelineEvents, setTimelineEvents] = useState([]);
+    return (
+      <section className="rounded-2xl border overflow-hidden"
+        style={{
+          backgroundColor: "rgba(255,255,255,0.02)",
+          borderColor: "var(--border-secondary)",
+        }}
+      >
+        {/* Header row (click to toggle) */}
+        <button
+          type="button"
+          onClick={onToggle}
+          className="w-full flex items-center justify-between gap-3 px-3 sm:px-4 py-3 hover:bg-white/[0.02] transition"
+          aria-expanded={isOpen}
+          aria-controls={`group-${group.replace(/\s+/g, "-").toLowerCase()}`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span
+              className="text-[11px] uppercase tracking-wider font-semibold px-2.5 py-1 rounded-full border shrink-0"
+              style={{
+                backgroundColor: "var(--bg-tertiary)",
+                borderColor: "var(--border-secondary)",
+                color: "var(--text-muted)",
+              }}
+            >
+              {group}
+            </span>
 
-  // Delay chart rendering to prevent -1 width/height warnings
-  useEffect(() => {
-    const timer = setTimeout(() => setChartsReady(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
+            <span
+              className="text-[11px] truncate"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {countLabel}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span
+              className="text-[10px] font-semibold px-2 py-1 rounded-full border hidden sm:inline-flex"
+              style={{
+                backgroundColor: "var(--bg-tertiary)",
+                borderColor: "var(--border-secondary)",
+                color: "var(--text-muted)",
+              }}
+            >
+              {isOpen ? "Hide" : "Show"}
+            </span>
+
+            <motion.div
+              animate={{ rotate: isOpen ? 180 : 0 }}
+              transition={{ duration: 0.18 }}
+              className="h-8 w-8 rounded-xl border flex items-center justify-center"
+              style={{
+                backgroundColor: "var(--bg-tertiary)",
+                borderColor: "var(--border-secondary)",
+                color: "var(--text-muted)",
+              }}
+              aria-hidden="true"
+            >
+              <FiChevronDown size={16} />
+            </motion.div>
+          </div>
+        </button>
+
+        {/* Body */}
+        <AnimatePresence initial={false}>
+          {isOpen && (
+            <motion.div
+              id={`group-${group.replace(/\s+/g, "-").toLowerCase()}`}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="px-3 sm:px-4 pb-3"
+            >
+              <ol className="relative space-y-3 pt-1">
+                <div
+                  className="absolute left-[14px] top-0 bottom-0 w-[2px]"
+                  style={{
+                    background:
+                      "linear-gradient(to bottom, rgba(99,102,241,0.18), rgba(168,85,247,0.10), rgba(255,255,255,0.00))",
+                  }}
+                  aria-hidden="true"
+                />
+                {items.map((event, i) => (
+                  <TimelineRow key={event.id} event={event} index={i} />
+                ))}
+              </ol>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </section>
+    );
+  };
+
+  /* -----------------------------------------
+    Activity Component (MAIN)
+  ----------------------------------------- */
+  export default function Activity() {
+    const supabaseReady =
+      typeof isSupabaseConfigured === "function"
+        ? isSupabaseConfigured()
+        : !!isSupabaseConfigured;
+
+    const [range, setRange] = useState(7);
+    const [typeFilter, setTypeFilter] = useState("all");
+    const [chartTab, setChartTab] = useState("notes"); // "notes" | "summaries"
+    const [chartRange, setChartRange] = useState("week"); // UI-only toggle (optional mapping below)
+    const [chartsReady, setChartsReady] = useState(false);
+
+    // ✅ NEW: Real data state for Usage Breakdown + Clarity
+    const [usageBreakdown, setUsageBreakdown] = useState([]);
+    const [clarity, setClarity] = useState({
+      total_score: 0,
+      readability: 0,
+      structure: 0,
+      completeness: 0,
+    });
+     // Accordion state for timeline groups
+    const [openGroups, setOpenGroups] = useState(() => ({
+      Today: true,
+      Yesterday: true,
+      "This Week": true,
+      Earlier: false,
+    }));
+
+    const toggleGroup = useCallback((group) => {
+      setOpenGroups((prev) => ({ ...prev, [group]: !prev[group] }));
+    }, []);
+
+    // ✅ Database state
+    const [loading, setLoading] = useState(true);
+    const [stats, setStats] = useState({
+      notes_count: 0,
+      ai_summaries_count: 0,
+      uploads_count: 0,
+      streak_days: 0,
+      active_days_count: 0,
+    });
+    const [dailyData, setDailyData] = useState(defaultChartData);
+    const [streakDays, setStreakDays] = useState(defaultStreakDays);
+    const [timelineEvents, setTimelineEvents] = useState([]);
+
+    // Delay chart rendering to prevent -1 width/height warnings
+    useEffect(() => {
+      const timer = setTimeout(() => setChartsReady(true), 100);
+      return () => clearTimeout(timer);
+    }, []);
+
+    // (Optional) Make chartRange affect chart data days (independent of timeline range)
+    // If you want charts to follow the same "range" instead, set chartDays = range.
+    const chartDays = chartRange === "month" ? 30 : 7;
 
   // ✅ Fetch user data
   const getUser = useCallback(async () => {
@@ -354,7 +505,7 @@ export default function Activity() {
 
   // ✅ Load stats + charts + streak (NO timeline here)
   const loadActivityData = useCallback(async () => {
-    if (!isSupabaseConfigured) {
+    if (!supabaseReady || !supabase) {
       setLoading(false);
       return;
     }
@@ -363,19 +514,25 @@ export default function Activity() {
       setLoading(true);
       const user = await getUser();
 
-      // 1) Stats
-      const { data: statsData, error: statsError } = await supabase.rpc("get_activity_stats", {
-        p_user_id: user.id,
-        p_days: 7,
-      });
+      // 1) Stats (range-driven)
+      const { data: statsData, error: statsError } = await supabase.rpc(
+        "get_activity_stats",
+        {
+          p_user_id: user.id,
+          p_days: range,
+        }
+      );
       if (statsError) throw statsError;
       if (statsData && statsData.length > 0) setStats(statsData[0]);
 
-      // 2) Daily chart
-      const { data: dailyDataResult, error: dailyError } = await supabase.rpc("get_daily_activity", {
-        p_user_id: user.id,
-        p_days: 7,
-      });
+      // 2) Daily chart (chartRange-driven; swap chartDays -> range if you want)
+      const { data: dailyDataResult, error: dailyError } = await supabase.rpc(
+        "get_daily_activity",
+        {
+          p_user_id: user.id,
+          p_days: chartDays,
+        }
+      );
       if (dailyError) throw dailyError;
       if (dailyDataResult) {
         setDailyData(
@@ -388,29 +545,70 @@ export default function Activity() {
         );
       }
 
-      // 3) Weekly streak
-      const { data: streakData, error: streakError } = await supabase.rpc("get_weekly_streak", {
+    
+
+     // 3) Weekly streak (timezone-aware)
+    const tz =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Los_Angeles";
+
+    const { data: streakData, error: streakError } = await supabase.rpc(
+      "get_weekly_streak",
+      {
         p_user_id: user.id,
-      });
-      if (streakError) throw streakError;
-      if (streakData) {
-        setStreakDays(
-          streakData.map((d) => ({
-            day: d.day_name,
-            active: d.was_active,
-          }))
-        );
+        p_tz: tz,
       }
+    );
+
+    if (streakError) throw streakError;
+
+    if (streakData) {
+      setStreakDays(
+        streakData.map((d) => ({
+          day: d.day_name,          // "Mon", "Tue", ...
+          active: !!d.was_active,
+        }))
+      );
+    }
+
+
+      // ✅ NEW: Usage breakdown (range-driven, from tags[])
+      const { data: usageData, error: usageErr } = await supabase.rpc(
+        "get_usage_breakdown",
+        {
+          p_user_id: user.id,
+          p_days: range,
+        }
+      );
+      if (usageErr) console.error("get_usage_breakdown error:", usageErr);
+      setUsageBreakdown(usageData || []);
+
+      // ✅ NEW: Clarity score (range-driven)
+      const { data: clarityData, error: clarityErr } = await supabase.rpc(
+        "get_clarity_score",
+        {
+          p_user_id: user.id,
+          p_days: range,
+        }
+      );
+      if (clarityErr) console.error("get_clarity_score error:", clarityErr);
+      setClarity(
+        (clarityData && clarityData[0]) || {
+          total_score: 0,
+          readability: 0,
+          structure: 0,
+          completeness: 0,
+        }
+      );
     } catch (err) {
       console.error("Failed to load activity data:", err);
     } finally {
       setLoading(false);
     }
-  }, [getUser]);
+  }, [getUser, range, chartDays, supabaseReady]);
 
   // ✅ Load timeline only (with orphan filtering)
   const loadTimeline = useCallback(async () => {
-    if (!isSupabaseConfigured) return;
+    if (!supabaseReady || !supabase) return;
 
     try {
       const user = await getUser();
@@ -434,41 +632,45 @@ export default function Activity() {
 
       // If docs/notes select fails (RLS, etc.), don't block timeline.
       // In that case we skip filtering by leaving the sets empty.
-      const existingDocIds = new Set((docsError ? [] : docs || []).map((d) => d.id));
-      const existingNoteIds = new Set((notesError ? [] : notes || []).map((n) => n.id));
+      const existingDocIds = new Set(
+        (docsError ? [] : docs || []).map((d) => d.id)
+      );
+      const existingNoteIds = new Set(
+        (notesError ? [] : notes || []).map((n) => n.id)
+      );
 
-     const isOrphanEvent = (e) => {
-      const md = e?.metadata || {};
-      const rawTitle = (e?.title ?? "").toString().trim();
-      const metaName = (md?.name ?? "").toString().trim();
-      const type = e?.event_type;
+      const isOrphanEvent = (e) => {
+        const md = e?.metadata || {};
+        const rawTitle = (e?.title ?? "").toString().trim();
+        const metaName = (md?.name ?? "").toString().trim();
+        const type = e?.event_type;
 
-      const hasAnyLabel = rawTitle.length > 0 || metaName.length > 0;
+        const hasAnyLabel = rawTitle.length > 0 || metaName.length > 0;
 
-      // If the event points at a note/doc but has no label, it's almost always a deleted target (or bad backfill).
-      // Drop it even if we can't confirm IDs (RLS / permissions).
-      if ((md.note_id || md.doc_id) && !hasAnyLabel) return true;
+        // If the event points at a note/doc but has no label, it's almost always a deleted target (or bad backfill).
+        if ((md.note_id || md.doc_id) && !hasAnyLabel) return true;
 
-      // If we CAN load ids, filter true orphans too.
-      if (md.doc_id) return existingDocIds.size > 0 && !existingDocIds.has(md.doc_id);
-      if (md.note_id) return existingNoteIds.size > 0 && !existingNoteIds.has(md.note_id);
+        // If we CAN load ids, filter true orphans too.
+        if (md.doc_id)
+          return existingDocIds.size > 0 && !existingDocIds.has(md.doc_id);
+        if (md.note_id)
+          return existingNoteIds.size > 0 && !existingNoteIds.has(md.note_id);
 
-      // Optional: also hide placeholder "Created note" events that lost their target
-      // (keeps generic events like "AI used" if you want them).
-      if (!hasAnyLabel && (type === "note_created" || type === "note_updated")) return true;
+        // Optional: also hide placeholder note events that lost their target.
+        if (!hasAnyLabel && (type === "note_created" || type === "note_updated"))
+          return true;
 
-      return false;
-    };
-
+        return false;
+      };
 
       setTimelineEvents((timelineData || []).filter((e) => !isOrphanEvent(e)));
     } catch (err) {
       console.error("Failed to load timeline:", err);
       setTimelineEvents([]);
     }
-  }, [getUser, range, typeFilter]);
+  }, [getUser, range, typeFilter, supabaseReady]);
 
-  // Load stats/charts on mount
+  // Load stats/charts when range or chartDays changes (via loadActivityData deps)
   useEffect(() => {
     loadActivityData();
   }, [loadActivityData]);
@@ -491,21 +693,15 @@ export default function Activity() {
 
   const chartData = dailyData;
 
-  // Calculate trend percentages (simple placeholder)
+  // Calculate trend percentages (simple placeholder derived from counts)
   const notesTrend =
-    stats.notes_count > 0 ? `+${Math.round((stats.notes_count / 7) * 100) / 10}%` : null;
+    stats.notes_count > 0
+      ? `+${Math.round((stats.notes_count / Math.max(range, 1)) * 1000) / 10}%`
+      : null;
   const summariesTrend =
     stats.ai_summaries_count > 0
-      ? `+${Math.round((stats.ai_summaries_count / 7) * 100) / 10}%`
+      ? `+${Math.round((stats.ai_summaries_count / Math.max(range, 1)) * 1000) / 10}%`
       : null;
-
-  // Usage breakdown (static placeholder)
-  const usageBreakdown = [
-    { label: "Meeting Notes", value: 42, icon: FiEdit3, tone: "indigo" },
-    { label: "Study / Research", value: 31, icon: FiBookOpen, tone: "purple" },
-    { label: "Projects & Tasks", value: 19, icon: FiClipboard, tone: "cyan" },
-    { label: "Personal", value: 8, icon: FiUser, tone: "emerald" },
-  ];
 
   // Loading state
   if (loading) {
@@ -519,30 +715,41 @@ export default function Activity() {
   return (
     <div className="w-full space-y-4 sm:space-y-5 pb-[calc(var(--mobile-nav-height)+24px)]">
       {/* Header */}
-      <motion.header
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="page-header flex items-center justify-between"
-      >
-        <div className="page-header-content">
-          <div className="page-header-icon">
-            <ChartLine weight="duotone" />
-          </div>
-          <div>
-            <h1 className="page-header-title">Activity</h1>
-            <p className="page-header-subtitle">Track your productivity and usage patterns</p>
-          </div>
-        </div>
+        <motion.header
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+        >
+          <div className="page-header-content flex items-center gap-3 min-w-0">
+            <div className="page-header-icon flex-shrink-0">
+              <ChartLine weight="duotone" />
+            </div>
 
-        <span className="text-xs text-theme-muted px-3 py-1.5 rounded-full bg-theme-tertiary border border-theme-secondary">
-          {new Date().toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}
-        </span>
-      </motion.header>
+            <div className="min-w-0">
+              <h1 className="page-header-title truncate">Activity</h1>
+              <p className="page-header-subtitle truncate">
+                Track your productivity and usage patterns
+              </p>
+            </div>
+          </div>
+
+          <span
+            className="self-start sm:self-auto shrink-0 text-[11px] sm:text-xs px-3 py-1.5 rounded-full border leading-none"
+            style={{
+              backgroundColor: "var(--bg-tertiary)",
+              borderColor: "var(--border-secondary)",
+              color: "var(--text-muted)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {new Date().toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </span>
+        </motion.header>
 
       {/* Stats Row */}
       <motion.div
@@ -552,7 +759,7 @@ export default function Activity() {
         className="grid grid-cols-2 md:grid-cols-4 gap-3"
       >
         <StatCard
-          title="Notes This Week"
+          title={`Notes (last ${range}d)`}
           value={stats.notes_count}
           icon={<FiFileText size={18} />}
           iconColor="indigo"
@@ -560,7 +767,7 @@ export default function Activity() {
           trendUp={true}
         />
         <StatCard
-          title="AI Summaries"
+          title={`AI Summaries (last ${range}d)`}
           value={stats.ai_summaries_count}
           icon={<FiZap size={18} />}
           iconColor="amber"
@@ -575,7 +782,7 @@ export default function Activity() {
           iconColor="orange"
         />
         <StatCard
-          title="Uploads"
+          title={`Uploads (last ${range}d)`}
           value={stats.uploads_count}
           icon={<FiUploadCloud size={18} />}
           iconColor="emerald"
@@ -594,7 +801,9 @@ export default function Activity() {
               <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-orange-500/20 to-amber-500/20 border border-orange-500/30 flex items-center justify-center">
                 <Fire className="text-orange-400" size={16} weight="fill" />
               </div>
-              <h3 className="font-semibold text-sm text-theme-primary">Weekly Activity</h3>
+              <h3 className="font-semibold text-sm text-theme-primary">
+                Weekly Activity
+              </h3>
             </div>
             <span className="text-[10px] text-theme-muted px-2 py-1 rounded-full bg-theme-tertiary">
               7-day view
@@ -624,14 +833,22 @@ export default function Activity() {
                   <FiTrendingUp size={16} />
                 </IconTile>
                 <div>
-                  <h3 className="font-semibold text-base text-theme-primary">Insights Over Time</h3>
-                  <p className="text-[11px] text-theme-muted">Track your productivity trends</p>
+                  <h3 className="font-semibold text-base text-theme-primary">
+                    Insights Over Time
+                  </h3>
+                  <p className="text-[11px] text-theme-muted">
+                    Track your productivity trends
+                  </p>
                 </div>
               </div>
 
               <div className="flex gap-2">
                 {["notes", "summaries"].map((tab) => (
-                  <ToggleButton key={tab} active={chartTab === tab} onClick={() => setChartTab(tab)}>
+                  <ToggleButton
+                    key={tab}
+                    active={chartTab === tab}
+                    onClick={() => setChartTab(tab)}
+                  >
                     {tab.charAt(0).toUpperCase() + tab.slice(1)}
                   </ToggleButton>
                 ))}
@@ -699,6 +916,7 @@ export default function Activity() {
 
                       <Area
                         type="monotone"
+                        // chartTab is "notes" | "summaries"; dailyData includes both keys
                         dataKey={chartTab}
                         stroke="url(#activityStroke)"
                         strokeWidth={2.6}
@@ -726,7 +944,7 @@ export default function Activity() {
           </div>
         </GlassCard>
 
-        {/* Usage Breakdown */}
+        {/* Usage Breakdown (REAL) */}
         <GlassCard className="relative overflow-hidden">
           <div
             className="absolute inset-0 pointer-events-none"
@@ -744,8 +962,12 @@ export default function Activity() {
                   <FiTrendingUp size={16} />
                 </IconTile>
                 <div>
-                  <h3 className="font-semibold text-base text-theme-primary">Usage Breakdown</h3>
-                  <p className="text-[11px] text-theme-muted">How you use NoteStream</p>
+                  <h3 className="font-semibold text-base text-theme-primary">
+                    Usage Breakdown
+                  </h3>
+                  <p className="text-[11px] text-theme-muted">
+                    How you use NoteStream
+                  </p>
                 </div>
               </div>
 
@@ -757,62 +979,93 @@ export default function Activity() {
                   color: "var(--text-muted)",
                 }}
               >
-                Weekly
+                Last {range}d
               </span>
             </div>
 
             <div className="space-y-4">
-              {usageBreakdown.map((item, i) => {
-                const t = toneStyles[item.tone] || toneStyles.indigo;
-                const Icon = item.icon;
+              {usageBreakdown.length === 0 ? (
+                <div className="text-sm text-theme-muted">
+                  No category data yet.
+                </div>
+              ) : (
+                usageBreakdown.map((item, i) => {
+                  const label = String(item.label || "").toLowerCase();
+                  const tone =
+                    label.includes("meeting")
+                      ? "indigo"
+                      : label.includes("study")
+                      ? "purple"
+                      : label.includes("task")
+                      ? "cyan"
+                      : label.includes("personal")
+                      ? "emerald"
+                      : "indigo";
 
-                return (
-                  <div
-                    key={i}
-                    className="rounded-2xl border p-4"
-                    style={{
-                      backgroundColor: "var(--bg-tertiary)",
-                      borderColor: "var(--border-secondary)",
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`h-9 w-9 rounded-xl border flex items-center justify-center ${t.text}`}
-                          style={{
-                            backgroundColor: t.bg,
-                            borderColor: t.border,
-                            boxShadow: `0 10px 26px ${t.glow}`,
-                          }}
-                        >
-                          <Icon size={16} />
-                        </div>
-                        <span className="text-sm text-theme-secondary font-medium">{item.label}</span>
-                      </div>
-                      <span className="text-sm font-semibold text-theme-primary">{item.value}%</span>
-                    </div>
+                  const t = toneStyles[tone] || toneStyles.indigo;
 
+                  return (
                     <div
-                      className="h-2.5 rounded-full overflow-hidden border"
+                      key={`${item.label}-${i}`}
+                      className="rounded-2xl border p-4"
                       style={{
-                        backgroundColor: "var(--bg-elevated)",
+                        backgroundColor: "var(--bg-tertiary)",
                         borderColor: "var(--border-secondary)",
                       }}
                     >
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${item.value}%` }}
-                        transition={{ duration: 0.9, delay: i * 0.08, ease: "easeOut" }}
-                        className="h-full rounded-full"
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`h-9 w-9 rounded-xl border flex items-center justify-center ${t.text}`}
+                            style={{
+                              backgroundColor: t.bg,
+                              borderColor: t.border,
+                              boxShadow: `0 10px 26px ${t.glow}`,
+                            }}
+                          >
+                            <FiClipboard size={16} />
+                          </div>
+                          <span className="text-sm text-theme-secondary font-medium">
+                            {item.label}
+                          </span>
+                        </div>
+
+                        <span className="text-sm font-semibold text-theme-primary">
+                          {Number(item.value) || 0}%
+                        </span>
+                      </div>
+
+                      <div
+                        className="h-2.5 rounded-full overflow-hidden border"
                         style={{
-                          background: `linear-gradient(90deg, ${t.solid}, rgba(255,255,255,0.55))`,
-                          boxShadow: `0 0 18px ${t.soft}`,
+                          backgroundColor: "var(--bg-elevated)",
+                          borderColor: "var(--border-secondary)",
                         }}
-                      />
+                      >
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Number(item.value) || 0}%` }}
+                          transition={{
+                            duration: 0.9,
+                            delay: i * 0.08,
+                            ease: "easeOut",
+                          }}
+                          className="h-full rounded-full"
+                          style={{
+                            background: `linear-gradient(90deg, ${t.solid}, rgba(255,255,255,0.55))`,
+                            boxShadow: `0 0 18px ${t.soft}`,
+                          }}
+                        />
+                      </div>
+
+                      <div className="mt-2 text-[11px] text-theme-muted">
+                        {Number(item.count) || 0} note
+                        {Number(item.count) === 1 ? "" : "s"}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         </GlassCard>
@@ -820,7 +1073,7 @@ export default function Activity() {
 
       {/* Clarity Score + Bar Chart */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Clarity Score */}
+        {/* Clarity Score (REAL) */}
         <GlassCard className="relative overflow-hidden">
           <div
             className="absolute inset-0 pointer-events-none"
@@ -837,17 +1090,33 @@ export default function Activity() {
                   <FiZap size={16} />
                 </IconTile>
                 <div>
-                  <h3 className="font-semibold text-base text-theme-primary mb-1">Clarity Score</h3>
-                  <p className="text-[11px] text-theme-muted">AI-assessed note quality</p>
+                  <h3 className="font-semibold text-base text-theme-primary mb-1">
+                    Clarity Score
+                  </h3>
+                  <p className="text-[11px] text-theme-muted">
+                    AI-assessed note quality
+                  </p>
                 </div>
               </div>
-              <ClarityRing value={92} />
+              <ClarityRing value={clarity.total_score || 0} />
             </div>
 
             <div className="mt-4 grid grid-cols-3 gap-3">
-              <MiniStat label="Readability" value="94%" color="indigo" />
-              <MiniStat label="Structure" value="89%" color="purple" />
-              <MiniStat label="Completeness" value="93%" color="emerald" />
+              <MiniStat
+                label="Readability"
+                value={`${clarity.readability || 0}%`}
+                color="indigo"
+              />
+              <MiniStat
+                label="Structure"
+                value={`${clarity.structure || 0}%`}
+                color="purple"
+              />
+              <MiniStat
+                label="Completeness"
+                value={`${clarity.completeness || 0}%`}
+                color="emerald"
+              />
             </div>
           </div>
         </GlassCard>
@@ -869,8 +1138,12 @@ export default function Activity() {
                   <FiActivity size={16} />
                 </IconTile>
                 <div>
-                  <h3 className="font-semibold text-base text-theme-primary mb-1">Daily Breakdown</h3>
-                  <p className="text-[11px] text-theme-muted">Notes vs Summaries</p>
+                  <h3 className="font-semibold text-base text-theme-primary mb-1">
+                    Daily Breakdown
+                  </h3>
+                  <p className="text-[11px] text-theme-muted">
+                    Notes vs Summaries
+                  </p>
                 </div>
               </div>
 
@@ -882,7 +1155,7 @@ export default function Activity() {
                   color: "var(--text-muted)",
                 }}
               >
-                7d
+                {chartDays}d
               </span>
             </div>
 
@@ -932,7 +1205,12 @@ export default function Activity() {
                         tick={{ fill: "var(--text-muted)", fontSize: 10 }}
                       />
                       <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="notes" fill="url(#barNotes)" radius={[6, 6, 0, 0]} name="Notes" />
+                      <Bar
+                        dataKey="notes"
+                        fill="url(#barNotes)"
+                        radius={[6, 6, 0, 0]}
+                        name="Notes"
+                      />
                       <Bar
                         dataKey="summaries"
                         fill="url(#barSummaries)"
@@ -959,7 +1237,9 @@ export default function Activity() {
             <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500/20 to-sky-500/20 border border-indigo-500/30 flex items-center justify-center">
               <FiCalendar className="text-indigo-400" size={16} />
             </div>
-            <h3 className="font-semibold text-base text-theme-primary">Activity Timeline</h3>
+            <h3 className="font-semibold text-base text-theme-primary">
+              Activity Timeline
+            </h3>
           </div>
 
           <div className="flex gap-2">
@@ -989,46 +1269,100 @@ export default function Activity() {
           <div className="text-center py-10">
             <div
               className="h-12 w-12 rounded-2xl border flex items-center justify-center mx-auto mb-3"
-              style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
+              style={{
+                backgroundColor: "var(--bg-tertiary)",
+                borderColor: "var(--border-secondary)",
+              }}
             >
               <FiActivity className="text-theme-muted" size={20} />
             </div>
             <p className="text-theme-muted text-sm">No activity in this view</p>
-            <p className="text-theme-muted text-xs mt-1">Start creating notes or uploading documents!</p>
+            <p className="text-theme-muted text-xs mt-1">
+              Start creating notes or uploading documents!
+            </p>
           </div>
         ) : (
-          <div className="space-y-7">
+          <div className="space-y-3">
             {Object.entries(groupedEvents).map(([group, items]) => (
-              <section key={group}>
-                <div className="flex items-center justify-between mb-3">
-                  <span
-                    className="text-[11px] uppercase tracking-wider font-semibold px-2.5 py-1 rounded-full border"
-                    style={{
-                      backgroundColor: "var(--bg-tertiary)",
-                      borderColor: "var(--border-secondary)",
-                      color: "var(--text-muted)",
-                    }}
-                  >
-                    {group}
-                  </span>
-                  <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                    {items.length} event{items.length === 1 ? "" : "s"}
-                  </span>
-                </div>
+              <section
+                key={group}
+                className="rounded-2xl border overflow-hidden"
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.02)",
+                  borderColor: "var(--border-secondary)",
+                }}
+              >
+                {/* Header row */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenGroups((prev) => ({ ...prev, [group]: !prev[group] }))
+                  }
+                  className="w-full flex items-center justify-between gap-3 px-3 sm:px-4 py-3 hover:bg-white/[0.02] transition"
+                  aria-expanded={!!openGroups[group]}
+                  aria-controls={`group-${group.replace(/\s+/g, "-").toLowerCase()}`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className="text-[11px] uppercase tracking-wider font-semibold px-2.5 py-1 rounded-full border shrink-0"
+                      style={{
+                        backgroundColor: "var(--bg-tertiary)",
+                        borderColor: "var(--border-secondary)",
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      {group}
+                    </span>
 
-                <ol className="relative space-y-3">
-                  <div
-                    className="absolute left-[14px] top-0 bottom-0 w-[2px]"
-                    style={{
-                      background:
-                        "linear-gradient(to bottom, rgba(99,102,241,0.18), rgba(168,85,247,0.10), rgba(255,255,255,0.00))",
-                    }}
-                    aria-hidden="true"
-                  />
-                  {items.map((event, i) => (
-                    <TimelineRow key={event.id} event={event} index={i} />
-                  ))}
-                </ol>
+                    <span className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>
+                      {items.length} event{items.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <motion.div
+                      animate={{ rotate: openGroups[group] ? 180 : 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="h-8 w-8 rounded-xl border flex items-center justify-center"
+                      style={{
+                        backgroundColor: "var(--bg-tertiary)",
+                        borderColor: "var(--border-secondary)",
+                        color: "var(--text-muted)",
+                      }}
+                      aria-hidden="true"
+                    >
+                      <FiChevronDown size={16} />
+                    </motion.div>
+                  </div>
+                </button>
+
+                {/* Body */}
+                <AnimatePresence initial={false}>
+                  {!!openGroups[group] && (
+                    <motion.div
+                      id={`group-${group.replace(/\s+/g, "-").toLowerCase()}`}
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.22, ease: "easeOut" }}
+                      className="px-3 sm:px-4 pb-3"
+                    >
+                      <ol className="relative space-y-3 pt-1">
+                        <div
+                          className="absolute left-[14px] top-0 bottom-0 w-[2px]"
+                          style={{
+                            background:
+                              "linear-gradient(to bottom, rgba(99,102,241,0.18), rgba(168,85,247,0.10), rgba(255,255,255,0.00))",
+                          }}
+                          aria-hidden="true"
+                        />
+                        {items.map((event, i) => (
+                          <TimelineRow key={event.id} event={event} index={i} />
+                        ))}
+                      </ol>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </section>
             ))}
           </div>
@@ -1042,7 +1376,8 @@ export default function Activity() {
    Toggle Button Component
 ----------------------------------------- */
 const ToggleButton = ({ children, active, onClick, size = "md" }) => {
-  const sizeClasses = size === "sm" ? "px-3 py-1.5 text-[11px]" : "px-3.5 py-1.5 text-xs";
+  const sizeClasses =
+    size === "sm" ? "px-3 py-1.5 text-[11px]" : "px-3.5 py-1.5 text-xs";
 
   return (
     <button
@@ -1169,11 +1504,22 @@ const StreakDots = ({ days }) => {
                 ? "bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/30"
                 : "border-2 border-dashed"
             }`}
-            style={!d.active ? { backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-tertiary)" } : {}}
+            style={
+              !d.active
+                ? {
+                    backgroundColor: "var(--bg-tertiary)",
+                    borderColor: "var(--border-tertiary)",
+                  }
+                : {}
+            }
           >
             {d.active && <Fire size={16} weight="fill" />}
           </div>
-          <span className={`text-[10px] font-medium ${d.active ? "text-theme-secondary" : "text-theme-muted"}`}>
+          <span
+            className={`text-[10px] font-medium ${
+              d.active ? "text-theme-secondary" : "text-theme-muted"
+            }`}
+          >
             {d.day}
           </span>
         </motion.div>
@@ -1186,13 +1532,21 @@ const StreakDots = ({ days }) => {
    Clarity Ring (Donut Chart)
 ----------------------------------------- */
 const ClarityRing = ({ value }) => {
+  const v = Math.max(0, Math.min(100, Number(value) || 0));
   const circumference = 2 * Math.PI * 36;
-  const strokeDashoffset = circumference - (value / 100) * circumference;
+  const strokeDashoffset = circumference - (v / 100) * circumference;
 
   return (
     <div className="relative w-20 h-20">
       <svg className="w-full h-full transform -rotate-90" viewBox="0 0 80 80">
-        <circle cx="40" cy="40" r="36" stroke="var(--bg-tertiary)" strokeWidth="6" fill="none" />
+        <circle
+          cx="40"
+          cy="40"
+          r="36"
+          stroke="var(--bg-tertiary)"
+          strokeWidth="6"
+          fill="none"
+        />
         <defs>
           <linearGradient id="clarityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="var(--accent-indigo, #6366f1)" />
@@ -1214,7 +1568,7 @@ const ClarityRing = ({ value }) => {
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-lg font-bold text-theme-primary">{value}%</span>
+        <span className="text-lg font-bold text-theme-primary">{v}%</span>
       </div>
     </div>
   );

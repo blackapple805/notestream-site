@@ -23,7 +23,14 @@ import {
   FileDoc,
   BezierCurve,
 } from "phosphor-react";
-import { FiX, FiCheck, FiLock, FiCreditCard, FiCalendar, FiDownload } from "react-icons/fi";
+import {
+  FiX,
+  FiCheck,
+  FiLock,
+  FiCreditCard,
+  FiCalendar,
+  FiDownload,
+} from "react-icons/fi";
 import { useSubscription } from "../hooks/useSubscription";
 
 const proFeatures = [
@@ -116,13 +123,12 @@ const colorMap = {
   },
 };
 
-
 const featureRoutes = {
   custom: "/dashboard/ai-lab/training",
-  cloud: "/dashboard/ai-lab/cloud-sync", 
-  export: "/dashboard/notes",            
+  cloud: "/dashboard/ai-lab/cloud-sync",
+  export: "/dashboard/notes",
   voice: "/dashboard/ai-lab/voice-notes",
-  collab: "/dashboard/ai-lab/team-collaboration", 
+  collab: "/dashboard/ai-lab/team-collaboration",
 };
 
 export default function AiLab() {
@@ -135,6 +141,7 @@ export default function AiLab() {
     isFeatureUnlocked,
     subscribe,
     cancelSubscription,
+    loadSubscription, 
     isLoading,
   } = useSubscription();
 
@@ -153,6 +160,69 @@ export default function AiLab() {
   const currentPlan = getCurrentPlan();
   const isPro = subscription.plan !== "free";
 
+  // --- Cancel UX: optimistic + polling ---
+  const [optimisticCancel, setOptimisticCancel] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
+  const cancelPollRef = useRef(null);
+
+  const isCancelingUI =
+    optimisticCancel ||
+    subscription?.cancelAtPeriodEnd ||
+    subscription?.status === "canceling";
+
+  useEffect(() => {
+    // Start polling only while we're in optimistic cancel mode AND DB hasn't reflected it yet
+    if (!optimisticCancel) return;
+    if (subscription?.cancelAtPeriodEnd || subscription?.status === "canceling") {
+      setOptimisticCancel(false);
+      return;
+    }
+
+    let tries = 0;
+    const maxTries = 12; // ~9-10 seconds total depending on interval
+    const intervalMs = 800;
+
+    if (cancelPollRef.current) clearInterval(cancelPollRef.current);
+
+    cancelPollRef.current = setInterval(async () => {
+      tries += 1;
+      try {
+        await loadSubscription();
+      } catch (e) {
+        // ignore polling errors; we'll timeout if it never confirms
+      }
+
+      // Stop when DB confirms canceling
+      if (subscription?.cancelAtPeriodEnd || subscription?.status === "canceling") {
+        clearInterval(cancelPollRef.current);
+        cancelPollRef.current = null;
+        setOptimisticCancel(false);
+        return;
+      }
+
+      // Timeout fallback
+      if (tries >= maxTries) {
+        clearInterval(cancelPollRef.current);
+        cancelPollRef.current = null;
+
+        // Keep UI in "canceling" state to avoid user confusion, but surface message
+        setCancelError(
+          "Cancellation request sent, but confirmation is taking longer than expected. Please refresh in a few seconds."
+        );
+        // stay optimistic (so user doesn't see it flip back)
+      }
+    }, intervalMs);
+
+    return () => {
+      if (cancelPollRef.current) {
+        clearInterval(cancelPollRef.current);
+        cancelPollRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optimisticCancel]);
+
+
   const handleUpgrade = () => setShowPricing(true);
 
   const handleSelectPlan = (plan) => {
@@ -161,8 +231,62 @@ export default function AiLab() {
     setShowCheckout(plan);
   };
 
+  // --- Card input formatters (strict) ---
+  const formatCardNumber = (value) => {
+    const digits = String(value || "").replace(/\D/g, "").slice(0, 16);
+    const parts = digits.match(/.{1,4}/g) || [];
+    return parts.join(" ");
+  };
+
+  const formatExpiry = (value) => {
+    const digits = String(value || "").replace(/\D/g, "").slice(0, 4); // MMYY
+    const mm = digits.slice(0, 2);
+    const yy = digits.slice(2, 4);
+
+    if (mm.length === 0) return "";
+    if (mm.length === 1) return mm;
+    // clamp month 01-12 once 2 digits exist
+    let monthNum = parseInt(mm, 10);
+    if (Number.isNaN(monthNum)) monthNum = 1;
+    monthNum = Math.min(12, Math.max(1, monthNum));
+    const mmFixed = String(monthNum).padStart(2, "0");
+
+    if (yy.length === 0) return mmFixed + "/";
+    return mmFixed + "/" + yy;
+  };
+
+  const sanitizeName = (value) => {
+    // letters, spaces, apostrophes, hyphens only
+    return String(value || "").replace(/[^a-zA-Z\s'-]/g, "").slice(0, 40);
+  };
+
+  // --- Validation booleans ---
+  const cardDigits = cardNumber.replace(/\s/g, "");
+  const expiryDigits = cardExpiry.replace(/\D/g, ""); // MMYY
+  const expMM = expiryDigits.slice(0, 2);
+  const expYY = expiryDigits.slice(2, 4);
+
+  const isCardValid = cardDigits.length === 16;
+  const isCvcValid = /^\d{3,4}$/.test(cardCvc);
+  const isNameValid = cardName.trim().length >= 2;
+
+  const isExpiryValid = (() => {
+    if (expMM.length !== 2 || expYY.length !== 2) return false;
+    const mm = parseInt(expMM, 10);
+    if (Number.isNaN(mm) || mm < 1 || mm > 12) return false;
+
+    // Basic "not in the past" check (assumes 20YY)
+    const now = new Date();
+    const year = 2000 + parseInt(expYY, 10);
+    const monthIndex = mm - 1;
+    const expDate = new Date(year, monthIndex + 1, 1); // first day of next month
+    return expDate > now;
+  })();
+
+  const canPay = isCardValid && isExpiryValid && isCvcValid && isNameValid && !isProcessing;
+
   const handlePayment = async () => {
-    if (!cardNumber || !cardExpiry || !cardCvc || !cardName) return;
+    if (!canPay) return;
 
     setIsProcessing(true);
 
@@ -191,20 +315,47 @@ export default function AiLab() {
   };
 
   const handleCancelSubscription = async () => {
+    setCancelError(null);
+
+    // ✅ UI flips immediately
+    setOptimisticCancel(true);
+
+    // ✅ close modal immediately (smooth UX)
+    setShowManage(false);
+
+    // ✅ still block other actions while we submit
     setIsProcessing(true);
+
     try {
-      await cancelSubscription();
-      setShowManage(false);
+      // Hard timeout so user doesn't wait forever
+      const timeoutMs = 6000;
+      await Promise.race([
+        cancelSubscription(),
+        new Promise((_, rej) =>
+          setTimeout(() => rej(new Error("Cancel timed out")), timeoutMs)
+        ),
+      ]);
+
+      // Kick a refresh (poller will continue if needed)
+      await loadSubscription();
+    } catch (err) {
+      // Even if timeout happens, request may still succeed server-side.
+      // We keep optimistic state but show message.
+      setCancelError(
+        err?.message === "Cancel timed out"
+          ? "Cancellation request submitted. Confirmation is taking longer than expected."
+          : err?.message || String(err)
+      );
     } finally {
       setIsProcessing(false);
     }
   };
 
+
   const handleDemo = (feature, unlocked) => {
     setShowDemo({ ...feature, unlocked });
   };
 
- 
   const openFeature = (feature, unlocked) => {
     if (unlocked) {
       const route = featureRoutes[feature.id];
@@ -223,23 +374,6 @@ export default function AiLab() {
     return handleUpgrade();
   };
 
-  const formatCardNumber = (value) => {
-    const v = value.replace(/\s+/g, "").replace(/[^0-9]/gi, "");
-    const matches = v.match(/\d{4,16}/g);
-    const match = (matches && matches[0]) || "";
-    const parts = [];
-    for (let i = 0, len = match.length; i < len; i += 4) {
-      parts.push(match.substring(i, i + 4));
-    }
-    return parts.length ? parts.join(" ") : value;
-  };
-
-  const formatExpiry = (value) => {
-    const v = value.replace(/\s+/g, "").replace(/[^0-9]/gi, "");
-    if (v.length >= 2) return v.substring(0, 2) + "/" + v.substring(2, 4);
-    return v;
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -250,24 +384,28 @@ export default function AiLab() {
 
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
-        {/* Header */}
-        <header className="page-header">
-          <div className="page-header-content">
-            <div className="page-header-icon">
-              <BezierCurve weight="duotone" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="page-header-title">AI Lab</h1>
-                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30">
-                  <Crown size={14} weight="fill" className="text-amber-500" />
-                  <span className="text-[10px] font-semibold text-amber-500">PRO</span>
-                </div>
-              </div>
-              <p className="page-header-subtitle">Unlock powerful AI features to supercharge your workflow.</p>
-            </div>
+      {/* Header */}
+      <header className="page-header">
+        <div className="page-header-content">
+          <div className="page-header-icon">
+            <BezierCurve weight="duotone" />
           </div>
-        </header>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="page-header-title">AI Lab</h1>
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30">
+                <Crown size={14} weight="fill" className="text-amber-500" />
+                <span className="text-[10px] font-semibold text-amber-500">
+                  PRO
+                </span>
+              </div>
+            </div>
+            <p className="page-header-subtitle">
+              Unlock powerful AI features to supercharge your workflow.
+            </p>
+          </div>
+        </div>
+      </header>
 
       {isPro ? (
         <GlassCard className="border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 to-teal-500/5">
@@ -278,7 +416,9 @@ export default function AiLab() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-semibold text-theme-primary">{currentPlan.name} Plan Active</h3>
+                  <h3 className="text-base font-semibold text-theme-primary">
+                    {currentPlan.name} Plan Active
+                  </h3>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">
                     ACTIVE
                   </span>
@@ -305,7 +445,9 @@ export default function AiLab() {
                 <Lightning size={24} weight="fill" className="text-white" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-theme-primary">Upgrade to Pro</h3>
+                <h3 className="text-base font-semibold text-theme-primary">
+                  Upgrade to Pro
+                </h3>
                 <p className="text-sm text-theme-muted mt-0.5">
                   Get unlimited AI, voice notes, cloud sync, and more.
                 </p>
@@ -322,19 +464,57 @@ export default function AiLab() {
         </GlassCard>
       )}
 
+      {/* Cancel error banner (shown outside modal) */}
+      {cancelError && (
+        <div className="rounded-xl p-3 border border-rose-500/30 bg-rose-500/10">
+          <p className="text-sm text-rose-400">{cancelError}</p>
+        </div>
+      )}
+
       <GlassCard>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-theme-primary">Today's Usage</h3>
-          <span className="text-xs text-theme-muted">{isPro ? "Unlimited" : "Resets at midnight"}</span>
+          <h3 className="text-sm font-semibold text-theme-primary">
+            Today's Usage
+          </h3>
+          <span className="text-xs text-theme-muted">
+            {isPro ? "Unlimited" : "Resets at midnight"}
+          </span>
         </div>
         <div className="space-y-3">
-          <UsageBar label="AI Summaries" used={usage.aiSummaries} max={currentPlan.limits.aiSummaries} isPro={isPro} />
-          <UsageBar label="Document Synth" used={usage.documentSynth} max={currentPlan.limits.documentSynth} isPro={isPro} />
-          <UsageBar label="Insight Queries" used={usage.insightQueries} max={currentPlan.limits.insightQueries} isPro={isPro} />
+          <UsageBar
+            label="AI Summaries"
+            used={usage.aiSummaries}
+            max={currentPlan.limits.aiSummaries}
+            isPro={isPro}
+          />
+          <UsageBar
+            label="Document Synth"
+            used={usage.documentSynth}
+            max={currentPlan.limits.documentSynth}
+            isPro={isPro}
+          />
+          <UsageBar
+            label="Insight Queries"
+            used={usage.insightQueries}
+            max={currentPlan.limits.insightQueries}
+            isPro={isPro}
+          />
+          {/* Optional: show Voice if your plan has it */}
+          {typeof currentPlan.limits.voiceTranscriptions !== "undefined" && (
+            <UsageBar
+              label="Voice Transcriptions"
+              used={usage.voiceTranscriptions}
+              max={currentPlan.limits.voiceTranscriptions}
+              isPro={isPro}
+            />
+          )}
         </div>
         {!isPro && (
           <p className="text-[11px] text-theme-muted mt-3">
-            <span className="text-indigo-400 cursor-pointer hover:underline" onClick={handleUpgrade}>
+            <span
+              className="text-indigo-400 cursor-pointer hover:underline"
+              onClick={handleUpgrade}
+            >
               Pro users
             </span>{" "}
             get unlimited access to all features.
@@ -343,7 +523,9 @@ export default function AiLab() {
       </GlassCard>
 
       <div>
-        <h3 className="text-sm font-semibold text-theme-secondary mb-3 px-1">Pro Features</h3>
+        <h3 className="text-sm font-semibold text-theme-secondary mb-3 px-1">
+          Pro Features
+        </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {proFeatures.map((feature) => {
             const colors = colorMap[feature.color];
@@ -351,7 +533,6 @@ export default function AiLab() {
             const unlocked = isFeatureUnlocked(feature.id);
             const canPreview = feature.demo === true;
 
-            // UPDATED: route to real page for unlocked features that have routes
             const onClick = () => openFeature(feature, unlocked);
 
             return (
@@ -377,15 +558,20 @@ export default function AiLab() {
                   )}
                 </div>
 
-                <div className={`h-10 w-10 rounded-xl ${colors.bg} border ${colors.border} flex items-center justify-center mb-3`}>
+                <div
+                  className={`h-10 w-10 rounded-xl ${colors.bg} border ${colors.border} flex items-center justify-center mb-3`}
+                >
                   <Icon size={22} weight="duotone" className={colors.icon} />
                 </div>
 
-                <h4 className="text-sm font-semibold text-theme-primary mb-1">{feature.title}</h4>
-                <p className="text-xs text-theme-muted leading-relaxed mb-3">{feature.desc}</p>
+                <h4 className="text-sm font-semibold text-theme-primary mb-1">
+                  {feature.title}
+                </h4>
+                <p className="text-xs text-theme-muted leading-relaxed mb-3">
+                  {feature.desc}
+                </p>
 
                 {unlocked ? (
-                  // If feature has a route, show Open. Otherwise show Active (ex: Unlimited AI).
                   featureRoutes[feature.id] ? (
                     <button
                       type="button"
@@ -414,7 +600,9 @@ export default function AiLab() {
                     Preview
                   </button>
                 ) : (
-                  <span className="text-[10px] text-theme-muted">Requires Pro</span>
+                  <span className="text-[10px] text-theme-muted">
+                    {feature.id === "collab" ? "Requires Team" : "Requires Pro"}
+                  </span>
                 )}
               </motion.div>
             );
@@ -422,6 +610,7 @@ export default function AiLab() {
         </div>
       </div>
 
+      {/* Pricing Modal */}
       <AnimatePresence>
         {showPricing && (
           <motion.div
@@ -429,7 +618,10 @@ export default function AiLab() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[999] flex items-center justify-center p-4"
-            style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+            style={{
+              backgroundColor: "rgba(0,0,0,0.6)",
+              backdropFilter: "blur(8px)",
+            }}
             onClick={() => setShowPricing(false)}
           >
             <motion.div
@@ -438,13 +630,20 @@ export default function AiLab() {
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border"
-              style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                borderColor: "var(--border-secondary)",
+              }}
             >
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h2 className="text-xl font-semibold text-theme-primary">Choose Your Plan</h2>
-                    <p className="text-sm text-theme-muted mt-1">Upgrade to unlock all features</p>
+                    <h2 className="text-xl font-semibold text-theme-primary">
+                      Choose Your Plan
+                    </h2>
+                    <p className="text-sm text-theme-muted mt-1">
+                      Upgrade to unlock all features
+                    </p>
                   </div>
                   <button
                     onClick={() => setShowPricing(false)}
@@ -463,10 +662,18 @@ export default function AiLab() {
                     return (
                       <div
                         key={plan.id}
-                        className={`rounded-xl p-5 border transition ${isPopular ? "border-indigo-500/50 ring-1 ring-indigo-500/30" : ""}`}
+                        className={`rounded-xl p-5 border transition ${
+                          isPopular
+                            ? "border-indigo-500/50 ring-1 ring-indigo-500/30"
+                            : ""
+                        }`}
                         style={{
-                          backgroundColor: isPopular ? "rgba(99, 102, 241, 0.05)" : "var(--bg-input)",
-                          borderColor: isPopular ? undefined : "var(--border-secondary)",
+                          backgroundColor: isPopular
+                            ? "rgba(99, 102, 241, 0.05)"
+                            : "var(--bg-input)",
+                          borderColor: isPopular
+                            ? undefined
+                            : "var(--border-secondary)",
                         }}
                       >
                         {isPopular && (
@@ -475,16 +682,32 @@ export default function AiLab() {
                             MOST POPULAR
                           </div>
                         )}
-                        {isCurrent && <div className="text-[10px] font-semibold text-emerald-400 mb-2">✓ CURRENT PLAN</div>}
-                        <h3 className="text-lg font-semibold text-theme-primary">{plan.name}</h3>
+                        {isCurrent && (
+                          <div className="text-[10px] font-semibold text-emerald-400 mb-2">
+                            ✓ CURRENT PLAN
+                          </div>
+                        )}
+                        <h3 className="text-lg font-semibold text-theme-primary">
+                          {plan.name}
+                        </h3>
                         <div className="mt-2 mb-4">
-                          <span className="text-3xl font-bold text-theme-primary">${plan.price}</span>
-                          <span className="text-sm text-theme-muted">/{plan.period}</span>
+                          <span className="text-3xl font-bold text-theme-primary">
+                            ${plan.price}
+                          </span>
+                          <span className="text-sm text-theme-muted">
+                            /{plan.period}
+                          </span>
                         </div>
                         <ul className="space-y-2 mb-5">
                           {plan.features.map((f, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-theme-secondary">
-                              <FiCheck className="text-emerald-500 mt-0.5 flex-shrink-0" size={14} />
+                            <li
+                              key={i}
+                              className="flex items-start gap-2 text-sm text-theme-secondary"
+                            >
+                              <FiCheck
+                                className="text-emerald-500 mt-0.5 flex-shrink-0"
+                                size={14}
+                              />
                               {f}
                             </li>
                           ))}
@@ -499,9 +722,17 @@ export default function AiLab() {
                               ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:shadow-lg hover:shadow-indigo-500/25"
                               : "text-theme-primary hover:bg-white/5 border"
                           }`}
-                          style={(!isCurrent && !isPopular && plan.id !== "free") ? { borderColor: "var(--border-secondary)" } : {}}
+                          style={
+                            !isCurrent && !isPopular && plan.id !== "free"
+                              ? { borderColor: "var(--border-secondary)" }
+                              : {}
+                          }
                         >
-                          {isCurrent ? "Current Plan" : plan.id === "free" ? "Free Forever" : "Get Started"}
+                          {isCurrent
+                            ? "Current Plan"
+                            : plan.id === "free"
+                            ? "Free Forever"
+                            : "Get Started"}
                         </button>
                       </div>
                     );
@@ -518,6 +749,7 @@ export default function AiLab() {
         )}
       </AnimatePresence>
 
+      {/* Checkout Modal */}
       <AnimatePresence>
         {showCheckout && (
           <motion.div
@@ -525,7 +757,10 @@ export default function AiLab() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[999] flex items-center justify-center p-4"
-            style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+            style={{
+              backgroundColor: "rgba(0,0,0,0.6)",
+              backdropFilter: "blur(8px)",
+            }}
             onClick={() => !isProcessing && setShowCheckout(null)}
           >
             <motion.div
@@ -534,7 +769,10 @@ export default function AiLab() {
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl border overflow-hidden"
-              style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                borderColor: "var(--border-secondary)",
+              }}
             >
               {paymentSuccess ? (
                 <div className="p-8 text-center">
@@ -546,15 +784,21 @@ export default function AiLab() {
                   >
                     <CheckCircle size={48} weight="fill" className="text-emerald-500" />
                   </motion.div>
-                  <h2 className="text-2xl font-bold text-theme-primary mb-2">Welcome to {showCheckout.name}!</h2>
-                  <p className="text-theme-muted">Your subscription is now active. All Pro features have been unlocked.</p>
+                  <h2 className="text-2xl font-bold text-theme-primary mb-2">
+                    Welcome to {showCheckout.name}!
+                  </h2>
+                  <p className="text-theme-muted">
+                    Your subscription is now active. All Pro features have been unlocked.
+                  </p>
                 </div>
               ) : (
                 <>
                   <div className="p-6 border-b" style={{ borderColor: "var(--border-secondary)" }}>
                     <div className="flex items-center justify-between">
                       <div>
-                        <h2 className="text-xl font-semibold text-theme-primary">Checkout</h2>
+                        <h2 className="text-xl font-semibold text-theme-primary">
+                          Checkout
+                        </h2>
                         <p className="text-sm text-theme-muted mt-1">
                           Subscribe to {showCheckout.name} - ${showCheckout.price}/{showCheckout.period}
                         </p>
@@ -571,13 +815,23 @@ export default function AiLab() {
                   </div>
 
                   <div className="p-6 space-y-4">
+                    {/* Card Number */}
                     <div>
-                      <label className="text-xs font-medium text-theme-muted mb-2 block">Card Number</label>
+                      <label className="text-xs font-medium text-theme-muted mb-2 block">
+                        Card Number
+                      </label>
                       <div className="relative">
                         <input
                           type="text"
+                          inputMode="numeric"
+                          autoComplete="cc-number"
                           value={cardNumber}
                           onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                          onPaste={(e) => {
+                            e.preventDefault();
+                            const text = (e.clipboardData || window.clipboardData).getData("text");
+                            setCardNumber(formatCardNumber(text));
+                          }}
                           placeholder="4242 4242 4242 4242"
                           maxLength={19}
                           disabled={isProcessing}
@@ -589,12 +843,22 @@ export default function AiLab() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
+                      {/* Expiry */}
                       <div>
-                        <label className="text-xs font-medium text-theme-muted mb-2 block">Expiry</label>
+                        <label className="text-xs font-medium text-theme-muted mb-2 block">
+                          Expiry
+                        </label>
                         <input
                           type="text"
+                          inputMode="numeric"
+                          autoComplete="cc-exp"
                           value={cardExpiry}
                           onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
+                          onPaste={(e) => {
+                            e.preventDefault();
+                            const text = (e.clipboardData || window.clipboardData).getData("text");
+                            setCardExpiry(formatExpiry(text));
+                          }}
                           placeholder="MM/YY"
                           maxLength={5}
                           disabled={isProcessing}
@@ -602,12 +866,22 @@ export default function AiLab() {
                           style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}
                         />
                       </div>
+                      {/* CVC */}
                       <div>
-                        <label className="text-xs font-medium text-theme-muted mb-2 block">CVC</label>
+                        <label className="text-xs font-medium text-theme-muted mb-2 block">
+                          CVC
+                        </label>
                         <input
                           type="text"
+                          inputMode="numeric"
+                          autoComplete="cc-csc"
                           value={cardCvc}
                           onChange={(e) => setCardCvc(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                          onPaste={(e) => {
+                            e.preventDefault();
+                            const text = (e.clipboardData || window.clipboardData).getData("text");
+                            setCardCvc(String(text || "").replace(/\D/g, "").slice(0, 4));
+                          }}
                           placeholder="123"
                           maxLength={4}
                           disabled={isProcessing}
@@ -617,12 +891,16 @@ export default function AiLab() {
                       </div>
                     </div>
 
+                    {/* Cardholder Name */}
                     <div>
-                      <label className="text-xs font-medium text-theme-muted mb-2 block">Cardholder Name</label>
+                      <label className="text-xs font-medium text-theme-muted mb-2 block">
+                        Cardholder Name
+                      </label>
                       <input
                         type="text"
+                        autoComplete="cc-name"
                         value={cardName}
-                        onChange={(e) => setCardName(e.target.value)}
+                        onChange={(e) => setCardName(sanitizeName(e.target.value))}
                         placeholder="John Doe"
                         disabled={isProcessing}
                         className="w-full px-4 py-3 rounded-xl border text-theme-primary placeholder:text-theme-muted outline-none focus:ring-2 focus:ring-indigo-500/50 transition disabled:opacity-50"
@@ -631,18 +909,29 @@ export default function AiLab() {
                     </div>
 
                     <div className="rounded-xl p-3 text-xs text-theme-muted" style={{ backgroundColor: "var(--bg-tertiary)" }}>
-                      <p className="font-medium text-theme-secondary mb-1">🧪 Test Mode</p>
+                      <p className="font-medium text-theme-secondary mb-1">
+                        🧪 Test Mode
+                      </p>
                       <p>
-                        Use card number <span className="font-mono text-indigo-400">4242 4242 4242 4242</span> with any
-                        future expiry and CVC.
+                        Use card number{" "}
+                        <span className="font-mono text-indigo-400">
+                          4242 4242 4242 4242
+                        </span>{" "}
+                        with any future expiry and CVC.
                       </p>
                     </div>
                   </div>
 
-                  <div className="p-6 border-t" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
+                  <div
+                    className="p-6 border-t"
+                    style={{
+                      borderColor: "var(--border-secondary)",
+                      backgroundColor: "var(--bg-tertiary)",
+                    }}
+                  >
                     <button
                       onClick={handlePayment}
-                      disabled={isProcessing || !cardNumber || !cardExpiry || !cardCvc || !cardName}
+                      disabled={!canPay}
                       className="w-full py-3.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-indigo-500/25 transition"
                     >
                       {isProcessing ? (
@@ -657,7 +946,15 @@ export default function AiLab() {
                         </>
                       )}
                     </button>
-                    <p className="text-center text-[10px] text-theme-muted mt-3">By subscribing, you agree to our Terms of Service</p>
+                    {/* Validation hint */}
+                    {!canPay && (
+                      <p className="text-center text-[10px] text-theme-muted mt-2">
+                        Enter a valid 16-digit card, MM/YY (not expired), 3–4 digit CVC, and name.
+                      </p>
+                    )}
+                    <p className="text-center text-[10px] text-theme-muted mt-3">
+                      By subscribing, you agree to our Terms of Service
+                    </p>
                   </div>
                 </>
               )}
@@ -666,6 +963,7 @@ export default function AiLab() {
         )}
       </AnimatePresence>
 
+      {/* Manage Modal */}
       <AnimatePresence>
         {showManage && (
           <motion.div
@@ -673,7 +971,10 @@ export default function AiLab() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[999] flex items-center justify-center p-4"
-            style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+            style={{
+              backgroundColor: "rgba(0,0,0,0.6)",
+              backdropFilter: "blur(8px)",
+            }}
             onClick={() => !isProcessing && setShowManage(false)}
           >
             <motion.div
@@ -682,11 +983,16 @@ export default function AiLab() {
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl border"
-              style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                borderColor: "var(--border-secondary)",
+              }}
             >
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-theme-primary">Manage Subscription</h2>
+                  <h2 className="text-xl font-semibold text-theme-primary">
+                    Manage Subscription
+                  </h2>
                   <button
                     onClick={() => setShowManage(false)}
                     disabled={isProcessing}
@@ -699,23 +1005,38 @@ export default function AiLab() {
 
                 <div
                   className="rounded-xl p-4 mb-6 border"
-                  style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}
+                  style={{
+                    backgroundColor: "var(--bg-input)",
+                    borderColor: "var(--border-secondary)",
+                  }}
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <h3 className="font-semibold text-theme-primary">{currentPlan.name} Plan</h3>
+                      <h3 className="font-semibold text-theme-primary">
+                        {currentPlan.name} Plan
+                      </h3>
                       <p className="text-sm text-theme-muted">
                         ${currentPlan.price}/{currentPlan.period}
                       </p>
                     </div>
-                    <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">Active</span>
-                  </div>
 
+                    {/* Updated to use isCancelingUI */}
+                    {isCancelingUI ? (
+                      <span className="text-xs px-2 py-1 rounded-full bg-amber-500/20 text-amber-400 font-medium border border-amber-500/30">
+                        Canceling
+                      </span>
+                    ) : (
+                      <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">
+                        Active
+                      </span>
+                    )}
+                  </div>
                   {subscription.paymentMethod && (
                     <div className="flex items-center gap-2 text-sm text-theme-secondary">
                       <CreditCard size={16} />
                       <span>
-                        {subscription.paymentMethod.brand} •••• {subscription.paymentMethod.last4}
+                        {subscription.paymentMethod.brand} ••••{" "}
+                        {subscription.paymentMethod.last4}
                       </span>
                     </div>
                   )}
@@ -723,20 +1044,30 @@ export default function AiLab() {
                   {subscription.expiresAt && (
                     <div className="flex items-center gap-2 text-sm text-theme-muted mt-2">
                       <FiCalendar size={14} />
-                      <span>Renews {new Date(subscription.expiresAt).toLocaleDateString()}</span>
+                      <span>
+                        Renews{" "}
+                        {new Date(subscription.expiresAt).toLocaleDateString()}
+                      </span>
                     </div>
                   )}
                 </div>
 
                 <div className="space-y-3">
+                  {/* Updated Cancel button with isCancelingUI */}
                   <button
                     onClick={handleCancelSubscription}
-                    disabled={isProcessing}
+                    disabled={isProcessing || isCancelingUI}
                     className="w-full py-3 rounded-xl font-medium text-rose-500 border border-rose-500/30 hover:bg-rose-500/10 transition disabled:opacity-50"
                   >
-                    {isProcessing ? "Cancelling..." : "Cancel Subscription"}
+                    {isCancelingUI ? "Cancellation Pending..." : isProcessing ? "Cancelling..." : "Cancel Subscription"}
                   </button>
-                  <p className="text-[11px] text-theme-muted text-center">You'll continue to have access until your current billing period ends.</p>
+                  {/* Cancel error message */}
+                  {cancelError && (
+                    <p className="text-[11px] text-rose-400 text-center">{cancelError}</p>
+                  )}
+                  <p className="text-[11px] text-theme-muted text-center">
+                    You'll continue to have access until your current billing period ends.
+                  </p>
                 </div>
               </div>
             </motion.div>
@@ -744,6 +1075,7 @@ export default function AiLab() {
         )}
       </AnimatePresence>
 
+      {/* Demo Modal */}
       <AnimatePresence>
         {showDemo && (
           <motion.div
@@ -751,7 +1083,10 @@ export default function AiLab() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[999] flex items-center justify-center p-4"
-            style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+            style={{
+              backgroundColor: "rgba(0,0,0,0.6)",
+              backdropFilter: "blur(8px)",
+            }}
             onClick={() => setShowDemo(null)}
           >
             <motion.div
@@ -760,22 +1095,35 @@ export default function AiLab() {
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl p-6 border"
-              style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                borderColor: "var(--border-secondary)",
+              }}
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   {showDemo.icon && (
                     <div
-                      className={`h-8 w-8 rounded-lg ${colorMap[showDemo.color]?.bg} border ${
-                        colorMap[showDemo.color]?.border
-                      } flex items-center justify-center`}
+                      className={`h-8 w-8 rounded-lg ${
+                        colorMap[showDemo.color]?.bg
+                      } border ${colorMap[showDemo.color]?.border} flex items-center justify-center`}
                     >
-                      <showDemo.icon size={18} weight="duotone" className={colorMap[showDemo.color]?.icon} />
+                      <showDemo.icon
+                        size={18}
+                        weight="duotone"
+                        className={colorMap[showDemo.color]?.icon}
+                      />
                     </div>
                   )}
                   <div>
-                    <h3 className="text-lg font-semibold text-theme-primary">{showDemo.title}</h3>
-                    {!showDemo.unlocked && <p className="text-[11px] text-theme-muted mt-0.5">Preview mode</p>}
+                    <h3 className="text-lg font-semibold text-theme-primary">
+                      {showDemo.title}
+                    </h3>
+                    {!showDemo.unlocked && (
+                      <p className="text-[11px] text-theme-muted mt-0.5">
+                        Preview mode
+                      </p>
+                    )}
                   </div>
                 </div>
                 <button
@@ -789,13 +1137,20 @@ export default function AiLab() {
 
               <div
                 className="rounded-xl p-4 mb-4 min-h-[280px] border overflow-hidden"
-                style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}
+                style={{
+                  backgroundColor: "var(--bg-input)",
+                  borderColor: "var(--border-secondary)",
+                }}
               >
                 {showDemo.id === "voice" && <VoiceNotesDemo />}
                 {showDemo.id === "collab" && <CollaborationDemo />}
                 {showDemo.id === "export" && <ExportDemo />}
-                {showDemo.id === "cloud" && <CloudSyncDemo unlocked={!!showDemo.unlocked} />}
-                {showDemo.id === "custom" && <CustomTrainingDemo unlocked={!!showDemo.unlocked} />}
+                {showDemo.id === "cloud" && (
+                  <CloudSyncDemo unlocked={!!showDemo.unlocked} />
+                )}
+                {showDemo.id === "custom" && (
+                  <CustomTrainingDemo unlocked={!!showDemo.unlocked} />
+                )}
               </div>
 
               {showDemo.unlocked ? (
@@ -829,6 +1184,8 @@ export default function AiLab() {
 /* -------------------- Demos -------------------- */
 
 function VoiceNotesDemo() {
+  const { incrementUsage } = useSubscription();
+
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [transcription, setTranscription] = useState("");
@@ -846,7 +1203,10 @@ function VoiceNotesDemo() {
   useEffect(() => {
     if (isRecording) {
       intervalRef.current = setInterval(() => setRecordingTime((p) => p + 1), 1000);
-      waveformRef.current = setInterval(() => setWaveformBars((p) => p.map(() => Math.random() * 0.8 + 0.2)), 100);
+      waveformRef.current = setInterval(
+        () => setWaveformBars((p) => p.map(() => Math.random() * 0.8 + 0.2)),
+        100
+      );
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (waveformRef.current) clearInterval(waveformRef.current);
@@ -868,10 +1228,20 @@ function VoiceNotesDemo() {
       setIsRecording(false);
       setIsTranscribing(true);
       setWaveformBars(Array(20).fill(0.2));
-      setTimeout(() => {
-        setIsTranscribing(false);
-        const randomTranscription = sampleTranscriptions[Math.floor(Math.random() * sampleTranscriptions.length)];
-        setTranscription(randomTranscription);
+
+      setTimeout(async () => {
+        try {
+          const randomTranscription =
+            sampleTranscriptions[Math.floor(Math.random() * sampleTranscriptions.length)];
+          setTranscription(randomTranscription);
+
+          // ✅ count only after success (transcription completed)
+          await incrementUsage("voiceTranscriptions");
+        } catch (e) {
+          console.error("Voice transcription increment failed:", e);
+        } finally {
+          setIsTranscribing(false);
+        }
       }, 2000);
     } else {
       setIsRecording(true);
@@ -902,7 +1272,9 @@ function VoiceNotesDemo() {
         ))}
       </div>
 
-      <div className="text-2xl font-mono text-theme-primary">{formatTime(recordingTime)}</div>
+      <div className="text-2xl font-mono text-theme-primary">
+        {formatTime(recordingTime)}
+      </div>
 
       <motion.button
         whileHover={{ scale: 1.05 }}
@@ -910,13 +1282,25 @@ function VoiceNotesDemo() {
         onClick={handleToggleRecording}
         disabled={isTranscribing}
         className={`h-16 w-16 rounded-full flex items-center justify-center transition-all ${
-          isRecording ? "bg-rose-500 shadow-lg shadow-rose-500/40" : "bg-purple-500 shadow-lg shadow-purple-500/40"
+          isRecording
+            ? "bg-rose-500 shadow-lg shadow-rose-500/40"
+            : "bg-purple-500 shadow-lg shadow-purple-500/40"
         } ${isTranscribing ? "opacity-50 cursor-not-allowed" : ""}`}
       >
-        {isRecording ? <Stop size={28} weight="fill" className="text-white" /> : <Microphone size={28} weight="fill" className="text-white" />}
+        {isRecording ? (
+          <Stop size={28} weight="fill" className="text-white" />
+        ) : (
+          <Microphone size={28} weight="fill" className="text-white" />
+        )}
       </motion.button>
 
-      <p className="text-xs text-theme-muted">{isRecording ? "Tap to stop recording" : isTranscribing ? "Transcribing..." : "Tap to start recording"}</p>
+      <p className="text-xs text-theme-muted">
+        {isRecording
+          ? "Tap to stop recording"
+          : isTranscribing
+          ? "Transcribing..."
+          : "Tap to start recording"}
+      </p>
 
       {isTranscribing && (
         <div className="w-full p-3 rounded-lg" style={{ backgroundColor: "var(--bg-tertiary)" }}>
@@ -1057,19 +1441,19 @@ const EXPORT_FORMATS = [
 ];
 
 function ExportDemo() {
+  const { incrementUsage } = useSubscription();
+
   const formats = EXPORT_FORMATS;
 
   const [selectedFormat, setSelectedFormat] = useState(formats[0]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportComplete, setExportComplete] = useState(false);
 
-  // prevents stacked timeouts + cleans up on unmount
   const timerRef = useRef(null);
 
   const startExport = (format) => {
     if (!format) return;
 
-    // kill any in-flight "export"
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -1079,10 +1463,18 @@ function ExportDemo() {
     setIsExporting(true);
     setExportComplete(false);
 
-    timerRef.current = setTimeout(() => {
-      setIsExporting(false);
-      setExportComplete(true);
-      timerRef.current = null;
+    timerRef.current = setTimeout(async () => {
+      try {
+        setIsExporting(false);
+        setExportComplete(true);
+        timerRef.current = null;
+
+        // ✅ count only after success ("export complete")
+        // No explicit "export" bucket exists; using documentSynth as closest.
+        await incrementUsage("documentSynth");
+      } catch (e) {
+        console.error("Export increment failed:", e);
+      }
     }, 2000);
   };
 
@@ -1105,18 +1497,14 @@ function ExportDemo() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 rounded-lg p-3 mb-4 relative" style={{ backgroundColor: "var(--bg-surface)" }}>
-        {/* Preview header */}
         <div className="flex items-center justify-between mb-3">
           <div className="text-xs text-theme-muted">Preview mode</div>
           <div className="text-[11px] text-theme-secondary">
             Format:{" "}
-            <span className="text-theme-primary font-medium">
-              {selectedFormat?.name}
-            </span>
+            <span className="text-theme-primary font-medium">{selectedFormat?.name}</span>
           </div>
         </div>
 
-        {/* Skeleton preview */}
         <div className="space-y-2">
           <div className="h-3 w-3/4 rounded bg-theme-muted/20" />
           <div className="h-2 w-full rounded bg-theme-muted/10" />
@@ -1182,8 +1570,8 @@ function ExportDemo() {
                 key={format.id}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => startExport(format)}   
-                disabled={isExporting}                
+                onClick={() => startExport(format)}
+                disabled={isExporting}
                 className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition disabled:opacity-50
                   ${active ? "ring-1 ring-indigo-500/40" : ""}
                   ${format.bgColor} ${format.borderColor}
@@ -1202,9 +1590,9 @@ function ExportDemo() {
   );
 }
 
-
-
 function CloudSyncDemo({ unlocked }) {
+  const { incrementUsage } = useSubscription();
+
   const [enabled, setEnabled] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -1235,7 +1623,9 @@ function CloudSyncDemo({ unlocked }) {
     setProgress(0);
     setStatus("Syncing...");
 
-    setDevices((prev) => prev.map((x) => ({ ...x, state: x.id === "ipad" ? "Syncing" : "Synced" })));
+    setDevices((prev) =>
+      prev.map((x) => ({ ...x, state: x.id === "ipad" ? "Syncing" : "Synced" }))
+    );
 
     timerRef.current = setInterval(() => {
       setProgress((p) => {
@@ -1257,6 +1647,12 @@ function CloudSyncDemo({ unlocked }) {
             }))
           );
 
+          // ✅ count only after sync completes successfully
+          // No cloud bucket exists; using insightQueries as closest.
+          incrementUsage("insightQueries").catch((e) =>
+            console.error("Cloud sync increment failed:", e)
+          );
+
           return 100;
         }
         return next;
@@ -1265,7 +1661,6 @@ function CloudSyncDemo({ unlocked }) {
   };
 
   useEffect(() => () => stop(), []);
-
   useEffect(() => {
     if (!enabled) {
       stop();
@@ -1273,7 +1668,9 @@ function CloudSyncDemo({ unlocked }) {
       setDevices((prev) => prev.map((x) => ({ ...x, state: "Paused" })));
     } else {
       setStatus("Up to date");
-      setDevices((prev) => prev.map((x) => ({ ...x, state: x.state === "Paused" ? "Idle" : x.state })));
+      setDevices((prev) =>
+        prev.map((x) => ({ ...x, state: x.state === "Paused" ? "Idle" : x.state }))
+      );
     }
   }, [enabled]);
 
@@ -1282,7 +1679,9 @@ function CloudSyncDemo({ unlocked }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h4 className="text-sm font-semibold text-theme-primary">Cloud Sync</h4>
-          <p className="text-xs text-theme-muted mt-0.5">{unlocked ? "Sync enabled for your account." : "Preview of Cloud Sync behavior."}</p>
+          <p className="text-xs text-theme-muted mt-0.5">
+            {unlocked ? "Sync enabled for your account." : "Preview of Cloud Sync behavior."}
+          </p>
         </div>
         <button
           type="button"
@@ -1336,7 +1735,11 @@ function CloudSyncDemo({ unlocked }) {
           </button>
         </div>
 
-        {!unlocked && <div className="mt-3 text-[11px] text-theme-muted">This is a mock preview. Upgrade to Pro to enable real syncing once implemented.</div>}
+        {!unlocked && (
+          <div className="mt-3 text-[11px] text-theme-muted">
+            This is a mock preview. Upgrade to Pro to enable real syncing once implemented.
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl border p-3" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-surface)" }}>
@@ -1380,6 +1783,8 @@ function CloudSyncDemo({ unlocked }) {
 }
 
 function CustomTrainingDemo({ unlocked }) {
+  const { incrementUsage } = useSubscription();
+
   const [enabled, setEnabled] = useState(true);
   const [collecting, setCollecting] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -1437,6 +1842,12 @@ function CustomTrainingDemo({ unlocked }) {
             confidence: Math.min(95, s.confidence + Math.floor(Math.random() * 6) + 2),
           }));
 
+          // ✅ count only after training completes successfully
+          // No training bucket exists; using insightQueries as closest.
+          incrementUsage("insightQueries").catch((e) =>
+            console.error("Training increment failed:", e)
+          );
+
           return 100;
         }
         return next;
@@ -1445,7 +1856,6 @@ function CustomTrainingDemo({ unlocked }) {
   };
 
   useEffect(() => () => stop(), []);
-
   useEffect(() => {
     if (!enabled) {
       stop();
@@ -1535,7 +1945,11 @@ function CustomTrainingDemo({ unlocked }) {
           </button>
         </div>
 
-        {!unlocked && <div className="mt-3 text-[11px] text-theme-muted">This is a mock preview. Upgrade to Pro to enable real training once implemented.</div>}
+        {!unlocked && (
+          <div className="mt-3 text-[11px] text-theme-muted">
+            This is a mock preview. Upgrade to Pro to enable real training once implemented.
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl border p-3" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-surface)" }}>
@@ -1572,7 +1986,9 @@ function SignalToggle({ label, enabled, onClick }) {
       <span className="text-xs text-theme-secondary">{label}</span>
       <span
         className={`text-[10px] px-2 py-0.5 rounded-full border ${
-          enabled ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" : "text-theme-muted border-white/10 bg-white/5"
+          enabled
+            ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
+            : "text-theme-muted border-white/10 bg-white/5"
         }`}
       >
         {enabled ? "On" : "Off"}
@@ -1612,6 +2028,5 @@ function UsageBar({ label, used, max, isPro }) {
     </div>
   );
 }
-
 
 

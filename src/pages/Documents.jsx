@@ -1,11 +1,15 @@
 // src/pages/Documents.jsx - "Research Synthesizer"
 // ✅ FIXED: Uses RPC functions for atomic stat updates
+// ✅ UPDATED: Also writes to daily_usage via useSubscription.incrementUsage
+//    - AI doc summary => incrementUsage("aiSummaries")
+//    - Document synthesis => incrementUsage("documentSynth")
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
+import { useSubscription } from "../hooks/useSubscription";
 import {
   FiEye,
   FiFileText,
@@ -129,6 +133,7 @@ function ToggleButton({ children, active, onClick }) {
 export default function Documents({ docs: docsProp = null, setDocs: setDocsProp }) {
   const navigate = useNavigate();
   const { settings } = useWorkspaceSettings();
+  const { incrementUsage } = useSubscription();
 
   const [localDocs, setLocalDocs] = useState([]);
   const docs = docsProp ?? localDocs;
@@ -182,34 +187,32 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
 
     try {
       // Use the RPC function that does INSERT ... ON CONFLICT DO NOTHING
-      const { error } = await supabase.rpc('ensure_user_stats_exists', {
+      const { error } = await supabase.rpc("ensure_user_stats_exists", {
         p_user_id: user.id,
-        p_display_name: user.user_metadata?.full_name || user.user_metadata?.name || null
+        p_display_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
       });
 
       if (error) {
         // Fallback: Try simple select to see if row exists
         console.warn("ensure_user_stats_exists RPC failed, trying fallback:", error);
-        
+
         const { data: existing } = await supabase
-          .from('user_engagement_stats')
-          .select('user_id')
-          .eq('user_id', user.id)
+          .from("user_engagement_stats")
+          .select("user_id")
+          .eq("user_id", user.id)
           .maybeSingle();
-        
+
         // Only insert if no row exists
         if (!existing) {
-          await supabase
-            .from('user_engagement_stats')
-            .insert({
-              user_id: user.id,
-              display_name: user.user_metadata?.full_name || null,
-              notes_created: 0,
-              ai_uses: 0,
-              active_days: 1,
-              streak_days: 1,
-              last_active_date: new Date().toISOString().split('T')[0]
-            });
+          await supabase.from("user_engagement_stats").insert({
+            user_id: user.id,
+            display_name: user.user_metadata?.full_name || null,
+            notes_created: 0,
+            ai_uses: 0,
+            active_days: 1,
+            streak_days: 1,
+            last_active_date: new Date().toISOString().split("T")[0],
+          });
         }
       }
     } catch (err) {
@@ -218,49 +221,52 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
   }, []);
 
   // ✅ FIXED: Use RPC function for atomic increment
-  const incrementAiUses = useCallback(async (user, amount = 1) => {
-    if (!user?.id) return;
+  const incrementAiUses = useCallback(
+    async (user, amount = 1) => {
+      if (!user?.id) return;
 
-    try {
-      // Use the RPC function for atomic increment
-      const { error } = await supabase.rpc('increment_ai_uses', {
-        p_user_id: user.id,
-        p_amount: amount
-      });
+      try {
+        // Use the RPC function for atomic increment
+        const { error } = await supabase.rpc("increment_ai_uses", {
+          p_user_id: user.id,
+          p_amount: amount,
+        });
 
-      if (error) {
-        console.warn("increment_ai_uses RPC failed, trying fallback:", error);
-        
-        // Fallback: Manual select + update (less safe but works without RPC)
-        await ensureUserStatsRow(user);
-        
-        const { data: row } = await supabase
-          .from('user_engagement_stats')
-          .select('ai_uses')
-          .eq('user_id', user.id)
-          .single();
+        if (error) {
+          console.warn("increment_ai_uses RPC failed, trying fallback:", error);
 
-        const current = Number(row?.ai_uses ?? 0);
-        
-        await supabase
-          .from('user_engagement_stats')
-          .update({ 
-            ai_uses: current + amount,
-            updated_at: nowIso()
+          // Fallback: Manual select + update (less safe but works without RPC)
+          await ensureUserStatsRow(user);
+
+          const { data: row } = await supabase
+            .from("user_engagement_stats")
+            .select("ai_uses")
+            .eq("user_id", user.id)
+            .single();
+
+          const current = Number(row?.ai_uses ?? 0);
+
+          await supabase
+            .from("user_engagement_stats")
+            .update({
+              ai_uses: current + amount,
+              updated_at: nowIso(),
+            })
+            .eq("user_id", user.id);
+        }
+
+        // Dispatch event for other components (like Dashboard) to update
+        window.dispatchEvent(
+          new CustomEvent("notestream:ai_uses_updated", {
+            detail: { increment: amount },
           })
-          .eq('user_id', user.id);
+        );
+      } catch (err) {
+        console.warn("incrementAiUses error (non-blocking):", err);
       }
-
-      // Dispatch event for other components (like Dashboard) to update
-      window.dispatchEvent(
-        new CustomEvent("notestream:ai_uses_updated", {
-          detail: { increment: amount },
-        })
-      );
-    } catch (err) {
-      console.warn("incrementAiUses error (non-blocking):", err);
-    }
-  }, [ensureUserStatsRow]);
+    },
+    [ensureUserStatsRow]
+  );
 
   const mapDocRowToUi = useCallback((row) => {
     const type = (row?.type || "FILE").toUpperCase();
@@ -291,7 +297,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
 
     try {
       const user = await getUser();
-      
+
       // ✅ Ensure stats row exists (won't overwrite if already exists)
       await ensureUserStatsRow(user);
 
@@ -420,9 +426,6 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
       if (upErr) throw upErr;
 
       // Insert row into documents table
-      // NOTE: size_bytes column doesn't exist in your schema
-      // If you want to track file size, run:
-      // ALTER TABLE documents ADD COLUMN IF NOT EXISTS size_bytes BIGINT;
       const insertPayload = {
         id: docId,
         user_id: user.id,
@@ -510,8 +513,6 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
       const summary = buildSmartSummary(doc);
 
       // Persist summary as a note
-      // ✅ NOTE: When we INSERT a note, the database trigger will automatically
-      // increment notes_created in user_engagement_stats
       const existingId = await findExistingSummaryNoteId(user.id, doc.id);
 
       const notePayload = {
@@ -549,16 +550,23 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
         setSummaryIndex((prev) => ({ ...(prev || {}), [doc.id]: { noteId: inserted.id } }));
       }
 
-      // ✅ Increment AI uses using RPC function
+      // ✅ Increment AI uses (DB)
       await incrementAiUses(user, 1);
+
+      // ✅ Increment daily usage (plan limits)
+      try {
+        await incrementUsage("aiSummaries");
+      } catch {
+        // non-blocking
+      }
 
       // ✅ Log activity event for AI summary
       try {
-        await supabase.rpc('log_activity_event', {
+        await supabase.rpc("log_activity_event", {
           p_user_id: user.id,
-          p_event_type: 'ai_summary',
+          p_event_type: "ai_summary",
           p_title: `Generated summary for ${doc.name.replace(/\.[^/.]+$/, "")}`,
-          p_metadata: { doc_id: doc.id, doc_name: doc.name }
+          p_metadata: { doc_id: doc.id, doc_name: doc.name },
         });
       } catch (logErr) {
         console.warn("Activity log failed (non-blocking):", logErr);
@@ -600,7 +608,9 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
     const docNames = docsToUse.map((d) => d.name.replace(/\.[^/.]+$/, ""));
     return {
       id: `brief-${Date.now()}`,
-      title: `Research Brief: ${docNames.slice(0, 2).join(" & ")}${docsToUse.length > 2 ? ` +${docsToUse.length - 2} more` : ""}`,
+      title: `Research Brief: ${docNames.slice(0, 2).join(" & ")}${
+        docsToUse.length > 2 ? ` +${docsToUse.length - 2} more` : ""
+      }`,
       generatedAt: nowIso(),
       sourceCount: docsToUse.length,
       sources: docsToUse.map((d) => d.name),
@@ -665,16 +675,23 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
         (prev || []).map((d) => (docIds.includes(d.id) ? { ...d, status: "synthesized", updated: "Just now" } : d))
       );
 
-      // ✅ Increment AI uses using RPC function
+      // ✅ Increment AI uses (DB)
       await incrementAiUses(user, 1);
+
+      // ✅ Increment daily usage (plan limits)
+      try {
+        await incrementUsage("documentSynth");
+      } catch {
+        // non-blocking
+      }
 
       // ✅ Log activity event for synthesis
       try {
-        await supabase.rpc('log_activity_event', {
+        await supabase.rpc("log_activity_event", {
           p_user_id: user.id,
-          p_event_type: 'synthesis',
+          p_event_type: "synthesis",
           p_title: `Synthesized ${selectedDocs.length} documents into research brief`,
-          p_metadata: { doc_count: selectedDocs.length, doc_ids: docIds }
+          p_metadata: { doc_count: selectedDocs.length, doc_ids: docIds },
         });
       } catch (logErr) {
         console.warn("Activity log failed (non-blocking):", logErr);
@@ -726,7 +743,6 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
 
     try {
       const user = await getUser();
-      // ✅ DELETE will trigger notes_created decrement via DB trigger
       const { error } = await supabase.from(NOTES_TABLE).delete().eq("id", noteId).eq("user_id", user.id);
       if (error) throw error;
 
@@ -1299,11 +1315,16 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
                               <div
                                 key={i}
                                 className="rounded-xl p-4 text-sm border"
-                                style={{ backgroundColor: "rgba(245, 158, 11, 0.08)", borderColor: "rgba(245, 158, 11, 0.3)" }}
+                                style={{
+                                  backgroundColor: "rgba(245, 158, 11, 0.08)",
+                                  borderColor: "rgba(245, 158, 11, 0.3)",
+                                }}
                               >
                                 <p className="text-amber-600 dark:text-amber-400 font-semibold">{c.topic}</p>
                                 <p className="text-theme-secondary text-xs mt-1">{c.conflict}</p>
-                                <p className="text-amber-600 dark:text-amber-400 text-xs mt-2 font-medium">→ {c.recommendation}</p>
+                                <p className="text-amber-600 dark:text-amber-400 text-xs mt-2 font-medium">
+                                  → {c.recommendation}
+                                </p>
                               </div>
                             ))}
                           </SectionCard>
@@ -1365,8 +1386,13 @@ function QuickStat({ label, value, icon, color }) {
   };
   const colors = colorClasses[color] || colorClasses.indigo;
   return (
-    <div className="rounded-xl px-4 py-3 border" style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-secondary)" }}>
-      <div className={`h-7 w-7 rounded-lg bg-gradient-to-br ${colors} border flex items-center justify-center mb-1`}>{icon}</div>
+    <div
+      className="rounded-xl px-4 py-3 border"
+      style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-secondary)" }}
+    >
+      <div className={`h-7 w-7 rounded-lg bg-gradient-to-br ${colors} border flex items-center justify-center mb-1`}>
+        {icon}
+      </div>
       <p className="text-xl font-bold text-theme-primary">{value}</p>
       <p className="text-[10px] text-theme-muted">{label}</p>
     </div>
@@ -1383,7 +1409,10 @@ function SectionCard({ title, icon, color = "indigo", children }) {
     emerald: "text-emerald-600 dark:text-emerald-400",
   };
   return (
-    <div className="rounded-2xl p-5 border" style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-secondary)" }}>
+    <div
+      className="rounded-2xl p-5 border"
+      style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-secondary)" }}
+    >
       <div className="flex items-center gap-2 mb-3">
         {icon && <span className={colorMap[color]}>{icon}</span>}
         <h3 className={`text-sm font-semibold ${colorMap[color]}`}>{title}</h3>
@@ -1392,3 +1421,4 @@ function SectionCard({ title, icon, color = "indigo", children }) {
     </div>
   );
 }
+
