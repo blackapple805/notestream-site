@@ -32,7 +32,7 @@ import {
   FileXls,
 } from "phosphor-react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
-import { useSubscription } from "../hooks/useSubscription";
+import { consumeAiUsage } from "../lib/usage";
 
 const DOCS_TABLE = "documents";
 const NOTES_TABLE = "notes";
@@ -166,8 +166,6 @@ export default function DocumentViewer({ docs = [] }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ✅ Subscription usage tracker
-  const { incrementUsage } = useSubscription();
 
   const docFromProps = useMemo(
     () => docs.find((d) => d.id === id) || null,
@@ -438,57 +436,42 @@ export default function DocumentViewer({ docs = [] }) {
     setIsGenerating(true);
 
     try {
-      // Mock generation
+      const user = await getAuthedUser();
+      if (!user?.id) {
+        // optional: navigate("/login");
+        return;
+      }
+
+      // ✅ Gate + increment BEFORE doing the AI work
+      const usage = await consumeAiUsage(user.id, "ai_summaries", 1);
+
+      if (!usage.success) {
+        console.error("consumeAiUsage failed");
+        return;
+      }
+
+      if (usage.limitReached) {
+        // TODO: replace with your toast/modal
+        console.warn("Daily AI summary limit reached");
+        return;
+      }
+
+      // Mock generation (replace with real AI later)
       await new Promise((r) => setTimeout(r, 1200));
 
       const summary = buildSmartSummary(doc);
       setAiSummary(summary);
 
-      // ✅ IMPORTANT: count only after success
-      await incrementUsage("aiSummaries");
+      // ❌ REMOVE: await incrementUsage("aiSummaries");
 
       setShowSummary(true);
     } catch (e) {
       console.error("Generate summary failed:", e);
-      // do not increment
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const handleRewrite = async (style) => {
-    setRewriteStyle(style);
-    setIsRewriting(true);
-    setRewrittenText("");
-
-    try {
-      // Mock rewrite
-      await new Promise((r) => setTimeout(r, 1500));
-
-      const mockRewriteResults = {
-        Professional:
-          "This document presents a comprehensive analysis of the subject matter. The key findings indicate significant developments that warrant careful consideration. Our recommendations are based on thorough research and industry best practices.",
-        Shorter:
-          "Key points: Document analyzed. Main findings noted. Action items identified. Follow-up recommended.",
-        Friendly:
-          "Hey there! 👋 So here's the deal with this document - it's got some really interesting stuff in it! The main takeaway is that things are looking good, and we've got some cool next steps to explore together.",
-      };
-
-      const result =
-        mockRewriteResults[style] || "Rewritten content will appear here.";
-
-      setRewrittenText(result);
-
-      // ✅ Count only after success
-      // No dedicated "rewrite" bucket exists in your limits; use insightQueries as the closest AI text action.
-      await incrementUsage("insightQueries");
-    } catch (e) {
-      console.error("Rewrite failed:", e);
-      // do not increment
-    } finally {
-      setIsRewriting(false);
-    }
-  };
 
   const goToPage = (page) => {
     if (page >= 1 && page <= totalPages) {

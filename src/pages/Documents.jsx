@@ -1040,13 +1040,13 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
             const isSynthesized = (doc.status || "") === "synthesized";
 
             return (
-              <motion.div
+             <motion.div
                 key={doc.id}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.03 }}
+                transition={{ delay: index * 0.015 }}
                 onClick={synthesizeMode ? () => toggleDocSelection(doc) : undefined}
-                className={`flex items-center justify-between rounded-xl px-4 py-3.5 transition cursor-pointer border group ${
+                className={`rounded-2xl border transition cursor-pointer ${
                   isSelected ? "border-purple-500/60" : "hover:border-indigo-500/40"
                 }`}
                 style={{
@@ -1054,100 +1054,112 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
                   borderColor: isSelected ? "rgba(168, 85, 247, 0.5)" : "var(--border-secondary)",
                 }}
               >
-                <div className="flex items-center gap-3 flex-1 pr-4 min-w-0">
-                  {synthesizeMode ? (
-                    <div
-                      className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition flex-shrink-0 ${
-                        isSelected ? "bg-purple-500 border-purple-500" : ""
-                      }`}
-                      style={!isSelected ? { borderColor: "var(--text-muted)" } : {}}
-                    >
-                      {isSelected && <FiCheck size={12} className="text-white" />}
+                {/* tighter padding */}
+                <div className="px-3 py-2.5">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Left */}
+                    {synthesizeMode ? (
+                      <div
+                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${
+                          isSelected ? "bg-purple-500 border-purple-500" : ""
+                        }`}
+                        style={!isSelected ? { borderColor: "var(--text-muted)" } : {}}
+                      >
+                        {isSelected && <FiCheck size={12} className="text-white" />}
+                      </div>
+                    ) : (
+                      <div
+                        className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 border"
+                        style={{
+                          backgroundColor: "var(--bg-tertiary)",
+                          borderColor: "var(--border-secondary)",
+                        }}
+                      >
+                        <FileTypeIcon type={doc.type} size={20} />
+                      </div>
+                    )}
+
+                    {/* Middle (tight) */}
+                    <div className="min-w-0 flex-1">
+                     {/* Title always gets width */}
+                      <p className="text-theme-primary text-sm font-semibold truncate" title={doc.name}>
+                        {doc.name}
+                      </p>
+
+                      {/* Tags below (compact) */}
+                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                        {isSynthesized && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/25">
+                            Synthesized
+                          </span>
+                        )}
+
+                        {hasSummary && !isAutoSummarizing && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/12 text-emerald-300 border border-emerald-500/25">
+                            AI Summary
+                          </span>
+                        )}
+
+                        {isAutoSummarizing && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/12 text-indigo-300 border border-indigo-500/25 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
+                            Summarizing…
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Meta: force single line + truncate so it never wraps into 2 lines on iPhone */}
+                      <p className="text-[11px] text-theme-muted mt-1 truncate">
+                        {doc.type} · {doc.size} · Updated {doc.updated}
+                      </p>
                     </div>
-                  ) : (
-                    <div
-                      className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 border"
-                      style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
-                    >
-                      <FileTypeIcon type={doc.type} size={22} />
-                    </div>
-                  )}
 
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-theme-primary text-sm font-medium truncate">{doc.name}</p>
+                    {/* Right actions (tight) */}
+                    {!synthesizeMode && (
+                        <div className="shrink-0 flex items-center gap-1">
+                        <button
+                          className="h-8 w-8 rounded-lg border flex items-center justify-center transition"
+                          style={{ borderColor: "var(--border-secondary)", color: "var(--text-secondary)" }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePreview(doc);
+                          }}
+                          title="Preview"
+                          type="button"
+                        >
+                          <FiEye size={15} />
+                        </button>
 
-                      {isSynthesized && <PriorityTag priority="info">Synthesized</PriorityTag>}
+                        <button
+                          className="h-8 w-8 rounded-lg border flex items-center justify-center transition disabled:opacity-50"
+                          style={{ borderColor: "var(--border-secondary)", color: "var(--text-secondary)" }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSummarize(doc);
+                          }}
+                          title="AI Summary"
+                          disabled={isAutoSummarizing}
+                          type="button"
+                        >
+                          <FiFileText size={15} />
+                        </button>
 
-                      {hasSummary && !isAutoSummarizing && (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                          AI Summary
-                        </span>
-                      )}
-
-                      {isAutoSummarizing && (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" />
-                          Summarizing...
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-[11px] text-theme-muted mt-0.5">
-                      {doc.type} · {doc.size} · Updated {doc.updated}
-                    </p>
+                        <button
+                          className="h-8 w-8 rounded-lg border flex items-center justify-center transition"
+                          style={{ borderColor: "var(--border-secondary)", color: "var(--text-secondary)" }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadDoc(doc);
+                          }}
+                          title="Download"
+                          type="button"
+                        >
+                          <FiDownload size={15} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                {!synthesizeMode && (
-                  <div className="flex gap-1 items-center transition">
-                    <button
-                      className="p-2 rounded-lg transition"
-                      style={{ color: "var(--text-secondary)" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-hover)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePreview(doc);
-                      }}
-                      title="Preview"
-                      type="button"
-                    >
-                      <FiEye size={18} />
-                    </button>
-
-                    <button
-                      className="p-2 rounded-lg transition disabled:opacity-50"
-                      style={{ color: "var(--text-secondary)" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-hover)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSummarize(doc);
-                      }}
-                      title="AI Summary"
-                      disabled={isAutoSummarizing}
-                      type="button"
-                    >
-                      <FiFileText size={18} />
-                    </button>
-
-                    <button
-                      className="p-2 rounded-lg transition"
-                      style={{ color: "var(--text-secondary)" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-hover)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        downloadDoc(doc);
-                      }}
-                      title="Download"
-                      type="button"
-                    >
-                      <FiDownload size={18} />
-                    </button>
-                  </div>
-                )}
               </motion.div>
             );
           })}
@@ -1220,31 +1232,77 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
                   const brief = synthesisResult || viewingBrief;
                   return (
                     <>
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border border-purple-500/30 flex items-center justify-center">
-                          <Brain size={28} weight="duotone" className="text-purple-500" />
+              {/* ===== Brief Header (more compact + iPhone-safe) ===== */}
+                      <div className="flex items-start gap-3 sm:gap-4 mb-4">
+                        <div
+                          className="shrink-0 h-11 w-11 sm:h-12 sm:w-12 rounded-2xl border flex items-center justify-center"
+                          style={{
+                            background: "linear-gradient(135deg, rgba(168,85,247,0.16), rgba(99,102,241,0.10))",
+                            borderColor: "rgba(168,85,247,0.28)",
+                            boxShadow: "0 14px 34px rgba(168,85,247,0.16)",
+                          }}
+                        >
+                          <Brain size={22} weight="duotone" className="text-purple-400" />
                         </div>
-                        <div>
-                          <h2 className="text-xl font-semibold text-theme-primary">{brief.title}</h2>
-                          <p className="text-xs text-theme-muted mt-1">
-                            {brief.sourceCount} documents • {new Date(brief.generatedAt).toLocaleString()}
-                          </p>
+
+                        <div className="min-w-0 flex-1">
+                          <h2
+                            className="text-[15px] sm:text-lg font-semibold text-theme-primary leading-snug"
+                            style={{
+                              display: "-webkit-box",
+                              WebkitBoxOrient: "vertical",
+                              WebkitLineClamp: 2, // clamps title on iPhone
+                              overflow: "hidden",
+                            }}
+                            title={brief.title}
+                          >
+                            {brief.title}
+                          </h2>
+
+                          {/* Optional meta line (safe: removing this won't break anything) */}
+                          {!!brief?.generatedAt && (
+                            <p className="text-[11px] text-theme-muted mt-1 truncate">
+                              {(brief?.sourceCount ?? 0)} documents •{" "}
+                              {new Date(brief.generatedAt).toLocaleString()}
+                            </p>
+                          )}
                         </div>
                       </div>
 
                       <div className="space-y-4">
+                        {/* ===== Sources Analyzed (chips that shrink correctly) ===== */}
                         <SectionCard title="Sources Analyzed" icon={<FiFolder size={16} />} color="indigo">
                           <div className="flex flex-wrap gap-2">
-                            {(brief.sources || []).map((source, i) => (
+                            {(brief?.sources || []).length === 0 ? (
                               <span
-                                key={i}
-                                className="text-xs text-theme-secondary px-3 py-1.5 rounded-lg border flex items-center gap-2"
+                                className="text-xs text-theme-muted px-3 py-1.5 rounded-lg border"
                                 style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
                               >
-                                <FileTypeIcon type={source.split(".").pop()} size={14} />
-                                {source}
+                                No sources attached
                               </span>
-                            ))}
+                            ) : (
+                              (brief.sources || []).map((source, i) => (
+                                <span
+                                  key={`${source}-${i}`}
+                                  className="inline-flex items-center gap-2 text-xs text-theme-secondary px-3 py-1.5 rounded-lg border min-w-0"
+                                  style={{
+                                    backgroundColor: "var(--bg-tertiary)",
+                                    borderColor: "var(--border-secondary)",
+                                    maxWidth: "100%", // allow shrinking in wrap
+                                  }}
+                                  title={source}
+                                >
+                                  <span className="shrink-0">
+                                    <FileTypeIcon type={String(source).split(".").pop()} size={14} />
+                                  </span>
+
+                                  {/* This is the critical fix: flex-1 + min-w-0 + truncate */}
+                                  <span className="min-w-0 flex-1 truncate">
+                                    {source}
+                                  </span>
+                                </span>
+                              ))
+                            )}
                           </div>
                         </SectionCard>
 

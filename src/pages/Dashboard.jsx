@@ -42,7 +42,7 @@ const TAG_RESEARCH_BRIEF = "ai:research_brief";
 const USER_STATS_TABLE = "user_engagement_stats";
 const NOTES_TABLE = "notes";
 const DOCS_TABLE = "documents";
-const AI_USES_KEY = "notestream-aiUses";
+
 
 const EMPTY_STATS = {
   user_id: null,
@@ -55,6 +55,7 @@ const EMPTY_STATS = {
   created_at: null,
   updated_at: null,
 };
+
 
 const supabaseReady =
   typeof isSupabaseConfigured === "function"
@@ -301,38 +302,23 @@ export default function Dashboard() {
 
   const [stats, setStats] = useState(EMPTY_STATS);
   const [statsLoading, setStatsLoading] = useState(true);
-
   const [notes, setNotes] = useState([]);
+ 
   const [docs, setDocs] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
+  const [aiUses, setAiUses] = useState(0);
+
+
+  const [aiUsesLoading, setAiUsesLoading] = useState(true);
+
+
+
 
   const notesCreated = Number(stats?.notes_created ?? 0);
   const activeDays = Number(stats?.active_days ?? 0);
-
-  const [aiUses, setAiUses] = useState(() => {
-    const local = Number(localStorage.getItem(AI_USES_KEY) || 0);
-    const db = Number(stats?.ai_uses ?? 0);
-    return Math.max(local, db);
-  });
-
   const streakDays = Number(stats?.streak_days ?? 0);
 
-  useEffect(() => {
-    const local = Number(localStorage.getItem(AI_USES_KEY) || 0);
-    const db = Number(stats?.ai_uses ?? 0);
-    setAiUses(Math.max(local, db));
-  }, [stats?.ai_uses]);
 
-  useEffect(() => {
-    const onAi = (e) => {
-      const next = Number(e?.detail?.aiUses);
-      if (!Number.isFinite(next)) return;
-      setAiUses((prev) => (next > prev ? next : prev));
-    };
-
-    window.addEventListener("notestream:ai_uses_updated", onAi);
-    return () => window.removeEventListener("notestream:ai_uses_updated", onAi);
-  }, []);
 
   const displayName = useMemo(() => {
     const raw = (stats?.display_name || "").trim();
@@ -459,6 +445,66 @@ export default function Dashboard() {
       alive = false;
     };
   }, [navigate, supabaseReady]);
+
+      /* -----------------------------------------
+      AI USED: fetch daily_usage (today)
+      ✅ DB-only, resets daily
+    ----------------------------------------- */
+  useEffect(() => {
+    if (!supabaseReady || !supabase) return;
+
+    let alive = true;
+
+    const fetchTodayUsage = async () => {
+      setAiUsesLoading(true);
+
+      const { data: sessRes } = await supabase.auth.getSession();
+      const user = sessRes?.session?.user;
+      if (!user?.id) {
+        setAiUsesLoading(false);
+        return;
+      }
+
+      const today = toLocalYMD();
+
+      const { data, error } = await supabase
+        .from("daily_usage")
+        .select("ai_summaries,document_synth,insight_queries,voice_transcriptions")
+        .eq("user_id", user.id)
+        .eq("usage_date", today)
+        .maybeSingle();
+
+      if (!alive) return;
+
+      if (error || !data) {
+        setAiUses(0);
+        setAiUsesLoading(false);
+        return;
+      }
+
+      const total =
+        Number(data.ai_summaries || 0) +
+        Number(data.document_synth || 0) +
+        Number(data.insight_queries || 0) +
+        Number(data.voice_transcriptions || 0);
+
+      setAiUses(total);
+      setAiUsesLoading(false);
+    };
+
+
+    fetchTodayUsage();
+
+    const onUsageChanged = () => fetchTodayUsage();
+    window.addEventListener("notestream:daily_usage_changed", onUsageChanged);
+
+    return () => {
+      alive = false;
+      window.removeEventListener("notestream:daily_usage_changed", onUsageChanged);
+    };
+  }, [supabaseReady]);
+
+
 
   /* -----------------------------------------
     DATA: fetch notes + docs (last 7 days)
@@ -606,37 +652,47 @@ export default function Dashboard() {
     visible: { opacity: 1, y: 0 },
   };
 
-  return (
-    <div className="w-full space-y-6 pb-[calc(var(--mobile-nav-height)+24px)]">
-      <motion.header
-        variants={fadeSlide}
-        initial="hidden"
-        animate="visible"
-        transition={{ duration: 0.4 }}
-        className="pt-2"
-      >
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="page-header-icon flex-shrink-0">
-              <House size={20} weight="duotone" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="page-header-title">
-                {getGreeting()}
-                {displayName ? `, ${displayName}` : ""}
-              </h1>
-              <p
-                className="page-header-subtitle truncate"
-                style={{
-                  opacity: statsLoading ? 0.7 : 1,
-                  transition: "opacity 180ms ease",
-                }}
-              >
-                Welcome back — {streakDays} day streak • {notesCreated} notes •{" "}
-                {aiUses} AI uses
-              </p>
-            </div>
+  const isDashboardLoading = statsLoading || dataLoading;
+    
+    if (isDashboardLoading) {
+        return (
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
+        );
+      }
+
+    return (
+      <div className="w-full space-y-6 pb-[calc(var(--mobile-nav-height)+24px)]">
+        <motion.header
+          variants={fadeSlide}
+          initial="hidden"
+          animate="visible"
+          transition={{ duration: 0.4 }}
+          className="pt-2"
+        >
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="page-header-icon flex-shrink-0">
+                <House size={20} weight="duotone" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="page-header-title">
+                  {getGreeting()}
+                  {displayName ? `, ${displayName}` : ""}
+                </h1>
+                <p
+                  className="page-header-subtitle truncate"
+                  style={{
+                    opacity: statsLoading ? 0.7 : 1,
+                    transition: "opacity 180ms ease",
+                  }}
+                >
+                  Welcome back — {streakDays} day streak • {notesCreated} notes •{" "}
+                  {aiUses} AI uses
+                </p>
+              </div>
+            </div>
 
           {settings.smartNotifications && notifications.length > 0 && (
             <motion.button
@@ -872,37 +928,51 @@ export default function Dashboard() {
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
                 onClick={() => navigate(`/dashboard/notes/${note.id}`)}
-                className="group w-full text-left px-4 py-3 rounded-xl border transition-all flex items-center justify-between"
+                className="group w-full text-left px-4 py-3 rounded-2xl border transition-all flex items-center justify-between gap-3"
                 style={{
                   backgroundColor: "var(--bg-tertiary)",
                   borderColor: "var(--border-secondary)",
                 }}
               >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="h-10 w-10 rounded-xl flex items-center justify-center"
-                    style={{
-                      backgroundColor: "rgba(99,102,241,0.1)",
-                      border: "1px solid rgba(99,102,241,0.2)",
-                    }}
-                  >
-                    <FiFileText size={16} className="text-indigo-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-theme-secondary font-medium group-hover:text-theme-primary transition">
-                      {note.title}
-                    </p>
-                    <p className="text-[11px] text-theme-muted">{note.updated}</p>
-                  </div>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                {/* Icon (bigger + consistent) */}
+                <div
+                  className="h-10 w-10 rounded-2xl flex items-center justify-center shrink-0 border"
+                  style={{
+                    backgroundColor: "rgba(99,102,241,0.12)",
+                    borderColor: "rgba(99,102,241,0.22)",
+                  }}
+                >
+                  <FiFileText size={18} className="text-indigo-400" />
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {note.hasAI && <StatusTag type="success">AI Ready</StatusTag>}
-                  <FiChevronRight
-                    className="text-theme-muted group-hover:text-indigo-400 transition"
-                    size={16}
-                  />
+                {/* Text (clamped, no overflow) */}
+                <div className="min-w-0 flex-1">
+                  <p
+                    className="text-sm text-theme-secondary font-semibold leading-snug"
+                    style={{
+                      display: "-webkit-box",
+                      WebkitBoxOrient: "vertical",
+                      WebkitLineClamp: 2, // ✅ 2-line clamp without plugin
+                      overflow: "hidden",
+                    }}
+                  >
+                    {note.title}
+                  </p>
+
+                  <p className="text-[11px] text-theme-muted truncate mt-0.5">
+                    {note.updated}
+                  </p>
                 </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {note.hasAI && <StatusTag type="success">AI Ready</StatusTag>}
+                <FiChevronRight
+                  className="text-theme-muted group-hover:text-indigo-400 transition"
+                  size={16}
+                />
+              </div>
               </motion.button>
             ))}
 
@@ -1095,33 +1165,56 @@ export default function Dashboard() {
                         }}
                       >
                         <NotificationIcon iconType={notif.iconType} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-theme-secondary">
-                            {notif.message}
-                          </p>
-                          <p className="text-[11px] text-theme-muted mt-1">
-                            From: {notif.noteTitle}
-                          </p>
-                        </div>
 
-                        <div className="flex flex-col items-end gap-2">
-                          <span
-                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg ${
-                              notif.priority === "high"
-                                ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                                : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                            }`}
-                          >
-                            {notif.priority}
-                          </span>
+                      {/* ✅ Text column: clamp + no spill */}
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className="text-sm text-theme-secondary font-medium"
+                          style={{
+                            display: "-webkit-box",
+                            WebkitBoxOrient: "vertical",
+                            WebkitLineClamp: 2, // ✅ 2-line clamp on iPhone
+                            overflow: "hidden",
+                          }}
+                        >
+                          {notif.message}
+                        </p>
 
-                          <button
-                            onClick={() => dismissNotification(notif.id)}
-                            className="text-[10px] text-theme-muted hover:text-rose-400 transition opacity-0 group-hover:opacity-100"
-                          >
-                            Dismiss
-                          </button>
-                        </div>
+                        <p
+                          className="text-[11px] text-theme-muted mt-1"
+                          style={{
+                            display: "-webkit-box",
+                            WebkitBoxOrient: "vertical",
+                            WebkitLineClamp: 2, // ✅ clamp long “From:” titles too
+                            overflow: "hidden",
+                            wordBreak: "break-word", // ✅ handles long IDs/tokens
+                          }}
+                        >
+                          <span className="text-theme-muted">From: </span>
+                          <span className="text-theme-secondary">{notif.noteTitle}</span>
+                        </p>
+                      </div>
+
+                      {/* ✅ Right column: don’t force wrapping */}
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg ${
+                            notif.priority === "high"
+                              ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                              : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                          }`}
+                        >
+                          {notif.priority}
+                        </span>
+
+                        <button
+                          onClick={() => dismissNotification(notif.id)}
+                          className="text-[10px] text-theme-muted hover:text-rose-400 transition opacity-0 group-hover:opacity-100"
+                          type="button"
+                        >
+                          Dismiss
+                        </button>
+                      </div>                    
                       </motion.div>
                     ))
                   )}
@@ -1151,8 +1244,9 @@ export default function Dashboard() {
       </AnimatePresence>
 
       {/* WEEKLY DIGEST MODAL */}
+   
       <AnimatePresence>
-        {showDigest && digest && (
+        {showDigest && !!digest && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1171,58 +1265,58 @@ export default function Dashboard() {
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full max-w-lg rounded-2xl border my-auto"
+                className="w-full max-w-lg rounded-2xl border my-auto overflow-hidden"
                 style={{
                   backgroundColor: "var(--bg-surface)",
                   borderColor: "var(--border-secondary)",
                   boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
                 }}
               >
-                <div
-                  className="p-5 border-b"
-                  style={{ borderColor: "var(--border-secondary)" }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                {/* Header */}
+                <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {/* fixed-size icon tile */}
                       <div
-                        className="h-11 w-11 rounded-xl flex items-center justify-center"
+                        className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0"
                         style={{
                           background:
                             "linear-gradient(135deg, rgba(139,92,246,0.2), rgba(99,102,241,0.1))",
                           border: "1px solid rgba(139,92,246,0.3)",
                         }}
                       >
-                        <ChartLineUp
-                          size={22}
-                          weight="duotone"
-                          className="text-purple-400"
-                        />
+                        <ChartLineUp size={22} weight="duotone" className="text-purple-400" />
                       </div>
-                      <div>
-                        <h2 className="text-lg font-semibold text-theme-primary">
+
+                      {/* allow truncation */}
+                      <div className="min-w-0">
+                        <h2 className="text-lg font-semibold text-theme-primary truncate">
                           Weekly Digest
                         </h2>
-                        <p className="text-xs text-theme-muted">
-                          {digest.period.start} - {digest.period.end}
+                        <p className="text-xs text-theme-muted truncate">
+                          {digest?.period?.start} - {digest?.period?.end}
                         </p>
                       </div>
                     </div>
 
                     <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
+                      type="button"
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.92 }}
                       onClick={() => setShowDigest(false)}
-                      className="h-9 w-9 rounded-xl flex items-center justify-center transition"
+                      className="h-9 w-9 rounded-xl flex items-center justify-center transition shrink-0"
                       style={{
                         backgroundColor: "rgba(244,63,94,0.1)",
                         border: "1px solid rgba(244,63,94,0.2)",
                       }}
+                      aria-label="Close digest"
                     >
                       <FiX size={16} className="text-rose-400" />
                     </motion.button>
                   </div>
                 </div>
 
+                {/* Body */}
                 <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
                   <div className="grid grid-cols-2 gap-3">
                     <ModalStatCard
@@ -1233,7 +1327,7 @@ export default function Dashboard() {
                     />
                     <ModalStatCard
                       icon={<FileText size={20} weight="duotone" />}
-                      value={docs.length}
+                      value={Number(docs?.length || 0)}
                       label="Docs (7d)"
                       color="purple"
                     />
@@ -1241,11 +1335,12 @@ export default function Dashboard() {
                       icon={<Star size={20} weight="fill" />}
                       value={favoritedNotes}
                       label="Favorites/Highlights (7d)"
+                      subLabel={`From: ${displayName || "You"}`}
                       color="rose"
                     />
                     <ModalStatCard
                       icon={<Brain size={20} weight="duotone" />}
-                      value={digest.stats.synthesizedDocs}
+                      value={Number(digest?.stats?.synthesizedDocs || 0)}
                       label="Synthesized"
                       color="emerald"
                     />
@@ -1259,37 +1354,28 @@ export default function Dashboard() {
                     }}
                   >
                     <h3 className="text-sm font-semibold text-theme-primary mb-3 flex items-center gap-2">
-                      <Target
-                        size={16}
-                        weight="duotone"
-                        className="text-purple-400"
-                      />
+                      <Target size={16} weight="duotone" className="text-purple-400" />
                       Insights
                     </h3>
+
                     <div className="space-y-3">
-                      <InsightRow
-                        label="Most Active Day"
-                        value={digest.insights.mostActiveDay}
-                      />
+                      <InsightRow label="Most Active Day" value={digest?.insights?.mostActiveDay || "—"} />
                       <InsightRow
                         label="Productivity Level"
-                        value={digest.insights.productivity}
+                        value={digest?.insights?.productivity || "—"}
                         valueColor={
-                          digest.insights.productivity === "High"
+                          digest?.insights?.productivity === "High"
                             ? "text-emerald-400"
-                            : digest.insights.productivity === "Medium"
+                            : digest?.insights?.productivity === "Medium"
                             ? "text-amber-400"
                             : "text-theme-secondary"
                         }
                       />
-                      <InsightRow
-                        label="Total Items"
-                        value={digest.stats.totalItems}
-                      />
+                      <InsightRow label="Total Items" value={Number(digest?.stats?.totalItems || 0)} />
                     </div>
                   </div>
 
-                  {digest.insights.topTags?.length > 0 && (
+                  {!!digest?.insights?.topTags?.length && (
                     <div
                       className="rounded-xl p-4 border"
                       style={{
@@ -1301,29 +1387,26 @@ export default function Dashboard() {
                         <FiFileText size={16} className="text-indigo-400" />
                         Top Tags
                       </h3>
+
                       <div className="flex flex-wrap gap-2">
                         {digest.insights.topTags.map((tag, i) => (
                           <span
-                            key={i}
+                            key={`${tag.tag}-${i}`}
                             className="text-xs px-3 py-1.5 rounded-lg border"
                             style={{
                               backgroundColor: "var(--bg-input)",
                               borderColor: "var(--border-secondary)",
                             }}
                           >
-                            <span className="text-theme-secondary">
-                              {tag.tag}
-                            </span>
-                            <span className="text-theme-muted ml-1.5">
-                              ({tag.count})
-                            </span>
+                            <span className="text-theme-secondary">{tag.tag}</span>
+                            <span className="text-theme-muted ml-1.5">({tag.count})</span>
                           </span>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {digest.highlights?.length > 0 && (
+                  {!!digest?.highlights?.length && (
                     <div
                       className="rounded-xl p-4 border"
                       style={{
@@ -1332,32 +1415,46 @@ export default function Dashboard() {
                       }}
                     >
                       <h3 className="text-sm font-semibold text-theme-primary mb-3 flex items-center gap-2">
-                        <Star
-                          size={16}
-                          weight="fill"
-                          className="text-amber-400"
-                        />
+                        <Star size={16} weight="fill" className="text-amber-400" />
                         Highlights
                       </h3>
+
                       <div className="space-y-2">
                         {digest.highlights.map((h) => (
                           <div
                             key={h.id}
-                            className="flex items-center gap-2 text-sm text-theme-secondary"
+                            className="flex items-center gap-2 text-sm text-theme-secondary min-w-0"
                           >
-                            <span className="text-amber-400">•</span>
-                            {h.title}
+                            <span className="text-amber-400 shrink-0">•</span>
+                            <span className="truncate min-w-0">{h.title}</span>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
                 </div>
+
+                {/* Footer */}
+                <div className="p-5 border-t" style={{ borderColor: "var(--border-secondary)" }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowDigest(false)}
+                    className="w-full py-3 rounded-xl font-medium transition border"
+                    style={{
+                      borderColor: "var(--border-secondary)",
+                      color: "var(--text-secondary)",
+                      backgroundColor: "var(--bg-tertiary)",
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
               </motion.div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
     </div>
   );
 }
@@ -1440,7 +1537,7 @@ const DigestStatCard = ({ icon, value, label, color, isText = false }) => {
   );
 };
 
-const ModalStatCard = ({ icon, value, label, color }) => {
+const ModalStatCard = ({ icon, value, label, subLabel = null, color = "indigo" }) => {
   const colorMap = {
     indigo: {
       text: "text-indigo-400",
@@ -1463,6 +1560,7 @@ const ModalStatCard = ({ icon, value, label, color }) => {
       border: "rgba(16,185,129,0.2)",
     },
   };
+
   const c = colorMap[color] || colorMap.indigo;
 
   return (
@@ -1482,11 +1580,20 @@ const ModalStatCard = ({ icon, value, label, color }) => {
       >
         {icon}
       </div>
+
       <p className={`text-2xl font-bold ${c.text}`}>{value}</p>
-      <p className="text-[11px] text-theme-muted mt-1">{label}</p>
+
+      {/* main label */}
+      <p className="text-[11px] text-theme-muted mt-1 truncate">{label}</p>
+
+      {/* optional sub label */}
+      {subLabel ? (
+        <p className="text-[11px] text-theme-muted mt-1 truncate">{subLabel}</p>
+      ) : null}
     </div>
   );
 };
+
 
 const InsightRow = ({ label, value, valueColor = "text-theme-secondary" }) => (
   <div className="flex items-center justify-between">
@@ -1593,18 +1700,18 @@ const StatusTag = ({ children, type = "success" }) => {
 
 const DocumentRow = ({ doc, onClick }) => (
   <motion.button
-    whileHover={{ scale: 1.01 }}
-    whileTap={{ scale: 0.99 }}
+    whileHover={undefined}
+    whileTap={undefined}
     onClick={onClick}
-    className="group w-full text-left px-4 py-3 rounded-xl border transition-all flex items-center justify-between"
+    className="group w-full text-left px-4 py-3 rounded-2xl border transition-colors flex items-center justify-between gap-3"
     style={{
       backgroundColor: "var(--bg-tertiary)",
       borderColor: "var(--border-secondary)",
     }}
   >
-    <div className="flex items-center gap-3 min-w-0">
+    <div className="flex items-center gap-3 min-w-0 flex-1">
       <div
-        className="h-10 w-10 rounded-xl border flex items-center justify-center flex-shrink-0"
+        className="h-10 w-10 rounded-xl border flex items-center justify-center shrink-0"
         style={{
           backgroundColor: "rgba(168,85,247,0.1)",
           borderColor: "rgba(168,85,247,0.2)",
@@ -1613,25 +1720,31 @@ const DocumentRow = ({ doc, onClick }) => (
         <FiFileText className="text-purple-400" size={16} />
       </div>
 
-      <div className="min-w-0">
-        <p className="text-sm text-theme-secondary font-medium truncate">
+      <div className="min-w-0 flex-1">
+        {/* ✅ keep title to one line like Recent Notes */}
+        <p className="text-sm text-theme-secondary font-medium truncate leading-tight">
           {doc.name}
         </p>
-        <p className="text-[11px] text-theme-muted">{doc.status}</p>
+
+        {/* ✅ keep meta line tight */}
+        <p className="text-[11px] text-theme-muted truncate leading-tight mt-0.5">
+          {doc.status || "—"}
+        </p>
       </div>
     </div>
 
     <span
-      className="text-[10px] text-theme-muted px-2 py-1 rounded-lg border flex-shrink-0"
+      className="text-[10px] text-theme-muted px-2 py-1 rounded-lg border shrink-0"
       style={{
         backgroundColor: "var(--bg-input)",
         borderColor: "var(--border-secondary)",
       }}
     >
-      {doc.type}
+      {String(doc.type || "FILE").toUpperCase()}
     </span>
   </motion.button>
 );
+
 
 const ToolButton = ({ icon, label, desc, onClick, tone = "indigo" }) => {
   const toneMap = {

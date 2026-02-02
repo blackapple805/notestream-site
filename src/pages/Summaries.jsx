@@ -16,7 +16,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
-import { useSubscription } from "../hooks/useSubscription";
+import { consumeAiUsage } from "../lib/usage";
+
 
 const DOCS_TABLE = "documents";
 const NOTES_TABLE = "notes";
@@ -127,8 +128,6 @@ function RichText({ text, className = "" }) {
 }
 
 export default function Summaries() {
-  const { incrementUsage } = useSubscription();
-
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
@@ -355,53 +354,73 @@ export default function Summaries() {
   };
 
   const runSearch = async (userQuery) => {
-    if (!userQuery.trim()) return;
+  if (!userQuery.trim()) return;
 
-    setIsSearching(true);
-    setConversations((prev) => [
-      ...prev,
-      { type: "user", content: userQuery, timestamp: new Date() },
-    ]);
+  setIsSearching(true);
+  setConversations((prev) => [
+    ...prev,
+    { type: "user", content: userQuery, timestamp: new Date() },
+  ]);
 
-    try {
-      // mock latency
-      await new Promise((r) => setTimeout(r, 900 + Math.random() * 700));
+  let user = null;
 
-      const aiResponse = generateMockResponse(userQuery, selectedFiles);
+  try {
+    // ✅ CHARGE RIGHT BEFORE AI WORK (DB-enforced)
+    user = await getAuthedUser();
+    if (user?.id) {
+      const usageRes = await consumeAiUsage(user.id, "insight_queries", 1);
 
-      setConversations((prev) => [
-        ...prev,
-        {
-          type: "ai",
-          content: aiResponse.answer,
-          sources: aiResponse.sources,
-          timestamp: new Date(),
-        },
-      ]);
-
-      // ✅ Track daily usage for Insight Explorer queries
-      await incrementUsage("insightQueries");
-
-      // Optional event log
-      const user = await getAuthedUser();
-      if (user?.id) {
-        await logActivity(user.id, { feature: "insight_explorer" });
+      if (!usageRes.success) {
+        setConversations((prev) => [
+          ...prev,
+          {
+            type: "ai",
+            content:
+              "Daily AI limit reached for your plan. Try again tomorrow or upgrade to Pro.",
+            sources: [],
+            timestamp: new Date(),
+          },
+        ]);
+        return;
       }
-    } catch (err) {
-      console.error("Insight Explorer error:", err);
-      setConversations((prev) => [
-        ...prev,
-        {
-          type: "ai",
-          content: "Something went wrong while processing your request. Please try again.",
-          sources: [],
-          timestamp: new Date(),
-        },
-      ]);
-    } finally {
-      setIsSearching(false);
     }
-  };
+
+        // mock latency (represents real AI call time)
+        await new Promise((r) => setTimeout(r, 900 + Math.random() * 700));
+
+        const aiResponse = generateMockResponse(userQuery, selectedFiles);
+
+        setConversations((prev) => [
+          ...prev,
+          {
+            type: "ai",
+            content: aiResponse.answer,
+            sources: aiResponse.sources,
+            timestamp: new Date(),
+          },
+        ]);
+
+        // Optional event log
+        if (user?.id) {
+          await logActivity(user.id, { feature: "insight_explorer" });
+        }
+      } catch (err) {
+        console.error("Insight Explorer error:", err);
+        setConversations((prev) => [
+          ...prev,
+          {
+            type: "ai",
+            content:
+              "Something went wrong while processing your request. Please try again.",
+            sources: [],
+            timestamp: new Date(),
+          },
+        ]);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
 
   const handleSearch = async (e) => {
     e.preventDefault();
