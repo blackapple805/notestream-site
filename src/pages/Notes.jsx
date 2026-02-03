@@ -1,11 +1,6 @@
 // src/pages/Notes.jsx
 // Fixed black-screen crash + cleaned dependencies + prettier category tag mapping
-// Key fixes:
-// - ✅ add missing newCategory state
-// - ✅ make getAuthedUser stable via useCallback
-// - ✅ map DB tags[] to a pretty category label (cat:meeting -> "Meeting")
-// - ✅ ensure tag counts load in both modes and after DB load
-// - ✅ incrementUsage for voice transcriptions
+// + Liquid glass FAB and menu options
 
 import {
   FiPlus,
@@ -30,6 +25,7 @@ import NoteCard from "../components/NoteCard";
 import NoteRow from "../components/NoteRow";
 import NoteView from "./NoteView";
 import { useSubscription } from "../hooks/useSubscription";
+import { useMobileNav } from "../hooks/useMobileNav";
 
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
@@ -76,7 +72,6 @@ const FILTERS = [
 
 export default function Notes() {
   const navigate = useNavigate();
-  // ✅ Added incrementUsage to track voice transcription usage
   const { subscription, isFeatureUnlocked, isLoading, incrementUsage } = useSubscription();
 
   const isPro = !!subscription?.plan && subscription.plan !== "free";
@@ -107,7 +102,7 @@ export default function Notes() {
   const [showAddMenu, setShowAddMenu] = useState(false);
 
   const [editorOpen, setEditorOpen] = useState(false);
-  const [newCategory, setNewCategory] = useState("meeting"); // ✅ FIX (missing -> black screen)
+  const [newCategory, setNewCategory] = useState("meeting");
   const [newNote, setNewNote] = useState({ title: "", body: "" });
   const [newTagsInput, setNewTagsInput] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -133,6 +128,10 @@ export default function Notes() {
     inProgress: false,
     lastRequestId: null,
   });
+
+  // Hide mobile nav when any modal is open
+  const isAnyModalOpen = editorOpen || pinModalOpen || recOpen || showUpgrade;
+  useMobileNav(isAnyModalOpen);
 
   // ----------------------------
   // helpers
@@ -176,13 +175,10 @@ export default function Notes() {
       id: row.id,
       title: row.title ?? "Untitled",
       body: row.body ?? "",
-      // ✅ Use cat:* tag as the UI label instead of "type:note"
       tag: prettyFromCatTag(tagsArr) || "Note",
       updated: row.updated_at ?? row.created_at ?? new Date().toISOString(),
       favorite: !!row.is_favorite,
-      locked: false, // local-only unless you add a DB column
-
-      // Smart Notes (NoteView.jsx)
+      locked: false,
       summary: p.summary ?? null,
       SmartTasks: Array.isArray(p.SmartTasks) ? p.SmartTasks : null,
       SmartHighlights: Array.isArray(p.SmartHighlights) ? p.SmartHighlights : null,
@@ -222,14 +218,11 @@ export default function Notes() {
     setTagCounts(data || []);
   }, [supabaseReady]);
 
-  // ----------------------------
-  // Load notes from DB on page open
-  // ----------------------------
+  // Load notes from DB
   useEffect(() => {
     let alive = true;
 
     (async () => {
-      // Local/demo fallback
       if (!supabaseReady || !supabase) {
         setNotes(initialNotes);
         setNotesLoading(false);
@@ -270,15 +263,12 @@ export default function Notes() {
     };
   }, [supabaseReady, getAuthedUser, mapDbNoteToUi]);
 
-  // Tag counts (best-effort) — run when ready and after initial notes load
   useEffect(() => {
     if (!supabaseReady || !supabase) return;
     loadTagCounts();
   }, [supabaseReady, loadTagCounts]);
 
-  // ----------------------------
   // Derived state
-  // ----------------------------
   const filteredNotes = useMemo(() => {
     let filtered = notes;
 
@@ -316,9 +306,7 @@ export default function Notes() {
     [notes]
   );
 
-  // ----------------------------
   // Note operations
-  // ----------------------------
   const updateSelectedNote = (id, updates) => {
     setSelectedNote((prev) =>
       prev && prev.id === id ? { ...prev, ...updates } : prev
@@ -341,7 +329,6 @@ export default function Notes() {
       setEditorOpen(false);
       setShowAddMenu(false);
 
-      // Local/demo fallback
       if (!supabaseReady || !supabase) {
         const id = crypto?.randomUUID?.() ?? String(Date.now());
 
@@ -417,8 +404,6 @@ export default function Notes() {
         console.error("Create note error:", error);
         return;
       }
-
-
 
       const ui = mapDbNoteToUi(data);
 
@@ -587,9 +572,7 @@ export default function Notes() {
     );
   };
 
-  // ----------------------------
-  // PIN operations (still local)
-  // ----------------------------
+  // PIN operations
   const openSetPinForNote = (noteId) => {
     setPinMode("set");
     setPendingNoteId(noteId);
@@ -677,9 +660,7 @@ export default function Notes() {
     openUnlockForNote(note.id, true);
   };
 
-  // ----------------------------
-  // File upload (still local)
-  // ----------------------------
+  // File upload
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -733,9 +714,7 @@ export default function Notes() {
     setShowAddMenu(false);
   };
 
-  // ----------------------------
-  // Voice recording (still local)
-  // ----------------------------
+  // Voice recording
   const pickAudioMime = () => {
     const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
     return (
@@ -815,7 +794,6 @@ export default function Notes() {
         setRecState("stopped");
         cleanupStream();
 
-        // ✅ Track voice transcription usage after successful recording
         try {
           await incrementUsage("voiceTranscriptions");
         } catch (err) {
@@ -881,7 +859,6 @@ export default function Notes() {
       cameraInputRef.current.onchange = handleScanCapture;
     if (filePickerRef.current)
       filePickerRef.current.onchange = handleFileUpload;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Loading state
@@ -914,70 +891,67 @@ export default function Notes() {
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+100px)] animate-fadeIn">
       {/* Header */}
-      <header className="page-header">
-        <div className="page-header-content">
-          <div className="page-header-icon">
-            <Note weight="duotone" />
-          </div>
-          <div>
-            <h1 className="page-header-title">My Notes</h1>
-            <p className="page-header-subtitle">
-              Capture ideas, organize thoughts, stay productive.
-            </p>
-          </div>
+      <header className="flex items-center gap-3">
+        <div
+          className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{
+            backgroundColor: "rgba(99, 102, 241, 0.15)",
+            border: "1px solid rgba(99, 102, 241, 0.25)",
+          }}
+        >
+          <Note weight="duotone" size={22} style={{ color: "var(--accent-indigo)" }} />
+        </div>
+        <div>
+          <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+            My Notes
+          </h1>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Capture ideas, organize thoughts, stay productive.
+          </p>
         </div>
       </header>
 
       {/* Stats Banner */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2">
         <div
-          className="p-4 rounded-xl border text-center"
+          className="p-3 rounded-xl border text-center"
           style={{
             backgroundColor: "var(--bg-surface)",
             borderColor: "var(--border-secondary)",
           }}
         >
-          <p
-            className="text-2xl font-bold"
-            style={{ color: "var(--text-primary)" }}
-          >
+          <p className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
             {notes.length}
           </p>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Total Notes
+          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+            Total
           </p>
         </div>
         <div
-          className="p-4 rounded-xl border text-center"
+          className="p-3 rounded-xl border text-center"
           style={{
             backgroundColor: "var(--bg-surface)",
             borderColor: "var(--border-secondary)",
           }}
         >
-          <p
-            className="text-2xl font-bold"
-            style={{ color: "var(--accent-rose)" }}
-          >
+          <p className="text-xl font-bold" style={{ color: "var(--accent-rose)" }}>
             {filterCounts.favorites}
           </p>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
             Favorites
           </p>
         </div>
         <div
-          className="p-4 rounded-xl border text-center"
+          className="p-3 rounded-xl border text-center"
           style={{
             backgroundColor: "var(--bg-surface)",
             borderColor: "var(--border-secondary)",
           }}
         >
-          <p
-            className="text-2xl font-bold"
-            style={{ color: "var(--accent-amber)" }}
-          >
+          <p className="text-xl font-bold" style={{ color: "var(--accent-amber)" }}>
             {filterCounts.locked}
           </p>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
             Private
           </p>
         </div>
@@ -985,25 +959,27 @@ export default function Notes() {
 
       {/* Search Bar */}
       <div
-        className="flex items-center w-full rounded-full px-4 py-3 transition-all duration-300 border"
+        className="flex items-center w-full rounded-2xl px-4 py-2.5 transition-all duration-200 border"
         style={{
           backgroundColor: "var(--bg-surface)",
           borderColor: query ? "var(--accent-indigo)" : "var(--border-secondary)",
-          boxShadow: query ? "0 0 20px rgba(99,102,241,0.15)" : "none",
+          boxShadow: query ? "0 0 16px rgba(99,102,241,0.12)" : "none",
         }}
       >
-        <FiSearch
-          className="w-5 h-5 mr-3 flex-shrink-0"
-          style={{ color: "var(--text-muted)" }}
-        />
+        <FiSearch className="w-5 h-5 mr-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
         <input
           type="text"
           placeholder="Search notes..."
-          className="flex-1 bg-transparent text-sm outline-none min-w-0"
-          style={{ color: "var(--text-primary)" }}
+          className="flex-1 bg-transparent outline-none min-w-0"
+          style={{
+            color: "var(--text-primary)",
+            fontSize: "16px",
+          }}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
           spellCheck={false}
         />
         {query && (
@@ -1016,16 +992,14 @@ export default function Notes() {
           </button>
         )}
         <div
-          className="flex items-center gap-2 ml-3 pl-3 border-l"
+          className="flex items-center gap-1.5 ml-3 pl-3 border-l"
           style={{ borderColor: "var(--border-secondary)" }}
         >
           <button
             onClick={() => setGridView(true)}
             className="p-2 rounded-lg transition"
             style={{
-              backgroundColor: gridView
-                ? "rgba(99, 102, 241, 0.2)"
-                : "transparent",
+              backgroundColor: gridView ? "rgba(99, 102, 241, 0.15)" : "transparent",
               color: gridView ? "var(--accent-indigo)" : "var(--text-muted)",
             }}
           >
@@ -1035,9 +1009,7 @@ export default function Notes() {
             onClick={() => setGridView(false)}
             className="p-2 rounded-lg transition"
             style={{
-              backgroundColor: !gridView
-                ? "rgba(99, 102, 241, 0.2)"
-                : "transparent",
+              backgroundColor: !gridView ? "rgba(99, 102, 241, 0.15)" : "transparent",
               color: !gridView ? "var(--accent-indigo)" : "var(--text-muted)",
             }}
           >
@@ -1047,7 +1019,7 @@ export default function Notes() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
         {FILTERS.map((filter) => {
           const isActive = activeFilter === filter.id;
           const count = filterCounts[filter.id];
@@ -1057,28 +1029,19 @@ export default function Notes() {
             <button
               key={filter.id}
               onClick={() => setActiveFilter(filter.id)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-medium whitespace-nowrap transition-all border"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all border"
               style={{
-                backgroundColor: isActive
-                  ? "rgba(99, 102, 241, 0.1)"
-                  : "transparent",
-                borderColor: isActive
-                  ? "rgba(99, 102, 241, 0.3)"
-                  : "transparent",
+                backgroundColor: isActive ? "rgba(99, 102, 241, 0.1)" : "transparent",
+                borderColor: isActive ? "rgba(99, 102, 241, 0.25)" : "transparent",
                 color: isActive ? "var(--accent-indigo)" : "var(--text-secondary)",
               }}
             >
-              <IconComponent
-                size={14}
-                weight={filter.id === "all" ? "duotone" : undefined}
-              />
+              <IconComponent size={14} weight={filter.id === "all" ? "duotone" : undefined} />
               <span>{filter.label}</span>
               <span
                 className="px-1.5 py-0.5 rounded-md text-[10px]"
                 style={{
-                  backgroundColor: isActive
-                    ? "rgba(99, 102, 241, 0.2)"
-                    : "var(--bg-tertiary)",
+                  backgroundColor: isActive ? "rgba(99, 102, 241, 0.15)" : "var(--bg-tertiary)",
                   color: isActive ? "var(--accent-indigo)" : "var(--text-muted)",
                 }}
               >
@@ -1115,27 +1078,17 @@ export default function Notes() {
                   ) : activeFilter === "voice" ? (
                     <FiMic size={28} style={{ color: "var(--accent-indigo)" }} />
                   ) : (
-                    <Note
-                      size={28}
-                      weight="duotone"
-                      style={{ color: "var(--accent-indigo)" }}
-                    />
+                    <Note size={28} weight="duotone" style={{ color: "var(--accent-indigo)" }} />
                   )}
                 </div>
 
-                <h3
-                  className="text-lg font-semibold mb-2"
-                  style={{ color: "var(--text-primary)" }}
-                >
+                <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)" }}>
                   {query
                     ? "No notes found"
                     : `No ${activeFilter === "all" ? "" : activeFilter + " "}notes yet`}
                 </h3>
 
-                <p
-                  className="text-sm mb-6 max-w-xs mx-auto"
-                  style={{ color: "var(--text-muted)" }}
-                >
+                <p className="text-sm mb-6 max-w-xs mx-auto" style={{ color: "var(--text-muted)" }}>
                   {query
                     ? "Try a different search term"
                     : activeFilter === "favorites"
@@ -1270,19 +1223,14 @@ export default function Notes() {
                 <ContextMenuItem
                   icon={<FiLock size={15} />}
                   label={
-                    notes.find((n) => n.id === activeMenuId)?.locked
-                      ? "Unlock"
-                      : "Lock"
+                    notes.find((n) => n.id === activeMenuId)?.locked ? "Unlock" : "Lock"
                   }
                   onClick={() => {
                     handleLockToggle(activeMenuId);
                     setActiveMenuId(null);
                   }}
                 />
-                <div
-                  className="h-px my-1"
-                  style={{ backgroundColor: "var(--border-secondary)" }}
-                />
+                <div className="h-px my-1" style={{ backgroundColor: "var(--border-secondary)" }} />
                 <ContextMenuItem
                   icon={<FiTrash2 size={15} />}
                   label="Delete"
@@ -1298,18 +1246,30 @@ export default function Notes() {
         )}
       </AnimatePresence>
 
-      {/* FAB Zone */}
-      <div className="fab-zone fixed bottom-[calc(var(--mobile-nav-height)+16px)] right-4 z-[140]">
-        <AnimatePresence>
+     {/* FAB Zone - Theme-aware Liquid Glass Style */}
+      <div className="fab-zone fixed bottom-[calc(var(--mobile-nav-height)+16px)] right-4 z-[140]" style={{ willChange: "transform" }}>
+        <AnimatePresence initial={false} mode="wait">
           {showAddMenu && (
             <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              key="fab-menu"
+              initial={{ opacity: 0, y: 10, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className="absolute bottom-16 right-0 flex flex-col gap-2 min-w-[160px]"
+              exit={{
+                opacity: 0,
+                y: 10,
+                scale: 0.96,
+                transition: { duration: 0.14, ease: "easeOut" },
+              }}
+              transition={{ type: "spring", stiffness: 520, damping: 32, mass: 0.7 }}
+              className="absolute bottom-14 right-0 flex flex-col gap-1.5 min-w-[140px]"
+              style={{
+                transformOrigin: "bottom right",
+                willChange: "transform, opacity",
+                pointerEvents: showAddMenu ? "auto" : "none",
+              }}
             >
               <FABOption
-                icon={<FiEdit2 size={16} />}
+                icon={<FiEdit2 size={15} />}
                 label="New Note"
                 onClick={() => {
                   setEditorOpen(true);
@@ -1317,7 +1277,7 @@ export default function Notes() {
                 }}
               />
               <FABOption
-                icon={<FiMic size={16} />}
+                icon={<FiMic size={15} />}
                 label="Voice Note"
                 pro={!canUseVoice}
                 onClick={() => {
@@ -1326,59 +1286,82 @@ export default function Notes() {
                 }}
               />
               <FABOption
-                icon={<FiCamera size={16} />}
+                icon={<FiCamera size={15} />}
                 label="Scan"
                 onClick={() => {
                   cameraInputRef.current?.click();
+                  setShowAddMenu(false);
                 }}
               />
               <FABOption
-                icon={<FiUpload size={16} />}
+                icon={<FiUpload size={15} />}
                 label="Upload"
                 onClick={() => {
                   filePickerRef.current?.click();
+                  setShowAddMenu(false);
                 }}
               />
             </motion.div>
           )}
         </AnimatePresence>
 
+        {/* Main FAB Button - Liquid Glass (theme-aware) */}
         <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setShowAddMenu(!showAddMenu)}
-          className={`w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30 flex items-center justify-center transition-all ${
-            showAddMenu ? "rotate-45 shadow-indigo-500/50" : "hover:shadow-indigo-500/40"
-          }`}
+          type="button"
+          onClick={() => setShowAddMenu((v) => !v)}
+          className="fab-glass-button w-12 h-12 rounded-[14px] flex items-center justify-center relative"
+          aria-label={showAddMenu ? "Close menu" : "Open menu"}
+          aria-expanded={!!showAddMenu}
+          // Framer owns transform: rotate + scale
+          animate={{ rotate: showAddMenu ? 45 : 0 }}
+          whileTap={{ scale: 0.9 }}
+          transition={{ type: "spring", stiffness: 520, damping: 34, mass: 0.8 }}
+          style={{
+            transformOrigin: "50% 50%",
+            willChange: "transform",
+          }}
         >
-          <FiPlus size={24} strokeWidth={2.5} />
+          {/* Inner glow (theme-aware) */}
+          <div
+            className="absolute inset-0 rounded-[14px] pointer-events-none"
+            style={{ background: "var(--fab-inner-glow)" }}
+          />
+          {/* Specular highlight (theme-aware) */}
+          <div
+            className="absolute inset-x-2 top-0 h-[1px] pointer-events-none"
+            style={{ background: "var(--fab-specular)" }}
+          />
+          <FiPlus
+            size={22}
+            strokeWidth={2.5}
+            className="relative z-10"
+            style={{ color: "var(--fab-icon)" }}
+          />
         </motion.button>
       </div>
+
 
       {/* New Note Modal */}
       <AnimatePresence>
         {editorOpen && (
           <Modal onClose={() => setEditorOpen(false)}>
-            <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+            <div className="p-4 border-b" style={{ borderColor: "var(--border-secondary)" }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div
                     className="h-10 w-10 rounded-xl flex items-center justify-center"
                     style={{
-                      backgroundColor: "rgba(99, 102, 241, 0.2)",
-                      border: "1px solid rgba(99, 102, 241, 0.3)",
+                      backgroundColor: "rgba(99, 102, 241, 0.15)",
+                      border: "1px solid rgba(99, 102, 241, 0.25)",
                     }}
                   >
-                    <FilePlus
-                      size={20}
-                      weight="duotone"
-                      style={{ color: "var(--accent-indigo)" }}
-                    />
+                    <FilePlus size={20} weight="duotone" style={{ color: "var(--accent-indigo)" }} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+                    <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
                       New Note
                     </h3>
-                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                       Create a new note
                     </p>
                   </div>
@@ -1394,14 +1377,17 @@ export default function Notes() {
               </div>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-4 space-y-4">
               {/* Category */}
               <div>
-                <label className="text-xs font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>
+                <label
+                  className="text-[11px] font-medium mb-2 block"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   Category
                 </label>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {[
                     { id: "meeting", label: "Meeting" },
                     { id: "study", label: "Study" },
@@ -1417,8 +1403,12 @@ export default function Notes() {
                         onClick={() => setNewCategory(c.id)}
                         className="px-3 py-2 rounded-full text-xs font-medium border transition"
                         style={{
-                          backgroundColor: active ? "rgba(99,102,241,0.14)" : "var(--bg-input)",
-                          borderColor: active ? "rgba(99,102,241,0.35)" : "var(--border-secondary)",
+                          backgroundColor: active
+                            ? "rgba(99,102,241,0.12)"
+                            : "var(--bg-input)",
+                          borderColor: active
+                            ? "rgba(99,102,241,0.3)"
+                            : "var(--border-secondary)",
                           color: active ? "var(--accent-indigo)" : "var(--text-secondary)",
                         }}
                       >
@@ -1428,14 +1418,17 @@ export default function Notes() {
                   })}
                 </div>
 
-                <p className="mt-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                <p className="mt-2 text-[10px]" style={{ color: "var(--text-muted)" }}>
                   Used for the note's primary label and analytics grouping.
                 </p>
               </div>
 
               {/* Tags */}
               <div>
-                <label className="text-xs font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>
+                <label
+                  className="text-[11px] font-medium mb-2 block"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   Tags (optional)
                 </label>
                 <input
@@ -1444,21 +1437,27 @@ export default function Notes() {
                     backgroundColor: "var(--bg-input)",
                     borderColor: "var(--border-secondary)",
                     color: "var(--text-primary)",
+                    fontSize: "16px",
                   }}
                   placeholder="e.g. sprint, client, budget"
                   value={newTagsInput}
                   onChange={(e) => setNewTagsInput(e.target.value)}
                   autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
                   spellCheck={false}
                 />
-                <p className="mt-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                <p className="mt-1.5 text-[10px]" style={{ color: "var(--text-muted)" }}>
                   Comma-separated. These become entries in <code>tags[]</code>.
                 </p>
               </div>
 
               {/* Title */}
               <div>
-                <label className="text-xs font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>
+                <label
+                  className="text-[11px] font-medium mb-2 block"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   Title
                 </label>
                 <input
@@ -1467,6 +1466,7 @@ export default function Notes() {
                     backgroundColor: "var(--bg-input)",
                     borderColor: "var(--border-secondary)",
                     color: "var(--text-primary)",
+                    fontSize: "16px",
                   }}
                   placeholder="Note title..."
                   maxLength={80}
@@ -1478,7 +1478,10 @@ export default function Notes() {
 
               {/* Content */}
               <div>
-                <label className="text-xs font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>
+                <label
+                  className="text-[11px] font-medium mb-2 block"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   Content
                 </label>
                 <textarea
@@ -1487,9 +1490,10 @@ export default function Notes() {
                     backgroundColor: "var(--bg-input)",
                     borderColor: "var(--border-secondary)",
                     color: "var(--text-secondary)",
+                    fontSize: "16px",
                   }}
                   placeholder="Start writing..."
-                  rows={5}
+                  rows={4}
                   value={newNote.body}
                   onChange={(e) => setNewNote({ ...newNote, body: e.target.value })}
                 />
@@ -1497,7 +1501,7 @@ export default function Notes() {
             </div>
 
             <div
-              className="p-5 border-t"
+              className="p-4 border-t"
               style={{
                 borderColor: "var(--border-secondary)",
                 backgroundColor: "var(--bg-tertiary)",
@@ -1527,34 +1531,38 @@ export default function Notes() {
               setPendingNoteId(null);
             }}
           >
-            <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+            <div className="p-4 border-b" style={{ borderColor: "var(--border-secondary)" }}>
               <div className="flex items-center gap-3">
                 <div
                   className="h-10 w-10 rounded-xl flex items-center justify-center"
                   style={{
                     backgroundColor:
                       pinMode === "set"
-                        ? "rgba(99, 102, 241, 0.2)"
-                        : "rgba(245, 158, 11, 0.2)",
+                        ? "rgba(99, 102, 241, 0.15)"
+                        : "rgba(245, 158, 11, 0.15)",
                     border: `1px solid ${
                       pinMode === "set"
-                        ? "rgba(99, 102, 241, 0.3)"
-                        : "rgba(245, 158, 11, 0.3)"
+                        ? "rgba(99, 102, 241, 0.25)"
+                        : "rgba(245, 158, 11, 0.25)"
                     }`,
                   }}
                 >
                   <FiLock
                     size={18}
                     style={{
-                      color: pinMode === "set" ? "var(--accent-indigo)" : "var(--accent-amber)",
+                      color:
+                        pinMode === "set" ? "var(--accent-indigo)" : "var(--accent-amber)",
                     }}
                   />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+                  <h3
+                    className="text-base font-semibold"
+                    style={{ color: "var(--text-primary)" }}
+                  >
                     {pinMode === "set" ? "Set PIN" : "Enter PIN"}
                   </h3>
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                     {pinMode === "set" ? "Create a 4-digit PIN" : "Enter your PIN to unlock"}
                   </p>
                 </div>
@@ -1568,8 +1576,10 @@ export default function Notes() {
                   backgroundColor: "var(--bg-input)",
                   borderColor: "var(--border-secondary)",
                   color: "var(--text-primary)",
+                  fontSize: "20px",
                 }}
                 type="password"
+                inputMode="numeric"
                 maxLength={4}
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
@@ -1579,7 +1589,7 @@ export default function Notes() {
             </div>
 
             <div
-              className="p-5 border-t"
+              className="p-4 border-t"
               style={{
                 borderColor: "var(--border-secondary)",
                 backgroundColor: "var(--bg-tertiary)",
@@ -1606,7 +1616,7 @@ export default function Notes() {
       <AnimatePresence>
         {recOpen && (
           <Modal onClose={closeRecorder}>
-            <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+            <div className="p-4 border-b" style={{ borderColor: "var(--border-secondary)" }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div
@@ -1614,27 +1624,33 @@ export default function Notes() {
                     style={{
                       backgroundColor:
                         recState === "recording"
-                          ? "rgba(244, 63, 94, 0.2)"
-                          : "rgba(99, 102, 241, 0.2)",
+                          ? "rgba(244, 63, 94, 0.15)"
+                          : "rgba(99, 102, 241, 0.15)",
                       border: `1px solid ${
                         recState === "recording"
-                          ? "rgba(244, 63, 94, 0.3)"
-                          : "rgba(99, 102, 241, 0.3)"
+                          ? "rgba(244, 63, 94, 0.25)"
+                          : "rgba(99, 102, 241, 0.25)"
                       }`,
                     }}
                   >
                     <FiMic
                       style={{
-                        color: recState === "recording" ? "var(--accent-rose)" : "var(--accent-indigo)",
+                        color:
+                          recState === "recording"
+                            ? "var(--accent-rose)"
+                            : "var(--accent-indigo)",
                       }}
                       size={18}
                     />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+                    <h3
+                      className="text-base font-semibold"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       Voice Note
                     </h3>
-                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                       Record and save
                     </p>
                   </div>
@@ -1658,7 +1674,7 @@ export default function Notes() {
                   className="p-4 rounded-xl text-sm"
                   style={{
                     backgroundColor: "rgba(244, 63, 94, 0.1)",
-                    border: "1px solid rgba(244, 63, 94, 0.3)",
+                    border: "1px solid rgba(244, 63, 94, 0.25)",
                     color: "var(--accent-rose)",
                   }}
                 >
@@ -1705,11 +1721,14 @@ export default function Notes() {
                       <div className="space-y-2">
                         <div
                           className="w-12 h-12 mx-auto rounded-full flex items-center justify-center"
-                          style={{ backgroundColor: "rgba(16, 185, 129, 0.2)" }}
+                          style={{ backgroundColor: "rgba(16, 185, 129, 0.15)" }}
                         >
                           <FiMic style={{ color: "var(--accent-emerald)" }} size={20} />
                         </div>
-                        <p className="text-sm font-medium" style={{ color: "var(--accent-emerald)" }}>
+                        <p
+                          className="text-sm font-medium"
+                          style={{ color: "var(--accent-emerald)" }}
+                        >
                           Saved!
                         </p>
                       </div>
@@ -1717,7 +1736,7 @@ export default function Notes() {
                       <div className="space-y-2">
                         <div
                           className="w-12 h-12 mx-auto rounded-full flex items-center justify-center"
-                          style={{ backgroundColor: "rgba(99, 102, 241, 0.2)" }}
+                          style={{ backgroundColor: "rgba(99, 102, 241, 0.15)" }}
                         >
                           <FiMic style={{ color: "var(--accent-indigo)" }} size={20} />
                         </div>
@@ -1768,7 +1787,7 @@ export default function Notes() {
 
             {recState === "stopped" && (
               <div
-                className="p-5 border-t"
+                className="p-4 border-t"
                 style={{
                   borderColor: "var(--border-secondary)",
                   backgroundColor: "var(--bg-tertiary)",
@@ -1794,32 +1813,39 @@ export default function Notes() {
       <AnimatePresence>
         {showUpgrade && (
           <Modal onClose={() => setShowUpgrade(false)}>
-            <div className="p-6 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+            <div className="p-5 border-b" style={{ borderColor: "var(--border-secondary)" }}>
               <div className="flex items-center gap-3">
                 <div
-                  className="h-12 w-12 rounded-xl flex items-center justify-center"
+                  className="h-11 w-11 rounded-xl flex items-center justify-center"
                   style={{
                     background:
-                      "linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(249, 115, 22, 0.2))",
-                    border: "1px solid rgba(245, 158, 11, 0.3)",
+                      "linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(249, 115, 22, 0.15))",
+                    border: "1px solid rgba(245, 158, 11, 0.25)",
                   }}
                 >
-                  <Crown size={24} weight="fill" style={{ color: "var(--accent-amber)" }} />
+                  <Crown size={22} weight="fill" style={{ color: "var(--accent-amber)" }} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+                  <h3
+                    className="text-base font-semibold"
+                    style={{ color: "var(--text-primary)" }}
+                  >
                     Pro Feature
                   </h3>
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                     Upgrade to unlock
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="p-6">
-              <p className="text-sm leading-relaxed mb-4" style={{ color: "var(--text-secondary)" }}>
-                Voice Notes and Advanced Export are available on Pro. Upgrade to unlock these powerful features.
+            <div className="p-5">
+              <p
+                className="text-sm leading-relaxed mb-4"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Voice Notes and Advanced Export are available on Pro. Upgrade to unlock
+                these powerful features.
               </p>
               <div
                 className="p-3 rounded-xl border"
@@ -1828,31 +1854,34 @@ export default function Notes() {
                   borderColor: "var(--border-secondary)",
                 }}
               >
-                <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>
+                <p className="text-[10px] mb-2" style={{ color: "var(--text-muted)" }}>
                   Pro includes:
                 </p>
                 <ul className="space-y-1.5">
-                  {["Voice notes & transcription", "Advanced export", "Unlimited AI", "Cloud sync"].map(
-                    (f, i) => (
-                      <li
-                        key={i}
-                        className="flex items-center gap-2 text-xs"
-                        style={{ color: "var(--text-secondary)" }}
-                      >
-                        <span
-                          className="w-1 h-1 rounded-full"
-                          style={{ backgroundColor: "var(--accent-indigo)" }}
-                        />{" "}
-                        {f}
-                      </li>
-                    )
-                  )}
+                  {[
+                    "Voice notes & transcription",
+                    "Advanced export",
+                    "Unlimited AI",
+                    "Cloud sync",
+                  ].map((f, i) => (
+                    <li
+                      key={i}
+                      className="flex items-center gap-2 text-xs"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      <span
+                        className="w-1 h-1 rounded-full"
+                        style={{ backgroundColor: "var(--accent-indigo)" }}
+                      />{" "}
+                      {f}
+                    </li>
+                  ))}
                 </ul>
               </div>
             </div>
 
             <div
-              className="p-6 border-t flex gap-3"
+              className="p-4 border-t flex gap-3"
               style={{
                 borderColor: "var(--border-secondary)",
                 backgroundColor: "var(--bg-tertiary)",
@@ -1895,11 +1924,15 @@ export default function Notes() {
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6"
               style={{
-                backgroundColor: "rgba(99, 102, 241, 0.2)",
-                border: "1px solid rgba(99, 102, 241, 0.3)",
+                backgroundColor: "rgba(99, 102, 241, 0.15)",
+                border: "1px solid rgba(99, 102, 241, 0.25)",
               }}
             >
-              <FiUpload size={32} className="animate-bounce" style={{ color: "var(--accent-indigo)" }} />
+              <FiUpload
+                size={32}
+                className="animate-bounce"
+                style={{ color: "var(--accent-indigo)" }}
+              />
             </div>
             <div
               className="w-48 h-1.5 rounded-full overflow-hidden mb-4"
@@ -1949,12 +1982,13 @@ const Modal = ({ children, onClose }) => (
       style={{ backgroundColor: "var(--bg-overlay)", backdropFilter: "blur(8px)" }}
       onClick={onClose}
     />
-    <div className="fixed inset-0 z-[201] flex items-center justify-center p-4 pointer-events-none overflow-y-auto">
+    <div className="fixed inset-0 z-[201] flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-none overflow-y-auto">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="w-full max-w-md rounded-2xl border shadow-xl overflow-hidden pointer-events-auto my-auto"
+        initial={{ opacity: 0, y: 100 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 100 }}
+        transition={{ type: "spring", stiffness: 400, damping: 35 }}
+        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl border border-b-0 sm:border-b shadow-xl overflow-hidden pointer-events-auto"
         style={{
           backgroundColor: "var(--bg-surface)",
           borderColor: "var(--border-secondary)",
@@ -1962,6 +1996,12 @@ const Modal = ({ children, onClose }) => (
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div
+            className="w-10 h-1 rounded-full"
+            style={{ backgroundColor: "var(--border-secondary)" }}
+          />
+        </div>
         <div className="max-h-[calc(100vh-32px)] overflow-y-auto">{children}</div>
       </motion.div>
     </div>
@@ -1990,34 +2030,44 @@ const ContextMenuItem = ({ icon, label, onClick, danger }) => (
 );
 
 const FABOption = ({ icon, label, onClick, pro }) => (
-  <button
+  <motion.button
+    type="button"
+    whileHover={{ scale: 1.02 }}
+    whileTap={{ scale: 0.97 }}
     onClick={onClick}
-    className="flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg transition active:scale-95"
-    style={{
-      backgroundColor: "var(--bg-surface)",
-      borderColor: "var(--border-secondary)",
-    }}
+    className="fab-option-glass flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all duration-200"
   >
-    <span style={{ color: "var(--accent-indigo)" }}>{icon}</span>
+    <div
+      className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+      style={{
+        backgroundColor: "var(--fab-opt-icon-bg)",
+        border: "1px solid var(--fab-opt-icon-border)",
+        boxShadow: "var(--fab-opt-icon-shadow)",
+      }}
+    >
+      <span style={{ color: "var(--fab-opt-icon-color)" }}>{icon}</span>
+    </div>
+
     <span
-      className="text-sm font-medium flex items-center gap-2"
-      style={{ color: "var(--text-primary)" }}
+      className="text-[13px] font-medium flex items-center gap-1.5"
+      style={{ color: "var(--fab-opt-text)" }}
     >
       {label}
       {pro && (
         <span
-          className="text-[10px] px-2 py-0.5 rounded-full"
+          className="text-[9px] px-1.5 py-0.5 rounded-md font-medium"
           style={{
-            backgroundColor: "rgba(245, 158, 11, 0.15)",
-            border: "1px solid rgba(245, 158, 11, 0.25)",
-            color: "var(--accent-amber)",
+            backgroundColor: "var(--pro-badge-bg)",
+            border: "1px solid var(--pro-badge-border)",
+            color: "var(--pro-badge-text)",
           }}
         >
           PRO
         </span>
       )}
     </span>
-  </button>
+  </motion.button>
 );
+
 
 

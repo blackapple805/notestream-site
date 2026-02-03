@@ -1,4 +1,3 @@
-
 // src/pages/Summaries.jsx - "Insight Explorer"
 // Supabase-backed workspace context + daily_usage tracking via useSubscription.incrementUsage
 // Removes legacy user_engagement_stats tracking (ai_uses) and fixes activity_events column names.
@@ -17,7 +16,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import { consumeAiUsage } from "../lib/usage";
-
 
 const DOCS_TABLE = "documents";
 const NOTES_TABLE = "notes";
@@ -354,73 +352,72 @@ export default function Summaries() {
   };
 
   const runSearch = async (userQuery) => {
-  if (!userQuery.trim()) return;
+    if (!userQuery.trim()) return;
 
-  setIsSearching(true);
-  setConversations((prev) => [
-    ...prev,
-    { type: "user", content: userQuery, timestamp: new Date() },
-  ]);
+    setIsSearching(true);
+    setConversations((prev) => [
+      ...prev,
+      { type: "user", content: userQuery, timestamp: new Date() },
+    ]);
 
-  let user = null;
+    let user = null;
 
-  try {
-    // ✅ CHARGE RIGHT BEFORE AI WORK (DB-enforced)
-    user = await getAuthedUser();
-    if (user?.id) {
-      const usageRes = await consumeAiUsage(user.id, "insight_queries", 1);
+    try {
+      // ✅ CHARGE RIGHT BEFORE AI WORK (DB-enforced)
+      user = await getAuthedUser();
+      if (user?.id) {
+        const usageRes = await consumeAiUsage(user.id, "insight_queries", 1);
 
-      if (!usageRes.success) {
-        setConversations((prev) => [
-          ...prev,
-          {
-            type: "ai",
-            content:
-              "Daily AI limit reached for your plan. Try again tomorrow or upgrade to Pro.",
-            sources: [],
-            timestamp: new Date(),
-          },
-        ]);
-        return;
-      }
-    }
-
-        // mock latency (represents real AI call time)
-        await new Promise((r) => setTimeout(r, 900 + Math.random() * 700));
-
-        const aiResponse = generateMockResponse(userQuery, selectedFiles);
-
-        setConversations((prev) => [
-          ...prev,
-          {
-            type: "ai",
-            content: aiResponse.answer,
-            sources: aiResponse.sources,
-            timestamp: new Date(),
-          },
-        ]);
-
-        // Optional event log
-        if (user?.id) {
-          await logActivity(user.id, { feature: "insight_explorer" });
+        if (!usageRes.success) {
+          setConversations((prev) => [
+            ...prev,
+            {
+              type: "ai",
+              content:
+                "Daily AI limit reached for your plan. Try again tomorrow or upgrade to Pro.",
+              sources: [],
+              timestamp: new Date(),
+            },
+          ]);
+          return;
         }
-      } catch (err) {
-        console.error("Insight Explorer error:", err);
-        setConversations((prev) => [
-          ...prev,
-          {
-            type: "ai",
-            content:
-              "Something went wrong while processing your request. Please try again.",
-            sources: [],
-            timestamp: new Date(),
-          },
-        ]);
-      } finally {
-        setIsSearching(false);
       }
-    };
 
+      // mock latency (represents real AI call time)
+      await new Promise((r) => setTimeout(r, 900 + Math.random() * 700));
+
+      const aiResponse = generateMockResponse(userQuery, selectedFiles);
+
+      setConversations((prev) => [
+        ...prev,
+        {
+          type: "ai",
+          content: aiResponse.answer,
+          sources: aiResponse.sources,
+          timestamp: new Date(),
+        },
+      ]);
+
+      // Optional event log
+      if (user?.id) {
+        await logActivity(user.id, { feature: "insight_explorer" });
+      }
+    } catch (err) {
+      console.error("Insight Explorer error:", err);
+      setConversations((prev) => [
+        ...prev,
+        {
+          type: "ai",
+          content:
+            "Something went wrong while processing your request. Please try again.",
+          sources: [],
+          timestamp: new Date(),
+        },
+      ]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -441,49 +438,56 @@ export default function Summaries() {
   }
 
   return (
-    <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+140px)] animate-fadeIn">
-      {/* Header */}
-      <header className="page-header">
-        <div className="page-header-content">
-          <div className="page-header-icon">
-            <FiZap />
-          </div>
-          <div>
-            <h1 className="page-header-title">Insight Explorer</h1>
-            <p className="page-header-subtitle">
-              Ask questions across your workspace. AI-powered search and analysis.
-            </p>
-          </div>
+    <div className="space-y-5 pb-[calc(var(--mobile-nav-height)+140px)] animate-fadeIn">
+      {/* Header - More compact */}
+      <header className="flex items-center gap-3">
+        <div
+          className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{
+            backgroundColor: "rgba(99, 102, 241, 0.15)",
+            border: "1px solid rgba(99, 102, 241, 0.25)",
+          }}
+        >
+          <FiZap className="text-indigo-400" size={20} />
+        </div>
+        <div>
+          <h1 className="text-xl font-semibold text-theme-primary">Insight Explorer</h1>
+          <p className="text-xs text-theme-muted">
+            AI-powered search across your workspace
+          </p>
         </div>
       </header>
 
-      {/* File Context Card */}
-      <GlassCard>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <FiFile className="text-indigo-400" size={16} />
-            <span className="text-sm text-theme-secondary">Search context:</span>
+      {/* File Context - Streamlined */}
+      <div
+        className="rounded-2xl p-4 border"
+        style={{
+          backgroundColor: "var(--bg-surface)",
+          borderColor: "var(--border-secondary)",
+        }}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <FiFile className="text-indigo-400 flex-shrink-0" size={14} />
+            <span className="text-xs text-theme-muted">Context:</span>
             <span
-              className="text-xs px-2 py-1 rounded-full border"
+              className="text-xs px-2.5 py-1 rounded-full border truncate"
               style={{
                 backgroundColor: "var(--bg-tertiary)",
                 borderColor: "var(--border-secondary)",
+                color: "var(--text-secondary)",
               }}
             >
               {contextLabel}
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {selectedFiles.length > 0 && (
               <button
                 type="button"
                 onClick={() => setSelectedFiles([])}
-                className="text-xs text-theme-muted hover:text-theme-secondary px-2 py-1 rounded-full border transition"
-                style={{
-                  backgroundColor: "var(--bg-tertiary)",
-                  borderColor: "var(--border-secondary)",
-                }}
+                className="text-xs text-theme-muted hover:text-theme-secondary transition"
               >
                 Clear
               </button>
@@ -492,58 +496,44 @@ export default function Summaries() {
             <button
               type="button"
               onClick={() => setShowFileSelector((s) => !s)}
-              className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 px-3 py-1.5 rounded-full border transition"
+              className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition"
               style={{
-                backgroundColor: "rgba(99, 102, 241, 0.1)",
-                borderColor: "rgba(99, 102, 241, 0.25)",
+                backgroundColor: "rgba(99, 102, 241, 0.08)",
+                borderColor: "rgba(99, 102, 241, 0.2)",
               }}
               disabled={filesLoading}
-              title={filesLoading ? "Loading…" : "Select files"}
             >
-              Select files
+              Select
               <FiChevronDown
                 size={12}
-                className={`${showFileSelector ? "rotate-180" : ""} transition`}
+                className={`${showFileSelector ? "rotate-180" : ""} transition-transform`}
               />
             </button>
           </div>
         </div>
 
         {filesError && (
-          <p className="text-[11px] mt-3" style={{ color: "var(--text-muted)" }}>
-            {filesError}
-          </p>
+          <p className="text-[11px] mt-2 text-red-400/80">{filesError}</p>
         )}
 
         {/* Selected file pills */}
         {selectedFiles.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {selectedFiles.map((file) => (
               <span
                 key={file.id}
-                className="text-xs px-3 py-1.5 rounded-full border flex items-center gap-2"
+                className="text-xs px-2.5 py-1 rounded-full border flex items-center gap-1.5"
                 style={{
-                  backgroundColor: "rgba(99, 102, 241, 0.1)",
-                  borderColor: "rgba(99, 102, 241, 0.25)",
+                  backgroundColor: "rgba(99, 102, 241, 0.08)",
+                  borderColor: "rgba(99, 102, 241, 0.2)",
                   color: "rgb(165, 180, 252)",
                 }}
               >
-                <span
-                  className="text-[10px] px-2 py-0.5 rounded-full border"
-                  style={{
-                    backgroundColor: "rgba(99, 102, 241, 0.15)",
-                    borderColor: "rgba(99, 102, 241, 0.3)",
-                  }}
-                >
-                  {typeLabel(file.type)}
-                </span>
-
-                <span className="truncate max-w-[180px]">{file.name}</span>
-
+                <span className="truncate max-w-[140px]">{file.name}</span>
                 <button
                   type="button"
                   onClick={() => toggleFileSelection(file)}
-                  className="hover:text-white"
+                  className="hover:text-white transition"
                 >
                   <FiX size={12} />
                 </button>
@@ -559,22 +549,23 @@ export default function Summaries() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="mt-4 pt-4 border-t overflow-hidden"
+              transition={{ duration: 0.2 }}
+              className="mt-3 pt-3 border-t overflow-hidden"
               style={{ borderColor: "var(--border-secondary)" }}
             >
               {(workspaceFiles || []).length === 0 ? (
                 <div
-                  className="text-xs rounded-xl border p-3"
+                  className="text-xs rounded-xl border p-3 text-center"
                   style={{
                     backgroundColor: "var(--bg-input)",
                     borderColor: "var(--border-secondary)",
                     color: "var(--text-muted)",
                   }}
                 >
-                  No files found yet. Upload a document or create a note to see it here.
+                  No files yet. Upload a document or create a note.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-1.5 max-h-[200px] overflow-y-auto">
                   {(workspaceFiles || []).map((file) => {
                     const selected = fileIdSet.has(file.id);
 
@@ -583,7 +574,7 @@ export default function Summaries() {
                         key={file.id}
                         type="button"
                         onClick={() => toggleFileSelection(file)}
-                        className="text-left px-3 py-3 rounded-xl border transition flex items-center justify-between gap-3"
+                        className="text-left px-3 py-2.5 rounded-xl border transition flex items-center justify-between gap-2"
                         style={{
                           backgroundColor: selected
                             ? "rgba(99, 102, 241, 0.1)"
@@ -593,42 +584,36 @@ export default function Summaries() {
                             : "var(--border-secondary)",
                         }}
                       >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="text-[10px] px-2 py-0.5 rounded-full border"
-                              style={{
-                                backgroundColor: "var(--bg-tertiary)",
-                                borderColor: "var(--border-secondary)",
-                              }}
-                            >
-                              {typeLabel(file.type)}
-                            </span>
-
-                            <span className="text-sm text-theme-primary truncate">
-                              {file.name}
-                            </span>
-                          </div>
-
-                          {file.source && (
-                            <p className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>
-                              {file.source === "documents" ? "Document" : "Note"}
-                            </p>
-                          )}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded border flex-shrink-0"
+                            style={{
+                              backgroundColor: "var(--bg-tertiary)",
+                              borderColor: "var(--border-secondary)",
+                              color: "var(--text-muted)",
+                            }}
+                          >
+                            {typeLabel(file.type)}
+                          </span>
+                          <span className="text-sm text-theme-primary truncate">
+                            {file.name}
+                          </span>
                         </div>
 
                         <div
-                          className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0"
+                          className="w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0"
                           style={{
                             borderColor: selected
-                              ? "rgba(99, 102, 241, 0.4)"
+                              ? "rgba(99, 102, 241, 0.5)"
                               : "var(--border-secondary)",
                             backgroundColor: selected
                               ? "rgba(99, 102, 241, 0.2)"
-                              : "var(--bg-tertiary)",
+                              : "transparent",
                           }}
                         >
-                          {selected && <div className="w-2.5 h-2.5 rounded-full bg-indigo-400" />}
+                          {selected && (
+                            <div className="w-2 h-2 rounded-full bg-indigo-400" />
+                          )}
                         </div>
                       </button>
                     );
@@ -638,32 +623,39 @@ export default function Summaries() {
             </motion.div>
           )}
         </AnimatePresence>
-      </GlassCard>
+      </div>
 
       {/* Conversation Area */}
-      <div className="min-h-[300px]">
+      <div className="min-h-[280px]">
         {conversations.length === 0 ? (
-          <GlassCard>
-            <div className="text-center mb-6">
+          <div
+            className="rounded-2xl p-5 border"
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              borderColor: "var(--border-secondary)",
+            }}
+          >
+            <div className="text-center mb-5">
               <div
                 className="mx-auto w-12 h-12 rounded-xl flex items-center justify-center mb-3"
                 style={{
-                  backgroundColor: "rgba(99, 102, 241, 0.15)",
-                  border: "1px solid rgba(99, 102, 241, 0.25)",
+                  backgroundColor: "rgba(99, 102, 241, 0.12)",
+                  border: "1px solid rgba(99, 102, 241, 0.2)",
                 }}
               >
-                <FiSearch className="text-indigo-400" size={22} />
+                <FiSearch className="text-indigo-400" size={20} />
               </div>
 
-              <h3 className="text-lg text-theme-primary mb-2">
+              <h3 className="text-base font-medium text-theme-primary mb-1">
                 Ask anything about your workspace
               </h3>
-              <p className="text-sm text-theme-muted">
-                Search across documents, notes, and files. Summaries include sources.
+              <p className="text-xs text-theme-muted">
+                Search documents, notes, and files with AI
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2 justify-center mb-6">
+            {/* Quick chips */}
+            <div className="flex flex-wrap gap-1.5 justify-center mb-5">
               {["Action items", "Deadlines", "Budget", "Risks"].map((chip) => (
                 <button
                   key={chip}
@@ -671,7 +663,7 @@ export default function Summaries() {
                   onClick={() =>
                     handleExampleClick(`Find ${chip.toLowerCase()} across my documents`)
                   }
-                  className="text-xs px-3 py-1.5 rounded-full border text-theme-secondary hover:border-indigo-500/30 transition"
+                  className="text-xs px-3 py-1.5 rounded-full border text-theme-secondary hover:border-indigo-500/40 hover:bg-indigo-500/5 transition"
                   style={{
                     backgroundColor: "var(--bg-tertiary)",
                     borderColor: "var(--border-secondary)",
@@ -682,14 +674,15 @@ export default function Summaries() {
               ))}
             </div>
 
-            <div className="space-y-2">
-              <p className="text-xs text-theme-muted mb-2">Try asking:</p>
+            {/* Example questions */}
+            <div className="space-y-1.5">
+              <p className="text-[11px] text-theme-muted mb-2">Try asking:</p>
               {exampleQuestions.map((q, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => handleExampleClick(q)}
-                  className="w-full text-left text-sm text-theme-secondary border rounded-xl px-4 py-3 transition hover:border-indigo-500/30"
+                  className="w-full text-left text-sm text-theme-secondary border rounded-xl px-4 py-2.5 transition hover:border-indigo-500/30 hover:bg-indigo-500/5"
                   style={{
                     backgroundColor: "var(--bg-input)",
                     borderColor: "var(--border-secondary)",
@@ -699,41 +692,41 @@ export default function Summaries() {
                 </button>
               ))}
             </div>
-          </GlassCard>
+          </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex justify-end">
               <button
                 type="button"
                 onClick={clearConversation}
-                className="text-xs text-theme-muted hover:text-theme-secondary flex items-center gap-1"
+                className="text-xs text-theme-muted hover:text-theme-secondary flex items-center gap-1 transition"
               >
-                <FiTrash2 size={12} />
-                Clear conversation
+                <FiTrash2 size={11} />
+                Clear
               </button>
             </div>
 
             {conversations.map((msg, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25 }}
+                transition={{ duration: 0.2 }}
               >
                 {msg.type === "user" ? (
                   <div className="flex justify-end">
                     <div
-                      className="rounded-2xl rounded-tr-md px-4 py-3 max-w-[85%]"
+                      className="rounded-2xl rounded-tr-md px-4 py-2.5 max-w-[85%]"
                       style={{
-                        backgroundColor: "rgba(99, 102, 241, 0.15)",
-                        border: "1px solid rgba(99, 102, 241, 0.25)",
+                        backgroundColor: "rgba(99, 102, 241, 0.12)",
+                        border: "1px solid rgba(99, 102, 241, 0.2)",
                       }}
                     >
                       <RichText
                         text={msg.content}
                         className="text-sm text-theme-primary whitespace-pre-wrap"
                       />
-                      <p className="text-[10px] text-theme-muted mt-1 text-right">
+                      <p className="text-[10px] text-theme-muted mt-1 text-right opacity-70">
                         {msg.timestamp.toLocaleTimeString([], {
                           hour: "2-digit",
                           minute: "2-digit",
@@ -742,13 +735,19 @@ export default function Summaries() {
                     </div>
                   </div>
                 ) : (
-                  <GlassCard className="max-w-[95%]">
+                  <div
+                    className="rounded-2xl p-4 border max-w-[95%]"
+                    style={{
+                      backgroundColor: "var(--bg-surface)",
+                      borderColor: "var(--border-secondary)",
+                    }}
+                  >
                     <div className="flex items-start gap-3">
                       <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                         style={{
-                          backgroundColor: "rgba(99, 102, 241, 0.15)",
-                          border: "1px solid rgba(99, 102, 241, 0.25)",
+                          backgroundColor: "rgba(99, 102, 241, 0.12)",
+                          border: "1px solid rgba(99, 102, 241, 0.2)",
                         }}
                       >
                         <FiZap className="text-indigo-400" size={14} />
@@ -762,18 +761,19 @@ export default function Summaries() {
 
                         {msg.sources && msg.sources.length > 0 && (
                           <div
-                            className="mt-3 pt-3 border-t"
+                            className="mt-3 pt-2.5 border-t"
                             style={{ borderColor: "var(--border-secondary)" }}
                           >
-                            <p className="text-[10px] text-theme-muted mb-2">Sources</p>
+                            <p className="text-[10px] text-theme-muted mb-1.5">Sources</p>
                             <div className="flex flex-wrap gap-1">
                               {msg.sources.map((source, j) => (
                                 <span
                                   key={j}
-                                  className="text-[10px] px-2 py-1 rounded-full border"
+                                  className="text-[10px] px-2 py-0.5 rounded-full border"
                                   style={{
                                     backgroundColor: "var(--bg-tertiary)",
                                     borderColor: "var(--border-secondary)",
+                                    color: "var(--text-muted)",
                                   }}
                                 >
                                   {source}
@@ -783,7 +783,7 @@ export default function Summaries() {
                           </div>
                         )}
 
-                        <p className="text-[10px] text-theme-muted mt-2">
+                        <p className="text-[10px] text-theme-muted mt-2 opacity-70">
                           {msg.timestamp.toLocaleTimeString([], {
                             hour: "2-digit",
                             minute: "2-digit",
@@ -791,7 +791,7 @@ export default function Summaries() {
                         </p>
                       </div>
                     </div>
-                  </GlassCard>
+                  </div>
                 )}
               </motion.div>
             ))}
@@ -801,32 +801,43 @@ export default function Summaries() {
         )}
       </div>
 
-      {/* Search Bar */}
-      <div className="fixed bottom-[calc(var(--mobile-nav-height)+16px)] left-0 right-0 px-4 z-40 md:left-[220px] md:bottom-6">
-        <div className="max-w-3xl mx-auto">
+      {/* Search Bar - Fixed at bottom */}
+      <div className="fixed bottom-[calc(var(--mobile-nav-height)+12px)] left-0 right-0 px-4 z-40 md:left-[220px] md:bottom-5">
+        <div className="max-w-2xl mx-auto">
           <form onSubmit={handleSearch}>
             <div
-              className={`flex items-center w-full rounded-full px-4 py-3 transition-all duration-300 border shadow-lg ${
-                query ? "border-indigo-500 shadow-[0_0_25px_rgba(99,102,241,0.2)]" : ""
+              className={`flex items-center w-full rounded-2xl px-4 py-2.5 transition-all duration-200 border ${
+                query
+                  ? "border-indigo-500/60 shadow-[0_0_20px_rgba(99,102,241,0.15)]"
+                  : "shadow-lg"
               }`}
               style={{
                 backgroundColor: "var(--bg-surface)",
-                borderColor: query ? "rgb(99, 102, 241)" : "var(--border-secondary)",
-                backdropFilter: "blur(12px)",
+                borderColor: query ? "rgba(99, 102, 241, 0.6)" : "var(--border-secondary)",
+                backdropFilter: "blur(16px)",
               }}
             >
               <FiSearch className="text-theme-muted w-5 h-5 mr-3 flex-shrink-0" />
 
+              {/* 
+                CRITICAL: font-size must be 16px or larger to prevent iOS auto-zoom.
+                Using inline style to guarantee it overrides any Tailwind classes.
+              */}
               <input
                 ref={inputRef}
                 type="text"
                 placeholder="Ask about your workspace..."
-                className="flex-1 bg-transparent text-theme-primary placeholder:text-theme-muted text-sm outline-none min-w-0"
+                className="flex-1 bg-transparent text-theme-primary placeholder:text-theme-muted outline-none min-w-0"
+                style={{
+                  fontSize: "16px", // Prevents iOS Safari auto-zoom
+                  lineHeight: "1.5",
+                }}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 disabled={isSearching}
                 autoComplete="off"
                 autoCorrect="off"
+                autoCapitalize="off"
                 spellCheck={false}
               />
 
@@ -837,7 +848,7 @@ export default function Summaries() {
                     setQuery("");
                     inputRef.current?.focus();
                   }}
-                  className="p-1.5 rounded-full hover:bg-white/10 transition mr-2"
+                  className="p-1.5 rounded-full hover:bg-white/10 transition mr-1"
                 >
                   <FiX className="text-theme-muted" size={16} />
                 </button>
@@ -846,9 +857,9 @@ export default function Summaries() {
               <button
                 type="submit"
                 disabled={!query.trim() || isSearching}
-                className={`p-2.5 rounded-full transition-all flex-shrink-0 ${
+                className={`p-2 rounded-xl transition-all flex-shrink-0 ${
                   query.trim() && !isSearching
-                    ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/25"
+                    ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/20"
                     : "bg-white/5 text-theme-muted"
                 }`}
               >
@@ -860,9 +871,9 @@ export default function Summaries() {
               </button>
             </div>
 
-            <p className="text-center text-[11px] text-theme-muted mt-2 hidden md:block">
+            <p className="text-center text-[10px] text-theme-muted mt-1.5 hidden md:block opacity-60">
               Press{" "}
-              <span
+              <kbd
                 className="px-1.5 py-0.5 rounded border text-theme-secondary"
                 style={{
                   backgroundColor: "var(--bg-tertiary)",
@@ -870,7 +881,7 @@ export default function Summaries() {
                 }}
               >
                 /
-              </span>{" "}
+              </kbd>{" "}
               to focus
             </p>
           </form>

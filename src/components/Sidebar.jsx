@@ -1,4 +1,3 @@
-
 // src/components/Sidebar.jsx
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -13,7 +12,7 @@ import {
   SignOut,
 } from "phosphor-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 export default function Sidebar() {
@@ -22,7 +21,35 @@ export default function Sidebar() {
 
   const [collapsed, setCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [mobileNavHidden, setMobileNavHidden] = useState(false);
 
+  // Listen for modal/overlay events to hide mobile nav
+  useEffect(() => {
+    const handleModalOpen = () => setMobileNavHidden(true);
+    const handleModalClose = () => setMobileNavHidden(false);
+
+    window.addEventListener("modal:open", handleModalOpen);
+    window.addEventListener("modal:close", handleModalClose);
+
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === "class") {
+          const hasModal = document.body.classList.contains("modal-open");
+          setMobileNavHidden(hasModal);
+        }
+      });
+    });
+
+    observer.observe(document.body, { attributes: true });
+
+    return () => {
+      window.removeEventListener("modal:open", handleModalOpen);
+      window.removeEventListener("modal:close", handleModalClose);
+      observer.disconnect();
+    };
+  }, []);
+
+  // Desktop scroll collapse behavior
   useEffect(() => {
     if (window.innerWidth < 768) return;
 
@@ -45,7 +72,6 @@ export default function Sidebar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Desktop navigation
   const navItems = useMemo(
     () => [
       { label: "Home", icon: House, to: "/dashboard" },
@@ -96,118 +122,154 @@ export default function Sidebar() {
   return (
     <>
       {/* ═══════════════════════════════════════════════════════════
-          MOBILE BOTTOM NAV — Clean floating pill style
+          MOBILE BOTTOM NAV — Liquid Glass (Theme-aware)
       ═══════════════════════════════════════════════════════════ */}
-      <aside
-        className="fixed left-0 right-0 z-[90] md:hidden"
-        style={{
-          bottom: 0,
-          paddingBottom: "env(safe-area-inset-bottom, 0px)",
-          transform: "translate3d(0, 0, 0)",
-          WebkitOverflowScrolling: "touch",
-          touchAction: "manipulation",
-        }}
-      >
-        {/* Gradient fade for content behind */}
-        <div
-          className="absolute inset-x-0 bottom-0 h-24 pointer-events-none"
-          style={{
-            background:
-              "linear-gradient(to top, var(--bg-primary) 60%, transparent)",
-          }}
-        />
-
-        {/* Nav container */}
-        <div className="relative px-4 pb-2">
-          <div
-            className="mx-auto max-w-[320px] rounded-2xl px-1 py-2 flex items-center justify-between"
+      <AnimatePresence>
+        {!mobileNavHidden && (
+          <motion.aside
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            transition={{
+              type: "spring",
+              stiffness: 400,
+              damping: 35,
+              mass: 0.8,
+            }}
+            className="fixed left-0 right-0 z-[90] md:hidden"
             style={{
-              backgroundColor: "var(--bg-surface)",
-              border: "1px solid var(--border-secondary)",
-              boxShadow:
-                "0 8px 32px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.05) inset",
+              bottom: 0,
+              paddingBottom: "env(safe-area-inset-bottom, 0px)",
+              transform: "translate3d(0, 0, 0)",
+              WebkitOverflowScrolling: "touch",
+              touchAction: "manipulation",
             }}
           >
-            {mobileNav.map((item, i) => {
-              const active = isActive(item.to);
-              const Icon = item.icon;
+            {/* Subtle gradient fade */}
+            <div
+              className="absolute inset-x-0 bottom-0 h-16 pointer-events-none"
+              style={{ background: "var(--mobile-nav-fade)" }}
+            />
 
-              return (
-                <Link
-                  key={i}
-                  to={item.to}
-                  aria-label={item.label}
-                  className="relative flex flex-col items-center justify-center py-1.5 flex-1"
-                >
-                  <motion.div
-                    whileTap={{ scale: 0.9 }}
-                    className="relative flex items-center justify-center"
-                  >
-                    {/* Active background pill */}
-                    {active && (
+            {/* Nav container - Liquid Glass */}
+            <div className="relative px-4 pb-2">
+              <div className="liquid-glass-nav mx-auto max-w-[260px] rounded-[18px] px-2 py-1.5 flex items-center justify-around">
+                {/* Inner glow overlay */}
+                <div
+                  className="absolute inset-0 rounded-[18px] pointer-events-none"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 50%, rgba(255,255,255,0.04) 100%)",
+                    opacity: 0.7,
+                  }}
+                />
+
+                {/* Specular highlight */}
+                <div
+                  className="absolute inset-x-6 top-0 h-[1px] pointer-events-none"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.20) 50%, transparent 100%)",
+                  }}
+                />
+
+                {mobileNav.map((item, i) => {
+                  const active = isActive(item.to);
+                  const Icon = item.icon;
+
+                  return (
+                    <Link
+                      key={i}
+                      to={item.to}
+                      aria-label={item.label}
+                      className="relative flex items-center justify-center"
+                    >
                       <motion.div
-                        layoutId="mobile-nav-indicator"
-                        className="absolute inset-0 rounded-xl"
-                        style={{
-                          backgroundColor: "rgba(99, 102, 241, 0.15)",
-                          border: "1px solid rgba(99, 102, 241, 0.25)",
-                        }}
-                        transition={{
-                          type: "spring",
-                          stiffness: 400,
-                          damping: 30,
-                        }}
-                      />
-                    )}
+                        whileTap={{ scale: 0.85 }}
+                        transition={{ duration: 0.1 }}
+                        className="relative flex items-center justify-center"
+                      >
+                        {/* Active background - liquid pill */}
+                        <AnimatePresence>
+                          {active && (
+                            <motion.div
+                              layoutId="mobile-nav-pill"
+                              initial={{ opacity: 0, scale: 0.8 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.8 }}
+                              className="absolute inset-0 rounded-xl"
+                              style={{
+                                background: "var(--mobile-pill-bg)",
+                                boxShadow: "var(--mobile-pill-shadow)",
+                                border: "1px solid var(--mobile-pill-border)",
+                              }}
+                              transition={{
+                                type: "spring",
+                                stiffness: 500,
+                                damping: 35,
+                              }}
+                            />
+                          )}
+                        </AnimatePresence>
 
-                    <div className="relative z-10 h-10 w-10 flex items-center justify-center">
-                      <Icon
-                        size={22}
-                        weight={active ? "fill" : "regular"}
-                        style={{
-                          color: active
-                            ? "var(--accent-indigo)"
-                            : "var(--text-muted)",
-                          transition: "color 0.2s ease",
-                        }}
-                      />
-                    </div>
-                  </motion.div>
-
-                  {/* Active dot indicator */}
-                  <motion.div
-                    initial={false}
-                    animate={{
-                      scale: active ? 1 : 0,
-                      opacity: active ? 1 : 0,
-                    }}
-                    className="w-1 h-1 rounded-full mt-1"
-                    style={{ backgroundColor: "var(--accent-indigo)" }}
-                    transition={{ duration: 0.15 }}
-                  />
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </aside>
+                        <div className="relative z-10 h-10 w-10 flex items-center justify-center">
+                          <Icon
+                            size={active ? 22 : 20}
+                            weight={active ? "fill" : "regular"}
+                            style={{
+                              color: active
+                                ? "var(--mobile-icon-active)"
+                                : "var(--mobile-icon)",
+                              // keep this subtle glow; you can also make this a variable later
+                              filter: active
+                                ? "drop-shadow(0 0 6px rgba(99, 102, 241, 0.35))"
+                                : "none",
+                              transition: "all 0.2s ease",
+                            }}
+                          />
+                        </div>
+                      </motion.div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
 
       {/* ═══════════════════════════════════════════════════════════
-          DESKTOP SIDEBAR — Clean professional design
+          DESKTOP SIDEBAR — Liquid Glass (Theme-aware)
       ═══════════════════════════════════════════════════════════ */}
       <aside
-        className="hidden md:flex fixed top-0 left-0 h-screen z-[80] overflow-hidden"
+        className="hidden md:flex fixed top-0 left-0 h-screen z-[80] overflow-hidden liquid-glass-sidebar"
         style={{
-          width: collapsed ? "80px" : "220px",
+          width: collapsed ? "72px" : "200px",
           transform: "translate3d(0, 0, 0)",
-          backgroundColor: "var(--bg-secondary)",
-          borderRight: "1px solid var(--border-secondary)",
           transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         }}
       >
-        <div className="flex flex-col h-full w-full py-5">
+        {/* Inner glow overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 50%, rgba(255,255,255,0.02) 100%)",
+          }}
+        />
+
+        {/* Right edge highlight */}
+        <div
+          className="absolute right-0 top-0 bottom-0 w-[1px] pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)",
+          }}
+        />
+
+        <div className="relative flex flex-col h-full w-full py-4">
           {/* Navigation */}
-          <nav className="flex-1 px-3 space-y-1 pt-2">
+          <nav className="flex-1 px-2 space-y-0.5 pt-2">
             {navItems.map((item, i) => {
               const active = isActive(item.to);
               const Icon = item.icon;
@@ -218,17 +280,17 @@ export default function Sidebar() {
                   to={item.to}
                   className="group relative flex items-center rounded-xl transition-all duration-200"
                   style={{
-                    padding: collapsed ? "10px" : "10px 12px",
+                    padding: collapsed ? "10px" : "9px 12px",
                     justifyContent: collapsed ? "center" : "flex-start",
-                    gap: collapsed ? "0" : "12px",
+                    gap: collapsed ? "0" : "10px",
                     backgroundColor: active
-                      ? "rgba(99, 102, 241, 0.1)"
+                      ? "var(--sidebar-item-active)"
                       : "transparent",
                   }}
                   onMouseEnter={(e) => {
                     if (!active) {
                       e.currentTarget.style.backgroundColor =
-                        "var(--bg-tertiary)";
+                        "var(--sidebar-item-hover)";
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -237,7 +299,7 @@ export default function Sidebar() {
                     }
                   }}
                 >
-                  {/* Active indicator bar - only show when expanded */}
+                  {/* Active indicator bar */}
                   {!collapsed && (
                     <motion.div
                       initial={false}
@@ -245,36 +307,38 @@ export default function Sidebar() {
                         scaleY: active ? 1 : 0,
                         opacity: active ? 1 : 0,
                       }}
-                      className="absolute left-0 top-[25%] -translate-y-1/2 w-[2.5px] h-8 rounded-r-full"
-                      style={{ backgroundColor: "var(--accent-indigo)" }}
+                      className="absolute left-0 top-[20%] w-[2px] h-[60%] rounded-r-full"
+                      style={{ backgroundColor: "var(--sidebar-text-active)" }}
                       transition={{ duration: 0.2 }}
                     />
                   )}
 
                   {/* Icon container */}
                   <div
-                    className="flex items-center justify-center flex-shrink-0 transition-all duration-200"
+                    className="flex items-center justify-center flex-shrink-0 transition-all duration-200 rounded-lg"
                     style={{
-                      width: collapsed ? "40px" : "36px",
-                      height: collapsed ? "40px" : "36px",
-                      borderRadius: "10px",
+                      width: collapsed ? "40px" : "30px",
+                      height: collapsed ? "40px" : "30px",
                       backgroundColor: active
-                        ? "rgba(99, 102, 241, 0.15)"
-                        : "var(--bg-tertiary)",
+                        ? "var(--sidebar-icon-bg-active)"
+                        : "var(--sidebar-icon-bg)",
                       border: `1px solid ${
                         active
-                          ? "rgba(99, 102, 241, 0.25)"
-                          : "var(--border-secondary)"
+                          ? "var(--sidebar-icon-border-active)"
+                          : "var(--sidebar-icon-border)"
                       }`,
+                      boxShadow: active
+                        ? "0 0 10px rgba(99, 102, 241, 0.18)"
+                        : "none",
                     }}
                   >
                     <Icon
-                      size={collapsed ? 20 : 18}
+                      size={collapsed ? 18 : 15}
                       weight={active ? "fill" : "duotone"}
                       style={{
                         color: active
-                          ? "var(--accent-indigo)"
-                          : "var(--text-muted)",
+                          ? "var(--sidebar-icon-color-active)"
+                          : "var(--sidebar-icon-color)",
                         transition: "color 0.2s ease",
                       }}
                     />
@@ -290,23 +354,24 @@ export default function Sidebar() {
                     }}
                   >
                     <span
-                      className="text-sm transition-colors duration-200"
+                      className="text-[13px] transition-colors duration-200"
                       style={{
                         color: active
-                          ? "var(--accent-indigo)"
-                          : "var(--text-secondary)",
+                          ? "var(--sidebar-text-active)"
+                          : "var(--sidebar-text)",
                         fontWeight: active ? 500 : 400,
                       }}
                     >
                       {item.label}
                     </span>
+
                     {item.pro && (
                       <span
-                        className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                        className="text-[9px] px-1.5 py-0.5 rounded-md font-medium"
                         style={{
-                          backgroundColor: "rgba(245, 158, 11, 0.15)",
-                          color: "var(--accent-amber)",
-                          border: "1px solid rgba(245, 158, 11, 0.25)",
+                          backgroundColor: "rgba(245, 158, 11, 0.12)",
+                          color: "#fbbf24",
+                          border: "1px solid rgba(245, 158, 11, 0.2)",
                         }}
                       >
                         PRO
@@ -317,24 +382,25 @@ export default function Sidebar() {
                   {/* Tooltip for collapsed state */}
                   {collapsed && (
                     <div
-                      className="absolute left-full ml-3 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
+                      className="absolute left-full ml-2 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
                       style={{
-                        backgroundColor: "var(--bg-elevated)",
-                        border: "1px solid var(--border-secondary)",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                        backgroundColor: "var(--sidebar-tooltip-bg)",
+                        border: "1px solid var(--sidebar-tooltip-border)",
+                        boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                        backdropFilter: "blur(12px)",
                       }}
                     >
                       <span
-                        className="text-sm font-medium whitespace-nowrap flex items-center gap-2"
-                        style={{ color: "var(--text-primary)" }}
+                        className="text-[12px] font-medium whitespace-nowrap flex items-center gap-2"
+                        style={{ color: "var(--sidebar-tooltip-text)" }}
                       >
                         {item.label}
                         {item.pro && (
                           <span
                             className="text-[9px] px-1.5 py-0.5 rounded font-medium"
                             style={{
-                              backgroundColor: "rgba(245, 158, 11, 0.15)",
-                              color: "var(--accent-amber)",
+                              backgroundColor: "rgba(245, 158, 11, 0.12)",
+                              color: "#fbbf24",
                             }}
                           >
                             PRO
@@ -349,26 +415,30 @@ export default function Sidebar() {
           </nav>
 
           {/* Footer with Logout + Logo */}
-          <div className="px-3 pt-4 mt-auto">
+          <div className="px-2 pt-3 mt-auto">
             <div
-              className="h-px w-full mb-4"
-              style={{ backgroundColor: "var(--border-secondary)" }}
+              className="h-px w-full mb-3 mx-auto"
+              style={{
+                background:
+                  "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%)",
+              }}
             />
 
-            {/* Logout (above the logo, below divider) */}
+            {/* Logout */}
             <button
               type="button"
               onClick={handleLogout}
               disabled={loggingOut}
               className="group relative flex items-center rounded-xl transition-all duration-200 w-full disabled:opacity-60 disabled:cursor-not-allowed"
               style={{
-                padding: collapsed ? "10px" : "10px 12px",
+                padding: collapsed ? "10px" : "9px 12px",
                 justifyContent: collapsed ? "center" : "flex-start",
-                gap: collapsed ? "0" : "12px",
+                gap: collapsed ? "0" : "10px",
                 backgroundColor: "transparent",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
+                e.currentTarget.style.backgroundColor =
+                  "rgba(244, 63, 94, 0.08)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = "transparent";
@@ -377,21 +447,18 @@ export default function Sidebar() {
               title={collapsed ? "Logout" : undefined}
             >
               <div
-                className="flex items-center justify-center flex-shrink-0 transition-all duration-200"
+                className="flex items-center justify-center flex-shrink-0 transition-all duration-200 rounded-lg"
                 style={{
-                  width: collapsed ? "40px" : "36px",
-                  height: collapsed ? "40px" : "36px",
-                  borderRadius: "10px",
-                  backgroundColor: "rgba(244, 63, 94, 0.12)",
-                  border: "1px solid rgba(244, 63, 94, 0.22)",
+                  width: collapsed ? "40px" : "30px",
+                  height: collapsed ? "40px" : "30px",
+                  backgroundColor: "rgba(244, 63, 94, 0.08)",
+                  border: "1px solid rgba(244, 63, 94, 0.15)",
                 }}
               >
                 <SignOut
-                  size={collapsed ? 20 : 18}
+                  size={collapsed ? 18 : 15}
                   weight="duotone"
-                  style={{
-                    color: "var(--accent-rose)",
-                  }}
+                  style={{ color: "#fb7185" }}
                 />
               </div>
 
@@ -403,10 +470,7 @@ export default function Sidebar() {
                   whiteSpace: "nowrap",
                 }}
               >
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--text-secondary)" }}
-                >
+                <span className="text-[13px]" style={{ color: "var(--sidebar-text)" }}>
                   {loggingOut ? "Logging out…" : "Logout"}
                 </span>
               </div>
@@ -414,16 +478,17 @@ export default function Sidebar() {
               {/* Tooltip for collapsed state */}
               {collapsed && (
                 <div
-                  className="absolute left-full ml-3 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
+                  className="absolute left-full ml-2 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
                   style={{
-                    backgroundColor: "var(--bg-elevated)",
-                    border: "1px solid var(--border-secondary)",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                    backgroundColor: "var(--sidebar-tooltip-bg)",
+                    border: "1px solid var(--sidebar-tooltip-border)",
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                    backdropFilter: "blur(12px)",
                   }}
                 >
                   <span
-                    className="text-sm font-medium whitespace-nowrap"
-                    style={{ color: "var(--text-primary)" }}
+                    className="text-[12px] font-medium whitespace-nowrap"
+                    style={{ color: "var(--sidebar-tooltip-text)" }}
                   >
                     Logout
                   </span>
@@ -432,7 +497,7 @@ export default function Sidebar() {
             </button>
 
             {/* Spacer */}
-            <div className="h-2" />
+            <div className="h-1.5" />
 
             {/* Logo / Brand area */}
             <div
@@ -440,21 +505,21 @@ export default function Sidebar() {
               style={{
                 padding: collapsed ? "8px" : "8px 12px",
                 justifyContent: collapsed ? "center" : "flex-start",
-                gap: collapsed ? "0" : "12px",
+                gap: collapsed ? "0" : "10px",
               }}
             >
               <div
-                className="flex items-center justify-center flex-shrink-0 transition-all duration-200"
+                className="flex items-center justify-center flex-shrink-0 transition-all duration-200 rounded-lg"
                 style={{
-                  width: collapsed ? "40px" : "36px",
-                  height: collapsed ? "40px" : "36px",
-                  borderRadius: "10px",
-                  background:
-                    "linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))",
+                  width: collapsed ? "40px" : "30px",
+                  height: collapsed ? "40px" : "30px",
+                  background: "linear-gradient(135deg, #6366f1, #a855f7)",
+                  boxShadow: "0 0 14px rgba(99, 102, 241, 0.25)",
                 }}
               >
-                <Note size={collapsed ? 20 : 18} weight="fill" color="white" />
+                <Note size={collapsed ? 18 : 15} weight="fill" color="white" />
               </div>
+
               <div
                 className="transition-all duration-300 overflow-hidden"
                 style={{
@@ -463,8 +528,8 @@ export default function Sidebar() {
                 }}
               >
                 <span
-                  className="text-sm font-semibold whitespace-nowrap block"
-                  style={{ color: "var(--text-primary)" }}
+                  className="text-[13px] font-semibold whitespace-nowrap block"
+                  style={{ color: "var(--sidebar-tooltip-text)" }}
                 >
                   NoteStream
                 </span>
@@ -472,7 +537,7 @@ export default function Sidebar() {
                   className="text-[10px] whitespace-nowrap block"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  Early Access • v0.1
+                  v0.1 • Early Access
                 </span>
               </div>
             </div>
@@ -480,28 +545,73 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {/* Inline styles for smooth interactions */}
+      {/* Liquid Glass Styles (Theme-aware via CSS variables) */}
       <style>{`
-        /* Smooth scrolling performance */
-        @media (min-width: 768px) {
-          aside {
-            will-change: width;
-          }
-          nav a {
-            will-change: background-color;
-          }
+        .liquid-glass-nav {
+          background: var(--mobile-nav-glass-bg);
+          backdrop-filter: blur(40px) saturate(180%);
+          -webkit-backdrop-filter: blur(40px) saturate(180%);
+          border: 1px solid var(--mobile-nav-glass-border);
+          box-shadow: var(--mobile-nav-glass-shadow);
+          position: relative;
+          overflow: hidden;
         }
 
-        /* Mobile nav smooth transitions */
+        .liquid-glass-sidebar {
+          background: var(--sidebar-glass-bg);
+          backdrop-filter: blur(40px) saturate(180%);
+          -webkit-backdrop-filter: blur(40px) saturate(180%);
+          border-right: 1px solid var(--sidebar-glass-border);
+          box-shadow: var(--sidebar-glass-shadow);
+        }
+
+        .liquid-glass-nav::before,
+        .liquid-glass-sidebar::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: var(--glass-sheen);
+          opacity: 0;
+          animation: liquid-shimmer 8s ease-in-out infinite;
+        }
+
+        @keyframes liquid-shimmer {
+          0%, 100% { opacity: 0; transform: translateX(-100%); }
+          50% { opacity: 1; }
+          100% { transform: translateX(100%); }
+        }
+
+        @media (min-width: 768px) {
+          .liquid-glass-sidebar { will-change: width; }
+          .liquid-glass-sidebar nav a { will-change: background-color; }
+        }
+
         @media (max-width: 767px) {
-          aside a {
-            -webkit-tap-highlight-color: transparent;
-          }
+          .liquid-glass-nav a { -webkit-tap-highlight-color: transparent; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .liquid-glass-nav::before,
+          .liquid-glass-sidebar::before { animation: none; }
         }
       `}</style>
     </>
   );
 }
 
+// ═══════════════════════════════════════════════════════════
+// HELPER: Call these from your modal/form components
+// ═══════════════════════════════════════════════════════════
+
+export function hideMobileNav() {
+  window.dispatchEvent(new CustomEvent("modal:open"));
+  document.body.classList.add("modal-open");
+}
+
+export function showMobileNav() {
+  window.dispatchEvent(new CustomEvent("modal:close"));
+  document.body.classList.remove("modal-open");
+}
 
 
