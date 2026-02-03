@@ -816,44 +816,69 @@ export default function NoteView({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed top-[80px] left-1/2 -translate-x-1/2 z-[300] w-[min(480px,90vw)] rounded-2xl border px-4 py-4 flex items-center gap-4"
+            className="fixed inset-0 z-[300] flex items-center justify-center"
             style={{
-              backgroundColor: "var(--bg-surface)",
-              borderColor: "var(--border-secondary)",
-              boxShadow: "var(--shadow-lg)",
+              paddingTop: 0, // as requested
+              pointerEvents: "none",
             }}
           >
+            {/* 🔒 CARD — UI UNCHANGED */}
             <motion.div
-              animate={{ scale: [1, 1.12, 1] }}
-              transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
-              className="w-12 h-12 rounded-2xl flex items-center justify-center"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="w-[min(480px,90vw)] rounded-2xl border px-4 py-4 flex items-center gap-4 pointer-events-auto"
               style={{
-                backgroundColor: "rgba(99, 102, 241, 0.15)",
-                border: "1px solid rgba(99, 102, 241, 0.3)",
+                backgroundColor: "var(--bg-surface)",
+                borderColor: "var(--border-secondary)",
+                boxShadow: "var(--shadow-lg)",
               }}
             >
-              <Lightning size={22} weight="fill" style={{ color: "var(--accent-indigo)" }} />
-            </motion.div>
-
-            <div className="flex-1">
-              <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                Analyzing note with AI…
-              </p>
-              <div
-                className="w-full h-1.5 rounded-full overflow-hidden mt-2"
-                style={{ backgroundColor: "var(--bg-tertiary)" }}
+              <motion.div
+                animate={{ scale: [1, 1.12, 1] }}
+                transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+                className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                style={{
+                  backgroundColor: "rgba(99, 102, 241, 0.15)",
+                  border: "1px solid rgba(99, 102, 241, 0.3)",
+                }}
               >
-                <motion.div
-                  animate={{ x: ["-100%", "100%"] }}
-                  transition={{ duration: 1.1, repeat: Infinity, ease: "linear" }}
-                  className="h-full w-1/3"
-                  style={{ backgroundColor: "var(--accent-indigo)" }}
+                <Lightning
+                  size={22}
+                  weight="fill"
+                  style={{ color: "var(--accent-indigo)" }}
                 />
+              </motion.div>
+
+              <div className="flex-1">
+                <p
+                  className="text-sm font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  Analyzing note with AI…
+                </p>
+
+                <div
+                  className="w-full h-1.5 rounded-full overflow-hidden mt-2"
+                  style={{ backgroundColor: "var(--bg-tertiary)" }}
+                >
+                  <motion.div
+                    animate={{ x: ["-100%", "100%"] }}
+                    transition={{
+                      duration: 1.1,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
+                    className="h-full w-1/3"
+                    style={{ backgroundColor: "var(--accent-indigo)" }}
+                  />
+                </div>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
 
       {/* CONTENT */}
       <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-4 sm:py-6">

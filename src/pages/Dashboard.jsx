@@ -1,5 +1,6 @@
 // src/pages/Dashboard.jsx
-import { useState, useEffect, useMemo } from "react";
+// Updated: Liquid glass card styling + theme-aware number colors (white in dark, black in light)
+import { useState, useEffect, useMemo, cloneElement } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FiFileText,
@@ -34,7 +35,6 @@ import {
   Phone,
   Flag,
 } from "phosphor-react";
-import GlassCard from "../components/GlassCard";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
@@ -216,15 +216,34 @@ const NotificationIcon = ({ iconType }) => {
     },
   };
 
-  const config = iconConfig[iconType] || iconConfig.default;
-  const IconComponent = config.icon;
-
   return (
     <div
-      className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 ${config.color}`}
-      style={{ backgroundColor: config.bg, border: `1px solid ${config.border}` }}
+      className={`relative h-12 w-12 rounded-xl border flex items-center justify-center ${colorMap[color]}`}
+      style={{
+        backgroundColor: config.bg,
+        border: `1px solid ${config.border}`,
+        backdropFilter: "blur(6px) saturate(160%)",
+        WebkitBackdropFilter: "blur(6px) saturate(160%)",
+        color: "currentColor", 
+      }}
     >
-      <IconComponent size={18} weight="duotone" />
+      {/* subtle inner sheen */}
+      <div
+        className="absolute inset-0 rounded-xl pointer-events-none"
+        style={{
+          background:
+            "linear-gradient(135deg, rgba(255,255,255,0.25), transparent 60%)",
+          opacity: 0.35,
+        }}
+      />
+
+      {/* ICON (filled + colored properly) */}
+      {cloneElement(<IconComponent />, {
+        size: 18,
+        weight: "fill",            // works for Phosphor
+        color: "currentColor",     // works for react-icons
+        className: "relative z-10",
+      })}
     </div>
   );
 };
@@ -712,6 +731,9 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* ═══════════════════════════════════════════════════════════
+            QUICK STATS — Liquid Glass Style
+        ═══════════════════════════════════════════════════════════ */}
         <div className="grid grid-cols-3 gap-3 mt-5">
           <QuickStat
             loading={statsLoading}
@@ -740,6 +762,9 @@ export default function Dashboard() {
         </div>
       </motion.header>
 
+      {/* ═══════════════════════════════════════════════════════════
+          WEEKLY DIGEST — Liquid Glass Style
+      ═══════════════════════════════════════════════════════════ */}
       <AnimatePresence>
         {settings.weeklyDigest && digest && (
           <motion.div
@@ -748,7 +773,7 @@ export default function Dashboard() {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3, delay: 0.1 }}
           >
-            <GlassCard className="border-purple-500/20">
+            <LiquidGlassCard>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div
@@ -766,10 +791,10 @@ export default function Dashboard() {
                     />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-theme-primary">
+                    <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                       Weekly Digest
                     </h3>
-                    <p className="text-xs text-theme-muted">
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                       {digest.period.start} - {digest.period.end}
                     </p>
                   </div>
@@ -820,11 +845,11 @@ export default function Dashboard() {
               </div>
 
               {dataLoading && (
-                <p className="text-[11px] text-theme-muted mt-3 px-1">
+                <p className="text-[11px] mt-3 px-1" style={{ color: "var(--text-muted)" }}>
                   Syncing data…
                 </p>
               )}
-            </GlassCard>
+            </LiquidGlassCard>
           </motion.div>
         )}
       </AnimatePresence>
@@ -836,30 +861,43 @@ export default function Dashboard() {
         transition={{ duration: 0.4, delay: 0.15 }}
       >
         <motion.button
-          whileHover={{
-            scale: 1.02,
-            boxShadow: "0 8px 30px rgba(99, 102, 241, 0.3)",
-          }}
-          whileTap={{ scale: 0.98 }}
+          whileHover={{ scale: 1.015 }}
+          whileTap={{ scale: 0.985 }}
           onClick={() => navigate("/dashboard/notes")}
-          className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-medium text-sm text-white transition-all"
+          className="relative w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-medium text-sm transition-all overflow-hidden"
           style={{
-            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-            boxShadow: "0 4px 20px rgba(99, 102, 241, 0.25)",
+            background: "var(--sidebar-glass-bg)",
+            backdropFilter: "blur(40px) saturate(180%)",
+            WebkitBackdropFilter: "blur(40px) saturate(180%)",
+            border: "1px solid var(--sidebar-glass-border)",
+            boxShadow: "var(--sidebar-glass-shadow)",
+            color: "var(--text-primary)",
           }}
         >
-          <FiPlus size={18} />
+          {/* liquid sheen */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: "var(--glass-sheen)",
+              opacity: 0.35,
+            }}
+          />
+
+          <FiPlus size={18} className="icon-muted" />
           <span>New Note / Upload</span>
         </motion.button>
       </motion.div>
 
+      {/* ═══════════════════════════════════════════════════════════
+          QUICK ACCESS — Liquid Glass Style
+      ═══════════════════════════════════════════════════════════ */}
       <motion.div
         variants={fadeSlide}
         initial="hidden"
         animate="visible"
         transition={{ duration: 0.4, delay: 0.2 }}
       >
-        <h3 className="text-sm font-semibold text-theme-secondary mb-3 px-1">
+        <h3 className="text-sm font-semibold mb-3 px-1" style={{ color: "var(--text-secondary)" }}>
           Quick Access
         </h3>
 
@@ -896,19 +934,22 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
+      {/* ═══════════════════════════════════════════════════════════
+          RECENT NOTES — Liquid Glass Style
+      ═══════════════════════════════════════════════════════════ */}
       <motion.div
         variants={fadeSlide}
         initial="hidden"
         animate="visible"
         transition={{ duration: 0.4, delay: 0.25 }}
       >
-        <GlassCard>
+        <LiquidGlassCard>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <IconTile tone="indigo" size="sm">
                 <FiClock size={16} />
               </IconTile>
-              <h3 className="text-base font-semibold text-theme-primary">
+              <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
                 Recent Notes
               </h3>
             </div>
@@ -928,7 +969,15 @@ export default function Dashboard() {
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
                 onClick={() => navigate(`/dashboard/notes/${note.id}`)}
-                className="group w-full text-left px-4 py-3 rounded-2xl border transition-all flex items-center justify-between gap-3"
+                className="
+                    group w-full text-left
+                    px-4 py-3
+                    rounded-2xl
+                    soft-liquid-glass
+                    transition-all
+                    flex items-center justify-between gap-3
+                  "
+
                 style={{
                   backgroundColor: "var(--bg-tertiary)",
                   borderColor: "var(--border-secondary)",
@@ -949,18 +998,19 @@ export default function Dashboard() {
                 {/* Text (clamped, no overflow) */}
                 <div className="min-w-0 flex-1">
                   <p
-                    className="text-sm text-theme-secondary font-semibold leading-snug"
+                    className="text-sm font-semibold leading-snug"
                     style={{
                       display: "-webkit-box",
                       WebkitBoxOrient: "vertical",
-                      WebkitLineClamp: 2, // ✅ 2-line clamp without plugin
+                      WebkitLineClamp: 2,
                       overflow: "hidden",
+                      color: "var(--text-secondary)",
                     }}
                   >
                     {note.title}
                   </p>
 
-                  <p className="text-[11px] text-theme-muted truncate mt-0.5">
+                  <p className="text-[11px] truncate mt-0.5" style={{ color: "var(--text-muted)" }}>
                     {note.updated}
                   </p>
                 </div>
@@ -977,14 +1027,17 @@ export default function Dashboard() {
             ))}
 
             {!dataLoading && recentNotes.length === 0 && (
-              <p className="text-[11px] text-theme-muted px-1 py-2">
+              <p className="text-[11px] px-1 py-2" style={{ color: "var(--text-muted)" }}>
                 No notes in the last 7 days.
               </p>
             )}
           </div>
-        </GlassCard>
+        </LiquidGlassCard>
       </motion.div>
 
+      {/* ═══════════════════════════════════════════════════════════
+          RECENT DOCS + AI TOOLS — Liquid Glass Style
+      ═══════════════════════════════════════════════════════════ */}
       <motion.div
         variants={fadeSlide}
         initial="hidden"
@@ -992,13 +1045,13 @@ export default function Dashboard() {
         transition={{ duration: 0.4, delay: 0.3 }}
         className="grid grid-cols-1 xl:grid-cols-2 gap-4"
       >
-        <GlassCard>
+        <LiquidGlassCard>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <IconTile tone="purple" size="sm">
                 <FiFolder size={16} />
               </IconTile>
-              <h3 className="text-base font-semibold text-theme-primary">
+              <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
                 Recent Documents
               </h3>
             </div>
@@ -1021,19 +1074,19 @@ export default function Dashboard() {
             ))}
 
             {!dataLoading && recentDocs.length === 0 && (
-              <p className="text-[11px] text-theme-muted px-1 py-2">
+              <p className="text-[11px] px-1 py-2" style={{ color: "var(--text-muted)" }}>
                 No documents in the last 7 days.
               </p>
             )}
           </div>
-        </GlassCard>
+        </LiquidGlassCard>
 
-        <GlassCard>
+        <LiquidGlassCard>
           <div className="flex items-center gap-3 mb-4">
             <IconTile tone="amber" size="sm">
               <Sparkle size={18} weight="fill" />
             </IconTile>
-            <h3 className="text-base font-semibold text-theme-primary">
+            <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
               AI Tools
             </h3>
           </div>
@@ -1068,7 +1121,7 @@ export default function Dashboard() {
               tone="emerald"
             />
           </div>
-        </GlassCard>
+        </LiquidGlassCard>
       </motion.div>
 
       {/* NOTIFICATIONS MODAL */}
@@ -1119,10 +1172,10 @@ export default function Dashboard() {
                       />
                     </div>
                     <div>
-                      <h2 className="text-lg font-semibold text-theme-primary">
+                      <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
                         Smart Notifications
                       </h2>
-                      <p className="text-xs text-theme-muted">
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                         {notifications.length} total
                       </p>
                     </div>
@@ -1148,9 +1201,10 @@ export default function Dashboard() {
                       <Bell
                         size={40}
                         weight="duotone"
-                        className="text-theme-muted mx-auto mb-3 opacity-50"
+                        className="mx-auto mb-3 opacity-50"
+                        style={{ color: "var(--text-muted)" }}
                       />
-                      <p className="text-theme-muted">No notifications</p>
+                      <p style={{ color: "var(--text-muted)" }}>No notifications</p>
                     </div>
                   ) : (
                     notifications.map((notif) => (
@@ -1169,33 +1223,35 @@ export default function Dashboard() {
                       {/* ✅ Text column: clamp + no spill */}
                       <div className="flex-1 min-w-0">
                         <p
-                          className="text-sm text-theme-secondary font-medium"
+                          className="text-sm font-medium"
                           style={{
                             display: "-webkit-box",
                             WebkitBoxOrient: "vertical",
-                            WebkitLineClamp: 2, // ✅ 2-line clamp on iPhone
+                            WebkitLineClamp: 2,
                             overflow: "hidden",
+                            color: "var(--text-secondary)",
                           }}
                         >
                           {notif.message}
                         </p>
 
                         <p
-                          className="text-[11px] text-theme-muted mt-1"
+                          className="text-[11px] mt-1"
                           style={{
                             display: "-webkit-box",
                             WebkitBoxOrient: "vertical",
-                            WebkitLineClamp: 2, // ✅ clamp long “From:” titles too
+                            WebkitLineClamp: 2,
                             overflow: "hidden",
-                            wordBreak: "break-word", // ✅ handles long IDs/tokens
+                            wordBreak: "break-word",
+                            color: "var(--text-muted)",
                           }}
                         >
-                          <span className="text-theme-muted">From: </span>
-                          <span className="text-theme-secondary">{notif.noteTitle}</span>
+                          <span>From: </span>
+                          <span style={{ color: "var(--text-secondary)" }}>{notif.noteTitle}</span>
                         </p>
                       </div>
 
-                      {/* ✅ Right column: don’t force wrapping */}
+                      {/* ✅ Right column: don't force wrapping */}
                       <div className="flex flex-col items-end gap-2 shrink-0">
                         <span
                           className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg ${
@@ -1209,7 +1265,8 @@ export default function Dashboard() {
 
                         <button
                           onClick={() => dismissNotification(notif.id)}
-                          className="text-[10px] text-theme-muted hover:text-rose-400 transition opacity-0 group-hover:opacity-100"
+                          className="text-[10px] hover:text-rose-400 transition opacity-0 group-hover:opacity-100"
+                          style={{ color: "var(--text-muted)" }}
                           type="button"
                         >
                           Dismiss
@@ -1230,8 +1287,8 @@ export default function Dashboard() {
                         clearAllNotifications();
                         setShowNotifications(false);
                       }}
-                      className="w-full py-3 rounded-xl text-sm font-medium text-theme-muted hover:text-theme-primary transition"
-                      style={{ backgroundColor: "var(--bg-tertiary)" }}
+                      className="w-full py-3 rounded-xl text-sm font-medium transition"
+                      style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-muted)" }}
                     >
                       Clear all notifications
                     </button>
@@ -1290,10 +1347,10 @@ export default function Dashboard() {
 
                       {/* allow truncation */}
                       <div className="min-w-0">
-                        <h2 className="text-lg font-semibold text-theme-primary truncate">
+                        <h2 className="text-lg font-semibold truncate" style={{ color: "var(--text-primary)" }}>
                           Weekly Digest
                         </h2>
-                        <p className="text-xs text-theme-muted truncate">
+                        <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
                           {digest?.period?.start} - {digest?.period?.end}
                         </p>
                       </div>
@@ -1353,7 +1410,7 @@ export default function Dashboard() {
                       borderColor: "var(--border-secondary)",
                     }}
                   >
-                    <h3 className="text-sm font-semibold text-theme-primary mb-3 flex items-center gap-2">
+                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
                       <Target size={16} weight="duotone" className="text-purple-400" />
                       Insights
                     </h3>
@@ -1383,7 +1440,7 @@ export default function Dashboard() {
                         borderColor: "var(--border-secondary)",
                       }}
                     >
-                      <h3 className="text-sm font-semibold text-theme-primary mb-3 flex items-center gap-2">
+                      <h3 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
                         <FiFileText size={16} className="text-indigo-400" />
                         Top Tags
                       </h3>
@@ -1398,8 +1455,8 @@ export default function Dashboard() {
                               borderColor: "var(--border-secondary)",
                             }}
                           >
-                            <span className="text-theme-secondary">{tag.tag}</span>
-                            <span className="text-theme-muted ml-1.5">({tag.count})</span>
+                            <span style={{ color: "var(--text-secondary)" }}>{tag.tag}</span>
+                            <span className="ml-1.5" style={{ color: "var(--text-muted)" }}>({tag.count})</span>
                           </span>
                         ))}
                       </div>
@@ -1414,7 +1471,7 @@ export default function Dashboard() {
                         borderColor: "var(--border-secondary)",
                       }}
                     >
-                      <h3 className="text-sm font-semibold text-theme-primary mb-3 flex items-center gap-2">
+                      <h3 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
                         <Star size={16} weight="fill" className="text-amber-400" />
                         Highlights
                       </h3>
@@ -1423,7 +1480,8 @@ export default function Dashboard() {
                         {digest.highlights.map((h) => (
                           <div
                             key={h.id}
-                            className="flex items-center gap-2 text-sm text-theme-secondary min-w-0"
+                            className="flex items-center gap-2 text-sm min-w-0"
+                            style={{ color: "var(--text-secondary)" }}
                           >
                             <span className="text-amber-400 shrink-0">•</span>
                             <span className="truncate min-w-0">{h.title}</span>
@@ -1460,53 +1518,81 @@ export default function Dashboard() {
 }
 
 /* -----------------------------------------
+   LIQUID GLASS CARD COMPONENT
+----------------------------------------- */
+const LiquidGlassCard = ({ children, className = "" }) => {
+  return (
+    <div
+      className={`relative rounded-2xl overflow-hidden ${className}`}
+      style={{
+        background: "var(--card-glass-bg, var(--bg-surface))",
+        backdropFilter: "blur(40px) saturate(180%)",
+        WebkitBackdropFilter: "blur(40px) saturate(180%)",
+        border: "1px solid var(--card-glass-border, var(--border-secondary))",
+        boxShadow: "var(--card-glass-shadow, 0 4px 24px rgba(0,0,0,0.12))",
+      }}
+    >
+      {/* Inner glow overlay */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: "var(--card-glass-inner-glow, linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 50%, rgba(255,255,255,0.02) 100%))",
+          borderRadius: "inherit",
+          opacity: 0.8,
+        }}
+      />
+      {/* Specular highlight */}
+      <div
+        className="absolute inset-x-6 top-0 h-[1px] pointer-events-none"
+        style={{
+          background: "var(--card-glass-specular, linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%))",
+        }}
+      />
+      {/* Content */}
+      <div className="relative z-10 p-4">{children}</div>
+    </div>
+  );
+};
+
+/* -----------------------------------------
    HELPER COMPONENTS
 ----------------------------------------- */
 
 const QuickStat = ({ icon, label, value, suffix, color, loading = false }) => {
   const colorMap = {
-    indigo: {
-      text: "text-indigo-400",
-      bg: "rgba(99,102,241,0.1)",
-      border: "rgba(99,102,241,0.2)",
-    },
-    amber: {
-      text: "text-amber-400",
-      bg: "rgba(245,158,11,0.1)",
-      border: "rgba(245,158,11,0.2)",
-    },
-    emerald: {
-      text: "text-emerald-400",
-      bg: "rgba(16,185,129,0.1)",
-      border: "rgba(16,185,129,0.2)",
-    },
+    indigo: "text-indigo-400",
+    amber: "text-amber-400",
+    emerald: "text-emerald-400",
   };
-  const c = colorMap[color] || colorMap.indigo;
 
   const safeValue = typeof value === "number" ? value : Number(value ?? 0) || 0;
 
   return (
     <div
-      className="rounded-xl px-3 py-3 border"
-      style={{
-        backgroundColor: "var(--bg-tertiary)",
-        borderColor: "var(--border-secondary)",
-        opacity: loading ? 0.9 : 1,
-      }}
+      className="relative rounded-xl px-3 py-3 soft-liquid-glass"
+      style={{ opacity: loading ? 0.9 : 1 }}
     >
-      <div className="flex items-center gap-2 mb-1">
-        <span className={c.text}>{icon}</span>
-        <p className="text-[10px] text-theme-muted uppercase tracking-wide">
-          {label}
+      <div className="relative z-10">
+        <div className="flex items-center gap-2 mb-1">
+          <span className={colorMap[color] ?? colorMap.indigo}>{icon}</span>
+          <p className="text-[10px] uppercase tracking-wide text-theme-muted">
+            {label}
+          </p>
+        </div>
+
+        <p className="text-xl font-bold text-theme-primary">
+          {safeValue}
+          {suffix && (
+            <span className="text-sm font-normal text-theme-muted ml-1">
+              {suffix}
+            </span>
+          )}
         </p>
       </div>
-      <p className={`text-xl font-bold ${c.text}`}>
-        {safeValue}{" "}
-        <span className="text-sm font-normal text-theme-muted">{suffix}</span>
-      </p>
     </div>
   );
 };
+
 
 const DigestStatCard = ({ icon, value, label, color, isText = false }) => {
   const colorMap = {
@@ -1517,88 +1603,62 @@ const DigestStatCard = ({ icon, value, label, color, isText = false }) => {
   };
 
   return (
-    <div
-      className="p-3 rounded-xl border text-center"
-      style={{
-        backgroundColor: "var(--bg-tertiary)",
-        borderColor: "var(--border-secondary)",
-      }}
-    >
-      <div className={`${colorMap[color]} mb-1 flex justify-center`}>{icon}</div>
-      <p
-        className={`${isText ? "text-base" : "text-xl"} font-bold ${
-          colorMap[color]
-        }`}
-      >
-        {value}
-      </p>
-      <p className="text-[10px] text-theme-muted">{label}</p>
+    <div className="relative p-3 rounded-xl text-center soft-liquid-glass">
+      <div className="relative z-10">
+        <div className={`${colorMap[color]} mb-1 flex justify-center`}>
+          {icon}
+        </div>
+
+        <p
+          className={`${isText ? "text-base" : "text-xl"} font-bold text-theme-primary`}
+        >
+          {value}
+        </p>
+
+        <p className="text-[10px] text-theme-muted">{label}</p>
+      </div>
     </div>
   );
 };
 
+
 const ModalStatCard = ({ icon, value, label, subLabel = null, color = "indigo" }) => {
   const colorMap = {
-    indigo: {
-      text: "text-indigo-400",
-      bg: "rgba(99,102,241,0.1)",
-      border: "rgba(99,102,241,0.2)",
-    },
-    purple: {
-      text: "text-purple-400",
-      bg: "rgba(139,92,246,0.1)",
-      border: "rgba(139,92,246,0.2)",
-    },
-    rose: {
-      text: "text-rose-400",
-      bg: "rgba(244,63,94,0.1)",
-      border: "rgba(244,63,94,0.2)",
-    },
-    emerald: {
-      text: "text-emerald-400",
-      bg: "rgba(16,185,129,0.1)",
-      border: "rgba(16,185,129,0.2)",
-    },
+    indigo: { text: "text-indigo-400", bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.25)" },
+    purple: { text: "text-purple-400", bg: "rgba(139,92,246,0.12)", border: "rgba(139,92,246,0.25)" },
+    rose: { text: "text-rose-400", bg: "rgba(244,63,94,0.12)", border: "rgba(244,63,94,0.25)" },
+    emerald:{ text: "text-emerald-400", bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.25)" },
   };
 
-  const c = colorMap[color] || colorMap.indigo;
+  const c = colorMap[color] ?? colorMap.indigo;
 
   return (
-    <div
-      className="p-4 rounded-xl border text-center"
-      style={{
-        backgroundColor: "var(--bg-tertiary)",
-        borderColor: "var(--border-secondary)",
-      }}
-    >
+    <div className="p-4 rounded-xl text-center soft-liquid-glass">
       <div
-        className={`${c.text} w-10 h-10 rounded-xl mx-auto mb-2 flex items-center justify-center`}
-        style={{
-          backgroundColor: c.bg,
-          border: `1px solid ${c.border}`,
-        }}
+        className={`w-10 h-10 rounded-xl mx-auto mb-2 flex items-center justify-center ${c.text}`}
+        style={{ backgroundColor: c.bg, border: `1px solid ${c.border}` }}
       >
         {icon}
       </div>
 
-      <p className={`text-2xl font-bold ${c.text}`}>{value}</p>
-
-      {/* main label */}
+      <p className="text-2xl font-bold text-theme-primary">{value}</p>
       <p className="text-[11px] text-theme-muted mt-1 truncate">{label}</p>
 
-      {/* optional sub label */}
-      {subLabel ? (
-        <p className="text-[11px] text-theme-muted mt-1 truncate">{subLabel}</p>
-      ) : null}
+      {subLabel && (
+        <p className="text-[11px] text-theme-muted truncate">{subLabel}</p>
+      )}
     </div>
   );
 };
 
 
-const InsightRow = ({ label, value, valueColor = "text-theme-secondary" }) => (
+
+const InsightRow = ({ label, value, valueColor = "" }) => (
   <div className="flex items-center justify-between">
-    <span className="text-xs text-theme-muted">{label}</span>
-    <span className={`text-xs font-medium ${valueColor}`}>{value}</span>
+    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</span>
+    <span className={`text-xs font-medium ${valueColor}`} style={!valueColor ? { color: "var(--text-secondary)" } : {}}>
+      {value}
+    </span>
   </div>
 );
 
@@ -1611,76 +1671,64 @@ const QuickAction = ({
   pro = false,
 }) => {
   const colorMap = {
-    indigo: {
-      bg: "from-indigo-500/10 to-indigo-600/5",
-      icon: "text-indigo-400",
-      border: "rgba(99,102,241,0.2)",
-    },
-    purple: {
-      bg: "from-purple-500/10 to-purple-600/5",
-      icon: "text-purple-400",
-      border: "rgba(168,85,247,0.2)",
-    },
-    pink: {
-      bg: "from-pink-500/10 to-pink-600/5",
-      icon: "text-pink-400",
-      border: "rgba(236,72,153,0.2)",
-    },
-    emerald: {
-      bg: "from-emerald-500/10 to-emerald-600/5",
-      icon: "text-emerald-400",
-      border: "rgba(16,185,129,0.2)",
-    },
-    amber: {
-      bg: "from-amber-500/10 to-amber-600/5",
-      icon: "text-amber-400",
-      border: "rgba(245,158,11,0.2)",
-    },
-    cyan: {
-      bg: "from-cyan-500/10 to-cyan-600/5",
-      icon: "text-cyan-400",
-      border: "rgba(6,182,212,0.2)",
-    },
+    indigo: "text-indigo-400 border-indigo-500/25",
+    purple: "text-purple-400 border-purple-500/25",
+    pink: "text-pink-400 border-pink-500/25",
+    emerald: "text-emerald-400 border-emerald-500/25",
+    amber: "text-amber-400 border-amber-500/25",
+    cyan: "text-cyan-400 border-cyan-500/25",
   };
-  const c = colorMap[color] ?? colorMap.indigo;
 
   return (
     <motion.button
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className={`relative flex flex-col items-center justify-center gap-2 py-5 rounded-xl bg-gradient-to-br ${c.bg} border transition-all`}
-      style={{ borderColor: "var(--border-secondary)" }}
+      className="relative flex flex-col items-center justify-center gap-2 py-5 rounded-xl soft-liquid-glass transition-all"
     >
+      {/* PRO */}
       {pro && (
         <span
-          className="absolute top-2 right-2 text-[9px] px-1.5 py-0.5 rounded-md font-semibold"
+          className="
+            absolute top-2 right-2
+            text-[9px] font-semibold
+            px-2 py-0.5
+            rounded-full
+            border
+          "
           style={{
-            backgroundColor: "rgba(245, 158, 11, 0.15)",
-            color: "#f59e0b",
-            border: "1px solid rgba(245, 158, 11, 0.25)",
+            background: "rgba(245,158,11,0.14)",
+            borderColor: "rgba(245,158,11,0.28)",
+            color: "#fbbf24",
+            backdropFilter: "blur(6px) saturate(160%)",
+            WebkitBackdropFilter: "blur(6px) saturate(160%)",
           }}
         >
           PRO
         </span>
       )}
 
+      {/* ICON */}
       <div
-        className="h-12 w-12 rounded-xl border flex items-center justify-center"
-        style={{ backgroundColor: "var(--bg-tertiary)", borderColor: c.border }}
+        className={`h-12 w-12 rounded-xl border flex items-center justify-center ${colorMap[color]}`}
       >
-        <span className={c.icon}>{icon}</span>
+        {cloneElement(icon, { size: 18, weight: "fill" })}
       </div>
+
 
       <div className="text-center">
         <span className="text-sm font-medium text-theme-secondary block">
           {label}
         </span>
-        {desc && <span className="text-[10px] text-theme-muted">{desc}</span>}
+        {desc && (
+          <span className="text-[10px] text-theme-muted">{desc}</span>
+        )}
       </div>
     </motion.button>
   );
 };
+
+
 
 const StatusTag = ({ children, type = "success" }) => {
   const typeStyles = {
@@ -1689,55 +1737,62 @@ const StatusTag = ({ children, type = "success" }) => {
     error: "bg-rose-500/15 text-rose-400 border-rose-500/25",
     info: "bg-indigo-500/15 text-indigo-400 border-indigo-500/25",
   };
+
   return (
     <span
-      className={`text-[9px] font-semibold px-2 py-0.5 rounded-md border ${typeStyles[type]}`}
+      className={`
+        inline-flex items-center
+        text-[10px] font-semibold
+        px-2.5 py-1
+        rounded-full
+        border
+        ${typeStyles[type]}
+      `}
+      style={{
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+      }}
     >
       {children}
     </span>
   );
 };
 
+
 const DocumentRow = ({ doc, onClick }) => (
   <motion.button
-    whileHover={undefined}
-    whileTap={undefined}
     onClick={onClick}
-    className="group w-full text-left px-4 py-3 rounded-2xl border transition-colors flex items-center justify-between gap-3"
-    style={{
-      backgroundColor: "var(--bg-tertiary)",
-      borderColor: "var(--border-secondary)",
-    }}
+    className="group w-full text-left px-4 py-3 rounded-2xl soft-liquid-glass flex items-center justify-between gap-3"
   >
     <div className="flex items-center gap-3 min-w-0 flex-1">
-      <div
-        className="h-10 w-10 rounded-xl border flex items-center justify-center shrink-0"
-        style={{
-          backgroundColor: "rgba(168,85,247,0.1)",
-          borderColor: "rgba(168,85,247,0.2)",
-        }}
-      >
+      <div className="h-10 w-10 rounded-xl border border-purple-500/25 bg-purple-500/10 flex items-center justify-center">
         <FiFileText className="text-purple-400" size={16} />
       </div>
 
       <div className="min-w-0 flex-1">
-        {/* ✅ keep title to one line like Recent Notes */}
-        <p className="text-sm text-theme-secondary font-medium truncate leading-tight">
+        <p className="text-sm font-medium truncate text-theme-secondary">
           {doc.name}
         </p>
-
-        {/* ✅ keep meta line tight */}
-        <p className="text-[11px] text-theme-muted truncate leading-tight mt-0.5">
+        <p className="text-[11px] truncate text-theme-muted mt-0.5">
           {doc.status || "—"}
         </p>
       </div>
     </div>
-
     <span
-      className="text-[10px] text-theme-muted px-2 py-1 rounded-lg border shrink-0"
+      className="
+        shrink-0
+        text-[10px] font-medium
+        px-3 py-1
+        rounded-full
+        border
+        inline-flex items-center
+      "
       style={{
-        backgroundColor: "var(--bg-input)",
-        borderColor: "var(--border-secondary)",
+        background: "var(--card-glass-bg)",
+        borderColor: "var(--card-glass-border)",
+        color: "var(--text-muted)",
+        backdropFilter: "blur(12px) saturate(160%)",
+        WebkitBackdropFilter: "blur(12px) saturate(160%)",
       }}
     >
       {String(doc.type || "FILE").toUpperCase()}
@@ -1746,63 +1801,40 @@ const DocumentRow = ({ doc, onClick }) => (
 );
 
 
+
 const ToolButton = ({ icon, label, desc, onClick, tone = "indigo" }) => {
   const toneMap = {
-    indigo: {
-      text: "text-indigo-400",
-      bg: "rgba(99,102,241,0.1)",
-      border: "rgba(99,102,241,0.2)",
-    },
-    purple: {
-      text: "text-purple-400",
-      bg: "rgba(168,85,247,0.1)",
-      border: "rgba(168,85,247,0.2)",
-    },
-    pink: {
-      text: "text-pink-400",
-      bg: "rgba(236,72,153,0.1)",
-      border: "rgba(236,72,153,0.2)",
-    },
-    emerald: {
-      text: "text-emerald-400",
-      bg: "rgba(16,185,129,0.1)",
-      border: "rgba(16,185,129,0.2)",
-    },
+    indigo: "text-indigo-400 border-indigo-500/25",
+    purple: "text-purple-400 border-purple-500/25",
+    pink: "text-pink-400 border-pink-500/25",
+    emerald: "text-emerald-400 border-emerald-500/25",
   };
-  const t = toneMap[tone] || toneMap.indigo;
 
   return (
     <motion.button
       whileHover={{ scale: 1.01 }}
       whileTap={{ scale: 0.99 }}
       onClick={onClick}
-      className="group w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all"
-      style={{
-        backgroundColor: "var(--bg-tertiary)",
-        borderColor: "var(--border-secondary)",
-      }}
+      className="group w-full flex items-center justify-between px-4 py-3 rounded-xl soft-liquid-glass"
     >
       <div className="flex items-center gap-3">
         <div
-          className={`h-10 w-10 rounded-xl border flex items-center justify-center ${t.text}`}
-          style={{ backgroundColor: t.bg, borderColor: t.border }}
+          className={`h-10 w-10 rounded-xl border flex items-center justify-center ${toneMap[tone]}`}
         >
           {icon}
         </div>
 
         <div className="text-left">
-          <p className="text-sm text-theme-secondary font-medium">{label}</p>
+          <p className="text-sm font-medium text-theme-secondary">{label}</p>
           <p className="text-[11px] text-theme-muted">{desc}</p>
         </div>
       </div>
 
-      <FiChevronRight
-        className="text-theme-muted group-hover:text-indigo-400 transition"
-        size={16}
-      />
+      <FiChevronRight className="text-theme-muted group-hover:text-indigo-400 transition" size={16} />
     </motion.button>
   );
 };
+
 
 
 

@@ -150,8 +150,7 @@ export default function Sidebar() {
             <div
               className="absolute inset-x-0 bottom-0 h-24 pointer-events-none"
               style={{
-                background:
-                  "linear-gradient(to top, rgba(0,0,0,0.35) 0%, transparent 100%)",
+                background:"var(--mobile-nav-fade)",
               }}
             />
 
@@ -203,11 +202,9 @@ export default function Sidebar() {
                               exit={{ opacity: 0, scale: 0.8 }}
                               className="absolute inset-0 rounded-2xl"
                               style={{
-                                background:
-                                  "linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(139, 92, 246, 0.25) 100%)",
-                                boxShadow:
-                                  "0 0 16px rgba(99, 102, 241, 0.4), inset 0 1px 1px rgba(255,255,255,0.1)",
-                                border: "1px solid rgba(99, 102, 241, 0.4)",
+                                background:"var(--mobile-pill-bg)",
+                                boxShadow:"var(--mobile-pill-shadow)",
+                                border: "1px solid var(--mobile-pill-border)",
                               }}
                               transition={{
                                 type: "spring",
@@ -225,10 +222,10 @@ export default function Sidebar() {
                             weight={active ? "fill" : "regular"}
                             style={{
                               color: active
-                                ? "#a5b4fc"
-                                : "rgba(255,255,255,0.5)",
+                                ? "var(--mobile-icon-active)" 
+                                : "var(--mobile-icon)",
                               filter: active
-                                ? "drop-shadow(0 0 8px rgba(165, 180, 252, 0.5))"
+                                ? "drop-shadow(0 0 8px color-mix(in srgb, var(--mobile-icon-active) 55%, transparent))"
                                 : "none",
                               transition: "all 0.2s ease",
                             }}
@@ -290,13 +287,13 @@ export default function Sidebar() {
                     justifyContent: collapsed ? "center" : "flex-start",
                     gap: collapsed ? "0" : "10px",
                     backgroundColor: active
-                      ? "rgba(99, 102, 241, 0.12)"
-                      : "transparent",
+                       ? "var(--sidebar-item-active)"
+                       : "transparent",
                   }}
                   onMouseEnter={(e) => {
                     if (!active) {
                       e.currentTarget.style.backgroundColor =
-                        "rgba(255, 255, 255, 0.04)";
+                        "var(--sidebar-item-hover)";
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -314,7 +311,7 @@ export default function Sidebar() {
                         opacity: active ? 1 : 0,
                       }}
                       className="absolute left-0 top-[20%] w-[2px] h-[60%] rounded-r-full"
-                      style={{ backgroundColor: "#a5b4fc" }}
+                      style={{ backgroundColor: "var(--sidebar-text-active)" }}
                       transition={{ duration: 0.2 }}
                     />
                   )}
@@ -326,23 +323,26 @@ export default function Sidebar() {
                       width: collapsed ? "40px" : "30px",
                       height: collapsed ? "40px" : "30px",
                       backgroundColor: active
-                        ? "rgba(99, 102, 241, 0.18)"
-                        : "rgba(255, 255, 255, 0.04)",
+                        ? "var(--sidebar-icon-bg-active)"
+                        : "var(--sidebar-icon-bg)",
                       border: `1px solid ${
                         active
-                          ? "rgba(99, 102, 241, 0.28)"
-                          : "rgba(255, 255, 255, 0.06)"
+                          ? "var(--sidebar-icon-border-active)"
+                          : "var(--sidebar-icon-border)"
                       }`,
                       boxShadow: active
-                        ? "0 0 10px rgba(99, 102, 241, 0.2)"
+                        ? "0 0 10px color-mix(in srgb, var(--sidebar-icon-color-active) 40%, transparent)"
                         : "none",
+
                     }}
                   >
                     <Icon
                       size={collapsed ? 18 : 15}
                       weight={active ? "fill" : "duotone"}
                       style={{
-                        color: active ? "#a5b4fc" : "rgba(255, 255, 255, 0.5)",
+                        color: active
+                          ? "var(--sidebar-icon-color-active)"
+                          : "var(--sidebar-icon-color)",
                         transition: "color 0.2s ease",
                       }}
                     />
@@ -360,7 +360,9 @@ export default function Sidebar() {
                     <span
                       className="text-[13px] transition-colors duration-200"
                       style={{
-                        color: active ? "#a5b4fc" : "rgba(255, 255, 255, 0.55)",
+                        color: active
+                          ? "var(--sidebar-text-active)"
+                          : "var(--sidebar-text)",
                         fontWeight: active ? 500 : 400,
                       }}
                     >
@@ -385,8 +387,9 @@ export default function Sidebar() {
                     <div
                       className="absolute left-full ml-2 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
                       style={{
-                        backgroundColor: "rgba(15, 15, 25, 0.95)",
-                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        backgroundColor: "var(--sidebar-tooltip-bg)",
+                        border: "1px solid var(--sidebar-tooltip-border)",
+                        color: "var(--sidebar-tooltip-text)",
                         boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
                         backdropFilter: "blur(12px)",
                       }}
@@ -438,7 +441,8 @@ export default function Sidebar() {
                 backgroundColor: "transparent",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "rgba(244, 63, 94, 0.08)";
+               e.currentTarget.style.backgroundColor =
+                "color-mix(in srgb, var(--accent-rose) 15%, transparent)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = "transparent";
@@ -483,8 +487,9 @@ export default function Sidebar() {
                 <div
                   className="absolute left-full ml-2 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
                   style={{
-                    backgroundColor: "rgba(15, 15, 25, 0.95)",
-                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    backgroundColor: "var(--sidebar-tooltip-bg)",
+                    border: "1px solid var(--sidebar-tooltip-border)",
+                    color: "var(--sidebar-tooltip-text)",
                     boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
                     backdropFilter: "blur(12px)",
                   }}
@@ -517,7 +522,7 @@ export default function Sidebar() {
                   width: collapsed ? "40px" : "30px",
                   height: collapsed ? "40px" : "30px",
                   background:
-                    "linear-gradient(135deg, #6366f1, #a855f7)",
+                    "linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))",
                   boxShadow: "0 0 14px rgba(99, 102, 241, 0.3)",
                 }}
               >
@@ -550,97 +555,63 @@ export default function Sidebar() {
 
       {/* Liquid Glass Styles */}
       <style>{`
-        /* iOS 26 Liquid Glass - Mobile Nav */
         .liquid-glass-nav {
-          background: linear-gradient(
-            135deg,
-            rgba(20, 20, 30, 0.8) 0%,
-            rgba(12, 12, 20, 0.88) 50%,
-            rgba(20, 20, 30, 0.8) 100%
-          );
+          background: var(--mobile-nav-glass-bg);
           backdrop-filter: blur(40px) saturate(180%);
           -webkit-backdrop-filter: blur(40px) saturate(180%);
-          border: 1px solid rgba(255, 255, 255, 0.07);
-          box-shadow:
-            0 8px 32px rgba(0, 0, 0, 0.45),
-            0 0 0 0.5px rgba(255, 255, 255, 0.08) inset;
+          border: 1px solid var(--mobile-nav-glass-border);
+          box-shadow: var(--mobile-nav-glass-shadow);
           position: relative;
           overflow: hidden;
         }
 
-        /* iOS 26 Liquid Glass - Desktop Sidebar */
         .liquid-glass-sidebar {
-          background: linear-gradient(
-            180deg,
-            rgba(16, 16, 24, 0.92) 0%,
-            rgba(12, 12, 20, 0.95) 50%,
-            rgba(16, 16, 24, 0.92) 100%
-          );
+          background: var(--sidebar-glass-bg);
           backdrop-filter: blur(40px) saturate(180%);
           -webkit-backdrop-filter: blur(40px) saturate(180%);
-          border-right: 1px solid rgba(255, 255, 255, 0.05);
-          box-shadow:
-            4px 0 24px rgba(0, 0, 0, 0.35),
-            inset -1px 0 0 rgba(255, 255, 255, 0.02);
+          border-right: 1px solid var(--sidebar-glass-border);
+          box-shadow: var(--sidebar-glass-shadow);
         }
 
-        /* Animated shimmer effect */
+        /* ✅ NEW: Liquid glass button (neutral) */
+        .liquid-glass-button {
+          background: var(--mobile-nav-glass-bg);
+          backdrop-filter: blur(32px) saturate(160%);
+          -webkit-backdrop-filter: blur(32px) saturate(160%);
+          border: 1px solid var(--mobile-nav-glass-border);
+          box-shadow: var(--mobile-nav-glass-shadow);
+          position: relative;
+          overflow: hidden;
+        }
+
         .liquid-glass-nav::before,
-        .liquid-glass-sidebar::before {
+        .liquid-glass-sidebar::before,
+        .liquid-glass-button::before {
           content: '';
           position: absolute;
           inset: 0;
           border-radius: inherit;
-          background: linear-gradient(
-            105deg,
-            transparent 20%,
-            rgba(255, 255, 255, 0.015) 30%,
-            rgba(255, 255, 255, 0.03) 50%,
-            rgba(255, 255, 255, 0.015) 70%,
-            transparent 80%
-          );
+          background: var(--glass-sheen);
           opacity: 0;
           animation: liquid-shimmer 8s ease-in-out infinite;
+          pointer-events: none;
         }
 
         @keyframes liquid-shimmer {
-          0%, 100% {
-            opacity: 0;
-            transform: translateX(-100%);
-          }
-          50% {
-            opacity: 1;
-          }
-          100% {
-            transform: translateX(100%);
-          }
+          0%, 100% { opacity: 0; transform: translateX(-100%); }
+          50% { opacity: 0.6; }
+          100% { transform: translateX(100%); }
         }
 
-        /* Smooth scrolling performance */
-        @media (min-width: 768px) {
-          .liquid-glass-sidebar {
-            will-change: width;
-          }
-          .liquid-glass-sidebar nav a {
-            will-change: background-color;
-          }
-        }
-
-        /* Mobile nav smooth transitions */
-        @media (max-width: 767px) {
-          .liquid-glass-nav a {
-            -webkit-tap-highlight-color: transparent;
-          }
-        }
-
-        /* Reduce motion for accessibility */
         @media (prefers-reduced-motion: reduce) {
           .liquid-glass-nav::before,
-          .liquid-glass-sidebar::before {
+          .liquid-glass-sidebar::before,
+          .liquid-glass-button::before {
             animation: none;
           }
         }
       `}</style>
+
     </>
   );
 }

@@ -1,19 +1,18 @@
-// src/pages/Summaries.jsx - "Insight Explorer"
-// Supabase-backed workspace context + daily_usage tracking via useSubscription.incrementUsage
-// Removes legacy user_engagement_stats tracking (ai_uses) and fixes activity_events column names.
+
+// src/pages/Summaries.jsx — "Insight Explorer"
+// ✅ Fixes + cleanup
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   FiSend,
   FiFile,
   FiSearch,
-  FiZap,
   FiTrash2,
   FiX,
   FiChevronDown,
+  FiZap,
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
-import GlassCard from "../components/GlassCard";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import { consumeAiUsage } from "../lib/usage";
 
@@ -89,6 +88,7 @@ function RichText({ text, className = "" }) {
           remaining = remaining.slice(end + 2);
         } else {
           const start = italIdx;
+          // Skip "**" being misread as italics
           if (remaining.slice(start, start + 2) === "**") {
             remaining = remaining.slice(start + 2);
             continue;
@@ -103,6 +103,7 @@ function RichText({ text, className = "" }) {
           remaining = remaining.slice(end + 1);
         }
       }
+
       return tokens;
     };
 
@@ -162,6 +163,7 @@ export default function Summaries() {
         inputRef.current?.focus();
       }
     };
+
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
@@ -184,6 +186,7 @@ export default function Summaries() {
     async (userId, metadata = {}) => {
       if (!supabaseReady || !supabase || !userId) return;
 
+      // If your table/RLS is not enabled this should not break UX
       try {
         await supabase.from(EVENTS_TABLE).insert({
           user_id: userId,
@@ -193,7 +196,7 @@ export default function Summaries() {
           title: "Insight Explorer query",
         });
       } catch {
-        // silent fail (RLS/table not enabled/etc.)
+        // silent fail
       }
     },
     [supabaseReady]
@@ -266,13 +269,19 @@ export default function Summaries() {
         }
 
         if (!alive) return;
-        setWorkspaceFiles([...docs, ...notes]);
+
+        const merged = [...docs, ...notes];
+        setWorkspaceFiles(merged);
         setFilesLoading(false);
+
+        // Safety: if selected files no longer exist, drop them
+        setSelectedFiles((prev) => prev.filter((sf) => merged.some((f) => f.id === sf.id)));
       } catch (err) {
         if (!alive) return;
         setFilesError(err?.message || "Failed to load workspace files");
         setWorkspaceFiles([]);
         setFilesLoading(false);
+        setShowFileSelector(false);
       }
     };
 
@@ -288,18 +297,14 @@ export default function Summaries() {
     return `${selectedFiles.length} files selected`;
   }, [selectedFiles]);
 
-  const fileIdSet = useMemo(
-    () => new Set(selectedFiles.map((f) => f.id)),
-    [selectedFiles]
-  );
+  const fileIdSet = useMemo(() => new Set(selectedFiles.map((f) => f.id)), [selectedFiles]);
 
-  const toggleFileSelection = (file) => {
-    setSelectedFiles((prev) =>
-      prev.find((f) => f.id === file.id)
-        ? prev.filter((f) => f.id !== file.id)
-        : [...prev, file]
-    );
-  };
+  const toggleFileSelection = useCallback((file) => {
+    setSelectedFiles((prev) => {
+      const exists = prev.some((f) => f.id === file.id);
+      return exists ? prev.filter((f) => f.id !== file.id) : [...prev, file];
+    });
+  }, []);
 
   const clearConversation = () => setConversations([]);
 
@@ -365,10 +370,11 @@ export default function Summaries() {
     try {
       // ✅ CHARGE RIGHT BEFORE AI WORK (DB-enforced)
       user = await getAuthedUser();
+
       if (user?.id) {
         const usageRes = await consumeAiUsage(user.id, "insight_queries", 1);
 
-        if (!usageRes.success) {
+        if (!usageRes?.success) {
           setConversations((prev) => [
             ...prev,
             {
@@ -408,8 +414,7 @@ export default function Summaries() {
         ...prev,
         {
           type: "ai",
-          content:
-            "Something went wrong while processing your request. Please try again.",
+          content: "Something went wrong while processing your request. Please try again.",
           sources: [],
           timestamp: new Date(),
         },
@@ -428,7 +433,7 @@ export default function Summaries() {
     await runSearch(userQuery);
   };
 
-  // Loader (reuse style used in Notes.jsx)
+  // Loader
   if (filesLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -439,26 +444,28 @@ export default function Summaries() {
 
   return (
     <div className="space-y-5 pb-[calc(var(--mobile-nav-height)+140px)] animate-fadeIn">
-      {/* Header - More compact */}
+      {/* Header */}
       <header className="flex items-center gap-3">
         <div
           className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
           style={{
-            backgroundColor: "rgba(99, 102, 241, 0.15)",
-            border: "1px solid rgba(99, 102, 241, 0.25)",
+            background: "var(--page-header-icon-bg)",
+            border: `var(--page-header-icon-border-width) solid var(--page-header-icon-border)`,
           }}
         >
-          <FiZap className="text-indigo-400" size={20} />
+          <FiZap style={{ color: "var(--tag-info-text)" }} size={20} />
         </div>
         <div>
-          <h1 className="text-xl font-semibold text-theme-primary">Insight Explorer</h1>
-          <p className="text-xs text-theme-muted">
+          <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+            Insight Explorer
+          </h1>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
             AI-powered search across your workspace
           </p>
         </div>
       </header>
 
-      {/* File Context - Streamlined */}
+      {/* File Context */}
       <div
         className="rounded-2xl p-4 border"
         style={{
@@ -468,8 +475,10 @@ export default function Summaries() {
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            <FiFile className="text-indigo-400 flex-shrink-0" size={14} />
-            <span className="text-xs text-theme-muted">Context:</span>
+            <FiFile style={{ color: "var(--tag-info-text)" }} className="flex-shrink-0" size={14} />
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+              Context:
+            </span>
             <span
               className="text-xs px-2.5 py-1 rounded-full border truncate"
               style={{
@@ -487,7 +496,10 @@ export default function Summaries() {
               <button
                 type="button"
                 onClick={() => setSelectedFiles([])}
-                className="text-xs text-theme-muted hover:text-theme-secondary transition"
+                className="text-xs transition"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
               >
                 Clear
               </button>
@@ -496,8 +508,9 @@ export default function Summaries() {
             <button
               type="button"
               onClick={() => setShowFileSelector((s) => !s)}
-              className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition"
+              className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition disabled:opacity-60"
               style={{
+                color: "var(--tag-info-text)",
                 backgroundColor: "rgba(99, 102, 241, 0.08)",
                 borderColor: "rgba(99, 102, 241, 0.2)",
               }}
@@ -513,7 +526,9 @@ export default function Summaries() {
         </div>
 
         {filesError && (
-          <p className="text-[11px] mt-2 text-red-400/80">{filesError}</p>
+          <p className="text-[11px] mt-2" style={{ color: "var(--tag-error-text)" }}>
+            {filesError}
+          </p>
         )}
 
         {/* Selected file pills */}
@@ -526,14 +541,18 @@ export default function Summaries() {
                 style={{
                   backgroundColor: "rgba(99, 102, 241, 0.08)",
                   borderColor: "rgba(99, 102, 241, 0.2)",
-                  color: "rgb(165, 180, 252)",
+                  color: "var(--text-secondary)",
                 }}
               >
                 <span className="truncate max-w-[140px]">{file.name}</span>
                 <button
                   type="button"
                   onClick={() => toggleFileSelection(file)}
-                  className="hover:text-white transition"
+                  className="transition"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+                  aria-label="Remove file"
                 >
                   <FiX size={12} />
                 </button>
@@ -595,7 +614,10 @@ export default function Summaries() {
                           >
                             {typeLabel(file.type)}
                           </span>
-                          <span className="text-sm text-theme-primary truncate">
+                          <span
+                            className="text-sm truncate"
+                            style={{ color: "var(--text-primary)" }}
+                          >
                             {file.name}
                           </span>
                         </div>
@@ -612,7 +634,10 @@ export default function Summaries() {
                           }}
                         >
                           {selected && (
-                            <div className="w-2 h-2 rounded-full bg-indigo-400" />
+                            <div
+                              className="w-2 h-2 rounded-full"
+                              style={{ backgroundColor: "var(--accent-indigo)" }}
+                            />
                           )}
                         </div>
                       </button>
@@ -643,13 +668,13 @@ export default function Summaries() {
                   border: "1px solid rgba(99, 102, 241, 0.2)",
                 }}
               >
-                <FiSearch className="text-indigo-400" size={20} />
+                <FiSearch style={{ color: "var(--tag-info-text)" }} size={20} />
               </div>
 
-              <h3 className="text-base font-medium text-theme-primary mb-1">
+              <h3 className="text-base font-medium mb-1" style={{ color: "var(--text-primary)" }}>
                 Ask anything about your workspace
               </h3>
-              <p className="text-xs text-theme-muted">
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                 Search documents, notes, and files with AI
               </p>
             </div>
@@ -663,10 +688,19 @@ export default function Summaries() {
                   onClick={() =>
                     handleExampleClick(`Find ${chip.toLowerCase()} across my documents`)
                   }
-                  className="text-xs px-3 py-1.5 rounded-full border text-theme-secondary hover:border-indigo-500/40 hover:bg-indigo-500/5 transition"
+                  className="text-xs px-3 py-1.5 rounded-full border transition"
                   style={{
                     backgroundColor: "var(--bg-tertiary)",
                     borderColor: "var(--border-secondary)",
+                    color: "var(--text-secondary)",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(99, 102, 241, 0.35)";
+                    e.currentTarget.style.backgroundColor = "rgba(99, 102, 241, 0.06)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-secondary)";
+                    e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
                   }}
                 >
                   {chip}
@@ -676,16 +710,27 @@ export default function Summaries() {
 
             {/* Example questions */}
             <div className="space-y-1.5">
-              <p className="text-[11px] text-theme-muted mb-2">Try asking:</p>
+              <p className="text-[11px] mb-2" style={{ color: "var(--text-muted)" }}>
+                Try asking:
+              </p>
               {exampleQuestions.map((q, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => handleExampleClick(q)}
-                  className="w-full text-left text-sm text-theme-secondary border rounded-xl px-4 py-2.5 transition hover:border-indigo-500/30 hover:bg-indigo-500/5"
+                  className="w-full text-left text-sm border rounded-xl px-4 py-2.5 transition"
                   style={{
                     backgroundColor: "var(--bg-input)",
                     borderColor: "var(--border-secondary)",
+                    color: "var(--text-secondary)",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(99, 102, 241, 0.30)";
+                    e.currentTarget.style.backgroundColor = "rgba(99, 102, 241, 0.06)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-secondary)";
+                    e.currentTarget.style.backgroundColor = "var(--bg-input)";
                   }}
                 >
                   "{q}"
@@ -699,7 +744,10 @@ export default function Summaries() {
               <button
                 type="button"
                 onClick={clearConversation}
-                className="text-xs text-theme-muted hover:text-theme-secondary flex items-center gap-1 transition"
+                className="text-xs flex items-center gap-1 transition"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
               >
                 <FiTrash2 size={11} />
                 Clear
@@ -724,9 +772,13 @@ export default function Summaries() {
                     >
                       <RichText
                         text={msg.content}
-                        className="text-sm text-theme-primary whitespace-pre-wrap"
+                        className="text-sm whitespace-pre-wrap"
+                        // keep your theme classes if you have them; inline fallback is safe
                       />
-                      <p className="text-[10px] text-theme-muted mt-1 text-right opacity-70">
+                      <p
+                        className="text-[10px] mt-1 text-right opacity-70"
+                        style={{ color: "var(--text-muted)" }}
+                      >
                         {msg.timestamp.toLocaleTimeString([], {
                           hour: "2-digit",
                           minute: "2-digit",
@@ -750,13 +802,13 @@ export default function Summaries() {
                           border: "1px solid rgba(99, 102, 241, 0.2)",
                         }}
                       >
-                        <FiZap className="text-indigo-400" size={14} />
+                        <FiZap style={{ color: "var(--tag-info-text)" }} size={14} />
                       </div>
 
                       <div className="flex-1 min-w-0">
                         <RichText
                           text={msg.content}
-                          className="text-sm text-theme-primary leading-relaxed"
+                          className="text-sm leading-relaxed"
                         />
 
                         {msg.sources && msg.sources.length > 0 && (
@@ -764,7 +816,9 @@ export default function Summaries() {
                             className="mt-3 pt-2.5 border-t"
                             style={{ borderColor: "var(--border-secondary)" }}
                           >
-                            <p className="text-[10px] text-theme-muted mb-1.5">Sources</p>
+                            <p className="text-[10px] mb-1.5" style={{ color: "var(--text-muted)" }}>
+                              Sources
+                            </p>
                             <div className="flex flex-wrap gap-1">
                               {msg.sources.map((source, j) => (
                                 <span
@@ -783,7 +837,7 @@ export default function Summaries() {
                           </div>
                         )}
 
-                        <p className="text-[10px] text-theme-muted mt-2 opacity-70">
+                        <p className="text-[10px] mt-2 opacity-70" style={{ color: "var(--text-muted)" }}>
                           {msg.timestamp.toLocaleTimeString([], {
                             hour: "2-digit",
                             minute: "2-digit",
@@ -801,35 +855,31 @@ export default function Summaries() {
         )}
       </div>
 
-      {/* Search Bar - Fixed at bottom */}
+      {/* Search Bar */}
       <div className="fixed bottom-[calc(var(--mobile-nav-height)+12px)] left-0 right-0 px-4 z-40 md:left-[220px] md:bottom-5">
         <div className="max-w-2xl mx-auto">
           <form onSubmit={handleSearch}>
             <div
-              className={`flex items-center w-full rounded-2xl px-4 py-2.5 transition-all duration-200 border ${
-                query
-                  ? "border-indigo-500/60 shadow-[0_0_20px_rgba(99,102,241,0.15)]"
-                  : "shadow-lg"
-              }`}
+              className="flex items-center w-full rounded-2xl px-4 py-2.5 transition-all duration-200 border"
               style={{
                 backgroundColor: "var(--bg-surface)",
                 borderColor: query ? "rgba(99, 102, 241, 0.6)" : "var(--border-secondary)",
                 backdropFilter: "blur(16px)",
+                boxShadow: query
+                  ? "0 0 20px rgba(99,102,241,0.15)"
+                  : "var(--shadow-lg)",
               }}
             >
-              <FiSearch className="text-theme-muted w-5 h-5 mr-3 flex-shrink-0" />
+              <FiSearch style={{ color: "var(--text-muted)" }} className="w-5 h-5 mr-3 flex-shrink-0" />
 
-              {/* 
-                CRITICAL: font-size must be 16px or larger to prevent iOS auto-zoom.
-                Using inline style to guarantee it overrides any Tailwind classes.
-              */}
               <input
                 ref={inputRef}
                 type="text"
                 placeholder="Ask about your workspace..."
-                className="flex-1 bg-transparent text-theme-primary placeholder:text-theme-muted outline-none min-w-0"
+                className="flex-1 bg-transparent outline-none min-w-0"
                 style={{
-                  fontSize: "16px", // Prevents iOS Safari auto-zoom
+                  color: "var(--text-primary)",
+                  fontSize: "16px", // prevents iOS zoom
                   lineHeight: "1.5",
                 }}
                 value={query}
@@ -848,20 +898,30 @@ export default function Summaries() {
                     setQuery("");
                     inputRef.current?.focus();
                   }}
-                  className="p-1.5 rounded-full hover:bg-white/10 transition mr-1"
+                  className="p-1.5 rounded-full transition mr-1"
+                  style={{ backgroundColor: "transparent" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.08)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                  aria-label="Clear query"
                 >
-                  <FiX className="text-theme-muted" size={16} />
+                  <FiX style={{ color: "var(--text-muted)" }} size={16} />
                 </button>
               )}
 
               <button
                 type="submit"
                 disabled={!query.trim() || isSearching}
-                className={`p-2 rounded-xl transition-all flex-shrink-0 ${
-                  query.trim() && !isSearching
-                    ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/20"
-                    : "bg-white/5 text-theme-muted"
-                }`}
+                className="p-2 rounded-xl transition-all flex-shrink-0 disabled:opacity-60"
+                style={{
+                  backgroundColor:
+                    query.trim() && !isSearching ? "var(--accent-indigo)" : "rgba(255,255,255,0.06)",
+                  color: query.trim() && !isSearching ? "#fff" : "var(--text-muted)",
+                  boxShadow:
+                    query.trim() && !isSearching
+                      ? "0 10px 24px rgba(99,102,241,0.18)"
+                      : "none",
+                }}
+                aria-label="Send"
               >
                 {isSearching ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -871,13 +931,14 @@ export default function Summaries() {
               </button>
             </div>
 
-            <p className="text-center text-[10px] text-theme-muted mt-1.5 hidden md:block opacity-60">
+            <p className="text-center text-[10px] mt-1.5 hidden md:block opacity-60" style={{ color: "var(--text-muted)" }}>
               Press{" "}
               <kbd
-                className="px-1.5 py-0.5 rounded border text-theme-secondary"
+                className="px-1.5 py-0.5 rounded border"
                 style={{
                   backgroundColor: "var(--bg-tertiary)",
                   borderColor: "var(--border-secondary)",
+                  color: "var(--text-secondary)",
                 }}
               >
                 /
@@ -890,6 +951,8 @@ export default function Summaries() {
     </div>
   );
 }
+
+
 
 
 

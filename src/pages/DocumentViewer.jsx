@@ -30,6 +30,7 @@ import {
   FileDoc,
   FilePdf,
   FileXls,
+  Image as ImageIcon,
 } from "phosphor-react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import { consumeAiUsage } from "../lib/usage";
@@ -37,6 +38,22 @@ import { consumeAiUsage } from "../lib/usage";
 const DOCS_TABLE = "documents";
 const NOTES_TABLE = "notes";
 const STORAGE_BUCKET = "documents";
+
+const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "gif"];
+
+function isImageDoc(doc) {
+  const name = doc?.name || "";
+  const ext = name.split(".").pop()?.toLowerCase();
+  return IMAGE_EXTENSIONS.includes(ext);
+}
+
+
+function getDisplayType(doc) {
+  if (isImageDoc(doc)) return "IMAGE";
+  return doc?.type || "FILE";
+}
+
+
 
 const TAG_DOC_SUMMARY = "ai:doc_summary";
 const docTag = (docId) => `doc:${docId}`;
@@ -55,19 +72,26 @@ function formatUpdated(updatedAt) {
 /* File Type Icon */
 function FileTypeIcon({ type, size = 20 }) {
   const iconProps = { size, weight: "duotone" };
-  switch (type?.toUpperCase()) {
+
+  switch (String(type).toUpperCase()) {
     case "PDF":
       return <FilePdf {...iconProps} className="text-rose-500" />;
-    case "DOCX":
+
     case "DOC":
-      return <FileDoc {...iconProps} className="text-blue-500" />;
-    case "XLSX":
+    case "DOCX":
+      return <FileDoc {...iconProps} className="text-indigo-500" />;
+
     case "XLS":
+    case "XLSX":
       return <FileXls {...iconProps} className="text-emerald-500" />;
+
+    case "IMAGE":
+      return <ImageIcon {...iconProps} className="text-sky-400" />;
     default:
       return <FiFile size={size} className="text-theme-muted" />;
   }
 }
+
 
 function buildSmartSummary(doc) {
   const baseTitle = (doc?.name || "Document").replace(/\.[^/.]+$/, "");
@@ -379,7 +403,6 @@ export default function DocumentViewer({ docs = [] }) {
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <div className="h-16 w-16 rounded-full bg-theme-tertiary flex items-center justify-center mxA mx-auto mb-4">
-            <FiFile className="text-theme-muted" size={28} />
           </div>
           <p className="text-theme-muted mb-4">Document not found</p>
           <button
@@ -501,7 +524,8 @@ export default function DocumentViewer({ docs = [] }) {
         <div className="flex items-center gap-2">
           <button
             onClick={handleDownload}
-            className="p-2.5 rounded-xl text-theme-muted hover:text-emerald-500 transition border hover:border-emerald-500/30 hover:bg-emerald-500/10"
+           className="p-2.5 rounded-xl text-theme-muted transition border
+                hover:text-theme-primary hover:bg-theme-tertiary"
             style={{
               backgroundColor: "var(--bg-tertiary)",
               borderColor: "var(--border-secondary)",
@@ -512,14 +536,26 @@ export default function DocumentViewer({ docs = [] }) {
           </button>
           <button
             onClick={() => setShowRewrite(true)}
-            className="p-2.5 rounded-xl text-theme-muted hover:text-purple-500 transition border hover:border-purple-500/30 hover:bg-purple-500/10"
-            style={{
-              backgroundColor: "var(--bg-tertiary)",
-              borderColor: "var(--border-secondary)",
-            }}
+            className="
+              p-2.5 rounded-xl border transition
+              bg-theme-tertiary
+              border-theme-secondary
+              text-theme-primary
+              hover:bg-purple-500/10
+              hover:border-purple-500/30
+              group
+            "
             title="Rewrite with AI"
           >
-            <PencilSimple size={18} weight="duotone" />
+            <PencilSimple
+            size={18}
+            weight="fill"
+            className="
+              text-theme-primary
+              opacity-90
+              group-hover:text-purple-500
+            "
+          />
           </button>
           <button
             onClick={handleGenerateSummary}
@@ -531,60 +567,86 @@ export default function DocumentViewer({ docs = [] }) {
             }}
             title="AI Summary"
           >
-            <FiFileText size={18} />
+             <Sparkle size={18} weight="fill" className="text-indigo-400" />
           </button>
         </div>
       </div>
 
-      {/* Document Title Card */}
-      <div
-        className="rounded-xl p-4 border flex items-center gap-3"
-        style={{
-          backgroundColor: "var(--bg-card)",
-          borderColor: "var(--border-secondary)",
-        }}
-      >
+        {/* Document Title Card */}
         <div
-          className="h-12 w-12 rounded-xl flex items-center justify-center border"
+          className="rounded-xl p-4 border flex items-center gap-3"
           style={{
-            backgroundColor: "var(--bg-tertiary)",
+            backgroundColor: "var(--bg-card)",
             borderColor: "var(--border-secondary)",
           }}
         >
-          <FileTypeIcon type={doc?.type} size={28} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-semibold text-theme-primary truncate">
-            {doc?.name}
-          </h1>
-          <p className="text-xs text-theme-muted">
-            {doc?.type} · {doc?.size || "—"} · Updated {doc?.updated || "—"}
-          </p>
-        </div>
-        {hasSummary && (
-          <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-            <FiCheck size={10} /> AI Summary
-          </span>
-        )}
-      </div>
+          <button
+            onClick={() => hasSummary && setShowSummary(true)}
+            disabled={!hasSummary}
+            className={`h-12 w-12 rounded-xl flex items-center justify-center border transition
+              ${hasSummary ? "cursor-pointer" : "cursor-default opacity-60"}
+            `}
+            style={{
+              backgroundColor: hasSummary
+                ? "rgba(16,185,129,0.15)" // emerald active
+                : "var(--bg-tertiary)",
+              borderColor: hasSummary
+                ? "rgba(16,185,129,0.35)"
+                : "var(--border-secondary)",
+            }}
+            title={hasSummary ? "Open AI Summary" : "No AI summary yet"}
+          >
+            <FileTypeIcon type={getDisplayType(doc)} size={28} />
+          </button>
 
-      {/* Document Viewer */}
-      <div
-        className="rounded-2xl overflow-hidden border"
-        style={{
-          backgroundColor: "var(--bg-card)",
-          borderColor: "var(--border-secondary)",
-        }}
-      >
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-semibold text-theme-primary truncate">
+              {doc?.name}
+            </h1>
+            <p className="text-xs text-theme-muted">
+              {doc?.type} · {doc?.size || "—"} · Updated {doc?.updated || "—"}
+            </p>
+          </div>
+          {hasSummary && (
+            <span
+              className="text-[10px] font-semibold px-2.5 py-1 rounded-full
+                        bg-emerald-500/15 text-emerald-600 dark:text-emerald-400
+                        border border-emerald-500/30
+                        flex items-center gap-2"
+            >
+                <FiCheck size={10} className="text-emerald-500" />
+              AI Summary
+            </span>
+          )}
+        </div>
+
+        {/* Document Viewer */}
+        <div
+          className="rounded-2xl overflow-hidden border"
+          style={{
+            backgroundColor: "var(--bg-card)",
+            borderColor: "var(--border-secondary)",
+          }}
+        >
         {/* Toolbar */}
         <div
-          className="flex items-center justify-between px-4 py-2.5 border-b"
+          className="
+            flex items-center gap-3
+            px-4 py-2.5
+            border-b
+            overflow-x-auto
+            whitespace-nowrap
+            no-scrollbar
+          "
           style={{
             backgroundColor: "var(--bg-tertiary)",
             borderColor: "var(--border-secondary)",
+            paddingLeft: "max(1rem, env(safe-area-inset-left))",
+            paddingRight: "max(1rem, env(safe-area-inset-right))",
           }}
         >
-          <div className="flex items-center gap-1">
+          {/* Left controls */}
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={() => setShowPageList(!showPageList)}
               className={`p-2 rounded-lg transition ${
@@ -596,6 +658,7 @@ export default function DocumentViewer({ docs = [] }) {
             >
               <FiList size={16} />
             </button>
+
             <button
               className="p-2 rounded-lg text-theme-muted hover:text-theme-primary hover:bg-theme-tertiary transition"
               title="More options"
@@ -604,7 +667,8 @@ export default function DocumentViewer({ docs = [] }) {
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Page navigation */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={() => goToPage(currentPage - 1)}
               disabled={currentPage <= 1}
@@ -626,7 +690,9 @@ export default function DocumentViewer({ docs = [] }) {
                 min={1}
                 max={totalPages}
               />
-              <span className="text-theme-muted text-sm">of {totalPages}</span>
+              <span className="text-theme-muted text-sm">
+                of {totalPages}
+              </span>
             </div>
 
             <button
@@ -638,7 +704,8 @@ export default function DocumentViewer({ docs = [] }) {
             </button>
           </div>
 
-          <div className="flex items-center gap-1">
+          {/* Zoom + search */}
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={() => setZoom(Math.max(50, zoom - 25))}
               className="p-2 rounded-lg text-theme-muted hover:text-theme-primary transition hover:bg-theme-tertiary"
@@ -646,9 +713,11 @@ export default function DocumentViewer({ docs = [] }) {
             >
               <FiZoomOut size={16} />
             </button>
+
             <span className="text-xs text-theme-muted w-10 text-center font-medium">
               {zoom}%
             </span>
+
             <button
               onClick={() => setZoom(Math.min(200, zoom + 25))}
               className="p-2 rounded-lg text-theme-muted hover:text-theme-primary transition hover:bg-theme-tertiary"
@@ -656,10 +725,12 @@ export default function DocumentViewer({ docs = [] }) {
             >
               <FiZoomIn size={16} />
             </button>
+
             <div
               className="w-px h-5 mx-1"
               style={{ backgroundColor: "var(--border-secondary)" }}
             />
+
             <button
               className="p-2 rounded-lg text-theme-muted hover:text-theme-primary transition hover:bg-theme-tertiary"
               title="Search"
@@ -721,13 +792,14 @@ export default function DocumentViewer({ docs = [] }) {
           className="min-h-[60vh] flex items-center justify-center p-6"
           style={{ backgroundColor: "var(--bg-secondary)" }}
         >
-          {fileLoading ? (
+         {fileLoading ? (
             <div className="text-center">
               <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mx-auto mb-3" />
               <p className="text-sm text-theme-muted">Loading preview…</p>
             </div>
           ) : fileUrl ? (
             doc.type === "PDF" ? (
+              /* ===== PDF VIEWER ===== */
               <iframe
                 src={fileUrl}
                 className="w-full h-[70vh] rounded-xl border shadow-lg"
@@ -737,7 +809,22 @@ export default function DocumentViewer({ docs = [] }) {
                   borderColor: "var(--border-secondary)",
                 }}
               />
+            ) : isImageDoc(doc) ? (
+              /* ===== IMAGE VIEWER ===== */
+              <div className="flex justify-center items-center p-4">
+                <img
+                  src={fileUrl}
+                  alt={doc.name}
+                  className="max-w-full max-h-[70vh] rounded-xl border shadow-lg"
+                  style={{
+                    transform: `scale(${zoom / 100})`,
+                    transformOrigin: "top center",
+                    borderColor: "var(--border-secondary)",
+                  }}
+                />
+              </div>
             ) : (
+              /* ===== UNSUPPORTED FILE ===== */
               <div className="text-center">
                 <div
                   className="h-20 w-20 rounded-2xl bg-theme-tertiary flex items-center justify-center mx-auto mb-4 border"
@@ -757,6 +844,7 @@ export default function DocumentViewer({ docs = [] }) {
               </div>
             )
           ) : (
+            /* ===== NO PREVIEW ===== */
             <div className="text-center">
               <div
                 className="h-20 w-20 rounded-2xl bg-theme-tertiary flex items-center justify-center mx-auto mb-4 border"

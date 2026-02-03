@@ -59,26 +59,40 @@ function formatUpdated(updatedAt) {
 function docTag(docId) {
   return `doc:${docId}`;
 }
+const liquidGlassNeutral = `
+  relative overflow-hidden
+  backdrop-blur-xl
+  rounded-2xl
+  border
+  transition-all duration-300
+  shadow-lg
+  active:scale-[0.98]
+  before:absolute before:inset-0
+  before:rounded-2xl
+  before:bg-gradient-to-b
+  before:from-white/20
+  before:to-white/5
+  before:opacity-60
+  before:pointer-events-none
+`;
+
 
 /* -----------------------------------------
-   Priority Tag Component
+   Priority Tag Component (Theme-safe)
 ----------------------------------------- */
-function PriorityTag({ priority, children }) {
-  const baseClasses = "text-[10px] font-semibold px-2.5 py-1 rounded-full border";
+function PriorityTag({ priority = "medium", children }) {
+  const key = String(priority).toLowerCase();
 
-  const styles = {
-    critical: "bg-rose-500/15 text-rose-600 border-rose-500/30 dark:text-rose-400",
-    high: "bg-rose-500/15 text-rose-600 border-rose-500/30 dark:text-rose-400",
-    medium: "bg-amber-500/15 text-amber-600 border-amber-500/30 dark:text-amber-400",
-    low: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400",
-    info: "bg-purple-500/15 text-purple-600 border-purple-500/30 dark:text-purple-400",
-  };
+  const allowed = ["critical", "high", "medium", "low", "info"];
+  const cls = allowed.includes(key) ? key : "medium";
 
-  const priorityKey = priority?.toLowerCase() || "medium";
-  const style = styles[priorityKey] || styles.medium;
-
-  return <span className={`${baseClasses} ${style}`}>{children}</span>;
+  return (
+    <span className={`priority-${cls} text-[10px] font-semibold px-2.5 py-1 rounded-full`}>
+      {children}
+    </span>
+  );
 }
+
 
 /* -----------------------------------------
    File Type Icon Component
@@ -841,56 +855,68 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
         <QuickStat label="AI Summaries" value={summarizedCount} icon={<FiZap size={16} />} color="emerald" />
       </div>
 
-      {/* Auto-summarize indicator */}
-      {settings.autoSummarize && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10"
-        >
-          <div className="h-6 w-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
-            <FiZap className="text-emerald-400" size={12} />
+        {/* Auto-summarize indicator */}
+        {settings.autoSummarize && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10"
+          >
+            {/* Square status icon (FIXED) */}
+            <div className="h-7 w-7 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+              <FiZap size={14} className="text-emerald-400" />
+            </div>
+
+            {/* Text */}
+            <span className="text-xs font-semibold text-emerald-400">
+              Auto-summarize enabled
+            </span>
+            <span className="text-xs text-theme-muted">
+              • New uploads summarized automatically
+            </span>
+          </motion.div>
+        )}
+
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <motion.button
+              whileHover={{ scale: 1.015 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleUploadButton}
+              type="button"
+              className="
+                liquid-glass-button
+                flex-1 py-4 rounded-2xl
+                text-theme-primary
+                hover:bg-theme-tertiary
+                transition
+              "
+            >
+              <div className="relative z-10 flex items-center justify-center gap-2.5">
+                <FilePlus size={20} className="icon-muted"/>
+                <span className="font-medium">Upload Document</span>
+              </div>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.015 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={synthesizeMode ? cancelSynthesizeMode : startSynthesizeMode}
+              type="button"
+              className="
+                liquid-glass-button
+                flex-1 py-4 rounded-2xl
+                text-theme-primary
+                hover:bg-theme-tertiary
+                transition
+              "
+            >
+              <div className="relative z-10 flex items-center justify-center gap-2.5">
+                <Sparkle size={20} className="icon-muted"/>
+                <span className="font-medium">Synthesize Documents</span>
+              </div>
+            </motion.button>
           </div>
-          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Auto-summarize enabled</span>
-          <span className="text-xs text-theme-muted">• New uploads summarized automatically</span>
-        </motion.div>
-      )}
-
-      {/* Action Buttons */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="flex items-center justify-center gap-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-medium shadow-lg shadow-indigo-500/25 flex-1 py-3.5 rounded-xl transition-all"
-          onClick={handleUploadButton}
-          type="button"
-        >
-          <FilePlus size={20} weight="bold" />
-          Upload Document
-        </motion.button>
-
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className={`flex items-center justify-center gap-2.5 font-medium shadow-lg flex-1 py-3.5 rounded-xl transition-all ${
-            synthesizeMode
-              ? "bg-rose-600 hover:bg-rose-500 text-white shadow-rose-500/25"
-              : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-purple-500/25"
-          }`}
-          onClick={synthesizeMode ? cancelSynthesizeMode : startSynthesizeMode}
-          type="button"
-        >
-          {synthesizeMode ? (
-            <>
-              <FiX size={18} /> Cancel
-            </>
-          ) : (
-            <>
-              <Sparkle size={20} weight="fill" /> Synthesize Documents
-            </>
-          )}
-        </motion.button>
-      </div>
 
       {/* Synthesize Mode Panel */}
       <AnimatePresence>
@@ -977,20 +1003,48 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
                   </p>
                 </div>
                 <div className="flex gap-1">
+                  {/* View brief */}
                   <button
                     onClick={() => viewBrief(brief)}
-                    className="text-purple-500 hover:text-purple-400 p-2 rounded-lg hover:bg-purple-500/10 transition"
+                    className="h-8 w-8 rounded-lg border flex items-center justify-center transition"
+                    style={{
+                      borderColor: "var(--border-secondary)",
+                      color: "var(--text-secondary)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "var(--text-primary)";
+                      e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "var(--text-secondary)";
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }}
                     type="button"
+                    title="View brief"
                   >
-                    <FiEye size={18} />
+                    <FiEye size={16} />
                   </button>
+
+                  {/* Delete brief */}
                   <button
                     onClick={() => deleteBrief(brief.noteId)}
-                    className="text-theme-muted hover:text-rose-500 p-2 rounded-lg hover:bg-rose-500/10 transition"
+                    className="h-8 w-8 rounded-lg border flex items-center justify-center transition"
+                    style={{
+                      borderColor: "var(--border-secondary)",
+                      color: "var(--text-secondary)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "var(--accent-rose)";
+                      e.currentTarget.style.backgroundColor = "rgba(244, 63, 94, 0.12)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "var(--text-secondary)";
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }}
                     type="button"
                     title="Delete brief"
                   >
-                    <FiTrash2 size={18} />
+                    <FiTrash2 size={16} />
                   </button>
                 </div>
               </motion.div>
@@ -1069,13 +1123,35 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
                       </div>
                     ) : (
                       <div
-                        className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 border"
+                        className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 border relative"
                         style={{
-                          backgroundColor: "var(--bg-tertiary)",
-                          borderColor: "var(--border-secondary)",
+                          backgroundColor: settings.autoSummarize
+                            ? "rgba(99,102,241,0.08)"
+                            : "var(--bg-tertiary)",
+                          borderColor: settings.autoSummarize
+                            ? "rgba(99,102,241,0.25)"
+                            : "var(--border-secondary)",
                         }}
+                        title={
+                          settings.autoSummarize
+                            ? "AI summaries are enabled automatically"
+                            : "Document"
+                        }
                       >
-                        <FileTypeIcon type={doc.type} size={20} />
+                        <FileTypeIcon type={doc.type} size={18} />
+
+                        {/* AI Star Overlay */}
+                        {settings.autoSummarize && (
+                          <span
+                            className="absolute -top-1 -right-1 h-4 w-4 rounded-full flex items-center justify-center"
+                            style={{
+                              backgroundColor: "rgba(99,102,241,0.18)",
+                              border: "1px solid rgba(99,102,241,0.35)",
+                            }}
+                          >
+                            <Sparkle size={10} className="text-indigo-400 opacity-70" />
+                          </span>
+                        )}
                       </div>
                     )}
 
@@ -1094,11 +1170,21 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
                           </span>
                         )}
 
-                        {hasSummary && !isAutoSummarizing && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/12 text-emerald-300 border border-emerald-500/25">
-                            AI Summary
-                          </span>
-                        )}
+                      {/* AI summary completed */}
+                      {hasSummary && !isAutoSummarizing && (
+                        <span className="tag-success text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <FiCheck size={10} />
+                          AI Summary
+                        </span>
+                      )}
+
+                      {/* AI summary in progress */}
+                      {isAutoSummarizing && (
+                        <span className="badge-info text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
+                          Summarizing…
+                        </span>
+                      )}
 
                         {isAutoSummarizing && (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/12 text-indigo-300 border border-indigo-500/25 flex items-center gap-1">
