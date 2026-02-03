@@ -70,133 +70,144 @@ export default function NoteCard({ note, onMenu, onOpen }) {
 
   return (
     <div
-      className="group rounded-xl p-2.5 sm:p-3 flex flex-col cursor-pointer transition-all duration-200 border active:scale-[0.98]"
-      style={{
-        backgroundColor: 'var(--bg-surface)',
-        borderColor: 'var(--border-secondary)',
-      }}
+      className="group liquid-glass-card-sm p-2.5 sm:p-3 flex flex-col cursor-pointer active:scale-[0.98]"
       onClick={onOpen}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)';
-        e.currentTarget.style.backgroundColor = 'var(--bg-elevated)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'var(--border-secondary)';
-        e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
-      }}
     >
-      {/* Title Row + Menu */}
-      <div className="flex justify-between items-start gap-2 mb-2">
-        <h3 
-          className="text-sm font-semibold leading-snug line-clamp-2 flex-1"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          {note.title}
-        </h3>
-
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {note.locked && (
-            <FiLock size={12} style={{ color: 'var(--accent-amber)' }} />
-          )}
-          {note.favorite && (
-            <FiHeart 
-              size={12} 
-              style={{ color: 'var(--accent-rose)', fill: 'var(--accent-rose)' }} 
-            />
-          )}
-        <button
-          type="button"
-          className="
-            p-1 rounded-md transition
-            opacity-100
-            sm:opacity-0 sm:group-hover:opacity-100
-            focus:opacity-100 focus-visible:opacity-100
-          "
-          style={{ color: "var(--text-muted)" }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onMenu(e);
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
-            e.currentTarget.style.color = "var(--text-secondary)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "transparent";
-            e.currentTarget.style.color = "var(--text-muted)";
-          }}
-          aria-label="Open note actions"
-          title="Actions"
-        >
-          <FiMoreVertical size={14} />
-        </button>
-
-        </div>
-      </div>
-
-      {/* Preview Area - Compact */}
+      {/* Inner glow overlay */}
       <div
-        className="relative w-full h-24 sm:h-28 md:h-32 rounded-lg flex items-center justify-center overflow-hidden mb-2"
+        className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundColor: typeConfig.bg,
-          border: `1px solid ${typeConfig.border}`,
+          background: "var(--card-glass-inner-glow)",
+          borderRadius: "inherit",
+          opacity: 0.7,
         }}
-      >
-        {/* PDF Notes */}
-        {isPDF && (
-          <IconComponent size={28} weight="duotone" className={typeConfig.color} />
-        )}
+      />
+      
+      {/* Specular highlight */}
+      <div
+        className="absolute inset-x-4 top-0 h-[1px] pointer-events-none"
+        style={{ background: "var(--card-glass-specular)" }}
+      />
 
-        {/* Locked Photo Notes */}
-        {isLockedPhoto && (
-          <div className="flex flex-col items-center gap-1">
-            <FiLock size={20} style={{ color: 'var(--accent-amber)' }} />
-            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Locked</span>
+      {/* Content wrapper - needs relative z-10 to sit above overlays */}
+      <div className="relative z-10 flex flex-col h-full">
+        {/* Title Row + Menu */}
+        <div className="flex justify-between items-start gap-2 mb-2">
+          <h3 
+            className="text-sm font-semibold leading-snug line-clamp-2 flex-1 overflow-hidden"
+            style={{ 
+              color: 'var(--text-primary)',
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
+            }}
+            title={note.title}
+          >
+            {note.title || "Untitled"}
+          </h3>
+
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {note.locked && (
+              <FiLock size={12} style={{ color: 'var(--accent-amber)' }} />
+            )}
+            {note.favorite && (
+              <FiHeart 
+                size={12} 
+                style={{ color: 'var(--accent-rose)', fill: 'var(--accent-rose)' }} 
+              />
+            )}
+            <button
+              type="button"
+              className="
+                p-1 rounded-md transition
+                opacity-100
+                sm:opacity-0 sm:group-hover:opacity-100
+                focus:opacity-100 focus-visible:opacity-100
+              "
+              style={{ color: "var(--text-muted)" }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMenu(e);
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
+                e.currentTarget.style.color = "var(--text-secondary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+              aria-label="Open note actions"
+              title="Actions"
+            >
+              <FiMoreVertical size={14} />
+            </button>
           </div>
-        )}
+        </div>
 
-        {/* Image Notes (Unlocked) */}
-        {!isPDF && note.imageUrl && !note.locked && (
-          <img
-            src={note.imageUrl}
-            alt="Preview"
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        )}
-
-        {/* Voice Notes */}
-        {note.tag === "Voice" && !note.imageUrl && !isPDF && (
-          <IconComponent size={28} weight="duotone" className={typeConfig.color} />
-        )}
-
-        {/* Text Notes */}
-        {!note.imageUrl && !isPDF && note.tag !== "Voice" && (
-          <IconComponent size={28} weight="duotone" className={typeConfig.color} />
-        )}
-      </div>
-
-      {/* Footer Meta - Compact */}
-      <div className="flex justify-between items-center">
-        <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
-          {note.tag} • {formatRelative(note.updated)}
-        </p>
-
-        <span 
-          className="text-[9px] font-medium px-1.5 py-0.5 rounded-md flex-shrink-0"
+        {/* Preview Area - Compact */}
+        <div
+          className="relative w-full h-24 sm:h-28 md:h-32 rounded-lg flex items-center justify-center overflow-hidden mb-2"
           style={{
             backgroundColor: typeConfig.bg,
-            color: typeConfig.color.replace('text-', '').includes('indigo') 
-              ? 'var(--accent-indigo)' 
-              : typeConfig.color.replace('text-', '').includes('rose')
-              ? 'var(--accent-rose)'
-              : typeConfig.color.replace('text-', '').includes('emerald')
-              ? 'var(--accent-emerald)'
-              : 'var(--accent-purple)',
             border: `1px solid ${typeConfig.border}`,
           }}
         >
-          {typeConfig.label}
-        </span>
+          {/* PDF Notes */}
+          {isPDF && (
+            <IconComponent size={28} weight="duotone" className={typeConfig.color} />
+          )}
+
+          {/* Locked Photo Notes */}
+          {isLockedPhoto && (
+            <div className="flex flex-col items-center gap-1">
+              <FiLock size={20} style={{ color: 'var(--accent-amber)' }} />
+              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Locked</span>
+            </div>
+          )}
+
+          {/* Image Notes (Unlocked) */}
+          {!isPDF && note.imageUrl && !note.locked && (
+            <img
+              src={note.imageUrl}
+              alt="Preview"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
+
+          {/* Voice Notes */}
+          {note.tag === "Voice" && !note.imageUrl && !isPDF && (
+            <IconComponent size={28} weight="duotone" className={typeConfig.color} />
+          )}
+
+          {/* Text Notes */}
+          {!note.imageUrl && !isPDF && note.tag !== "Voice" && (
+            <IconComponent size={28} weight="duotone" className={typeConfig.color} />
+          )}
+        </div>
+
+        {/* Footer Meta - Compact */}
+        <div className="flex justify-between items-center">
+          <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
+            {note.tag} • {formatRelative(note.updated)}
+          </p>
+
+          <span 
+            className="text-[9px] font-medium px-1.5 py-0.5 rounded-md flex-shrink-0"
+            style={{
+              backgroundColor: typeConfig.bg,
+              color: typeConfig.color.replace('text-', '').includes('indigo') 
+                ? 'var(--accent-indigo)' 
+                : typeConfig.color.replace('text-', '').includes('rose')
+                ? 'var(--accent-rose)'
+                : typeConfig.color.replace('text-', '').includes('emerald')
+                ? 'var(--accent-emerald)'
+                : 'var(--accent-purple)',
+              border: `1px solid ${typeConfig.border}`,
+            }}
+          >
+            {typeConfig.label}
+          </span>
+        </div>
       </div>
     </div>
   );

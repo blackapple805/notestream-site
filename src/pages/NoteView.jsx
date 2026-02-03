@@ -13,6 +13,7 @@ import {
   FiExternalLink,
   FiDownload,
   FiMic,
+  FiMoreHorizontal,
 } from "react-icons/fi";
 import { Sparkle, Lightning } from "phosphor-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -23,11 +24,9 @@ import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import { logActivityEvent } from "../lib/activityEvents";
 
 const USER_STATS_TABLE = "user_engagement_stats";
-const EVENTS_TABLE = "activity_events";
 
 const AI_USES_KEY = "notestream-aiUses";
 const SMART_KEY_PREFIX = "ns-note-smart:";
-
 
 function safeJsonParse(value) {
   try {
@@ -37,13 +36,47 @@ function safeJsonParse(value) {
   }
 }
 
+// Detect if body content is raw JSON/AI brief data
+function isJsonBody(body) {
+  if (!body || typeof body !== "string") return false;
+  const trimmed = body.trim();
+  // Check if it starts with { and contains typical AI brief fields
+  if (trimmed.startsWith("{") && (
+    trimmed.includes('"id"') ||
+    trimmed.includes('"title"') ||
+    trimmed.includes('"executiveSummary"') ||
+    trimmed.includes('"keyThemes"')
+  )) {
+    return true;
+  }
+  return false;
+}
+
+// Parse and extract readable content from AI brief JSON
+function parseAiBriefBody(body) {
+  try {
+    const data = JSON.parse(body);
+    return {
+      isAiBrief: true,
+      summary: data.executiveSummary || null,
+      themes: data.keyThemes || [],
+      insights: data.consolidatedInsights || null,
+      actionPlan: data.unifiedActionPlan || null,
+      sourceCount: data.sourceCount || 0,
+      sources: data.sources || [],
+      gaps: data.gaps || [],
+      generatedAt: data.generatedAt || null,
+    };
+  } catch {
+    return { isAiBrief: false };
+  }
+}
+
 function bumpAiUses() {
   const current = Number(localStorage.getItem(AI_USES_KEY) || 0) || 0;
   const next = current + 1;
   localStorage.setItem(AI_USES_KEY, String(next));
 
-  // Optional: if you also keep a bundled engagement object locally, update it too.
-  // (Safe no-op if you don’t use it.)
   const engagement = safeJsonParse(localStorage.getItem("notestream-engagement") || "{}") || {};
   localStorage.setItem(
     "notestream-engagement",
@@ -54,7 +87,6 @@ function bumpAiUses() {
     })
   );
 
-  // Allow dashboard to live-update without refresh
   window.dispatchEvent(
     new CustomEvent("notestream:ai_uses_updated", { detail: { aiUses: next } })
   );
@@ -117,7 +149,6 @@ export default function NoteView({
       const user = auth?.user;
       if (!user?.id) return;
 
-      // Log event (safe: entity_id can be null if note.id isn't a uuid)
       await logActivityEvent({
         userId: user.id,
         eventType: "ai_used",
@@ -126,7 +157,7 @@ export default function NoteView({
         title: "AI used on note",
       });
 
-            const today = toLocalYMD();
+      const today = toLocalYMD();
 
       const { data: row, error: rowErr } = await supabase
         .from(USER_STATS_TABLE)
@@ -137,7 +168,6 @@ export default function NoteView({
       if (rowErr) return;
 
       if (!row) {
-        // IMPORTANT: your table doesn't have updated_at in the screenshot
         await supabase.from(USER_STATS_TABLE).insert({
           user_id: user.id,
           ai_uses: 1,
@@ -184,8 +214,6 @@ export default function NoteView({
   if (!note) return null;
 
   const isVoiceNote = !!note?.audioUrl || note?.tag === "Voice";
-
-  // Derive from note (prevents desync with parent / PIN flows)
   const isLocked = !!note.locked;
   const isFav = !!note.favorite;
 
@@ -196,6 +224,7 @@ export default function NoteView({
   const [title, setTitle] = useState(note.title || "Untitled");
   const [body, setBody] = useState(note.body ?? "");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -211,18 +240,17 @@ export default function NoteView({
 
   const textareaRef = useRef(null);
 
-  // Load persisted Smart Notes for this note (so it remains after leaving/reopening)
   useEffect(() => {
     setTitle(note.title || "Untitled");
     setBody(note.body ?? "");
     setIsEditing(false);
     setShowExportMenu(false);
     setShowDeleteConfirm(false);
+    setShowMoreMenu(false);
 
     const key = `${SMART_KEY_PREFIX}${note.id}`;
     const stored = safeJsonParse(localStorage.getItem(key) || "null");
 
-    // Priority: note fields -> localStorage -> empty
     const nextSmart = {
       summary: note.summary || stored?.summary || null,
       SmartTasks: note.SmartTasks || stored?.SmartTasks || null,
@@ -232,13 +260,21 @@ export default function NoteView({
     };
 
     setSmartData(nextSmart);
-  }, [note?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [note?.id]);
 
   const hasSmartData =
     !!smartData?.summary ||
     (Array.isArray(smartData?.SmartTasks) && smartData.SmartTasks.length > 0) ||
     (Array.isArray(smartData?.SmartHighlights) && smartData.SmartHighlights.length > 0) ||
     (Array.isArray(smartData?.SmartSchedule) && smartData.SmartSchedule.length > 0);
+
+  // Parse body if it's JSON AI brief data
+  const parsedBrief = useMemo(() => {
+    if (isJsonBody(body)) {
+      return parseAiBriefBody(body);
+    }
+    return { isAiBrief: false };
+  }, [body]);
 
   const formatRelative = (date) => {
     const ts = new Date(date).getTime();
@@ -286,6 +322,7 @@ export default function NoteView({
       onEditSave?.(note.id, title, body, new Date().toISOString());
     }
     setIsEditing((v) => !v);
+    setShowMoreMenu(false);
   };
 
   const persistSmart = (payload) => {
@@ -295,7 +332,6 @@ export default function NoteView({
     setSmartData(enriched);
     localStorage.setItem(key, JSON.stringify(enriched));
 
-    // Optional: if parent supports saving extra fields, pass them (won’t break if ignored)
     onEditSave?.(note.id, title, body, new Date().toISOString(), {
       summary: enriched.summary,
       SmartTasks: enriched.SmartTasks,
@@ -305,11 +341,11 @@ export default function NoteView({
     });
   };
 
-  // Demo AI analyze (client-side). Persist + count AI use.
   const fakeSmartNotes = () => {
     if (isVoiceNote) return;
 
     setIsAnalyzing(true);
+    setShowMoreMenu(false);
     setTimeout(() => {
       const newSmartData = {
         summary:
@@ -322,20 +358,20 @@ export default function NoteView({
       persistSmart(newSmartData);
       bumpAiUses();
       trackAiUseDb();
-      
+
       setIsAnalyzing(false);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     }, 2000);
   };
 
-  // Parent toggles internally (PIN flow etc)
   const handleLockToggle = () => {
     if (isEditing) {
       onEditSave?.(note.id, title, body, new Date().toISOString());
       setIsEditing(false);
     }
     onLockToggle?.(note.id, true);
+    setShowMoreMenu(false);
   };
 
   const handleFavoriteToggle = () => {
@@ -395,6 +431,7 @@ export default function NoteView({
     const content = `${title}\n\n${body || ""}${smartContent}\n---\nExported from NoteStream on ${new Date().toLocaleString()}\n`;
     downloadBlob(`${safeTitle}.txt`, "text/plain;charset=utf-8", content);
     setShowExportMenu(false);
+    setShowMoreMenu(false);
   };
 
   const exportAdvanced = (format) => {
@@ -464,12 +501,14 @@ export default function NoteView({
       }, 250);
 
       setShowExportMenu(false);
+      setShowMoreMenu(false);
     }
   };
 
   const handleExportClick = () => {
     if (!canUseExport) {
       setShowUpgrade(true);
+      setShowMoreMenu(false);
       return;
     }
     setShowExportMenu((v) => !v);
@@ -478,6 +517,7 @@ export default function NoteView({
   const handleVoiceClick = () => {
     if (!canUseVoice) {
       setShowUpgrade(true);
+      setShowMoreMenu(false);
       return;
     }
     if (isVoiceNote) {
@@ -486,6 +526,7 @@ export default function NoteView({
       return;
     }
     setVoiceToast(true);
+    setShowMoreMenu(false);
     setTimeout(() => setVoiceToast(false), 3000);
   };
 
@@ -505,7 +546,7 @@ export default function NoteView({
         </span>
       );
     }
-    if (hasSmartData) {
+    if (hasSmartData || parsedBrief.isAiBrief) {
       return (
         <span
           className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full"
@@ -521,50 +562,161 @@ export default function NoteView({
       );
     }
     return null;
-  }, [note.tag, hasSmartData]);
+  }, [note.tag, hasSmartData, parsedBrief.isAiBrief]);
 
   return (
     <div className="min-h-full w-full pb-[calc(var(--mobile-nav-height)+24px)]">
-      {/* HEADER */}
+      {/* HEADER - Cleaner with fewer icons */}
       <div className="sticky top-0 z-50">
         <div className="relative mx-auto w-full max-w-5xl px-3 sm:px-6 py-2.5">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0 flex-shrink">
-              <ActionButton icon={<FiArrowLeft size={18} />} onClick={onBack} title="Back" />
-              <div className="min-w-0 hidden sm:block">
-                <div className="flex items-center gap-2">
-                  <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+            {/* Left: Back + Title */}
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <button
+                onClick={onBack}
+                className="h-10 w-10 rounded-xl flex items-center justify-center transition active:scale-95 flex-shrink-0"
+                style={{
+                  backgroundColor: "var(--bg-tertiary)",
+                  border: "1px solid var(--border-secondary)",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                <FiArrowLeft size={18} />
+              </button>
+
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-[11px] flex-shrink-0" style={{ color: "var(--text-muted)" }}>
                     {note.updated ? formatDate(note.updated) : ""}
                     {note.updated ? ` • ${formatRelative(note.updated)}` : ""}
                   </p>
                   {noteBadge}
+                  {isLocked && (
+                    <span
+                      className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+                      style={{
+                        color: "var(--accent-amber)",
+                        backgroundColor: "rgba(245, 158, 11, 0.1)",
+                        border: "1px solid rgba(245, 158, 11, 0.2)",
+                      }}
+                    >
+                      <FiLock size={9} />
+                      Locked
+                    </span>
+                  )}
                 </div>
-                <p className="text-sm font-semibold truncate max-w-[200px]" style={{ color: "var(--text-primary)" }}>
-                  {title}
+                <p
+                  className="text-sm sm:text-base font-semibold mt-0.5 truncate max-w-full"
+                  style={{ 
+                    color: "var(--text-primary)",
+                    wordBreak: "break-all",
+                  }}
+                  title={title}
+                >
+                  {title.length > 60 ? title.substring(0, 60) + "…" : title}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar flex-shrink-0">
+            {/* Right: Only 3 main icons + more menu */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Favorite - Always visible */}
               <ActionButton
-                icon={<FiMic size={16} />}
-                onClick={handleVoiceClick}
+                icon={<FiHeart size={16} />}
+                active={isFav}
+                activeColor="var(--accent-rose)"
+                onClick={handleFavoriteToggle}
                 disabled={isAnalyzing}
-                title={canUseVoice ? "Voice Notes" : "Voice Notes (Pro)"}
-                active={isVoiceNote}
-                activeColor="var(--accent-purple)"
+                title="Favorite"
+                filled={isFav}
               />
 
+              {/* Edit/Save - Always visible */}
+              <ActionButton
+                icon={isEditing ? <FiCheck size={16} /> : <FiEdit2 size={16} />}
+                active={isEditing}
+                activeColor="var(--accent-emerald)"
+                onClick={handleEditToggle}
+                disabled={isAnalyzing || isLocked || isVoiceNote}
+                title={isVoiceNote ? "Voice note" : isLocked ? "Locked" : isEditing ? "Save" : "Edit"}
+              />
+
+              {/* More Menu */}
               <div className="relative">
                 <ActionButton
-                  icon={<FiDownload size={16} />}
-                  onClick={handleExportClick}
-                  disabled={isAnalyzing}
-                  title={canUseExport ? "Export" : "Export (Pro)"}
-                  active={showExportMenu}
+                  icon={<FiMoreHorizontal size={16} />}
+                  onClick={() => setShowMoreMenu((v) => !v)}
+                  active={showMoreMenu}
                   activeColor="var(--accent-indigo)"
+                  title="More options"
                 />
 
+                <AnimatePresence>
+                  {showMoreMenu && (
+                    <>
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[120]"
+                        onClick={() => setShowMoreMenu(false)}
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                        className="absolute right-0 top-12 z-[200] w-[200px] rounded-2xl border shadow-xl overflow-hidden"
+                        style={{
+                          backgroundColor: "var(--bg-elevated)",
+                          borderColor: "var(--border-secondary)",
+                        }}
+                      >
+                        <div className="p-1.5">
+                          <MoreMenuItem
+                            icon={<FiZap size={15} />}
+                            label="AI Analysis"
+                            onClick={fakeSmartNotes}
+                            disabled={isAnalyzing || isVoiceNote}
+                          />
+                          <MoreMenuItem
+                            icon={<FiDownload size={15} />}
+                            label={canUseExport ? "Export" : "Export (Pro)"}
+                            onClick={handleExportClick}
+                            pro={!canUseExport}
+                          />
+                          <MoreMenuItem
+                            icon={<FiMic size={15} />}
+                            label={canUseVoice ? "Voice Notes" : "Voice (Pro)"}
+                            onClick={handleVoiceClick}
+                            pro={!canUseVoice}
+                          />
+
+                          <div
+                            className="h-px my-1.5"
+                            style={{ backgroundColor: "var(--border-secondary)" }}
+                          />
+
+                          <MoreMenuItem
+                            icon={<FiLock size={15} />}
+                            label={isLocked ? "Unlock" : "Lock"}
+                            onClick={handleLockToggle}
+                          />
+                          <MoreMenuItem
+                            icon={<FiTrash2 size={15} />}
+                            label="Delete"
+                            onClick={() => {
+                              setShowDeleteConfirm(true);
+                              setShowMoreMenu(false);
+                            }}
+                            danger
+                          />
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+
+                {/* Export submenu */}
                 <AnimatePresence>
                   {showExportMenu && canUseExport && (
                     <>
@@ -579,91 +731,28 @@ export default function NoteView({
                         initial={{ opacity: 0, y: -6, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                        className="absolute right-0 top-12 z-[200] w-[200px] rounded-2xl border shadow-xl p-2"
+                        className="absolute right-0 top-12 z-[200] w-[200px] rounded-2xl border shadow-xl p-1.5"
                         style={{
                           backgroundColor: "var(--bg-elevated)",
                           borderColor: "var(--border-secondary)",
                         }}
                       >
-                        <MenuItem icon={<FiFileText size={14} />} label="Export PDF" onClick={() => exportAdvanced("pdf")} />
-                        <MenuItem icon={<FiDownload size={14} />} label="Basic (TXT)" onClick={exportBasic} subtle />
+                        <MoreMenuItem
+                          icon={<FiFileText size={14} />}
+                          label="Export PDF"
+                          onClick={() => exportAdvanced("pdf")}
+                        />
+                        <MoreMenuItem
+                          icon={<FiDownload size={14} />}
+                          label="Basic (TXT)"
+                          onClick={exportBasic}
+                        />
                       </motion.div>
                     </>
                   )}
                 </AnimatePresence>
               </div>
-
-              <ActionButton
-                icon={<FiHeart size={16} />}
-                active={isFav}
-                activeColor="var(--accent-rose)"
-                onClick={handleFavoriteToggle}
-                disabled={isAnalyzing}
-                title="Favorite"
-                filled={isFav}
-              />
-
-              <ActionButton
-                icon={<FiZap size={16} />}
-                active={isAnalyzing}
-                activeColor="var(--accent-indigo)"
-                onClick={fakeSmartNotes}
-                disabled={isAnalyzing || isVoiceNote}
-                title={isVoiceNote ? "AI Analysis (not for voice notes)" : "AI Analysis"}
-                pulse={isAnalyzing}
-              />
-
-              <ActionButton
-                icon={<FiLock size={16} />}
-                active={isLocked}
-                activeColor="var(--accent-amber)"
-                onClick={handleLockToggle}
-                disabled={isAnalyzing}
-                title={isLocked ? "Unlock" : "Lock"}
-              />
-
-              <ActionButton
-                icon={<FiTrash2 size={16} />}
-                onClick={() => setShowDeleteConfirm(true)}
-                disabled={isAnalyzing}
-                title="Delete"
-              />
-
-              <ActionButton
-                icon={isEditing ? <FiCheck size={16} /> : <FiEdit2 size={16} />}
-                active={isEditing}
-                activeColor="var(--accent-emerald)"
-                onClick={handleEditToggle}
-                disabled={isAnalyzing || isLocked || isVoiceNote}
-                title={isVoiceNote ? "Voice note" : isLocked ? "Locked" : isEditing ? "Save" : "Edit"}
-              />
             </div>
-          </div>
-
-          <div className="sm:hidden mt-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                {note.updated ? formatDate(note.updated) : ""}
-                {note.updated ? ` • ${formatRelative(note.updated)}` : ""}
-              </p>
-              {noteBadge}
-              {isLocked && (
-                <span
-                  className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
-                  style={{
-                    color: "var(--accent-amber)",
-                    backgroundColor: "rgba(245, 158, 11, 0.1)",
-                    border: "1px solid rgba(245, 158, 11, 0.2)",
-                  }}
-                >
-                  <FiLock size={9} />
-                  Locked
-                </span>
-              )}
-            </div>
-            <p className="text-base font-semibold mt-1 truncate" style={{ color: "var(--text-primary)" }}>
-              {title}
-            </p>
           </div>
         </div>
       </div>
@@ -750,7 +839,10 @@ export default function NoteView({
               <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                 Analyzing note with AI…
               </p>
-              <div className="w-full h-1.5 rounded-full overflow-hidden mt-2" style={{ backgroundColor: "var(--bg-tertiary)" }}>
+              <div
+                className="w-full h-1.5 rounded-full overflow-hidden mt-2"
+                style={{ backgroundColor: "var(--bg-tertiary)" }}
+              >
                 <motion.div
                   animate={{ x: ["-100%", "100%"] }}
                   transition={{ duration: 1.1, repeat: Infinity, ease: "linear" }}
@@ -810,7 +902,11 @@ export default function NoteView({
                   borderColor: "var(--border-secondary)",
                 }}
               >
-                <img src={note.imageUrl} alt="Note upload" className="w-full max-h-[52vh] object-contain" />
+                <img
+                  src={note.imageUrl}
+                  alt="Note upload"
+                  className="w-full max-h-[52vh] object-contain"
+                />
               </div>
             )}
 
@@ -823,7 +919,10 @@ export default function NoteView({
                 }}
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-tertiary)" }}>
+                  <div
+                    className="h-12 w-12 rounded-2xl flex items-center justify-center"
+                    style={{ backgroundColor: "var(--bg-tertiary)" }}
+                  >
                     <FiFileText size={22} style={{ color: "var(--accent-indigo)" }} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -852,6 +951,7 @@ export default function NoteView({
               </div>
             )}
 
+            {/* Main content card */}
             <div
               className="rounded-2xl p-4 sm:p-5"
               style={{
@@ -870,7 +970,14 @@ export default function NoteView({
                   disabled={isLocked}
                 />
               ) : (
-                <h1 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
+                <h1
+                  className="text-xl sm:text-2xl font-bold leading-tight"
+                  style={{ 
+                    color: "var(--text-primary)",
+                    wordBreak: "break-word",
+                    overflowWrap: "anywhere",
+                  }}
+                >
                   {title}
                 </h1>
               )}
@@ -887,8 +994,14 @@ export default function NoteView({
                     placeholder={isLocked ? "This note is locked." : "Start writing…"}
                     disabled={isLocked}
                   />
+                ) : parsedBrief.isAiBrief ? (
+                  // Render AI Brief content nicely
+                  <AiBriefContent brief={parsedBrief} />
                 ) : body ? (
-                  <div className="text-[15px] leading-relaxed whitespace-pre-wrap break-words" style={{ color: "var(--text-secondary)" }}>
+                  <div
+                    className="text-[15px] leading-relaxed whitespace-pre-wrap break-words"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     {body}
                   </div>
                 ) : (
@@ -908,14 +1021,20 @@ export default function NoteView({
                 }}
               >
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="h-8 w-8 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-tertiary)" }}>
+                  <div
+                    className="h-8 w-8 rounded-2xl flex items-center justify-center"
+                    style={{ backgroundColor: "var(--bg-tertiary)" }}
+                  >
                     <FiFileText size={14} style={{ color: "var(--text-muted)" }} />
                   </div>
                   <h3 className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
                     Extracted Text
                   </h3>
                 </div>
-                <p className="text-[13px] whitespace-pre-wrap leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                <p
+                  className="text-[13px] whitespace-pre-wrap leading-relaxed"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   {note.extractedText}
                 </p>
               </div>
@@ -927,8 +1046,16 @@ export default function NoteView({
             {!isEditing && hasSmartData ? (
               <>
                 {smartData.summary && (
-                  <SmartCard icon={<Sparkle size={16} weight="fill" />} title="AI Summary" color="indigo" delay={0}>
-                    <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  <SmartCard
+                    icon={<Sparkle size={16} weight="fill" />}
+                    title="AI Summary"
+                    color="indigo"
+                    delay={0}
+                  >
+                    <p
+                      className="text-[13px] leading-relaxed"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {smartData.summary}
                     </p>
                   </SmartCard>
@@ -938,7 +1065,11 @@ export default function NoteView({
                   <SmartCard icon={<FiCheck size={14} />} title="Tasks" color="emerald" delay={0.04}>
                     <ul className="space-y-2">
                       {smartData.SmartTasks.map((task, i) => (
-                        <li key={i} className="flex items-start gap-2 text-[13px]" style={{ color: "var(--text-secondary)" }}>
+                        <li
+                          key={i}
+                          className="flex items-start gap-2 text-[13px]"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
                           <div
                             className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
                             style={{
@@ -959,7 +1090,11 @@ export default function NoteView({
                   <SmartCard icon={<FiStar size={14} />} title="Highlights" color="amber" delay={0.08}>
                     <ul className="space-y-2">
                       {smartData.SmartHighlights.map((item, i) => (
-                        <li key={i} className="flex items-start gap-2 text-[13px]" style={{ color: "var(--text-secondary)" }}>
+                        <li
+                          key={i}
+                          className="flex items-start gap-2 text-[13px]"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
                           <div
                             className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
                             style={{
@@ -977,10 +1112,19 @@ export default function NoteView({
                 )}
 
                 {smartData.SmartSchedule?.length > 0 && (
-                  <SmartCard icon={<FiCalendar size={14} />} title="Schedule" color="purple" delay={0.12}>
+                  <SmartCard
+                    icon={<FiCalendar size={14} />}
+                    title="Schedule"
+                    color="purple"
+                    delay={0.12}
+                  >
                     <ul className="space-y-2">
                       {smartData.SmartSchedule.map((date, i) => (
-                        <li key={i} className="flex items-start gap-2 text-[13px]" style={{ color: "var(--text-secondary)" }}>
+                        <li
+                          key={i}
+                          className="flex items-start gap-2 text-[13px]"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
                           <div
                             className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
                             style={{
@@ -998,7 +1142,8 @@ export default function NoteView({
                 )}
               </>
             ) : (
-              !isEditing && (
+              !isEditing &&
+              !parsedBrief.isAiBrief && (
                 <div
                   className="rounded-2xl border p-4"
                   style={{
@@ -1020,7 +1165,10 @@ export default function NoteView({
                       Smart Notes
                     </p>
                   </div>
-                  <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  <p
+                    className="text-[13px] leading-relaxed"
+                    style={{ color: "var(--text-muted)" }}
+                  >
                     Run AI Analysis to generate a summary, tasks, highlights, and schedule.
                   </p>
                   <button
@@ -1058,12 +1206,18 @@ export default function NoteView({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               className="w-full max-w-[360px] p-6 rounded-2xl border shadow-xl"
-              style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                borderColor: "var(--border-secondary)",
+              }}
             >
               <div className="flex items-center gap-3 mb-4">
                 <div
                   className="h-10 w-10 rounded-2xl flex items-center justify-center"
-                  style={{ backgroundColor: "rgba(244, 63, 94, 0.2)", border: "1px solid rgba(244, 63, 94, 0.3)" }}
+                  style={{
+                    backgroundColor: "rgba(244, 63, 94, 0.2)",
+                    border: "1px solid rgba(244, 63, 94, 0.3)",
+                  }}
                 >
                   <FiTrash2 size={18} style={{ color: "var(--accent-rose)" }} />
                 </div>
@@ -1078,7 +1232,10 @@ export default function NoteView({
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
                   className="flex-1 px-4 py-3 rounded-xl font-medium transition"
-                  style={{ backgroundColor: "var(--bg-button)", color: "var(--text-primary)" }}
+                  style={{
+                    backgroundColor: "var(--bg-button)",
+                    color: "var(--text-primary)",
+                  }}
                 >
                   Cancel
                 </button>
@@ -1129,6 +1286,188 @@ export default function NoteView({
 }
 
 /* -----------------------------------------
+   AI Brief Content Component
+   Renders parsed JSON body nicely
+----------------------------------------- */
+const AiBriefContent = ({ brief }) => {
+  if (!brief || !brief.isAiBrief) return null;
+
+  return (
+    <div className="space-y-4">
+      {/* Executive Summary */}
+      {brief.summary && (
+        <div>
+          <p
+            className="text-[15px] leading-relaxed"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {brief.summary}
+          </p>
+        </div>
+      )}
+
+      {/* Key Themes */}
+      {brief.themes && brief.themes.length > 0 && (
+        <div
+          className="p-3 rounded-xl"
+          style={{
+            backgroundColor: "rgba(99, 102, 241, 0.05)",
+            border: "1px solid rgba(99, 102, 241, 0.15)",
+          }}
+        >
+          <p
+            className="text-xs font-medium mb-2"
+            style={{ color: "var(--accent-indigo)" }}
+          >
+            Key Themes
+          </p>
+          <div className="space-y-2">
+            {brief.themes.map((theme, i) => (
+              <div key={i} className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+                <span className="font-medium" style={{ color: "var(--text-primary)" }}>
+                  {theme.theme || theme}
+                </span>
+                {theme.frequency && (
+                  <span
+                    className="ml-2 text-[10px] px-1.5 py-0.5 rounded"
+                    style={{
+                      backgroundColor: "var(--bg-tertiary)",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    {theme.frequency}
+                  </span>
+                )}
+                {theme.insight && (
+                  <p className="mt-0.5 text-[12px]" style={{ color: "var(--text-muted)" }}>
+                    {theme.insight}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Insights */}
+      {brief.insights && (
+        <div
+          className="p-3 rounded-xl"
+          style={{
+            backgroundColor: "rgba(245, 158, 11, 0.05)",
+            border: "1px solid rgba(245, 158, 11, 0.15)",
+          }}
+        >
+          <p
+            className="text-xs font-medium mb-2"
+            style={{ color: "var(--accent-amber)" }}
+          >
+            Key Insights
+          </p>
+          <p
+            className="text-[13px] leading-relaxed"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {brief.insights}
+          </p>
+        </div>
+      )}
+
+      {/* Action Plan */}
+      {brief.actionPlan && (
+        <div
+          className="p-3 rounded-xl"
+          style={{
+            backgroundColor: "rgba(16, 185, 129, 0.05)",
+            border: "1px solid rgba(16, 185, 129, 0.15)",
+          }}
+        >
+          <p
+            className="text-xs font-medium mb-2"
+            style={{ color: "var(--accent-emerald)" }}
+          >
+            Action Plan
+          </p>
+          {Array.isArray(brief.actionPlan) ? (
+            <ul className="space-y-1.5">
+              {brief.actionPlan.map((item, i) => (
+                <li
+                  key={i}
+                  className="flex items-start gap-2 text-[13px]"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  <span style={{ color: "var(--accent-emerald)" }}>•</span>
+                  <span>
+                    {typeof item === "string" ? item : item.action || JSON.stringify(item)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p
+              className="text-[13px] leading-relaxed"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              {typeof brief.actionPlan === "string"
+                ? brief.actionPlan
+                : JSON.stringify(brief.actionPlan)}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Gaps */}
+      {brief.gaps && brief.gaps.length > 0 && (
+        <div
+          className="p-3 rounded-xl"
+          style={{
+            backgroundColor: "rgba(244, 63, 94, 0.05)",
+            border: "1px solid rgba(244, 63, 94, 0.15)",
+          }}
+        >
+          <p
+            className="text-xs font-medium mb-2"
+            style={{ color: "var(--accent-rose)" }}
+          >
+            Gaps & Considerations
+          </p>
+          <ul className="space-y-1">
+            {brief.gaps.map((gap, i) => (
+              <li
+                key={i}
+                className="text-[13px]"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                • {gap}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Source count */}
+      {brief.sourceCount > 0 && (
+        <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+          Synthesized from {brief.sourceCount} source{brief.sourceCount > 1 ? "s" : ""}
+          {brief.generatedAt && (
+            <>
+              {" "}
+              • Generated{" "}
+              {new Date(brief.generatedAt).toLocaleDateString(navigator.language || "en-US", {
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </>
+          )}
+        </p>
+      )}
+    </div>
+  );
+};
+
+/* -----------------------------------------
    Action Button Component
 ----------------------------------------- */
 const ActionButton = ({
@@ -1145,7 +1484,7 @@ const ActionButton = ({
     onClick={onClick}
     disabled={disabled}
     title={title}
-    className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl sm:rounded-2xl flex items-center justify-center transition active:scale-95 flex-shrink-0 ${
+    className={`h-10 w-10 rounded-xl flex items-center justify-center transition active:scale-95 flex-shrink-0 ${
       disabled ? "opacity-50 cursor-not-allowed" : ""
     } ${pulse ? "animate-pulse" : ""}`}
     style={{
@@ -1159,16 +1498,43 @@ const ActionButton = ({
 );
 
 /* -----------------------------------------
-   Menu Item Component
+   More Menu Item Component
 ----------------------------------------- */
-const MenuItem = ({ icon, label, onClick, subtle }) => (
+const MoreMenuItem = ({ icon, label, onClick, danger, disabled, pro }) => (
   <button
     onClick={onClick}
-    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition"
-    style={{ color: subtle ? "var(--text-muted)" : "var(--text-primary)" }}
+    disabled={disabled}
+    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition ${
+      disabled ? "opacity-50 cursor-not-allowed" : ""
+    }`}
+    style={{
+      color: danger ? "var(--accent-rose)" : "var(--text-secondary)",
+    }}
+    onMouseEnter={(e) => {
+      if (!disabled) {
+        e.currentTarget.style.backgroundColor = danger
+          ? "rgba(244, 63, 94, 0.1)"
+          : "var(--bg-hover)";
+      }
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.backgroundColor = "transparent";
+    }}
   >
-    <span style={{ color: "var(--accent-indigo)" }}>{icon}</span>
-    <span className="text-sm font-medium">{label}</span>
+    <span style={{ color: danger ? "var(--accent-rose)" : "var(--text-muted)" }}>{icon}</span>
+    <span className="text-sm font-medium flex-1">{label}</span>
+    {pro && (
+      <span
+        className="text-[9px] px-1.5 py-0.5 rounded-md font-medium"
+        style={{
+          backgroundColor: "rgba(245, 158, 11, 0.15)",
+          border: "1px solid rgba(245, 158, 11, 0.25)",
+          color: "var(--accent-amber)",
+        }}
+      >
+        PRO
+      </span>
+    )}
   </button>
 );
 
@@ -1177,10 +1543,26 @@ const MenuItem = ({ icon, label, onClick, subtle }) => (
 ----------------------------------------- */
 const SmartCard = ({ icon, title, color, children, delay = 0 }) => {
   const colorMap = {
-    indigo: { bg: "rgba(99, 102, 241, 0.05)", border: "rgba(99, 102, 241, 0.2)", accent: "var(--accent-indigo)" },
-    emerald: { bg: "rgba(16, 185, 129, 0.05)", border: "rgba(16, 185, 129, 0.2)", accent: "var(--accent-emerald)" },
-    amber: { bg: "rgba(245, 158, 11, 0.05)", border: "rgba(245, 158, 11, 0.2)", accent: "var(--accent-amber)" },
-    purple: { bg: "rgba(168, 85, 247, 0.05)", border: "rgba(168, 85, 247, 0.2)", accent: "var(--accent-purple)" },
+    indigo: {
+      bg: "rgba(99, 102, 241, 0.05)",
+      border: "rgba(99, 102, 241, 0.2)",
+      accent: "var(--accent-indigo)",
+    },
+    emerald: {
+      bg: "rgba(16, 185, 129, 0.05)",
+      border: "rgba(16, 185, 129, 0.2)",
+      accent: "var(--accent-emerald)",
+    },
+    amber: {
+      bg: "rgba(245, 158, 11, 0.05)",
+      border: "rgba(245, 158, 11, 0.2)",
+      accent: "var(--accent-amber)",
+    },
+    purple: {
+      bg: "rgba(168, 85, 247, 0.05)",
+      border: "rgba(168, 85, 247, 0.2)",
+      accent: "var(--accent-purple)",
+    },
   };
 
   const c = colorMap[color] || colorMap.indigo;
@@ -1194,7 +1576,14 @@ const SmartCard = ({ icon, title, color, children, delay = 0 }) => {
       style={{ backgroundColor: c.bg, border: `1px solid ${c.border}` }}
     >
       <div className="flex items-center gap-2 mb-3">
-        <div className="h-8 w-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: c.bg, border: `1px solid ${c.border}`, color: c.accent }}>
+        <div
+          className="h-8 w-8 rounded-xl flex items-center justify-center"
+          style={{
+            backgroundColor: c.bg,
+            border: `1px solid ${c.border}`,
+            color: c.accent,
+          }}
+        >
           {icon}
         </div>
         <h3 className="font-semibold text-sm" style={{ color: c.accent }}>
@@ -1224,10 +1613,19 @@ const UpgradeModal = ({ onClose, title, body, onUpgrade }) => (
       exit={{ scale: 0.96, opacity: 0 }}
       onClick={(e) => e.stopPropagation()}
       className="w-full max-w-[380px] p-6 rounded-2xl border shadow-xl"
-      style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+      style={{
+        backgroundColor: "var(--bg-surface)",
+        borderColor: "var(--border-secondary)",
+      }}
     >
       <div className="flex items-center gap-3 mb-3">
-        <div className="h-10 w-10 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "rgba(245, 158, 11, 0.2)", border: "1px solid rgba(245, 158, 11, 0.3)" }}>
+        <div
+          className="h-10 w-10 rounded-2xl flex items-center justify-center"
+          style={{
+            backgroundColor: "rgba(245, 158, 11, 0.2)",
+            border: "1px solid rgba(245, 158, 11, 0.3)",
+          }}
+        >
           <FiLock style={{ color: "var(--accent-amber)" }} />
         </div>
         <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -1241,7 +1639,10 @@ const UpgradeModal = ({ onClose, title, body, onUpgrade }) => (
         <button
           onClick={onClose}
           className="flex-1 px-4 py-3 rounded-xl font-medium transition"
-          style={{ backgroundColor: "var(--bg-button)", color: "var(--text-primary)" }}
+          style={{
+            backgroundColor: "var(--bg-button)",
+            color: "var(--text-primary)",
+          }}
         >
           Not now
         </button>
@@ -1259,5 +1660,3 @@ const UpgradeModal = ({ onClose, title, body, onUpgrade }) => (
     </motion.div>
   </motion.div>
 );
-
-

@@ -164,6 +164,7 @@
   --page-header-icon-bg: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2));
   --page-header-icon-border: rgba(99, 102, 241, 0.25);
 }
+
 /* ==============================================================
    SIDEBAR + MOBILE NAV — THEME VARIABLES (Liquid Glass)
 ============================================================== */
@@ -308,13 +309,6 @@
 
 /* ==============================================================
    FAB (Floating Action Button) — Theme-aware Liquid Glass
-   Paste this into src/index.css
-
-   Recommended placement:
-   1) Put the variables inside your existing "1. CSS VARIABLES — THEME SYSTEM"
-      - Add the :root block near your other variables
-      - Add the light overrides inside your existing :root.light / [data-theme="light"] block
-   2) Put the class rules near "8. COMPONENTS — FAB" (or wherever your FAB styles live)
 ============================================================== */
 
 /* ------------------------------
@@ -392,7 +386,6 @@
 
 /* ------------------------------
    FAB variables (Light mode)
-   (matches your existing theme selector)
 ------------------------------ */
 :root.light,
 [data-theme="light"] {
@@ -458,6 +451,110 @@
   --pro-badge-text: rgba(180, 83, 9, 0.95);
 }
 
+/* ==============================================================
+   LIQUID GLASS CARDS — Theme-aware Variables
+============================================================== */
+
+:root {
+  /* Card glass background */
+  --card-glass-bg: linear-gradient(
+    135deg,
+    rgba(22, 22, 32, 0.75) 0%,
+    rgba(16, 16, 26, 0.85) 50%,
+    rgba(22, 22, 32, 0.75) 100%
+  );
+  --card-glass-border: rgba(255, 255, 255, 0.06);
+  --card-glass-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    0 0 0 0.5px rgba(255, 255, 255, 0.04) inset;
+
+  /* Hover state */
+  --card-glass-bg-hover: linear-gradient(
+    135deg,
+    rgba(28, 28, 40, 0.80) 0%,
+    rgba(20, 20, 32, 0.90) 50%,
+    rgba(28, 28, 40, 0.80) 100%
+  );
+  --card-glass-border-hover: rgba(99, 102, 241, 0.25);
+  --card-glass-shadow-hover:
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    0 0 0 0.5px rgba(99, 102, 241, 0.15) inset;
+
+  /* Inner effects */
+  --card-glass-inner-glow: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.01) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  --card-glass-specular: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+
+  /* Active/selected state */
+  --card-glass-active-bg: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.12) 0%,
+    rgba(139, 92, 246, 0.08) 100%
+  );
+  --card-glass-active-border: rgba(99, 102, 241, 0.35);
+  --card-glass-active-shadow:
+    0 8px 32px rgba(99, 102, 241, 0.20),
+    0 0 0 0.5px rgba(99, 102, 241, 0.20) inset;
+}
+
+/* Light theme card glass */
+:root.light,
+[data-theme="light"] {
+  --card-glass-bg: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(248, 250, 252, 0.85) 50%,
+    rgba(255, 255, 255, 0.72) 100%
+  );
+  --card-glass-border: rgba(15, 23, 42, 0.08);
+  --card-glass-shadow:
+    0 8px 32px rgba(15, 23, 42, 0.08),
+    0 0 0 0.5px rgba(255, 255, 255, 0.5) inset;
+
+  --card-glass-bg-hover: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.82) 0%,
+    rgba(248, 250, 252, 0.92) 50%,
+    rgba(255, 255, 255, 0.82) 100%
+  );
+  --card-glass-border-hover: rgba(99, 102, 241, 0.22);
+  --card-glass-shadow-hover:
+    0 12px 40px rgba(15, 23, 42, 0.12),
+    0 0 0 0.5px rgba(99, 102, 241, 0.12) inset;
+
+  --card-glass-inner-glow: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  --card-glass-specular: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.6) 50%,
+    transparent 100%
+  );
+
+  --card-glass-active-bg: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.08) 0%,
+    rgba(139, 92, 246, 0.05) 100%
+  );
+  --card-glass-active-border: rgba(99, 102, 241, 0.28);
+  --card-glass-active-shadow:
+    0 8px 32px rgba(99, 102, 241, 0.12),
+    0 0 0 0.5px rgba(99, 102, 241, 0.15) inset;
+}
+
 /* ------------------------------
    FAB classes (use with Notes.jsx)
 ------------------------------ */
@@ -496,7 +593,132 @@
   box-shadow: var(--fab-opt-shadow-hover);
 }
 
+/* ------------------------------
+   Liquid Glass Card classes
+------------------------------ */
 
+/* Base liquid glass card */
+.liquid-glass-card {
+  background: var(--card-glass-bg);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--card-glass-border);
+  box-shadow: var(--card-glass-shadow);
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.liquid-glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--card-glass-inner-glow);
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.liquid-glass-card::after {
+  content: '';
+  position: absolute;
+  inset-inline: 24px;
+  top: 0;
+  height: 1px;
+  background: var(--card-glass-specular);
+  pointer-events: none;
+}
+
+.liquid-glass-card:hover {
+  background: var(--card-glass-bg-hover);
+  border-color: var(--card-glass-border-hover);
+  box-shadow: var(--card-glass-shadow-hover);
+}
+
+/* Active/selected state */
+.liquid-glass-card.active,
+.liquid-glass-card[data-active="true"] {
+  background: var(--card-glass-active-bg);
+  border-color: var(--card-glass-active-border);
+  box-shadow: var(--card-glass-active-shadow);
+}
+
+/* Smaller variant */
+.liquid-glass-card-sm {
+  background: var(--card-glass-bg);
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  border: 1px solid var(--card-glass-border);
+  box-shadow: var(--card-glass-shadow);
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  transition: all 0.2s ease;
+}
+
+.liquid-glass-card-sm:hover {
+  background: var(--card-glass-bg-hover);
+  border-color: var(--card-glass-border-hover);
+  box-shadow: var(--card-glass-shadow-hover);
+}
+
+/* Row/list item variant */
+.liquid-glass-row {
+  background: var(--card-glass-bg);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid var(--card-glass-border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  transition: all 0.2s ease;
+}
+
+.liquid-glass-row:hover {
+  background: var(--card-glass-bg-hover);
+  border-color: var(--card-glass-border-hover);
+  box-shadow: var(--card-glass-shadow-hover);
+  transform: translateY(-1px);
+}
+
+/* Stat card variant with accent glow */
+.liquid-glass-stat {
+  background: var(--card-glass-bg);
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  border: 1px solid var(--card-glass-border);
+  box-shadow: var(--card-glass-shadow);
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.liquid-glass-stat.indigo {
+  border-color: rgba(99, 102, 241, 0.15);
+  box-shadow: var(--card-glass-shadow), 0 0 20px rgba(99, 102, 241, 0.08);
+}
+
+.liquid-glass-stat.purple {
+  border-color: rgba(168, 85, 247, 0.15);
+  box-shadow: var(--card-glass-shadow), 0 0 20px rgba(168, 85, 247, 0.08);
+}
+
+.liquid-glass-stat.emerald {
+  border-color: rgba(16, 185, 129, 0.15);
+  box-shadow: var(--card-glass-shadow), 0 0 20px rgba(16, 185, 129, 0.08);
+}
+
+.liquid-glass-stat.amber {
+  border-color: rgba(245, 158, 11, 0.15);
+  box-shadow: var(--card-glass-shadow), 0 0 20px rgba(245, 158, 11, 0.08);
+}
+
+.liquid-glass-stat.rose {
+  border-color: rgba(244, 63, 94, 0.15);
+  box-shadow: var(--card-glass-shadow), 0 0 20px rgba(244, 63, 94, 0.08);
+}
 
 /* ============================================
    AUTH / LOGIN ICON TILE SYSTEM
@@ -1894,8 +2116,6 @@ textarea:focus-visible {
 [data-theme="light"] .backdrop-blur-xl {
   --tw-backdrop-blur: blur(16px);
 }
-
-
 
 
 

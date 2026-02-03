@@ -16,7 +16,6 @@ import {
 
 /* -------------------- Utils -------------------- */
 
-// Localized Relative Time Formatting (same vibe as NoteCard)
 const formatRelative = (date) => {
   if (!date) return "";
 
@@ -55,6 +54,13 @@ const getTagIcon = (tag) => {
   return FiFileText;
 };
 
+// Truncate long titles intelligently
+const truncateTitle = (title, maxLength = 50) => {
+  if (!title) return "Untitled";
+  if (title.length <= maxLength) return title;
+  return title.substring(0, maxLength) + "…";
+};
+
 /* -------------------- Icons -------------------- */
 
 function IconGlyph({ icon: Icon, ariaLabel, tone = "neutral", filled = false }) {
@@ -85,25 +91,22 @@ function IconGlyph({ icon: Icon, ariaLabel, tone = "neutral", filled = false }) 
 function IconRail({ note, type, TagIconComp }) {
   return (
     <div
-      className="flex items-end gap-[var(--icon-gap)] flex-wrap justify-end"
+      className="flex items-center gap-[var(--icon-gap)]"
       aria-label="Note metadata"
       title="Note metadata"
     >
       <IconGlyph icon={type.icon} ariaLabel={type.label} tone={type.tone} />
-      <IconGlyph
-        icon={TagIconComp}
-        ariaLabel={note.tag || "Tag"}
-        tone="neutral"
-      />
-      {note.locked ? (
+      {note.locked && (
         <IconGlyph icon={FiLock} ariaLabel="Locked" tone="amber" />
-      ) : null}
-      <IconGlyph
-        icon={FiHeart}
-        ariaLabel={note.favorite ? "Liked" : "Not liked"}
-        tone={note.favorite ? "rose" : "neutral"}
-        filled={!!note.favorite}
-      />
+      )}
+      {note.favorite && (
+        <IconGlyph
+          icon={FiHeart}
+          ariaLabel="Favorite"
+          tone="rose"
+          filled
+        />
+      )}
     </div>
   );
 }
@@ -128,7 +131,7 @@ export default function NoteRow({
   const type = useMemo(() => getNoteType(note), [note]);
   const TagIconComp = useMemo(() => getTagIcon(note.tag), [note.tag]);
 
-  // Measure swipe-action tray width (no hardcoded -96 / thresholds)
+  // Measure swipe-action tray width
   useEffect(() => {
     if (!actionTrayRef.current) return;
 
@@ -188,22 +191,25 @@ export default function NoteRow({
 
   return (
     <div
-      className="relative overflow-visible"
+      className="relative overflow-hidden"
       style={{
-        // responsive sizing without per-breakpoint hardcoded positioning
         ["--icon-size"]: "clamp(13px, 3.2vw, 14px)",
-        ["--icon-gap"]: "clamp(10px, 2.6vw, 14px)",
+        ["--icon-gap"]: "clamp(8px, 2vw, 12px)",
       }}
     >
-      {/* Swipe actions behind the row */}
+      {/* Swipe actions behind the row - only visible when swiping */}
       <div
         ref={actionTrayRef}
-        className="absolute inset-y-0 right-0 flex items-center gap-2 pr-2"
-        aria-hidden="true"
+        className="absolute inset-y-0 right-0 flex items-center gap-2 pr-2 transition-opacity duration-150"
+        style={{
+          opacity: translateX < 0 ? 1 : 0,
+          pointerEvents: translateX < 0 ? "auto" : "none",
+        }}
+        aria-hidden={translateX >= 0}
       >
         <button
           type="button"
-          className="aspect-square h-10 rounded-lg active:scale-95 transition border"
+          className="aspect-square h-10 rounded-lg active:scale-95 transition border flex items-center justify-center"
           style={{
             backgroundColor: "var(--bg-surface)",
             borderColor: "rgba(99, 102, 241, 0.25)",
@@ -221,7 +227,7 @@ export default function NoteRow({
 
         <button
           type="button"
-          className="aspect-square h-10 rounded-lg active:scale-95 transition border"
+          className="aspect-square h-10 rounded-lg active:scale-95 transition border flex items-center justify-center"
           style={{
             backgroundColor: "var(--bg-surface)",
             borderColor: "rgba(244, 63, 94, 0.25)",
@@ -238,87 +244,105 @@ export default function NoteRow({
         </button>
       </div>
 
-      {/* Foreground row */}
-      <button
-        type="button"
-        className="w-full px-4 py-3 text-left flex items-center gap-3 rounded-xl border transition active:scale-[0.99] min-w-0"
+      {/* Foreground row - Use div instead of button to allow nested menu button */}
+      <div
+        role="button"
+        tabIndex={0}
+        className="w-full px-3 sm:px-4 py-3 text-left flex items-center gap-3 rounded-xl transition-all duration-200 active:scale-[0.99] min-w-0 relative overflow-hidden cursor-pointer"
         style={{
           transform: `translateX(${translateX}px)`,
-          backgroundColor: "var(--bg-input)",
-          borderColor: "var(--border-secondary)",
+          background: "var(--card-glass-bg, var(--bg-surface))",
+          border: "1px solid var(--card-glass-border, var(--border-secondary))",
+          boxShadow: "var(--card-glass-shadow, none)",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
         }}
         onClick={() => onOpen?.(note)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onOpen?.(note);
+          }
+        }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
         onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = "var(--bg-elevated)";
-          e.currentTarget.style.borderColor = "rgba(99, 102, 241, 0.25)";
+          e.currentTarget.style.background = "var(--card-glass-bg-hover, var(--bg-hover))";
+          e.currentTarget.style.borderColor = "var(--card-glass-border-hover, rgba(99, 102, 241, 0.3))";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = "var(--bg-input)";
-          e.currentTarget.style.borderColor = "var(--border-secondary)";
+          e.currentTarget.style.background = "var(--card-glass-bg, var(--bg-surface))";
+          e.currentTarget.style.borderColor = "var(--card-glass-border, var(--border-secondary))";
         }}
       >
-        {/* Left icon */}
+        {/* Inner glow overlay */}
         <div
-          className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl flex items-center justify-center flex-shrink-0"
+          className="absolute inset-0 pointer-events-none rounded-xl"
           style={{
-            backgroundColor: "rgba(99, 102, 241, 0.10)",
-            border: "1px solid rgba(99, 102, 241, 0.18)",
+            background: "var(--card-glass-inner-glow, radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.03) 0%, transparent 60%))",
+            opacity: 0.5,
           }}
-        >
-          <TagIconComp size={16} style={{ color: "var(--accent-indigo)" }} />
-        </div>
+        />
 
-        {/* Main text */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3 min-w-0">
-            <span
-              className="text-[14px] font-semibold block truncate min-w-0"
-              style={{ color: "var(--text-primary)" }}
-            >
-              {note.title}
-            </span>
+        {/* Content wrapper */}
+        <div className="relative z-10 flex items-center gap-3 w-full min-w-0">
+          {/* Left icon */}
+          <div
+            className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{
+              backgroundColor: "rgba(99, 102, 241, 0.10)",
+              border: "1px solid rgba(99, 102, 241, 0.18)",
+            }}
+          >
+            <TagIconComp size={16} style={{ color: "var(--accent-indigo)" }} />
           </div>
 
-          <div className="mt-1 grid grid-cols-1 gap-y-1 min-w-0">
+          {/* Main text - with proper truncation */}
+          <div className="min-w-0 flex-1 overflow-hidden">
             <span
-              className="text-[11px] block truncate min-w-0"
+              className="text-[14px] font-semibold block truncate"
+              style={{ color: "var(--text-primary)" }}
+              title={note.title}
+            >
+              {truncateTitle(note.title, 45)}
+            </span>
+
+            <span
+              className="text-[11px] block mt-0.5"
               style={{ color: "var(--text-muted)" }}
             >
-              Last updated {formatRelative(note.updated)}
+              {formatRelative(note.updated)}
             </span>
           </div>
-        </div>
 
-        {/* Right rail: keeps icons + menu aligned on all widths (mobile gets spacing automatically) */}
-        <div className="flex flex-col items-end gap-2 flex-shrink-0 sm:flex-row sm:items-center sm:gap-3">
-          <IconRail note={note} type={type} TagIconComp={TagIconComp} />
+          {/* Right rail: icons + menu */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <IconRail note={note} type={type} TagIconComp={TagIconComp} />
 
-          <button
-            type="button"
-            className="p-1.5 rounded-lg transition shrink-0"
-            style={{ color: "var(--text-muted)" }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onMenu?.(e);
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-            }}
-            aria-label="Open note actions"
-            title="Actions"
-          >
-            <FiMoreVertical size={16} />
-          </button>
+            <button
+              type="button"
+              className="p-1.5 rounded-lg transition shrink-0"
+              style={{ color: "var(--text-muted)" }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMenu?.(e);
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+              aria-label="Open note actions"
+              title="Actions"
+            >
+              <FiMoreVertical size={16} />
+            </button>
+          </div>
         </div>
-      </button>
+      </div>
     </div>
   );
 }
-

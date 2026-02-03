@@ -72,6 +72,7 @@ export default function Sidebar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Desktop navigation
   const navItems = useMemo(
     () => [
       { label: "Home", icon: House, to: "/dashboard" },
@@ -122,7 +123,7 @@ export default function Sidebar() {
   return (
     <>
       {/* ═══════════════════════════════════════════════════════════
-          MOBILE BOTTOM NAV — Liquid Glass (Theme-aware)
+          MOBILE BOTTOM NAV — iOS 26 Liquid Glass (Icons Only)
       ═══════════════════════════════════════════════════════════ */}
       <AnimatePresence>
         {!mobileNavHidden && (
@@ -147,29 +148,32 @@ export default function Sidebar() {
           >
             {/* Subtle gradient fade */}
             <div
-              className="absolute inset-x-0 bottom-0 h-16 pointer-events-none"
-              style={{ background: "var(--mobile-nav-fade)" }}
+              className="absolute inset-x-0 bottom-0 h-24 pointer-events-none"
+              style={{
+                background:
+                  "linear-gradient(to top, rgba(0,0,0,0.35) 0%, transparent 100%)",
+              }}
             />
 
-            {/* Nav container - Liquid Glass */}
+            {/* Nav container - Liquid Glass (iPhone optimized) */}
             <div className="relative px-4 pb-2">
-              <div className="liquid-glass-nav mx-auto max-w-[260px] rounded-[18px] px-2 py-1.5 flex items-center justify-around">
+              <div className="liquid-glass-nav mx-auto max-w-[340px] rounded-[26px] px-4 py-3 flex items-center justify-around">
                 {/* Inner glow overlay */}
                 <div
-                  className="absolute inset-0 rounded-[18px] pointer-events-none"
+                  className="absolute inset-0 rounded-[26px] pointer-events-none"
                   style={{
                     background:
-                      "linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 50%, rgba(255,255,255,0.04) 100%)",
+                      "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.02) 50%, rgba(255,255,255,0.04) 100%)",
                     opacity: 0.7,
                   }}
                 />
 
                 {/* Specular highlight */}
                 <div
-                  className="absolute inset-x-6 top-0 h-[1px] pointer-events-none"
+                  className="absolute inset-x-10 top-0 h-[1px] pointer-events-none"
                   style={{
                     background:
-                      "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.20) 50%, transparent 100%)",
+                      "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)",
                   }}
                 />
 
@@ -185,7 +189,7 @@ export default function Sidebar() {
                       className="relative flex items-center justify-center"
                     >
                       <motion.div
-                        whileTap={{ scale: 0.85 }}
+                        whileTap={{ scale: 0.9 }}
                         transition={{ duration: 0.1 }}
                         className="relative flex items-center justify-center"
                       >
@@ -197,11 +201,13 @@ export default function Sidebar() {
                               initial={{ opacity: 0, scale: 0.8 }}
                               animate={{ opacity: 1, scale: 1 }}
                               exit={{ opacity: 0, scale: 0.8 }}
-                              className="absolute inset-0 rounded-xl"
+                              className="absolute inset-0 rounded-2xl"
                               style={{
-                                background: "var(--mobile-pill-bg)",
-                                boxShadow: "var(--mobile-pill-shadow)",
-                                border: "1px solid var(--mobile-pill-border)",
+                                background:
+                                  "linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(139, 92, 246, 0.25) 100%)",
+                                boxShadow:
+                                  "0 0 16px rgba(99, 102, 241, 0.4), inset 0 1px 1px rgba(255,255,255,0.1)",
+                                border: "1px solid rgba(99, 102, 241, 0.4)",
                               }}
                               transition={{
                                 type: "spring",
@@ -212,17 +218,17 @@ export default function Sidebar() {
                           )}
                         </AnimatePresence>
 
-                        <div className="relative z-10 h-10 w-10 flex items-center justify-center">
+                        {/* Touch target: 52x52 (above Apple's 44pt minimum) */}
+                        <div className="relative z-10 h-[52px] w-[52px] flex items-center justify-center">
                           <Icon
-                            size={active ? 22 : 20}
+                            size={active ? 28 : 26}
                             weight={active ? "fill" : "regular"}
                             style={{
                               color: active
-                                ? "var(--mobile-icon-active)"
-                                : "var(--mobile-icon)",
-                              // keep this subtle glow; you can also make this a variable later
+                                ? "#a5b4fc"
+                                : "rgba(255,255,255,0.5)",
                               filter: active
-                                ? "drop-shadow(0 0 6px rgba(99, 102, 241, 0.35))"
+                                ? "drop-shadow(0 0 8px rgba(165, 180, 252, 0.5))"
                                 : "none",
                               transition: "all 0.2s ease",
                             }}
@@ -239,7 +245,7 @@ export default function Sidebar() {
       </AnimatePresence>
 
       {/* ═══════════════════════════════════════════════════════════
-          DESKTOP SIDEBAR — Liquid Glass (Theme-aware)
+          DESKTOP SIDEBAR — Liquid Glass Style
       ═══════════════════════════════════════════════════════════ */}
       <aside
         className="hidden md:flex fixed top-0 left-0 h-screen z-[80] overflow-hidden liquid-glass-sidebar"
@@ -284,13 +290,13 @@ export default function Sidebar() {
                     justifyContent: collapsed ? "center" : "flex-start",
                     gap: collapsed ? "0" : "10px",
                     backgroundColor: active
-                      ? "var(--sidebar-item-active)"
+                      ? "rgba(99, 102, 241, 0.12)"
                       : "transparent",
                   }}
                   onMouseEnter={(e) => {
                     if (!active) {
                       e.currentTarget.style.backgroundColor =
-                        "var(--sidebar-item-hover)";
+                        "rgba(255, 255, 255, 0.04)";
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -308,7 +314,7 @@ export default function Sidebar() {
                         opacity: active ? 1 : 0,
                       }}
                       className="absolute left-0 top-[20%] w-[2px] h-[60%] rounded-r-full"
-                      style={{ backgroundColor: "var(--sidebar-text-active)" }}
+                      style={{ backgroundColor: "#a5b4fc" }}
                       transition={{ duration: 0.2 }}
                     />
                   )}
@@ -320,15 +326,15 @@ export default function Sidebar() {
                       width: collapsed ? "40px" : "30px",
                       height: collapsed ? "40px" : "30px",
                       backgroundColor: active
-                        ? "var(--sidebar-icon-bg-active)"
-                        : "var(--sidebar-icon-bg)",
+                        ? "rgba(99, 102, 241, 0.18)"
+                        : "rgba(255, 255, 255, 0.04)",
                       border: `1px solid ${
                         active
-                          ? "var(--sidebar-icon-border-active)"
-                          : "var(--sidebar-icon-border)"
+                          ? "rgba(99, 102, 241, 0.28)"
+                          : "rgba(255, 255, 255, 0.06)"
                       }`,
                       boxShadow: active
-                        ? "0 0 10px rgba(99, 102, 241, 0.18)"
+                        ? "0 0 10px rgba(99, 102, 241, 0.2)"
                         : "none",
                     }}
                   >
@@ -336,9 +342,7 @@ export default function Sidebar() {
                       size={collapsed ? 18 : 15}
                       weight={active ? "fill" : "duotone"}
                       style={{
-                        color: active
-                          ? "var(--sidebar-icon-color-active)"
-                          : "var(--sidebar-icon-color)",
+                        color: active ? "#a5b4fc" : "rgba(255, 255, 255, 0.5)",
                         transition: "color 0.2s ease",
                       }}
                     />
@@ -356,15 +360,12 @@ export default function Sidebar() {
                     <span
                       className="text-[13px] transition-colors duration-200"
                       style={{
-                        color: active
-                          ? "var(--sidebar-text-active)"
-                          : "var(--sidebar-text)",
+                        color: active ? "#a5b4fc" : "rgba(255, 255, 255, 0.55)",
                         fontWeight: active ? 500 : 400,
                       }}
                     >
                       {item.label}
                     </span>
-
                     {item.pro && (
                       <span
                         className="text-[9px] px-1.5 py-0.5 rounded-md font-medium"
@@ -384,15 +385,15 @@ export default function Sidebar() {
                     <div
                       className="absolute left-full ml-2 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
                       style={{
-                        backgroundColor: "var(--sidebar-tooltip-bg)",
-                        border: "1px solid var(--sidebar-tooltip-border)",
-                        boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                        backgroundColor: "rgba(15, 15, 25, 0.95)",
+                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
                         backdropFilter: "blur(12px)",
                       }}
                     >
                       <span
                         className="text-[12px] font-medium whitespace-nowrap flex items-center gap-2"
-                        style={{ color: "var(--sidebar-tooltip-text)" }}
+                        style={{ color: "rgba(255, 255, 255, 0.85)" }}
                       >
                         {item.label}
                         {item.pro && (
@@ -437,8 +438,7 @@ export default function Sidebar() {
                 backgroundColor: "transparent",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "rgba(244, 63, 94, 0.08)";
+                e.currentTarget.style.backgroundColor = "rgba(244, 63, 94, 0.08)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = "transparent";
@@ -470,7 +470,10 @@ export default function Sidebar() {
                   whiteSpace: "nowrap",
                 }}
               >
-                <span className="text-[13px]" style={{ color: "var(--sidebar-text)" }}>
+                <span
+                  className="text-[13px]"
+                  style={{ color: "rgba(255, 255, 255, 0.55)" }}
+                >
                   {loggingOut ? "Logging out…" : "Logout"}
                 </span>
               </div>
@@ -480,15 +483,15 @@ export default function Sidebar() {
                 <div
                   className="absolute left-full ml-2 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
                   style={{
-                    backgroundColor: "var(--sidebar-tooltip-bg)",
-                    border: "1px solid var(--sidebar-tooltip-border)",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                    backgroundColor: "rgba(15, 15, 25, 0.95)",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
                     backdropFilter: "blur(12px)",
                   }}
                 >
                   <span
                     className="text-[12px] font-medium whitespace-nowrap"
-                    style={{ color: "var(--sidebar-tooltip-text)" }}
+                    style={{ color: "rgba(255, 255, 255, 0.85)" }}
                   >
                     Logout
                   </span>
@@ -513,13 +516,13 @@ export default function Sidebar() {
                 style={{
                   width: collapsed ? "40px" : "30px",
                   height: collapsed ? "40px" : "30px",
-                  background: "linear-gradient(135deg, #6366f1, #a855f7)",
-                  boxShadow: "0 0 14px rgba(99, 102, 241, 0.25)",
+                  background:
+                    "linear-gradient(135deg, #6366f1, #a855f7)",
+                  boxShadow: "0 0 14px rgba(99, 102, 241, 0.3)",
                 }}
               >
                 <Note size={collapsed ? 18 : 15} weight="fill" color="white" />
               </div>
-
               <div
                 className="transition-all duration-300 overflow-hidden"
                 style={{
@@ -529,13 +532,13 @@ export default function Sidebar() {
               >
                 <span
                   className="text-[13px] font-semibold whitespace-nowrap block"
-                  style={{ color: "var(--sidebar-tooltip-text)" }}
+                  style={{ color: "rgba(255, 255, 255, 0.85)" }}
                 >
                   NoteStream
                 </span>
                 <span
                   className="text-[10px] whitespace-nowrap block"
-                  style={{ color: "var(--text-muted)" }}
+                  style={{ color: "rgba(255, 255, 255, 0.35)" }}
                 >
                   v0.1 • Early Access
                 </span>
@@ -545,55 +548,97 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {/* Liquid Glass Styles (Theme-aware via CSS variables) */}
+      {/* Liquid Glass Styles */}
       <style>{`
+        /* iOS 26 Liquid Glass - Mobile Nav */
         .liquid-glass-nav {
-          background: var(--mobile-nav-glass-bg);
+          background: linear-gradient(
+            135deg,
+            rgba(20, 20, 30, 0.8) 0%,
+            rgba(12, 12, 20, 0.88) 50%,
+            rgba(20, 20, 30, 0.8) 100%
+          );
           backdrop-filter: blur(40px) saturate(180%);
           -webkit-backdrop-filter: blur(40px) saturate(180%);
-          border: 1px solid var(--mobile-nav-glass-border);
-          box-shadow: var(--mobile-nav-glass-shadow);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.45),
+            0 0 0 0.5px rgba(255, 255, 255, 0.08) inset;
           position: relative;
           overflow: hidden;
         }
 
+        /* iOS 26 Liquid Glass - Desktop Sidebar */
         .liquid-glass-sidebar {
-          background: var(--sidebar-glass-bg);
+          background: linear-gradient(
+            180deg,
+            rgba(16, 16, 24, 0.92) 0%,
+            rgba(12, 12, 20, 0.95) 50%,
+            rgba(16, 16, 24, 0.92) 100%
+          );
           backdrop-filter: blur(40px) saturate(180%);
           -webkit-backdrop-filter: blur(40px) saturate(180%);
-          border-right: 1px solid var(--sidebar-glass-border);
-          box-shadow: var(--sidebar-glass-shadow);
+          border-right: 1px solid rgba(255, 255, 255, 0.05);
+          box-shadow:
+            4px 0 24px rgba(0, 0, 0, 0.35),
+            inset -1px 0 0 rgba(255, 255, 255, 0.02);
         }
 
+        /* Animated shimmer effect */
         .liquid-glass-nav::before,
         .liquid-glass-sidebar::before {
           content: '';
           position: absolute;
           inset: 0;
           border-radius: inherit;
-          background: var(--glass-sheen);
+          background: linear-gradient(
+            105deg,
+            transparent 20%,
+            rgba(255, 255, 255, 0.015) 30%,
+            rgba(255, 255, 255, 0.03) 50%,
+            rgba(255, 255, 255, 0.015) 70%,
+            transparent 80%
+          );
           opacity: 0;
           animation: liquid-shimmer 8s ease-in-out infinite;
         }
 
         @keyframes liquid-shimmer {
-          0%, 100% { opacity: 0; transform: translateX(-100%); }
-          50% { opacity: 1; }
-          100% { transform: translateX(100%); }
+          0%, 100% {
+            opacity: 0;
+            transform: translateX(-100%);
+          }
+          50% {
+            opacity: 1;
+          }
+          100% {
+            transform: translateX(100%);
+          }
         }
 
+        /* Smooth scrolling performance */
         @media (min-width: 768px) {
-          .liquid-glass-sidebar { will-change: width; }
-          .liquid-glass-sidebar nav a { will-change: background-color; }
+          .liquid-glass-sidebar {
+            will-change: width;
+          }
+          .liquid-glass-sidebar nav a {
+            will-change: background-color;
+          }
         }
 
+        /* Mobile nav smooth transitions */
         @media (max-width: 767px) {
-          .liquid-glass-nav a { -webkit-tap-highlight-color: transparent; }
+          .liquid-glass-nav a {
+            -webkit-tap-highlight-color: transparent;
+          }
         }
 
+        /* Reduce motion for accessibility */
         @media (prefers-reduced-motion: reduce) {
           .liquid-glass-nav::before,
-          .liquid-glass-sidebar::before { animation: none; }
+          .liquid-glass-sidebar::before {
+            animation: none;
+          }
         }
       `}</style>
     </>
