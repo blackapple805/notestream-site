@@ -347,6 +347,10 @@ export default function App() {
                     element={<Documents docs={docs} setDocs={setDocs} />}
                   />
                   <Route
+                    path="documents/:id"
+                    element={<DocumentViewer docs={docs} />}
+                  />
+                  <Route
                     path="documents/view/:id"
                     element={<DocumentViewer docs={docs} />}
                   />

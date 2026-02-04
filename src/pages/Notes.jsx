@@ -16,10 +16,11 @@ import {
   FiUpload,
   FiCamera,
 } from "react-icons/fi";
+import { createPortal } from "react-dom";
 import { Note, FilePlus, Crown } from "phosphor-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import {  useParams, useNavigate } from "react-router-dom";
 import GlassCard from "../components/GlassCard";
 import NoteCard from "../components/NoteCard";
 import NoteRow from "../components/NoteRow";
@@ -72,6 +73,7 @@ const FILTERS = [
 
 export default function Notes() {
   const navigate = useNavigate();
+  const { noteId } = useParams();
   const { subscription, isFeatureUnlocked, isLoading, incrementUsage } = useSubscription();
 
   const isPro = !!subscription?.plan && subscription.plan !== "free";
@@ -267,6 +269,29 @@ export default function Notes() {
     if (!supabaseReady || !supabase) return;
     loadTagCounts();
   }, [supabaseReady, loadTagCounts]);
+
+
+  useEffect(() => {
+    if (!noteId) return;
+    if (notesLoading) return;
+
+    // notes[] are already mapped to UI objects (mapDbNoteToUi)
+    const found = (notes || []).find((n) => String(n.id) === String(noteId));
+    if (!found) return;
+
+    // If locked, run through your existing lock flow
+    const stored = localStorage.getItem(PIN_KEY);
+    if (found.locked && stored) {
+      openUnlockForNote(found.id, true);
+      return;
+    }
+    if (found.locked && !stored) {
+      openSetPinForNote(found.id);
+      return;
+    }
+
+    setSelectedNote(found);
+  }, [noteId, notesLoading, notes]);
 
   // Derived state
   const filteredNotes = useMemo(() => {
@@ -617,10 +642,14 @@ export default function Notes() {
         prev.map((n) => (n.id === pendingNoteId ? { ...n, locked: false } : n))
       );
       updateSelectedNote(pendingNoteId, { locked: false });
-    } else if (pinMode === "unlockOpen") {
-      const noteToOpen = notes.find((n) => n.id === pendingNoteId);
-      if (noteToOpen) setSelectedNote(noteToOpen);
-    }
+   } else if (pinMode === "unlockOpen") {
+     const noteToOpen = notes.find((n) => n.id === pendingNoteId);
+     if (noteToOpen) {
+       navigate(`/dashboard/notes/${noteToOpen.id}`);
+       setSelectedNote(noteToOpen);
+     }
+   }
+
 
     setPinModalOpen(false);
     setPinInput("");
@@ -655,10 +684,19 @@ export default function Notes() {
 
   const tryOpenNote = (note) => {
     const stored = localStorage.getItem(PIN_KEY);
-    if (!note.locked) return setSelectedNote(note);
+
+    // Always reflect selection in the URL
+    navigate(`/dashboard/notes/${note.id}`);
+
+    if (!note.locked) {
+      setSelectedNote(note);
+      return;
+    }
+
     if (!stored) return openSetPinForNote(note.id);
     openUnlockForNote(note.id, true);
   };
+
 
   // File upload
   const handleFileUpload = async (e) => {
@@ -875,7 +913,10 @@ export default function Notes() {
     return (
       <NoteView
         note={selectedNote}
-        onBack={() => setSelectedNote(null)}
+        onBack={() => {
+          setSelectedNote(null);
+          navigate("/dashboard/notes");
+        }}
         onFavoriteToggle={handleFavorite}
         onEditSave={onEditSave}
         onDelete={handleDelete}
@@ -1972,41 +2013,65 @@ export default function Notes() {
 
 /* Helper Components */
 
-const Modal = ({ children, onClose }) => (
-  <>
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200]"
-      style={{ backgroundColor: "var(--bg-overlay)", backdropFilter: "blur(8px)" }}
-      onClick={onClose}
-    />
-    <div className="fixed inset-0 z-[201] flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-none overflow-y-auto">
+const Modal = ({ children, onClose }) => {
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <>
+      {/* Overlay: true viewport fixed */}
       <motion.div
-        initial={{ opacity: 0, y: 100 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 100 }}
-        transition={{ type: "spring", stiffness: 400, damping: 35 }}
-        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl border border-b-0 sm:border-b shadow-xl overflow-hidden pointer-events-auto"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[200]"
         style={{
-          backgroundColor: "var(--bg-surface)",
-          borderColor: "var(--border-secondary)",
-          maxHeight: "calc(100vh - 32px)",
+          backgroundColor: "var(--bg-overlay)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
         }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={onClose}
+      />
+
+      {/* Centered container */}
+      <div
+        className="fixed inset-0 z-[201] flex items-center justify-center p-4 pointer-events-none"
+        style={{
+          paddingTop: "max(env(safe-area-inset-top), 16px)",
+          paddingBottom: "max(env(safe-area-inset-bottom), 16px)",
+        }}
       >
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
-          <div
-            className="w-10 h-1 rounded-full"
-            style={{ backgroundColor: "var(--border-secondary)" }}
-          />
-        </div>
-        <div className="max-h-[calc(100vh-32px)] overflow-y-auto">{children}</div>
-      </motion.div>
-    </div>
-  </>
-);
+        <motion.div
+          initial={{ opacity: 0, y: 18, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 18, scale: 0.98 }}
+          transition={{ type: "spring", stiffness: 420, damping: 34 }}
+          className="w-full max-w-md rounded-3xl border shadow-xl overflow-hidden pointer-events-auto"
+          style={{
+            backgroundColor: "var(--bg-surface)",
+            borderColor: "var(--border-secondary)",
+            maxHeight: "calc(100dvh - 32px)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* grabber (keep the “round bit”) */}
+          <div className="flex justify-center pt-3 pb-2">
+            <div
+              className="w-10 h-1 rounded-full"
+              style={{ backgroundColor: "var(--border-secondary)" }}
+            />
+          </div>
+
+          <div className="max-h-[calc(100dvh-32px)] overflow-y-auto">
+            {children}
+          </div>
+        </motion.div>
+      </div>
+    </>,
+    document.body
+  );
+};
+
+
 
 const ContextMenuItem = ({ icon, label, onClick, danger }) => (
   <button

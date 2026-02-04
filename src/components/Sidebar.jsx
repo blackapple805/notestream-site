@@ -1,5 +1,5 @@
 // src/components/Sidebar.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   House,
   Note,
@@ -14,6 +14,7 @@ import {
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { hideMobileNav, showMobileNav } from "../ui/layoutState";
 
 export default function Sidebar() {
   const location = useLocation();
@@ -23,13 +24,19 @@ export default function Sidebar() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [mobileNavHidden, setMobileNavHidden] = useState(false);
 
-  // Listen for modal/overlay events to hide mobile nav
+  /* --------------------------------------------------
+     MOBILE NAV VISIBILITY
+     - Listens to layoutState events AND body.modal-open changes
+  -------------------------------------------------- */
   useEffect(() => {
     const handleModalOpen = () => setMobileNavHidden(true);
     const handleModalClose = () => setMobileNavHidden(false);
 
     window.addEventListener("modal:open", handleModalOpen);
     window.addEventListener("modal:close", handleModalClose);
+
+    // Initial sync (covers refresh while modal-open is present)
+    setMobileNavHidden(document.body.classList.contains("modal-open"));
 
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
@@ -49,30 +56,34 @@ export default function Sidebar() {
     };
   }, []);
 
-  // Desktop scroll collapse behavior
+  /* --------------------------------------------------
+     DESKTOP SCROLL COLLAPSE
+  -------------------------------------------------- */
   useEffect(() => {
     if (window.innerWidth < 768) return;
 
-    let last = 0;
+    let last = window.scrollY || 0;
     let ticking = false;
 
     const onScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          const curr = window.scrollY;
-          setCollapsed(curr > last && curr > 60);
-          last = curr;
-          ticking = false;
-        });
-        ticking = true;
-      }
+      if (ticking) return;
+      ticking = true;
+
+      window.requestAnimationFrame(() => {
+        const curr = window.scrollY || 0;
+        setCollapsed(curr > last && curr > 60);
+        last = curr;
+        ticking = false;
+      });
     };
 
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Desktop navigation
+  /* --------------------------------------------------
+     NAV CONFIG
+  -------------------------------------------------- */
   const navItems = useMemo(
     () => [
       { label: "Home", icon: House, to: "/dashboard" },
@@ -87,7 +98,6 @@ export default function Sidebar() {
     []
   );
 
-  // Mobile: essentials only
   const mobileNav = useMemo(
     () => [
       { label: "Home", icon: House, to: "/dashboard" },
@@ -99,17 +109,34 @@ export default function Sidebar() {
     []
   );
 
-  const isActive = (to) => {
-    const p = location.pathname;
-    if (to === "/dashboard") return p === "/dashboard";
-    return p === to || p.startsWith(to + "/");
-  };
+  const isActive = useCallback(
+    (to) => {
+      const p = location.pathname;
+      if (to === "/dashboard") return p === "/dashboard";
+      return p === to || p.startsWith(to + "/");
+    },
+    [location.pathname]
+  );
 
+  /* --------------------------------------------------
+     ROUTE CLICK SAFETY
+     - If any modal forgot to call showMobileNav(), we restore on navigation.
+  -------------------------------------------------- */
+  const onNavClick = useCallback(() => {
+    showMobileNav();
+  }, []);
+
+  /* --------------------------------------------------
+     LOGOUT
+  -------------------------------------------------- */
   const handleLogout = async () => {
     if (loggingOut) return;
     setLoggingOut(true);
 
     try {
+      // Ensure UI is not stuck in "modal-open" state after leaving
+      showMobileNav();
+
       if (isSupabaseConfigured && supabase) {
         const { error } = await supabase.auth.signOut();
         if (error) console.warn("Supabase signOut error:", error.message);
@@ -150,7 +177,7 @@ export default function Sidebar() {
             <div
               className="absolute inset-x-0 bottom-0 h-24 pointer-events-none"
               style={{
-                background:"var(--mobile-nav-fade)",
+                background: "var(--mobile-nav-fade)",
               }}
             />
 
@@ -186,6 +213,7 @@ export default function Sidebar() {
                       to={item.to}
                       aria-label={item.label}
                       className="relative flex items-center justify-center"
+                      onClick={onNavClick}
                     >
                       <motion.div
                         whileTap={{ scale: 0.9 }}
@@ -202,8 +230,8 @@ export default function Sidebar() {
                               exit={{ opacity: 0, scale: 0.8 }}
                               className="absolute inset-0 rounded-2xl"
                               style={{
-                                background:"var(--mobile-pill-bg)",
-                                boxShadow:"var(--mobile-pill-shadow)",
+                                background: "var(--mobile-pill-bg)",
+                                boxShadow: "var(--mobile-pill-shadow)",
                                 border: "1px solid var(--mobile-pill-border)",
                               }}
                               transition={{
@@ -215,14 +243,14 @@ export default function Sidebar() {
                           )}
                         </AnimatePresence>
 
-                        {/* Touch target: 52x52 (above Apple's 44pt minimum) */}
+                        {/* Touch target: 52x52 */}
                         <div className="relative z-10 h-[52px] w-[52px] flex items-center justify-center">
                           <Icon
                             size={active ? 28 : 26}
                             weight={active ? "fill" : "regular"}
                             style={{
                               color: active
-                                ? "var(--mobile-icon-active)" 
+                                ? "var(--mobile-icon-active)"
                                 : "var(--mobile-icon)",
                               filter: active
                                 ? "drop-shadow(0 0 8px color-mix(in srgb, var(--mobile-icon-active) 55%, transparent))"
@@ -287,9 +315,10 @@ export default function Sidebar() {
                     justifyContent: collapsed ? "center" : "flex-start",
                     gap: collapsed ? "0" : "10px",
                     backgroundColor: active
-                       ? "var(--sidebar-item-active)"
-                       : "transparent",
+                      ? "var(--sidebar-item-active)"
+                      : "transparent",
                   }}
+                  onClick={onNavClick}
                   onMouseEnter={(e) => {
                     if (!active) {
                       e.currentTarget.style.backgroundColor =
@@ -333,7 +362,6 @@ export default function Sidebar() {
                       boxShadow: active
                         ? "0 0 10px color-mix(in srgb, var(--sidebar-icon-color-active) 40%, transparent)"
                         : "none",
-
                     }}
                   >
                     <Icon
@@ -368,6 +396,7 @@ export default function Sidebar() {
                     >
                       {item.label}
                     </span>
+
                     {item.pro && (
                       <span
                         className="text-[9px] px-1.5 py-0.5 rounded-md font-medium"
@@ -441,8 +470,8 @@ export default function Sidebar() {
                 backgroundColor: "transparent",
               }}
               onMouseEnter={(e) => {
-               e.currentTarget.style.backgroundColor =
-                "color-mix(in srgb, var(--accent-rose) 15%, transparent)";
+                e.currentTarget.style.backgroundColor =
+                  "color-mix(in srgb, var(--accent-rose) 15%, transparent)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = "transparent";
@@ -474,10 +503,7 @@ export default function Sidebar() {
                   whiteSpace: "nowrap",
                 }}
               >
-                <span
-                  className="text-[13px]"
-                  style={{ color: "rgba(255, 255, 255, 0.55)" }}
-                >
+                <span className="text-[13px]" style={{ color: "var(--sidebar-text)" }}>
                   {loggingOut ? "Logging out…" : "Logout"}
                 </span>
               </div>
@@ -505,7 +531,7 @@ export default function Sidebar() {
             </button>
 
             {/* Spacer */}
-            <div className="h-1.5" />
+            <div className="h-px w-full my-2" style={{ background: "var(--sidebar-divider)" }} />
 
             {/* Logo / Brand area */}
             <div
@@ -521,13 +547,13 @@ export default function Sidebar() {
                 style={{
                   width: collapsed ? "40px" : "30px",
                   height: collapsed ? "40px" : "30px",
-                  background:
-                    "linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))",
+                  background: "linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))",
                   boxShadow: "0 0 14px rgba(99, 102, 241, 0.3)",
                 }}
               >
                 <Note size={collapsed ? 18 : 15} weight="fill" color="white" />
               </div>
+
               <div
                 className="transition-all duration-300 overflow-hidden"
                 style={{
@@ -537,13 +563,13 @@ export default function Sidebar() {
               >
                 <span
                   className="text-[13px] font-semibold whitespace-nowrap block"
-                  style={{ color: "rgba(255, 255, 255, 0.85)" }}
+                  style={{ color: "var(--sidebar-text)" }}
                 >
                   NoteStream
                 </span>
                 <span
                   className="text-[10px] whitespace-nowrap block"
-                  style={{ color: "rgba(255, 255, 255, 0.35)" }}
+                  style={{ color: "var(--sidebar-text-muted)" }}
                 >
                   v0.1 • Early Access
                 </span>
@@ -573,7 +599,7 @@ export default function Sidebar() {
           box-shadow: var(--sidebar-glass-shadow);
         }
 
-        /* ✅ NEW: Liquid glass button (neutral) */
+        /* Liquid glass button (neutral) */
         .liquid-glass-button {
           background: var(--mobile-nav-glass-bg);
           backdrop-filter: blur(32px) saturate(160%);
@@ -611,23 +637,9 @@ export default function Sidebar() {
           }
         }
       `}</style>
-
     </>
   );
 }
 
-// ═══════════════════════════════════════════════════════════
-// HELPER: Call these from your modal/form components
-// ═══════════════════════════════════════════════════════════
-
-export function hideMobileNav() {
-  window.dispatchEvent(new CustomEvent("modal:open"));
-  document.body.classList.add("modal-open");
-}
-
-export function showMobileNav() {
-  window.dispatchEvent(new CustomEvent("modal:close"));
-  document.body.classList.remove("modal-open");
-}
 
 

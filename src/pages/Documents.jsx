@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
 import { useSubscription } from "../hooks/useSubscription";
+import { useMobileNav } from "../hooks/useMobileNav";
 import {
   FiEye,
   FiFileText,
@@ -173,6 +174,15 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
 
   // docId -> { noteId }
   const [summaryIndex, setSummaryIndex] = useState({});
+
+  const isAnyModalOpen =
+  !!viewingBrief ||
+  !!synthesisResult ||
+  isSynthesizing ||
+  isUploading;
+
+useMobileNav(isAnyModalOpen);
+
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -990,6 +1000,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
               <motion.div
                 key={brief.noteId || brief.id}
                 whileHover={{ scale: 1.01 }}
+                onClick={() => viewBrief(brief)}
                 className="flex items-center justify-between rounded-xl px-4 py-3 border border-purple-500/20 hover:border-purple-500/40 transition cursor-pointer"
                 style={{ backgroundColor: "var(--bg-elevated)" }}
               >
@@ -1005,7 +1016,10 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
                 <div className="flex gap-1">
                   {/* View brief */}
                   <button
-                    onClick={() => viewBrief(brief)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      viewBrief(brief);
+                    }}
                     className="h-8 w-8 rounded-lg border flex items-center justify-center transition"
                     style={{
                       borderColor: "var(--border-secondary)",
@@ -1027,7 +1041,10 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
 
                   {/* Delete brief */}
                   <button
-                    onClick={() => deleteBrief(brief.noteId)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteBrief(brief.noteId);
+                    }}
                     className="h-8 w-8 rounded-lg border flex items-center justify-center transition"
                     style={{
                       borderColor: "var(--border-secondary)",
@@ -1047,6 +1064,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
                     <FiTrash2 size={16} />
                   </button>
                 </div>
+
               </motion.div>
             ))}
           </div>
@@ -1288,235 +1306,271 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
         )}
       </AnimatePresence>
 
-      {/* Brief Modal */}
+      {/* Brief Modal (same style as Notes modal) */}
       <AnimatePresence>
         {(synthesisResult || viewingBrief) && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] overflow-y-auto"
-            style={{ backgroundColor: "var(--bg-primary)" }}
+          <ModalShell
+            onClose={() => {
+              closeSynthesisResult();
+              setViewingBrief(null);
+            }}
+            maxWidthClass="sm:max-w-xl" 
           >
-            <div className="min-h-full px-4 py-6">
-              <div className="max-w-3xl mx-auto">
-                <div className="flex justify-end mb-4">
-                  <button
-                    onClick={() => {
-                      closeSynthesisResult();
-                      setViewingBrief(null);
-                    }}
-                    className="text-theme-muted hover:text-theme-primary p-2.5 rounded-xl transition"
-                    style={{ backgroundColor: "var(--bg-tertiary)" }}
-                    type="button"
-                  >
-                    <FiX size={20} />
-                  </button>
-                </div>
+            {(() => {
+              const brief = synthesisResult || viewingBrief;
 
-                {(() => {
-                  const brief = synthesisResult || viewingBrief;
-                  return (
-                    <>
-              {/* ===== Brief Header (more compact + iPhone-safe) ===== */}
-                      <div className="flex items-start gap-3 sm:gap-4 mb-4">
-                        <div
-                          className="shrink-0 h-11 w-11 sm:h-12 sm:w-12 rounded-2xl border flex items-center justify-center"
-                          style={{
-                            background: "linear-gradient(135deg, rgba(168,85,247,0.16), rgba(99,102,241,0.10))",
-                            borderColor: "rgba(168,85,247,0.28)",
-                            boxShadow: "0 14px 34px rgba(168,85,247,0.16)",
-                          }}
-                        >
-                          <Brain size={22} weight="duotone" className="text-purple-400" />
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <h2
-                            className="text-[15px] sm:text-lg font-semibold text-theme-primary leading-snug"
-                            style={{
-                              display: "-webkit-box",
-                              WebkitBoxOrient: "vertical",
-                              WebkitLineClamp: 2, // clamps title on iPhone
-                              overflow: "hidden",
-                            }}
-                            title={brief.title}
-                          >
-                            {brief.title}
-                          </h2>
-
-                          {/* Optional meta line (safe: removing this won't break anything) */}
-                          {!!brief?.generatedAt && (
-                            <p className="text-[11px] text-theme-muted mt-1 truncate">
-                              {(brief?.sourceCount ?? 0)} documents •{" "}
-                              {new Date(brief.generatedAt).toLocaleString()}
-                            </p>
-                          )}
-                        </div>
+              return (
+                <div className="p-4 sm:p-5">
+                  {/* Header row */}
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div
+                        className="shrink-0 h-11 w-11 rounded-2xl border flex items-center justify-center"
+                        style={{
+                          background:
+                            "linear-gradient(135deg, rgba(168,85,247,0.16), rgba(99,102,241,0.10))",
+                          borderColor: "rgba(168,85,247,0.28)",
+                          boxShadow: "0 14px 34px rgba(168,85,247,0.16)",
+                        }}
+                      >
+                        <Brain size={22} weight="duotone" className="text-purple-400" />
                       </div>
 
-                      <div className="space-y-4">
-                        {/* ===== Sources Analyzed (chips that shrink correctly) ===== */}
-                        <SectionCard title="Sources Analyzed" icon={<FiFolder size={16} />} color="indigo">
-                          <div className="flex flex-wrap gap-2">
-                            {(brief?.sources || []).length === 0 ? (
-                              <span
-                                className="text-xs text-theme-muted px-3 py-1.5 rounded-lg border"
-                                style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
-                              >
-                                No sources attached
+                      <div className="min-w-0">
+                        <h2
+                          className="text-[15px] sm:text-lg font-semibold text-theme-primary leading-snug"
+                          style={{
+                            display: "-webkit-box",
+                            WebkitBoxOrient: "vertical",
+                            WebkitLineClamp: 2,
+                            overflow: "hidden",
+                          }}
+                          title={brief?.title}
+                        >
+                          {brief?.title}
+                        </h2>
+
+                        {!!brief?.generatedAt && (
+                          <p className="text-[11px] text-theme-muted mt-1 truncate">
+                            {(brief?.sourceCount ?? 0)} documents •{" "}
+                            {new Date(brief.generatedAt).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeSynthesisResult();
+                        setViewingBrief(null);
+                      }}
+                      className="h-9 w-9 rounded-xl border flex items-center justify-center transition shrink-0"
+                      style={{
+                        borderColor: "var(--border-secondary)",
+                        backgroundColor: "var(--bg-tertiary)",
+                        color: "var(--text-secondary)",
+                      }}
+                      type="button"
+                      title="Close"
+                    >
+                      <FiX size={18} />
+                    </button>
+                  </div>
+
+                  {/* Content */}
+                  <div className="space-y-4">
+                    <SectionCard title="Sources Analyzed" icon={<FiFolder size={16} />} color="indigo">
+                      <div className="flex flex-wrap gap-2">
+                        {(brief?.sources || []).length === 0 ? (
+                          <span
+                            className="text-xs text-theme-muted px-3 py-1.5 rounded-lg border"
+                            style={{
+                              backgroundColor: "var(--bg-tertiary)",
+                              borderColor: "var(--border-secondary)",
+                            }}
+                          >
+                            No sources attached
+                          </span>
+                        ) : (
+                          (brief.sources || []).map((source, i) => (
+                            <span
+                              key={`${source}-${i}`}
+                              className="inline-flex items-center gap-2 text-xs text-theme-secondary px-3 py-1.5 rounded-lg border min-w-0"
+                              style={{
+                                backgroundColor: "var(--bg-tertiary)",
+                                borderColor: "var(--border-secondary)",
+                                maxWidth: "100%",
+                              }}
+                              title={source}
+                            >
+                              <span className="shrink-0">
+                                <FileTypeIcon type={String(source).split(".").pop()} size={14} />
                               </span>
-                            ) : (
-                              (brief.sources || []).map((source, i) => (
-                                <span
-                                  key={`${source}-${i}`}
-                                  className="inline-flex items-center gap-2 text-xs text-theme-secondary px-3 py-1.5 rounded-lg border min-w-0"
-                                  style={{
-                                    backgroundColor: "var(--bg-tertiary)",
-                                    borderColor: "var(--border-secondary)",
-                                    maxWidth: "100%", // allow shrinking in wrap
-                                  }}
-                                  title={source}
-                                >
-                                  <span className="shrink-0">
-                                    <FileTypeIcon type={String(source).split(".").pop()} size={14} />
-                                  </span>
+                              <span className="min-w-0 flex-1 truncate">{source}</span>
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </SectionCard>
 
-                                  {/* This is the critical fix: flex-1 + min-w-0 + truncate */}
-                                  <span className="min-w-0 flex-1 truncate">
-                                    {source}
-                                  </span>
-                                </span>
-                              ))
-                            )}
+                    <SectionCard title="Executive Summary" icon={<FiFileText size={16} />} color="indigo">
+                      <p className="text-sm text-theme-secondary leading-relaxed">
+                        {brief?.executiveSummary}
+                      </p>
+                    </SectionCard>
+
+                    <SectionCard title="Key Themes" icon={<FiLayers size={16} />} color="purple">
+                      <div className="space-y-3">
+                        {(brief?.keyThemes || []).map((theme, i) => (
+                          <div
+                            key={i}
+                            className="rounded-xl p-4 border"
+                            style={{
+                              backgroundColor: "var(--bg-elevated)",
+                              borderColor: "var(--border-secondary)",
+                            }}
+                          >
+                            <div className="flex items-center justify-between mb-2 gap-2">
+                              <span className="text-sm font-medium text-theme-primary">
+                                {theme.theme}
+                              </span>
+                              <PriorityTag priority={theme.frequency}>{theme.frequency}</PriorityTag>
+                            </div>
+                            <p className="text-xs text-theme-muted">{theme.insight}</p>
                           </div>
-                        </SectionCard>
+                        ))}
+                      </div>
+                    </SectionCard>
 
-                        <SectionCard title="Executive Summary" icon={<FiFileText size={16} />} color="indigo">
-                          <p className="text-sm text-theme-secondary leading-relaxed">{brief.executiveSummary}</p>
-                        </SectionCard>
+                    <SectionCard title="Consolidated Insights" icon={<FiZap size={16} />} color="emerald">
+                      <ul className="space-y-2 text-sm text-theme-secondary">
+                        {(brief?.consolidatedInsights || []).map((insight, i) => (
+                          <li key={i} className="flex items-start gap-3">
+                            <span className="h-5 w-5 rounded-full bg-emerald-500/15 text-emerald-500 flex items-center justify-center shrink-0 text-xs font-semibold">
+                              {i + 1}
+                            </span>
+                            {insight}
+                          </li>
+                        ))}
+                      </ul>
+                    </SectionCard>
 
-                        <SectionCard title="Key Themes" icon={<FiLayers size={16} />} color="purple">
-                          <div className="space-y-3">
-                            {(brief.keyThemes || []).map((theme, i) => (
-                              <div
-                                key={i}
-                                className="rounded-xl p-4 border"
-                                style={{ backgroundColor: "var(--bg-elevated)", borderColor: "var(--border-secondary)" }}
-                              >
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm font-medium text-theme-primary">{theme.theme}</span>
-                                  <PriorityTag priority={theme.frequency}>{theme.frequency}</PriorityTag>
-                                </div>
-                                <p className="text-xs text-theme-muted">{theme.insight}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </SectionCard>
+                    <SectionCard title="Action Plan" icon={<FiCheck size={16} />} color="indigo">
+                      <div className="space-y-3">
+                        {(brief?.unifiedActionPlan || []).map((action, i) => (
+                          <div
+                            key={i}
+                            className="rounded-xl p-4 border"
+                            style={{
+                              backgroundColor: "var(--bg-elevated)",
+                              borderColor: "var(--border-secondary)",
+                            }}
+                          >
+                            <p className="text-sm font-medium text-theme-primary mb-3">
+                              {action.action}
+                            </p>
 
-                        <SectionCard title="Consolidated Insights" icon={<FiZap size={16} />} color="emerald">
-                          <ul className="space-y-2 text-sm text-theme-secondary">
-                            {(brief.consolidatedInsights || []).map((insight, i) => (
-                              <li key={i} className="flex items-start gap-3">
-                                <span className="h-5 w-5 rounded-full bg-emerald-500/15 text-emerald-500 flex items-center justify-center flex-shrink-0 text-xs font-semibold">
-                                  {i + 1}
-                                </span>
-                                {insight}
-                              </li>
-                            ))}
-                          </ul>
-                        </SectionCard>
+                            <div className="flex flex-wrap gap-2">
+                              <PriorityTag priority={action.priority}>{action.priority}</PriorityTag>
 
-                        <SectionCard title="Action Plan" icon={<FiCheck size={16} />} color="indigo">
-                          <div className="space-y-3">
-                            {(brief.unifiedActionPlan || []).map((action, i) => (
-                              <div
-                                key={i}
-                                className="rounded-xl p-4 border"
-                                style={{ backgroundColor: "var(--bg-elevated)", borderColor: "var(--border-secondary)" }}
-                              >
-                                <p className="text-sm font-medium text-theme-primary mb-3">{action.action}</p>
-                                <div className="flex flex-wrap gap-2">
-                                  <PriorityTag priority={action.priority}>{action.priority}</PriorityTag>
-                                  <span
-                                    className="text-[10px] font-medium px-2.5 py-1 rounded-full text-theme-secondary border"
-                                    style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
-                                  >
-                                    {action.owners}
-                                  </span>
-                                  <span className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30">
-                                    {action.deadline}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </SectionCard>
-
-                        {(brief.contradictions || []).length > 0 && (
-                          <SectionCard title="⚠️ Contradictions" color="amber">
-                            {(brief.contradictions || []).map((c, i) => (
-                              <div
-                                key={i}
-                                className="rounded-xl p-4 text-sm border"
+                              <span
+                                className="text-[10px] font-medium px-2.5 py-1 rounded-full text-theme-secondary border"
                                 style={{
-                                  backgroundColor: "rgba(245, 158, 11, 0.08)",
-                                  borderColor: "rgba(245, 158, 11, 0.3)",
+                                  backgroundColor: "var(--bg-tertiary)",
+                                  borderColor: "var(--border-secondary)",
                                 }}
                               >
-                                <p className="text-amber-600 dark:text-amber-400 font-semibold">{c.topic}</p>
-                                <p className="text-theme-secondary text-xs mt-1">{c.conflict}</p>
-                                <p className="text-amber-600 dark:text-amber-400 text-xs mt-2 font-medium">
-                                  → {c.recommendation}
-                                </p>
-                              </div>
-                            ))}
-                          </SectionCard>
-                        )}
+                                {action.owners}
+                              </span>
 
-                        <SectionCard title="📋 Information Gaps" color="rose">
-                          <ul className="space-y-2 text-sm text-theme-muted">
-                            {(brief.gaps || []).map((gap, i) => (
-                              <li key={i} className="flex items-start gap-2">
-                                <span className="text-rose-500 mt-0.5">•</span>
-                                {gap}
-                              </li>
-                            ))}
-                          </ul>
-                        </SectionCard>
+                              <span className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30">
+                                {action.deadline}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </SectionCard>
 
-                        <div className="flex gap-3 pt-4 pb-24">
-                          <button
-                            onClick={() => {
-                              closeSynthesisResult();
-                              setViewingBrief(null);
+                    {(brief?.contradictions || []).length > 0 && (
+                      <SectionCard title="⚠️ Contradictions" color="amber">
+                        {(brief.contradictions || []).map((c, i) => (
+                          <div
+                            key={i}
+                            className="rounded-xl p-4 text-sm border"
+                            style={{
+                              backgroundColor: "rgba(245, 158, 11, 0.08)",
+                              borderColor: "rgba(245, 158, 11, 0.3)",
                             }}
-                            className="flex-1 py-4 rounded-xl text-theme-secondary hover:text-theme-primary transition font-medium border"
-                            style={{ backgroundColor: "var(--bg-button)", borderColor: "var(--border-secondary)" }}
+                          >
+                            <p className="text-amber-600 dark:text-amber-400 font-semibold">
+                              {c.topic}
+                            </p>
+                            <p className="text-theme-secondary text-xs mt-1">{c.conflict}</p>
+                            <p className="text-amber-600 dark:text-amber-400 text-xs mt-2 font-medium">
+                              → {c.recommendation}
+                            </p>
+                          </div>
+                        ))}
+                      </SectionCard>
+                    )}
+
+                    <SectionCard title="📋 Information Gaps" color="rose">
+                      <ul className="space-y-2 text-sm text-theme-muted">
+                        {(brief?.gaps || []).map((gap, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <span className="text-rose-500 mt-0.5">•</span>
+                            {gap}
+                          </li>
+                        ))}
+                      </ul>
+                    </SectionCard>
+
+                    {/* Footer buttons */}
+                    <div
+                      className="sticky bottom-0 pt-4 mt-2"
+                      style={{
+                        background:
+                          "linear-gradient(to top, var(--bg-surface) 70%, rgba(0,0,0,0))",
+                        paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)",
+                      }}
+                    >
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => {
+                            closeSynthesisResult();
+                            setViewingBrief(null);
+                          }}
+                          className="flex-1 py-3.5 rounded-xl text-theme-secondary hover:text-theme-primary transition font-medium border"
+                          style={{
+                            backgroundColor: "var(--bg-button)",
+                            borderColor: "var(--border-secondary)",
+                          }}
+                          type="button"
+                        >
+                          Close
+                        </button>
+
+                        {synthesisResult && !viewingBrief && (
+                          <button
+                            onClick={saveBrief}
+                            className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium shadow-lg shadow-purple-500/25"
                             type="button"
                           >
-                            Close
+                            Save Brief
                           </button>
-
-                          {synthesisResult && !viewingBrief && (
-                            <button
-                              onClick={saveBrief}
-                              className="flex-1 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium shadow-lg shadow-purple-500/25"
-                              type="button"
-                            >
-                              Save Brief
-                            </button>
-                          )}
-                        </div>
+                        )}
                       </div>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          </motion.div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </ModalShell>
         )}
       </AnimatePresence>
+
     </div>
   );
 }
@@ -1565,4 +1619,80 @@ function SectionCard({ title, icon, color = "indigo", children }) {
     </div>
   );
 }
+
+
+const ModalShell = ({
+  children,
+  onClose,
+  maxWidthClass = "sm:max-w-2xl",
+}) => (
+  <>
+    {/* Overlay */}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[9999] w-[100dvw] h-[100dvh]"
+      style={{
+        minHeight: "100vh", 
+        backgroundColor: "var(--bg-overlay)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }}
+      onClick={onClose}
+    />
+
+    {/* Centering container */}
+    <div
+      className="
+        fixed inset-0 z-[10000]
+        flex items-end sm:items-center justify-center
+        pointer-events-none
+        px-0 sm:px-4
+        pb-[env(safe-area-inset-bottom)]
+        pt-[env(safe-area-inset-top)]
+      "
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 26, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 26, scale: 0.98 }}
+        transition={{ type: "spring", stiffness: 420, damping: 34 }}
+        className={`
+          pointer-events-auto overflow-hidden shadow-2xl border
+          rounded-t-3xl sm:rounded-2xl
+          border-b-0 sm:border-b
+          w-full sm:w-[92vw]
+          ${maxWidthClass}
+        `}
+        style={{
+          backgroundColor: "var(--bg-surface)",
+          borderColor: "var(--border-secondary)",
+          maxHeight: "calc(100dvh - 24px)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Mobile handle */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div
+            className="w-10 h-1 rounded-full"
+            style={{ backgroundColor: "var(--border-secondary)" }}
+          />
+        </div>
+
+        {/* Scroll area */}
+        <div
+          className="overflow-y-auto"
+          style={{
+            maxHeight: "calc(100dvh - 24px)",
+            paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
+          {children}
+        </div>
+      </motion.div>
+    </div>
+  </>
+);
 

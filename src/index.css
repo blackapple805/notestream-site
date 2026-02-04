@@ -329,11 +329,11 @@
     transparent 100%
   );
   --sidebar-hover-bg: var(--sidebar-item-hover);
-  --sidebar-divider: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(15, 23, 42, 0.08) 50%,
-    transparent 100%
+      --sidebar-divider: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(15, 23, 42, 0.08) 50%,
+        transparent 100%
   );
   --sidebar-edge-highlight: linear-gradient(
     180deg,
@@ -365,10 +365,30 @@ html.dark {
   --icon-muted: var(--text-secondary); 
 }
 
+
 /* -----------------------------
    Dark Theme Explicit Overrides
    (Optional: ensures parity when forcing dark)
 ------------------------------ */
+:root {
+  --sidebar-divider: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.12) 50%,
+    transparent 100%
+  );
+}
+
+:root {
+  --sidebar-divider: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.12) 50%,
+    transparent 100%
+  );
+}
+
+
 :root.dark,
 [data-theme="dark"] {
   --bg-primary: #0a0a0f;
@@ -408,6 +428,7 @@ html.dark {
   );
   --page-header-icon-border: rgba(99, 102, 241, 0.25);
 }
+
 
 /* ==============================================================
    SIDEBAR + MOBILE NAV — THEME VARIABLES (Liquid Glass)
@@ -779,6 +800,17 @@ html.dark {
     rgba(248, 250, 252, 0.85) 50%,
     rgba(255, 255, 255, 0.72) 100%
   );
+  
+:root.light,
+[data-theme="light"] {
+  --sidebar-divider: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(15, 23, 42, 0.18) 50%,
+    transparent 100%
+  );
+}
+
   --card-glass-border: rgba(15, 23, 42, 0.08);
   --card-glass-shadow:
     0 8px 32px rgba(15, 23, 42, 0.08),

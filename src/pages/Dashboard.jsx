@@ -176,55 +176,57 @@ const computeHighlights = (notes, limit = 5) => {
   return list;
 };
 
-const NotificationIcon = ({ iconType }) => {
+const NotificationIcon = ({ iconType = "default" }) => {
   const iconConfig = {
     calendar: {
-      icon: Calendar,
-      color: "text-indigo-400",
+      Icon: Calendar,
+      colorClass: "text-indigo-400",
       bg: "rgba(99,102,241,0.15)",
       border: "rgba(99,102,241,0.3)",
     },
     warning: {
-      icon: Warning,
-      color: "text-amber-400",
+      Icon: Warning,
+      colorClass: "text-amber-400",
       bg: "rgba(245,158,11,0.15)",
       border: "rgba(245,158,11,0.3)",
     },
     task: {
-      icon: CheckSquare,
-      color: "text-emerald-400",
+      Icon: CheckSquare,
+      colorClass: "text-emerald-400",
       bg: "rgba(16,185,129,0.15)",
       border: "rgba(16,185,129,0.3)",
     },
     bell: {
-      icon: Bell,
-      color: "text-amber-400",
+      Icon: Bell,
+      colorClass: "text-amber-400",
       bg: "rgba(245,158,11,0.15)",
       border: "rgba(245,158,11,0.3)",
     },
     meeting: {
-      icon: Phone,
-      color: "text-purple-400",
+      Icon: Phone,
+      colorClass: "text-purple-400",
       bg: "rgba(168,85,247,0.15)",
       border: "rgba(168,85,247,0.3)",
     },
     default: {
-      icon: Flag,
-      color: "text-indigo-400",
+      Icon: Flag,
+      colorClass: "text-indigo-400",
       bg: "rgba(99,102,241,0.15)",
       border: "rgba(99,102,241,0.3)",
     },
   };
 
+  const config = iconConfig[iconType] || iconConfig.default;
+  const { Icon, colorClass, bg, border } = config;
+
   return (
     <div
-      className={`relative h-12 w-12 rounded-xl border flex items-center justify-center ${colorMap[color]}`}
+      className={`relative h-12 w-12 rounded-xl border flex items-center justify-center ${colorClass}`}
       style={{
-        backgroundColor: config.bg,
-        border: `1px solid ${config.border}`,
+        backgroundColor: bg,
+        border: `1px solid ${border}`,
         backdropFilter: "blur(6px) saturate(160%)",
         WebkitBackdropFilter: "blur(6px) saturate(160%)",
-        color: "currentColor", 
       }}
     >
       {/* subtle inner sheen */}
@@ -237,13 +239,8 @@ const NotificationIcon = ({ iconType }) => {
         }}
       />
 
-      {/* ICON (filled + colored properly) */}
-      {cloneElement(<IconComponent />, {
-        size: 18,
-        weight: "fill",            // works for Phosphor
-        color: "currentColor",     // works for react-icons
-        className: "relative z-10",
-      })}
+      {/* Phosphor icon */}
+      <Icon size={18} weight="fill" className="relative z-10" />
     </div>
   );
 };
@@ -1068,8 +1065,8 @@ export default function Dashboard() {
             {recentDocs.map((doc) => (
               <DocumentRow
                 key={doc.id}
-                doc={{ name: doc.name, status: doc.status, type: doc.type }}
-                onClick={() => navigate("/dashboard/documents")}
+                doc={{ id: doc.id, name: doc.name, status: doc.status, type: doc.type }}
+                onClick={() => navigate(`/dashboard/documents/${doc.id}`)}
               />
             ))}
 

@@ -1,8 +1,15 @@
 // src/pages/Activity.jsx
-// ✅ Uses get_daily_activity for charts
-// ✅ Timeline uses get_activity_timeline which returns day_date (date grouping correctness)
+// ✅ Uses get_daily_activity for charts (7d/30d controlled by "This Week / This Month")
+// ✅ Top StatCards now follow the chart window (7d or 30d)
+// ✅ Timeline range buttons are independent (7 / 30 / all time)
+// ✅ Timeline uses get_activity_timeline (fallback to direct query)
 // ✅ Filters out deleted notes/docs (server does; client also safety-checks)
 // ✅ Dedupe (server does; client also safety-checks)
+//
+// 🔧 UI fix (requested):
+// ✅ Chart card now uses flex layout so the graph can EXPAND to fill available card height
+// ✅ Adds an optional secondary mini-graph (Uploads sparkline) so the card doesn't feel empty on tall layouts
+// ✅ No deletions; everything remains wired the same
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import GlassCard from "../components/GlassCard";
@@ -32,14 +39,7 @@ import {
   FiLink,
   FiAlertCircle,
 } from "react-icons/fi";
-import {
-  ChartLine,
-  Fire,
-  NotePencil,
-  FileArrowUp,
-  Brain,
-  Lightning,
-} from "phosphor-react";
+import { ChartLine, Fire, NotePencil, FileArrowUp, Brain, Lightning } from "phosphor-react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 /* -----------------------------------------
@@ -79,10 +79,14 @@ function safeJson(val) {
   }
 }
 
+function toNum(v) {
+  if (v === null || v === undefined) return null;
+  const n = typeof v === "string" ? Number(v) : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 // Convert an event into a local YYYY-MM-DD key for grouping.
 function localDayKeyFromEvent(event) {
-  // Prefer day_date returned from RPC (UTC date).
-  // But UI should group by *local* day, so we still derive from created_at for accuracy.
   const d = new Date(event?.created_at || Date.now());
   if (Number.isNaN(d.getTime())) return "unknown";
   const y = d.getFullYear();
@@ -106,18 +110,15 @@ function labelForDayKey(dayKey) {
   if (diffDays === 0) return "TODAY";
   if (diffDays === 1) return "YESTERDAY";
 
-  // within last 7 days -> weekday
   if (diffDays > 1 && diffDays < 7) {
     return date.toLocaleDateString(undefined, { weekday: "long" }).toUpperCase();
   }
 
-  // older -> full date
   return date
     .toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
     .toUpperCase();
 }
 
-// Get display title from event - handles all possible sources
 function getEventTitle(event, noteMap, docMap) {
   if (!event) return "Activity";
 
@@ -134,14 +135,14 @@ function getEventTitle(event, noteMap, docMap) {
 
   const entityId = event.entity_id;
   if (entityId) {
-    if (noteMap && noteMap.has(entityId)) {
+    if (noteMap?.has(entityId)) {
       const note = noteMap.get(entityId);
-      if (note.title && String(note.title).trim()) return String(note.title).trim();
+      if (note?.title && String(note.title).trim()) return String(note.title).trim();
     }
-    if (docMap && docMap.has(entityId)) {
+    if (docMap?.has(entityId)) {
       const doc = docMap.get(entityId);
-      if (doc.name && String(doc.name).trim()) return String(doc.name).trim();
-      if (doc.file_name && String(doc.file_name).trim()) return String(doc.file_name).trim();
+      if (doc?.name && String(doc.name).trim()) return String(doc.name).trim();
+      if (doc?.file_name && String(doc.file_name).trim()) return String(doc.file_name).trim();
     }
   }
 
@@ -306,8 +307,7 @@ const CustomTooltip = ({ active, payload, label }) => {
           <div key={index} className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
             <p className="text-xs text-theme-secondary">
-              {entry.name}:{" "}
-              <span className="font-semibold text-theme-primary">{entry.value}</span>
+              {entry.name}: <span className="font-semibold text-theme-primary">{entry.value}</span>
             </p>
           </div>
         ))}
@@ -318,6 +318,79 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 /* -----------------------------------------
+   Secondary Mini-Graph (fills empty space nicely)
+----------------------------------------- */
+const MiniSparkline = ({ data, dataKey = "uploads", label = "Uploads", tone = "emerald" }) => {
+  const t = toneStyles[tone] || toneStyles.indigo;
+
+  const safeData = Array.isArray(data) && data.length ? data : defaultChartData;
+
+  return (
+    <div
+      className="rounded-2xl border p-3"
+      style={{
+        backgroundColor: "var(--bg-tertiary)",
+        borderColor: "var(--border-secondary)",
+      }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <div
+            className={`h-8 w-8 rounded-xl border flex items-center justify-center ${t.text}`}
+            style={{
+              backgroundColor: t.bg,
+              borderColor: t.border,
+              boxShadow: `0 10px 22px ${t.glow}`,
+            }}
+          >
+            <FiUploadCloud size={14} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-theme-primary leading-tight">{label}</p>
+            <p className="text-[10px] text-theme-muted leading-tight">Quick view</p>
+          </div>
+        </div>
+
+        <span className="text-[10px] font-semibold text-theme-muted px-2 py-1 rounded-full border"
+          style={{
+            backgroundColor: "var(--bg-elevated)",
+            borderColor: "var(--border-secondary)",
+          }}
+        >
+          {dataKey}
+        </span>
+      </div>
+
+      <div style={{ width: "100%", height: 84, minHeight: 84 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={safeData}>
+            <defs>
+              <linearGradient id="miniFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={t.solid} stopOpacity={0.35} />
+                <stop offset="100%" stopColor={t.solid} stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="name" hide />
+            <YAxis hide />
+            <Tooltip content={<CustomTooltip />} />
+            <Area
+              type="monotone"
+              dataKey={dataKey}
+              stroke={t.solid}
+              strokeWidth={2}
+              fill="url(#miniFill)"
+              dot={false}
+              activeDot={{ r: 4, fill: t.solid, stroke: "#fff", strokeWidth: 2 }}
+              name={label}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
+/* -----------------------------------------
    Timeline Row Component
 ----------------------------------------- */
 const TimelineRow = ({ event, index, isLast, noteMap, docMap }) => {
@@ -325,7 +398,8 @@ const TimelineRow = ({ event, index, isLast, noteMap, docMap }) => {
   const s = actionStyles[event.event_type] || actionStyles.note_created;
   const title = getEventTitle(event, noteMap, docMap);
   const subtitle = getEventSubtitle(event);
-  const isPhosphor = typeof Icon !== "function" || Icon.$$typeof;
+
+  const isPhosphor = Icon === NotePencil || Icon === FileArrowUp || Icon === Brain || Icon === Lightning;
 
   return (
     <motion.li
@@ -478,14 +552,20 @@ const IconTile = ({ children, tone = "indigo", size = "md" }) => {
 ----------------------------------------- */
 export default function Activity() {
   const supabaseReady =
-    typeof isSupabaseConfigured === "function"
-      ? isSupabaseConfigured()
-      : !!isSupabaseConfigured;
+    typeof isSupabaseConfigured === "function" ? isSupabaseConfigured() : !!isSupabaseConfigured;
 
-  const [range, setRange] = useState(7);
+  // Timeline window (buttons in timeline header)
+  const [timelineRange, setTimelineRange] = useState(7);
+
+  // Charts window (This Week / This Month)
+  const [chartRange, setChartRange] = useState("week"); // "week" | "month"
+  const chartDays = chartRange === "month" ? 30 : 7;
+
+  // StatCards window should follow chartRange (user request)
+  const statDays = chartDays;
+
   const [typeFilter, setTypeFilter] = useState("all");
-  const [chartTab, setChartTab] = useState("notes");
-  const [chartRange, setChartRange] = useState("week");
+  const [chartTab, setChartTab] = useState("notes"); // "notes" | "summaries"
   const [chartsReady, setChartsReady] = useState(false);
 
   const [usageBreakdown, setUsageBreakdown] = useState([]);
@@ -494,6 +574,18 @@ export default function Activity() {
     readability: 0,
     structure: 0,
     completeness: 0,
+  });
+
+  // Trends for StatCards (based on statDays)
+  const [trends, setTrends] = useState({
+    notes_delta: 0,
+    notes_pct: null,
+    ai_activity_delta: 0,
+    ai_activity_pct: null,
+    uploads_delta: 0,
+    uploads_pct: null,
+    active_days_delta: 0,
+    active_days_pct: null,
   });
 
   const [openGroups, setOpenGroups] = useState({});
@@ -505,6 +597,7 @@ export default function Activity() {
   const [stats, setStats] = useState({
     notes_count: 0,
     ai_summaries_count: 0,
+    ai_activity_count: 0,
     uploads_count: 0,
     streak_days: 0,
     active_days_count: 0,
@@ -522,8 +615,6 @@ export default function Activity() {
     return () => clearTimeout(timer);
   }, []);
 
-  const chartDays = chartRange === "month" ? 30 : 7;
-
   const getUser = useCallback(async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error) throw error;
@@ -533,7 +624,20 @@ export default function Activity() {
 
   const firstRow = (data) => (Array.isArray(data) ? data[0] : data);
 
-  // ✅ SECTION 1: loadActivityData (only changes: stats coercion + deps include chartRange)
+  const formatTrendPct = useCallback((pct) => {
+    const n = toNum(pct);
+    if (n === null) return null;
+    const sign = n > 0 ? "+" : "";
+    return `${sign}${Math.round(n)}%`;
+  }, []);
+
+  const trendUpFromPct = useCallback((pct) => {
+    const n = toNum(pct);
+    if (n === null) return true;
+    return n >= 0;
+  }, []);
+
+  // Loads data for StatCards + Charts (follows chartRange)
   const loadActivityData = useCallback(async () => {
     if (!supabaseReady || !supabase) {
       setLoading(false);
@@ -544,28 +648,55 @@ export default function Activity() {
       setLoading(true);
       const user = await getUser();
 
-      const { data: statsData, error: statsError } = await supabase.rpc("get_activity_stats", {
+      // 1) Core stats (StatCards) — NOW based on statDays (7/30)
+      const { data: statsData, error: statsError } = await supabase.rpc("get_activity_stats_v2", {
         p_user_id: user.id,
-        p_days: range,
+        p_days: statDays,
       });
       if (statsError) console.error("Stats error:", statsError);
+
       const statsRow = firstRow(statsData);
 
-      // ✅ FIX: force numbers (RPC returns bigint -> can arrive as string)
       setStats({
         notes_count: Number(statsRow?.notes_count) || 0,
         ai_summaries_count: Number(statsRow?.ai_summaries_count) || 0,
+        ai_activity_count: Number(statsRow?.ai_activity_count) || 0,
         uploads_count: Number(statsRow?.uploads_count) || 0,
         streak_days: Number(statsRow?.streak_days) || 0,
         active_days_count: Number(statsRow?.active_days_count) || 0,
       });
 
+      // 2) Trends (deltas + pct) — NOW based on statDays (7/30)
+      const { data: trendsData, error: trendsError } = await supabase.rpc("get_activity_trends_v1", {
+        p_user_id: user.id,
+        p_days: statDays,
+      });
+      if (trendsError) console.error("Trends error:", trendsError);
+
+      const tRow = firstRow(trendsData);
+
+      setTrends({
+        notes_delta: Number(tRow?.notes_delta) || 0,
+        notes_pct: toNum(tRow?.notes_pct),
+
+        ai_activity_delta: Number(tRow?.ai_activity_delta) || 0,
+        ai_activity_pct: toNum(tRow?.ai_activity_pct),
+
+        uploads_delta: Number(tRow?.uploads_delta) || 0,
+        uploads_pct: toNum(tRow?.uploads_pct),
+
+        active_days_delta: Number(tRow?.active_days_delta) || 0,
+        active_days_pct: toNum(tRow?.active_days_pct),
+      });
+
+      // 3) Daily chart data (7/30) — uses chartDays (same as statDays)
       const { data: dailyDataResult, error: dailyError } = await supabase.rpc("get_daily_activity", {
         p_user_id: user.id,
         p_days: chartDays,
       });
       if (dailyError) console.error("Daily activity error:", dailyError);
-      if (dailyDataResult && dailyDataResult.length > 0) {
+
+      if (dailyDataResult?.length) {
         setDailyData(
           dailyDataResult.map((d) => ({
             name: d.day_name,
@@ -574,35 +705,44 @@ export default function Activity() {
             uploads: Number(d.uploads_count) || 0,
           }))
         );
+      } else {
+        setDailyData(defaultChartData);
       }
 
+      // 4) Weekly streak (still 7-day streak view)
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Los_Angeles";
       const { data: streakData, error: streakError } = await supabase.rpc("get_weekly_streak", {
         p_user_id: user.id,
         p_tz: tz,
       });
       if (streakError) console.error("Streak error:", streakError);
-      if (streakData && streakData.length > 0) {
+
+      if (streakData?.length) {
         setStreakDays(
           streakData.map((d) => ({
             day: d.day_name,
             active: !!d.was_active,
           }))
         );
+      } else {
+        setStreakDays(defaultStreakDays);
       }
 
+      // 5) Usage breakdown (use statDays so it matches StatCards window)
       const { data: usageData, error: usageErr } = await supabase.rpc("get_usage_breakdown", {
         p_user_id: user.id,
-        p_days: range,
+        p_days: statDays,
       });
       if (usageErr) console.error("Usage breakdown error:", usageErr);
       setUsageBreakdown(usageData || []);
 
+      // 6) Clarity (use statDays so it matches StatCards window)
       const { data: clarityData, error: clarityErr } = await supabase.rpc("get_clarity_score", {
         p_user_id: user.id,
-        p_days: range,
+        p_days: statDays,
       });
       if (clarityErr) console.error("Clarity score error:", clarityErr);
+
       const clarityRow = firstRow(clarityData);
       setClarity({
         total_score: Number(clarityRow?.total_score) || 0,
@@ -615,7 +755,7 @@ export default function Activity() {
     } finally {
       setLoading(false);
     }
-  }, [getUser, range, chartDays, chartRange, supabaseReady]);
+  }, [getUser, supabaseReady, statDays, chartDays]);
 
   const loadTimeline = useCallback(async () => {
     if (!supabaseReady || !supabase) return;
@@ -636,17 +776,13 @@ export default function Activity() {
 
       const user = await getUser();
 
-      // Load notes/docs to enrich titles and to help orphan filtering client-side.
       const [{ data: docsData, error: docsError }, { data: notesData, error: notesError }] =
         await Promise.all([
           supabase
             .from("documents")
             .select("id, name, type, file_name, created_at, updated_at")
             .eq("user_id", user.id),
-          supabase
-            .from("notes")
-            .select("id, title, created_at, updated_at")
-            .eq("user_id", user.id),
+          supabase.from("notes").select("id, title, created_at, updated_at").eq("user_id", user.id),
         ]);
 
       const newDocMap = new Map();
@@ -656,16 +792,11 @@ export default function Activity() {
       setDocMap(newDocMap);
       setNoteMap(newNoteMap);
 
-      // UI filter -> RPC event_type (keep null for composite filters)
       const rpcEventType =
-        typeFilter === "all" || typeFilter === "notes" || typeFilter === "updates"
-          ? null
-          : typeFilter;
+        typeFilter === "all" || typeFilter === "notes" || typeFilter === "updates" ? null : typeFilter;
 
-      // range 0 => all time; keep bounded to 365 for sanity
-      const daysForRpc = range > 0 ? range : 365;
+      const daysForRpc = timelineRange > 0 ? timelineRange : 365;
 
-      // RPC first
       let timelineData = null;
       let rpcError = null;
 
@@ -682,20 +813,20 @@ export default function Activity() {
         rpcError = err;
       }
 
-      // Fallback to direct query if RPC fails
       if (rpcError) {
         console.error("Timeline RPC error:", rpcError);
+
         let q = supabase
           .from("activity_events")
           .select("*")
           .eq("user_id", user.id)
+          .in("event_type", Array.from(TIMELINE_ALLOWED_TYPES))
           .order("created_at", { ascending: false })
           .limit(250);
 
-        // apply range
-        if (range > 0) {
+        if (timelineRange > 0) {
           const since = new Date();
-          since.setDate(since.getDate() - range);
+          since.setDate(since.getDate() - timelineRange);
           q = q.gte("created_at", since.toISOString());
         }
 
@@ -711,7 +842,6 @@ export default function Activity() {
         timelineData = directData || [];
       }
 
-      // Normalize + filter + client dedupe
       const normalized = (timelineData || [])
         .map((e) => ({
           ...e,
@@ -720,13 +850,11 @@ export default function Activity() {
         }))
         .filter((e) => TIMELINE_ALLOWED_TYPES.has(e?.event_type))
         .filter((e) => {
-          // UI composite filters
           if (typeFilter === "notes") return e.event_type === "note_created" || e.event_type === "note_updated";
           if (typeFilter === "updates") return e.event_type === "note_updated";
           return true;
         })
         .filter((e) => {
-          // Client orphan safety-check (server already excludes, but keep safe for fallback path)
           const entityId = e.entity_id;
           if (!entityId) return true;
 
@@ -739,13 +867,10 @@ export default function Activity() {
           return true;
         });
 
-      // Dedupe: keep latest per (event_type, entity_id) for entity events
-      const seen = new Map(); // key -> event
+      const seen = new Map();
       for (const e of normalized) {
         const isEntityEvent =
-          (e.event_type === "note_created" ||
-            e.event_type === "note_updated" ||
-            e.event_type === "doc_uploaded") &&
+          (e.event_type === "note_created" || e.event_type === "note_updated" || e.event_type === "doc_uploaded") &&
           !!e.entity_id;
 
         const key = isEntityEvent ? `${e.event_type}:${e.entity_id}` : `${e.event_type}:${e.id}`;
@@ -760,10 +885,7 @@ export default function Activity() {
         }
       }
 
-      const processedEvents = Array.from(seen.values()).sort(
-        (a, b) => new Date(b.created_at) - new Date(a.created_at)
-      );
-
+      const processedEvents = Array.from(seen.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setTimelineEvents(processedEvents);
     } catch (err) {
       console.error("Failed to load timeline:", err);
@@ -772,24 +894,25 @@ export default function Activity() {
     } finally {
       setTimelineLoading(false);
     }
-  }, [getUser, range, typeFilter, supabaseReady]);
+  }, [getUser, supabaseReady, timelineRange, typeFilter]);
 
   const handleRefreshTimeline = useCallback(() => {
     loadActivityData();
     loadTimeline();
   }, [loadActivityData, loadTimeline]);
 
+  // Reload StatCards + Charts whenever chartDays/statDays changes
   useEffect(() => {
     loadActivityData();
   }, [loadActivityData]);
 
+  // Reload timeline when timelineRange/typeFilter changes
   useEffect(() => {
     loadTimeline();
   }, [loadTimeline]);
 
-  // Group events by calendar day (correct “sections”)
   const groupedEvents = useMemo(() => {
-    const byDay = new Map(); // dayKey -> events[]
+    const byDay = new Map();
     for (const e of timelineEvents) {
       const k = e.day_key || localDayKeyFromEvent(e);
       if (!byDay.has(k)) byDay.set(k, []);
@@ -797,27 +920,19 @@ export default function Activity() {
     }
 
     const sortedKeys = Array.from(byDay.keys()).sort((a, b) => (a < b ? 1 : -1));
-    const out = [];
-    for (const k of sortedKeys) {
-      out.push({
-        dayKey: k,
-        label: labelForDayKey(k),
-        items: (byDay.get(k) || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
-      });
-    }
-    return out;
+    return sortedKeys.map((k) => ({
+      dayKey: k,
+      label: labelForDayKey(k),
+      items: (byDay.get(k) || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+    }));
   }, [timelineEvents]);
 
-  // Ensure openGroups has defaults for new groups
   useEffect(() => {
     if (!groupedEvents.length) return;
     setOpenGroups((prev) => {
       const next = { ...prev };
       for (const g of groupedEvents) {
-        if (next[g.dayKey] === undefined) {
-          // open Today/Yesterday by default, collapse older
-          next[g.dayKey] = g.label === "TODAY" || g.label === "YESTERDAY";
-        }
+        if (next[g.dayKey] === undefined) next[g.dayKey] = g.label === "TODAY" || g.label === "YESTERDAY";
       }
       return next;
     });
@@ -825,15 +940,19 @@ export default function Activity() {
 
   const chartData = dailyData;
 
-  const notesTrend =
-    stats.notes_count > 0
-      ? `+${Math.round((stats.notes_count / Math.max(range || 7, 1)) * 1000) / 10}%`
-      : null;
+  const notesTrend = formatTrendPct(trends.notes_pct);
+  const notesTrendUp = trendUpFromPct(trends.notes_pct);
 
-  const summariesTrend =
-    stats.ai_summaries_count > 0
-      ? `+${Math.round((stats.ai_summaries_count / Math.max(range || 7, 1)) * 1000) / 10}%`
-      : null;
+  const aiActivityTrend = formatTrendPct(trends.ai_activity_pct);
+  const aiActivityTrendUp = trendUpFromPct(trends.ai_activity_pct);
+
+  const uploadsTrend = formatTrendPct(trends.uploads_pct);
+  const uploadsTrendUp = trendUpFromPct(trends.uploads_pct);
+
+  // Used for “fill the card” behavior:
+  // - On tall layouts, the chart container can safely grow.
+  // - Keep a sensible minimum so small screens still look good.
+  const mainChartMinHeight = chartRange === "month" ? 220 : 200;
 
   if (loading) {
     return (
@@ -872,15 +991,11 @@ export default function Activity() {
             whiteSpace: "nowrap",
           }}
         >
-          {new Date().toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}
+          {new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
         </span>
       </motion.header>
 
-      {/* Stats Row */}
+      {/* Stats Row (follows chartRange: 7d/30d) */}
       <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
@@ -888,20 +1003,20 @@ export default function Activity() {
         className="grid grid-cols-2 md:grid-cols-4 gap-3"
       >
         <StatCard
-          title={`Notes (${range > 0 ? `last ${range}d` : "all time"})`}
+          title={`Notes (last ${statDays}d)`}
           value={stats.notes_count}
           icon={<FiFileText size={18} />}
           iconColor="indigo"
           trend={notesTrend}
-          trendUp={true}
+          trendUp={notesTrendUp}
         />
         <StatCard
-          title={`AI Activity (${range > 0 ? `last ${range}d` : "all time"})`}
-          value={stats.ai_summaries_count}
+          title={`AI Activity (last ${statDays}d)`}
+          value={stats.ai_activity_count}
           icon={<FiZap size={18} />}
           iconColor="amber"
-          trend={summariesTrend}
-          trendUp={true}
+          trend={aiActivityTrend}
+          trendUp={aiActivityTrendUp}
         />
         <StatCard
           title="Day Streak"
@@ -911,19 +1026,17 @@ export default function Activity() {
           iconColor="orange"
         />
         <StatCard
-          title={`Uploads (${range > 0 ? `last ${range}d` : "all time"})`}
+          title={`Uploads (last ${statDays}d)`}
           value={stats.uploads_count}
           icon={<FiUploadCloud size={18} />}
           iconColor="emerald"
+          trend={uploadsTrend}
+          trendUp={uploadsTrendUp}
         />
       </motion.div>
 
       {/* Streak Indicator */}
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
-      >
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
         <GlassCard>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
@@ -932,18 +1045,16 @@ export default function Activity() {
               </div>
               <h3 className="font-semibold text-sm text-theme-primary">Weekly Activity</h3>
             </div>
-            <span className="text-[10px] text-theme-muted px-2 py-1 rounded-full bg-theme-tertiary">
-              7-day view
-            </span>
+            <span className="text-[10px] text-theme-muted px-2 py-1 rounded-full bg-theme-tertiary">7-day view</span>
           </div>
           <StreakDots days={streakDays} />
         </GlassCard>
       </motion.div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Area Chart */}
-        <GlassCard className="relative overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+        {/* Area Chart (now fills card height, plus optional mini graph) */}
+        <GlassCard className="relative overflow-hidden h-full flex flex-col">
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
@@ -953,7 +1064,7 @@ export default function Activity() {
             }}
           />
 
-          <div className="relative">
+          <div className="relative flex flex-col h-full">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <div className="flex items-center gap-3">
                 <IconTile tone="indigo" size="sm">
@@ -974,28 +1085,25 @@ export default function Activity() {
               </div>
             </div>
 
+            {/* This Week / This Month (drives charts + top StatCards automatically) */}
             <div className="flex gap-2 mb-4">
               {["week", "month"].map((r) => (
-                <ToggleButton
-                  key={r}
-                  active={chartRange === r}
-                  onClick={() => setChartRange(r)}
-                  size="sm"
-                >
+                <ToggleButton key={r} active={chartRange === r} onClick={() => setChartRange(r)} size="sm">
                   {r === "week" ? "This Week" : "This Month"}
                 </ToggleButton>
               ))}
             </div>
 
+            {/* Main chart container now uses flex-1 so it can expand */}
             <div
-              className="rounded-2xl border p-2"
+              className="rounded-2xl border p-2 flex-1"
               style={{
                 backgroundColor: "var(--bg-tertiary)",
                 borderColor: "var(--border-secondary)",
                 boxShadow: "0 18px 50px rgba(99,102,241,0.10)",
               }}
             >
-              <div style={{ width: "100%", height: 176, minHeight: 176 }}>
+              <div style={{ width: "100%", height: "100%", minHeight: mainChartMinHeight }}>
                 {chartsReady ? (
                   <ResponsiveContainer width="100%" height="100%" minWidth={200}>
                     <AreaChart data={chartData}>
@@ -1027,7 +1135,7 @@ export default function Activity() {
 
                       <Area
                         type="monotone"
-                        dataKey={chartTab}
+                        dataKey={chartTab} // "notes" or "summaries" (matches dailyData fields)
                         stroke="url(#activityStroke)"
                         strokeWidth={2.6}
                         fill="url(#activityFill)"
@@ -1051,11 +1159,21 @@ export default function Activity() {
                 )}
               </div>
             </div>
+
+            {/* Optional second graph to use remaining card space (matches your screenshot layout) */}
+            <div className="mt-3">
+              <MiniSparkline
+                data={chartData}
+                dataKey="uploads"
+                label="Uploads"
+                tone="emerald"
+              />
+            </div>
           </div>
         </GlassCard>
 
         {/* Usage Breakdown */}
-        <GlassCard className="relative overflow-hidden">
+        <GlassCard className="relative overflow-hidden h-full">
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
@@ -1085,7 +1203,7 @@ export default function Activity() {
                   color: "var(--text-muted)",
                 }}
               >
-                {range > 0 ? `Last ${range}d` : "All time"}
+                Last {statDays}d
               </span>
             </div>
 
@@ -1130,9 +1248,7 @@ export default function Activity() {
                           </div>
                           <span className="text-sm text-theme-secondary font-medium">{item.label}</span>
                         </div>
-                        <span className="text-sm font-semibold text-theme-primary">
-                          {Number(item.value) || 0}%
-                        </span>
+                        <span className="text-sm font-semibold text-theme-primary">{Number(item.value) || 0}%</span>
                       </div>
 
                       <div
@@ -1265,12 +1381,7 @@ export default function Activity() {
                       />
                       <Tooltip content={<CustomTooltip />} />
                       <Bar dataKey="notes" fill="url(#barNotes)" radius={[6, 6, 0, 0]} name="Notes" />
-                      <Bar
-                        dataKey="summaries"
-                        fill="url(#barSummaries)"
-                        radius={[6, 6, 0, 0]}
-                        name="Summaries"
-                      />
+                      <Bar dataKey="summaries" fill="url(#barSummaries)" radius={[6, 6, 0, 0]} name="Summaries" />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -1295,7 +1406,7 @@ export default function Activity() {
               <h3 className="font-semibold text-base text-theme-primary">Activity Timeline</h3>
               <p className="text-[10px] text-theme-muted">
                 {timelineEvents.length} event{timelineEvents.length === 1 ? "" : "s"}
-                {range > 0 ? ` in the last ${range} days` : " (all time)"}
+                {timelineRange > 0 ? ` in the last ${timelineRange} days` : " (all time)"}
               </p>
             </div>
           </div>
@@ -1321,7 +1432,7 @@ export default function Activity() {
             </motion.button>
 
             {[7, 30, 0].map((n) => (
-              <ToggleButton key={n} active={range === n} onClick={() => setRange(n)}>
+              <ToggleButton key={n} active={timelineRange === n} onClick={() => setTimelineRange(n)}>
                 {n === 0 ? "All time" : `${n} days`}
               </ToggleButton>
             ))}
@@ -1542,7 +1653,7 @@ const StatCard = ({ title, value, sub, icon, iconColor, trend, trendUp }) => {
           {icon}
         </div>
 
-        {trend && (
+        {trend !== null && trend !== undefined && trend !== "" && (
           <span
             className={`text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-semibold ${
               trendUp
@@ -1607,9 +1718,7 @@ const StreakDots = ({ days }) => {
                 ? "bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/30"
                 : "border-2 border-dashed"
             }`}
-            style={
-              !d.active ? { backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-tertiary)" } : {}
-            }
+            style={!d.active ? { backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-tertiary)" } : {}}
             whileHover={{ scale: 1.1 }}
             transition={{ duration: 0.2 }}
           >
@@ -1662,5 +1771,6 @@ const ClarityRing = ({ value }) => {
     </div>
   );
 };
+
 
 
