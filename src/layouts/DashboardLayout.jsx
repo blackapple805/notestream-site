@@ -23,7 +23,7 @@ export default function DashboardLayout() {
   return (
     <div
       className="
-        w-full 
+        w-full
         min-h-[100dvh]
         flex
         bg-theme-primary
@@ -41,7 +41,6 @@ export default function DashboardLayout() {
           flex-grow
           w-full
           min-h-[100dvh]
-          md:ml-[220px]
           relative
           z-[10]
           overflow-y-visible md:overflow-y-auto
@@ -49,24 +48,25 @@ export default function DashboardLayout() {
           transition-colors duration-300
         "
       >
-        <div className="flex w-full justify-center">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.main
-              key={location.pathname}
-              variants={pageVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              className="
-                w-full max-w-[1200px]
-                px-4 sm:px-5 md:px-8
-                pt-6 sm:pt-8 md:pt-10
-              "
-            >
-              <Outlet />
-            </motion.main>
-          </AnimatePresence>
-        </div>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.main
+            key={location.pathname}
+            variants={pageVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="
+              mx-auto
+              w-full
+              max-w-[1200px]
+              px-4 sm:px-5 md:px-8
+              pt-6 sm:pt-8
+              md:pt-[calc(var(--ns-desktop-header-h,0px)+24px)]
+            "
+          >
+            <Outlet />
+          </motion.main>
+        </AnimatePresence>
       </div>
 
       {/* Global Toast Target */}
@@ -74,3 +74,4 @@ export default function DashboardLayout() {
     </div>
   );
 }
+

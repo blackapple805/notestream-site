@@ -20,7 +20,7 @@ import { createPortal } from "react-dom";
 import { Note, FilePlus, Crown } from "phosphor-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import {  useParams, useNavigate } from "react-router-dom";
+import {  useLocation, useParams, useNavigate } from "react-router-dom";
 import GlassCard from "../components/GlassCard";
 import NoteCard from "../components/NoteCard";
 import NoteRow from "../components/NoteRow";
@@ -74,6 +74,12 @@ const FILTERS = [
 export default function Notes() {
   const navigate = useNavigate();
   const { noteId } = useParams();
+  const location = useLocation();
+  const rightGutter =
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--ns-right-gutter")
+    ) || 0;
+
   const { subscription, isFeatureUnlocked, isLoading, incrementUsage } = useSubscription();
 
   const isPro = !!subscription?.plan && subscription.plan !== "free";
@@ -269,6 +275,24 @@ export default function Notes() {
     if (!supabaseReady || !supabase) return;
     loadTagCounts();
   }, [supabaseReady, loadTagCounts]);
+
+  // ✅ Quick Create: triggered from Sidebar (DotsNine)
+  useEffect(() => {
+    const qc = location.state?.quickCreate;
+    if (!qc) return;
+
+    // prevent re-trigger on back/refresh
+    window.history.replaceState({}, document.title);
+
+    if (qc === "note") {
+      setEditorOpen(true);
+    } else if (qc === "voice") {
+      openVoiceRecorder();
+    } else if (qc === "upload") {
+      filePickerRef.current?.click();
+    }
+  }, [location.state?.ts]);
+
 
 
   useEffect(() => {
@@ -697,7 +721,6 @@ export default function Notes() {
     openUnlockForNote(note.id, true);
   };
 
-
   // File upload
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -928,6 +951,7 @@ export default function Notes() {
       />
     );
   }
+
 
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+100px)] animate-fadeIn">
@@ -1172,8 +1196,13 @@ export default function Notes() {
                 onMenu={(e) => {
                   e.stopPropagation();
                   const rect = e.currentTarget.getBoundingClientRect();
+
+                  const rightGutter =
+                    parseFloat(
+                      getComputedStyle(document.documentElement).getPropertyValue("--ns-right-gutter")
+                    ) || 0;
                   setMenuPos({
-                    x: Math.min(rect.right - 180, window.innerWidth - 200),
+                    x: Math.min(rect.right - 180, window.innerWidth - rightGutter - 200),
                     y: rect.bottom + 8,
                   });
                   setActiveMenuId(note.id);
@@ -1188,15 +1217,21 @@ export default function Notes() {
                 onLongPress={() => {}}
                 onArchive={() => {}}
                 onDelete={() => handleDelete(note.id)}
-                onMenu={(e) => {
-                  e.stopPropagation();
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  setMenuPos({
-                    x: Math.min(rect.right - 180, window.innerWidth - 200),
-                    y: rect.bottom + 8,
-                  });
-                  setActiveMenuId(note.id);
-                }}
+               onMenu={(e) => {
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+
+                const rightGutter =
+                  parseFloat(
+                    getComputedStyle(document.documentElement).getPropertyValue("--ns-right-gutter")
+                  ) || 0;
+
+                setMenuPos({
+                  x: Math.min(rect.right - 180, window.innerWidth - 200 - rightGutter),
+                  y: rect.bottom + 8,
+                });
+                setActiveMenuId(note.id);
+              }}
               />
             )
           )
@@ -1288,7 +1323,13 @@ export default function Notes() {
       </AnimatePresence>
 
      {/* FAB Zone - Theme-aware Liquid Glass Style */}
-      <div className="fab-zone fixed bottom-[calc(var(--mobile-nav-height)+16px)] right-4 z-[140]" style={{ willChange: "transform" }}>
+     <div
+        className="fab-zone fixed bottom-[calc(var(--mobile-nav-height)+16px)] z-[140]"
+        style={{
+          right: "calc(16px + var(--ns-right-gutter, 0px))",
+          willChange: "transform",
+        }}
+      >
         <AnimatePresence initial={false} mode="wait">
           {showAddMenu && (
             <motion.div

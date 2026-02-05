@@ -10,23 +10,77 @@ import {
   Gear,
   Plugs,
   SignOut,
+  List as MenuIcon,
+  DotsNine,
+  Microphone,
+  UploadSimple,
+  Plus,
 } from "phosphor-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
-import { hideMobileNav, showMobileNav } from "../ui/layoutState";
+import { showMobileNav } from "../ui/layoutState";
+
+const DESKTOP_HEADER_H = 64; // px
+const SIDEBAR_W_COLLAPSED = 72; // icons only
 
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [collapsed, setCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [mobileNavHidden, setMobileNavHidden] = useState(false);
 
+  // Sidebar slide-in state (right sidebar)
+  const [desktopOpen, setDesktopOpen] = useState(false);
+
+  // ✅ Separate overlay state so programmatic opens don't create a stuck overlay
+  const [desktopOverlayOpen, setDesktopOverlayOpen] = useState(false);
+
+  // ✅ Quick Create (DotsNine) menu
+  const [showQuickCreate, setShowQuickCreate] = useState(false);
+
+  // ✅ Force icons-only on desktop (kept for compatibility)
+  const collapsed = true;
+
+  const isDesktop = () =>
+    typeof window !== "undefined" &&
+    window.matchMedia &&
+    window.matchMedia("(min-width: 768px)").matches;
+
+  // ✅ Only auto-open via events on Notes LIST page (not note view)
+  const isNotesListRoute = location.pathname === "/dashboard/notes";
+
+  const closeDesktopSidebar = useCallback(() => {
+    setDesktopOpen(false);
+    setDesktopOverlayOpen(false);
+    document.body.style.overflow = "";
+  }, []);
+
+  const openDesktopSidebarFromHamburger = useCallback(() => {
+    setDesktopOpen(true);
+    setDesktopOverlayOpen(true);
+  }, []);
+
+  const closeQuickCreate = useCallback(() => setShowQuickCreate(false), []);
+
+  // Quick Create: route + tell Notes what to open
+  const goQuickCreate = useCallback(
+    (type) => {
+      // close all popovers/overlays first
+      setShowQuickCreate(false);
+      closeDesktopSidebar();
+
+      // Navigate to Notes and instruct it
+      navigate("/dashboard/notes", {
+        state: { quickCreate: type, ts: Date.now() },
+      });
+    },
+    [navigate, closeDesktopSidebar]
+  );
+
   /* --------------------------------------------------
      MOBILE NAV VISIBILITY
-     - Listens to layoutState events AND body.modal-open changes
   -------------------------------------------------- */
   useEffect(() => {
     const handleModalOpen = () => setMobileNavHidden(true);
@@ -35,14 +89,12 @@ export default function Sidebar() {
     window.addEventListener("modal:open", handleModalOpen);
     window.addEventListener("modal:close", handleModalClose);
 
-    // Initial sync (covers refresh while modal-open is present)
     setMobileNavHidden(document.body.classList.contains("modal-open"));
 
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.attributeName === "class") {
-          const hasModal = document.body.classList.contains("modal-open");
-          setMobileNavHidden(hasModal);
+          setMobileNavHidden(document.body.classList.contains("modal-open"));
         }
       });
     });
@@ -57,29 +109,54 @@ export default function Sidebar() {
   }, []);
 
   /* --------------------------------------------------
-     DESKTOP SCROLL COLLAPSE
+     ✅ CRITICAL: always close sidebar + overlay on route change
+     Prevents stuck overlay after navigating (e.g., opening a note)
   -------------------------------------------------- */
   useEffect(() => {
-    if (window.innerWidth < 768) return;
+    if (!isDesktop()) return;
+    closeDesktopSidebar();
+    setShowQuickCreate(false);
+  }, [location.pathname, closeDesktopSidebar]);
 
-    let last = window.scrollY || 0;
-    let ticking = false;
+  /* --------------------------------------------------
+     Quick Create: close on ESC
+  -------------------------------------------------- */
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        setShowQuickCreate(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
-    const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-
-      window.requestAnimationFrame(() => {
-        const curr = window.scrollY || 0;
-        setCollapsed(curr > last && curr > 60);
-        last = curr;
-        ticking = false;
-      });
+  /* --------------------------------------------------
+     DESKTOP: allow other pages (Notes) to control sidebar visibility
+     ✅ but ONLY on /dashboard/notes (list). Avoid note-view glitches.
+     ✅ programmatic open does NOT enable overlay.
+  -------------------------------------------------- */
+  useEffect(() => {
+    const onOpen = () => {
+      if (!isDesktop()) return;
+      if (!isNotesListRoute) return;
+      setDesktopOpen(true);
+      setDesktopOverlayOpen(false);
     };
 
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    const onClose = () => {
+      if (!isDesktop()) return;
+      closeDesktopSidebar();
+    };
+
+    window.addEventListener("desktopSidebar:open", onOpen);
+    window.addEventListener("desktopSidebar:close", onClose);
+
+    return () => {
+      window.removeEventListener("desktopSidebar:open", onOpen);
+      window.removeEventListener("desktopSidebar:close", onClose);
+    };
+  }, [isNotesListRoute, closeDesktopSidebar]);
 
   /* --------------------------------------------------
      NAV CONFIG
@@ -119,12 +196,16 @@ export default function Sidebar() {
   );
 
   /* --------------------------------------------------
-     ROUTE CLICK SAFETY
-     - If any modal forgot to call showMobileNav(), we restore on navigation.
+     ✅ NAV CLICK:
+     - mobile: show nav
+     - desktop: never call showMobileNav
+     - close desktop sidebar/overlay + close quick create
   -------------------------------------------------- */
   const onNavClick = useCallback(() => {
-    showMobileNav();
-  }, []);
+    if (!isDesktop()) showMobileNav();
+    setShowQuickCreate(false);
+    closeDesktopSidebar();
+  }, [closeDesktopSidebar]);
 
   /* --------------------------------------------------
      LOGOUT
@@ -134,8 +215,9 @@ export default function Sidebar() {
     setLoggingOut(true);
 
     try {
-      // Ensure UI is not stuck in "modal-open" state after leaving
-      showMobileNav();
+      if (!isDesktop()) showMobileNav();
+      setShowQuickCreate(false);
+      closeDesktopSidebar();
 
       if (isSupabaseConfigured && supabase) {
         const { error } = await supabase.auth.signOut();
@@ -147,23 +229,232 @@ export default function Sidebar() {
     }
   };
 
+  /* --------------------------------------------------
+     DESKTOP: reserve space for top header only (no content shift)
+  -------------------------------------------------- */
+  useEffect(() => {
+    if (!isDesktop()) return;
+
+    const root = document.documentElement;
+    root.style.setProperty("--ns-desktop-header-h", `${DESKTOP_HEADER_H}px`);
+
+    return () => {
+      root.style.removeProperty("--ns-desktop-header-h");
+    };
+  }, []);
+
+
+  // Theme-aware tokens
+  const TOPBAR_BG = "var(--bg-surface, rgba(10,10,14,0.75))";
+  const TOPBAR_BORDER = "var(--border-secondary, rgba(255,255,255,0.06))";
+  const BTN_BG = "var(--bg-tertiary, rgba(255,255,255,0.04))";
+  const BTN_BORDER = "var(--border-secondary, rgba(255,255,255,0.08))";
+  const ICON = "var(--text-primary, rgba(255,255,255,0.9))";
+  const ICON_MUTED = "var(--text-muted, rgba(255,255,255,0.65))";
+
   return (
     <>
-      {/* ═══════════════════════════════════════════════════════════
-          MOBILE BOTTOM NAV — iOS 26 Liquid Glass (Icons Only)
-      ═══════════════════════════════════════════════════════════ */}
+      {/* ==========================================================
+          DESKTOP TOP HEADER (Docs-like)
+      ========================================================== */}
+      <header
+        className="hidden md:flex fixed top-0 left-0 right-0 z-[95] items-center"
+        style={{
+          height: `${DESKTOP_HEADER_H}px`,
+          background: TOPBAR_BG,
+          backdropFilter: "blur(28px) saturate(180%)",
+          WebkitBackdropFilter: "blur(28px) saturate(180%)",
+          borderBottom: `1px solid ${TOPBAR_BORDER}`,
+        }}
+      >
+        <div className="w-full px-4 flex items-center gap-3">
+          {/* Left: Brand */}
+          <Link
+            to="/dashboard"
+            className="flex items-center gap-2 min-w-[150px]"
+            onClick={onNavClick}
+          >
+            <div
+              className="h-10 w-10 rounded-xl flex items-center justify-center"
+              style={{
+                background:
+                  "linear-gradient(135deg, color-mix(in srgb, var(--accent-indigo, #6366f1) 18%, transparent), color-mix(in srgb, var(--accent-purple, #a855f7) 18%, transparent))",
+                border: `1px solid ${BTN_BORDER}`,
+              }}
+            >
+              <Note size={18} weight="fill" style={{ color: "var(--text-primary, #fff)" }} />
+            </div>
+
+            <div className="leading-tight">
+              <div
+                className="text-[15px] font-semibold"
+                style={{ color: "var(--text-primary, rgba(255,255,255,0.92))" }}
+              >
+                NoteStream
+              </div>
+              <div
+                className="text-[11px]"
+                style={{ color: "var(--text-muted, rgba(255,255,255,0.55))" }}
+              >
+                Docs
+              </div>
+            </div>
+          </Link>
+
+          {/* Center: Search */}
+          <div className="flex-1 flex justify-center">
+            <div className="w-full max-w-[760px]">
+              <div
+                className="h-11 rounded-full flex items-center gap-2 px-4"
+                style={{
+                  background: BTN_BG,
+                  border: `1px solid ${BTN_BORDER}`,
+                  boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+                }}
+              >
+                <MagnifyingGlass size={18} weight="bold" style={{ color: ICON_MUTED }} />
+                <input
+                  type="text"
+                  placeholder="Search"
+                  className="w-full bg-transparent outline-none text-[13px]"
+                  style={{ color: "var(--text-primary, rgba(255,255,255,0.9))" }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Quick Create + Hamburger */}
+          <div className="flex items-center gap-2">
+            {/* ✅ Quick Create (DotsNine) */}
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="Quick Create"
+                aria-expanded={showQuickCreate}
+                onClick={() => setShowQuickCreate((v) => !v)}
+                className="h-10 w-10 rounded-xl flex items-center justify-center transition"
+                style={{
+                  background: showQuickCreate
+                    ? "color-mix(in srgb, var(--accent-indigo, #6366f1) 18%, transparent)"
+                    : BTN_BG,
+                  border: `1px solid ${
+                    showQuickCreate
+                      ? "color-mix(in srgb, var(--accent-indigo, #6366f1) 35%, transparent)"
+                      : BTN_BORDER
+                  }`,
+                  boxShadow: showQuickCreate
+                    ? "0 0 18px color-mix(in srgb, var(--accent-indigo, #6366f1) 25%, transparent)"
+                    : "none",
+                }}
+              >
+                <DotsNine
+                  size={20}
+                  weight="bold"
+                  style={{ color: showQuickCreate ? "var(--accent-indigo, #6366f1)" : ICON }}
+                />
+              </button>
+
+              <AnimatePresence>
+                {showQuickCreate && (
+                  <>
+                    {/* click-outside */}
+                    <motion.div
+                      className="fixed inset-0 z-[110] hidden md:block"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      onClick={closeQuickCreate}
+                      style={{ background: "transparent" }}
+                    />
+
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                      transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                      className="absolute right-0 top-12 z-[120] w-[240px] rounded-2xl border shadow-xl overflow-hidden"
+                      style={{
+                        backgroundColor: "var(--bg-elevated)",
+                        borderColor: "var(--border-secondary)",
+                        backdropFilter: "blur(16px)",
+                      }}
+                    >
+                      <div className="p-2">
+                        <QuickCreateItem
+                          icon={<Plus size={16} weight="bold" />}
+                          label="New Note"
+                          sub="Write a text note"
+                          onClick={() => goQuickCreate("note")}
+                        />
+                        <QuickCreateItem
+                          icon={<Microphone size={16} weight="bold" />}
+                          label="New Voice Note"
+                          sub="Record & transcribe"
+                          onClick={() => goQuickCreate("voice")}
+                        />
+                        <QuickCreateItem
+                          icon={<UploadSimple size={16} weight="bold" />}
+                          label="Upload File"
+                          sub="PDF / image / doc"
+                          onClick={() => goQuickCreate("upload")}
+                        />
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Hamburger */}
+            <button
+              type="button"
+              aria-label="Toggle sidebar"
+              aria-expanded={desktopOpen}
+              onClick={() => {
+                setShowQuickCreate(false);
+                if (desktopOpen) {
+                  closeDesktopSidebar();
+                } else {
+                  openDesktopSidebarFromHamburger();
+                }
+              }}
+              className="h-10 w-10 rounded-xl flex items-center justify-center transition"
+              style={{
+                background: desktopOpen
+                  ? "color-mix(in srgb, var(--accent-indigo, #6366f1) 18%, transparent)"
+                  : BTN_BG,
+                border: `1px solid ${
+                  desktopOpen
+                    ? "color-mix(in srgb, var(--accent-indigo, #6366f1) 35%, transparent)"
+                    : BTN_BORDER
+                }`,
+                boxShadow: desktopOpen
+                  ? "0 0 18px color-mix(in srgb, var(--accent-indigo, #6366f1) 25%, transparent)"
+                  : "none",
+              }}
+            >
+              <MenuIcon
+                size={20}
+                weight="bold"
+                style={{
+                  color: desktopOpen ? "var(--accent-indigo, #6366f1)" : ICON,
+                }}
+              />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* ==========================================================
+          MOBILE BOTTOM NAV
+      ========================================================== */}
       <AnimatePresence>
         {!mobileNavHidden && (
           <motion.aside
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            transition={{
-              type: "spring",
-              stiffness: 400,
-              damping: 35,
-              mass: 0.8,
-            }}
+            transition={{ type: "spring", stiffness: 400, damping: 35, mass: 0.8 }}
             className="fixed left-0 right-0 z-[90] md:hidden"
             style={{
               bottom: 0,
@@ -173,18 +464,13 @@ export default function Sidebar() {
               touchAction: "manipulation",
             }}
           >
-            {/* Subtle gradient fade */}
             <div
               className="absolute inset-x-0 bottom-0 h-24 pointer-events-none"
-              style={{
-                background: "var(--mobile-nav-fade)",
-              }}
+              style={{ background: "var(--mobile-nav-fade)" }}
             />
 
-            {/* Nav container - Liquid Glass (iPhone optimized) */}
             <div className="relative px-4 pb-2">
               <div className="liquid-glass-nav mx-auto max-w-[340px] rounded-[26px] px-4 py-3 flex items-center justify-around">
-                {/* Inner glow overlay */}
                 <div
                   className="absolute inset-0 rounded-[26px] pointer-events-none"
                   style={{
@@ -193,8 +479,6 @@ export default function Sidebar() {
                     opacity: 0.7,
                   }}
                 />
-
-                {/* Specular highlight */}
                 <div
                   className="absolute inset-x-10 top-0 h-[1px] pointer-events-none"
                   style={{
@@ -220,7 +504,6 @@ export default function Sidebar() {
                         transition={{ duration: 0.1 }}
                         className="relative flex items-center justify-center"
                       >
-                        {/* Active background - liquid pill */}
                         <AnimatePresence>
                           {active && (
                             <motion.div
@@ -234,24 +517,17 @@ export default function Sidebar() {
                                 boxShadow: "var(--mobile-pill-shadow)",
                                 border: "1px solid var(--mobile-pill-border)",
                               }}
-                              transition={{
-                                type: "spring",
-                                stiffness: 500,
-                                damping: 35,
-                              }}
+                              transition={{ type: "spring", stiffness: 500, damping: 35 }}
                             />
                           )}
                         </AnimatePresence>
 
-                        {/* Touch target: 52x52 */}
                         <div className="relative z-10 h-[52px] w-[52px] flex items-center justify-center">
                           <Icon
                             size={active ? 28 : 26}
                             weight={active ? "fill" : "regular"}
                             style={{
-                              color: active
-                                ? "var(--mobile-icon-active)"
-                                : "var(--mobile-icon)",
+                              color: active ? "var(--mobile-icon-active)" : "var(--mobile-icon)",
                               filter: active
                                 ? "drop-shadow(0 0 8px color-mix(in srgb, var(--mobile-icon-active) 55%, transparent))"
                                 : "none",
@@ -269,18 +545,39 @@ export default function Sidebar() {
         )}
       </AnimatePresence>
 
-      {/* ═══════════════════════════════════════════════════════════
-          DESKTOP SIDEBAR — Liquid Glass Style
-      ═══════════════════════════════════════════════════════════ */}
-      <aside
-        className="hidden md:flex fixed top-0 left-0 h-screen z-[80] overflow-hidden liquid-glass-sidebar"
+      {/* ==========================================================
+          DESKTOP OVERLAY (ONLY when hamburger opened it)
+      ========================================================== */}
+      <AnimatePresence>
+        {desktopOverlayOpen && desktopOpen && (
+          <motion.div
+            className="hidden md:block fixed inset-0 z-[89]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div
+              className="absolute inset-0"
+              onClick={closeDesktopSidebar}
+              style={{ background: "var(--bg-overlay, rgba(0,0,0,0.35))" }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ==========================================================
+          DESKTOP SIDEBAR — RIGHT SIDE + ICONS ONLY
+      ========================================================== */}
+      <motion.aside
+        className="hidden md:flex fixed right-0 z-[90] overflow-hidden liquid-glass-sidebar"
         style={{
-          width: collapsed ? "72px" : "200px",
-          transform: "translate3d(0, 0, 0)",
-          transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          top: `${DESKTOP_HEADER_H}px`,
+          height: `calc(100vh - ${DESKTOP_HEADER_H}px)`,
+          width: `${SIDEBAR_W_COLLAPSED}px`,
+          transform: desktopOpen ? "translate3d(0,0,0)" : "translate3d(110%,0,0)",
+          transition: "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)",
         }}
       >
-        {/* Inner glow overlay */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
@@ -289,9 +586,8 @@ export default function Sidebar() {
           }}
         />
 
-        {/* Right edge highlight */}
         <div
-          className="absolute right-0 top-0 bottom-0 w-[1px] pointer-events-none"
+          className="absolute left-0 top-0 bottom-0 w-[1px] pointer-events-none"
           style={{
             background:
               "linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)",
@@ -299,7 +595,6 @@ export default function Sidebar() {
         />
 
         <div className="relative flex flex-col h-full w-full py-4">
-          {/* Navigation */}
           <nav className="flex-1 px-2 space-y-0.5 pt-2">
             {navItems.map((item, i) => {
               const active = isActive(item.to);
@@ -309,55 +604,32 @@ export default function Sidebar() {
                 <Link
                   key={i}
                   to={item.to}
-                  className="group relative flex items-center rounded-xl transition-all duration-200"
+                  className="group relative flex items-center justify-center rounded-xl transition-all duration-200"
                   style={{
-                    padding: collapsed ? "10px" : "9px 12px",
-                    justifyContent: collapsed ? "center" : "flex-start",
-                    gap: collapsed ? "0" : "10px",
-                    backgroundColor: active
-                      ? "var(--sidebar-item-active)"
-                      : "transparent",
+                    padding: "10px",
+                    backgroundColor: active ? "var(--sidebar-item-active)" : "transparent",
                   }}
                   onClick={onNavClick}
                   onMouseEnter={(e) => {
-                    if (!active) {
-                      e.currentTarget.style.backgroundColor =
-                        "var(--sidebar-item-hover)";
-                    }
+                    if (!active)
+                      e.currentTarget.style.backgroundColor = "var(--sidebar-item-hover)";
                   }}
                   onMouseLeave={(e) => {
-                    if (!active) {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }
+                    if (!active) e.currentTarget.style.backgroundColor = "transparent";
                   }}
+                  aria-label={item.label}
+                  title={item.label}
                 >
-                  {/* Active indicator bar */}
-                  {!collapsed && (
-                    <motion.div
-                      initial={false}
-                      animate={{
-                        scaleY: active ? 1 : 0,
-                        opacity: active ? 1 : 0,
-                      }}
-                      className="absolute left-0 top-[20%] w-[2px] h-[60%] rounded-r-full"
-                      style={{ backgroundColor: "var(--sidebar-text-active)" }}
-                      transition={{ duration: 0.2 }}
-                    />
-                  )}
-
-                  {/* Icon container */}
                   <div
                     className="flex items-center justify-center flex-shrink-0 transition-all duration-200 rounded-lg"
                     style={{
-                      width: collapsed ? "40px" : "30px",
-                      height: collapsed ? "40px" : "30px",
+                      width: "40px",
+                      height: "40px",
                       backgroundColor: active
                         ? "var(--sidebar-icon-bg-active)"
                         : "var(--sidebar-icon-bg)",
                       border: `1px solid ${
-                        active
-                          ? "var(--sidebar-icon-border-active)"
-                          : "var(--sidebar-icon-border)"
+                        active ? "var(--sidebar-icon-border-active)" : "var(--sidebar-icon-border)"
                       }`,
                       boxShadow: active
                         ? "0 0 10px color-mix(in srgb, var(--sidebar-icon-color-active) 40%, transparent)"
@@ -365,7 +637,7 @@ export default function Sidebar() {
                     }}
                   >
                     <Icon
-                      size={collapsed ? 18 : 15}
+                      size={18}
                       weight={active ? "fill" : "duotone"}
                       style={{
                         color: active
@@ -376,78 +648,36 @@ export default function Sidebar() {
                     />
                   </div>
 
-                  {/* Label - hidden when collapsed */}
                   <div
-                    className="flex items-center gap-2 overflow-hidden transition-all duration-300"
+                    className="absolute right-full mr-2 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
                     style={{
-                      opacity: collapsed ? 0 : 1,
-                      width: collapsed ? 0 : "auto",
-                      whiteSpace: "nowrap",
+                      backgroundColor: "var(--sidebar-tooltip-bg)",
+                      border: "1px solid var(--sidebar-tooltip-border)",
+                      color: "var(--sidebar-tooltip-text)",
+                      boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+                      backdropFilter: "blur(12px)",
                     }}
                   >
                     <span
-                      className="text-[13px] transition-colors duration-200"
-                      style={{
-                        color: active
-                          ? "var(--sidebar-text-active)"
-                          : "var(--sidebar-text)",
-                        fontWeight: active ? 500 : 400,
-                      }}
+                      className="text-[12px] font-medium whitespace-nowrap"
+                      style={{ color: "var(--text-primary, rgba(255,255,255,0.85))" }}
                     >
                       {item.label}
+                      {item.pro && (
+                        <span
+                          className="ml-2 text-[9px] px-1.5 py-0.5 rounded font-medium"
+                          style={{ backgroundColor: "rgba(245, 158, 11, 0.12)", color: "#fbbf24" }}
+                        >
+                          PRO
+                        </span>
+                      )}
                     </span>
-
-                    {item.pro && (
-                      <span
-                        className="text-[9px] px-1.5 py-0.5 rounded-md font-medium"
-                        style={{
-                          backgroundColor: "rgba(245, 158, 11, 0.12)",
-                          color: "#fbbf24",
-                          border: "1px solid rgba(245, 158, 11, 0.2)",
-                        }}
-                      >
-                        PRO
-                      </span>
-                    )}
                   </div>
-
-                  {/* Tooltip for collapsed state */}
-                  {collapsed && (
-                    <div
-                      className="absolute left-full ml-2 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
-                      style={{
-                        backgroundColor: "var(--sidebar-tooltip-bg)",
-                        border: "1px solid var(--sidebar-tooltip-border)",
-                        color: "var(--sidebar-tooltip-text)",
-                        boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
-                        backdropFilter: "blur(12px)",
-                      }}
-                    >
-                      <span
-                        className="text-[12px] font-medium whitespace-nowrap flex items-center gap-2"
-                        style={{ color: "rgba(255, 255, 255, 0.85)" }}
-                      >
-                        {item.label}
-                        {item.pro && (
-                          <span
-                            className="text-[9px] px-1.5 py-0.5 rounded font-medium"
-                            style={{
-                              backgroundColor: "rgba(245, 158, 11, 0.12)",
-                              color: "#fbbf24",
-                            }}
-                          >
-                            PRO
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  )}
                 </Link>
               );
             })}
           </nav>
 
-          {/* Footer with Logout + Logo */}
           <div className="px-2 pt-3 mt-auto">
             <div
               className="h-px w-full mb-3 mx-auto"
@@ -457,127 +687,48 @@ export default function Sidebar() {
               }}
             />
 
-            {/* Logout */}
             <button
               type="button"
               onClick={handleLogout}
               disabled={loggingOut}
-              className="group relative flex items-center rounded-xl transition-all duration-200 w-full disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{
-                padding: collapsed ? "10px" : "9px 12px",
-                justifyContent: collapsed ? "center" : "flex-start",
-                gap: collapsed ? "0" : "10px",
-                backgroundColor: "transparent",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "color-mix(in srgb, var(--accent-rose) 15%, transparent)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-              }}
+              className="group relative flex items-center justify-center rounded-xl transition-all duration-200 w-full disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ padding: "10px" }}
               aria-label="Logout"
-              title={collapsed ? "Logout" : undefined}
+              title="Logout"
             >
               <div
-                className="flex items-center justify-center flex-shrink-0 transition-all duration-200 rounded-lg"
+                className="flex items-center justify-center transition-all duration-200 rounded-lg"
                 style={{
-                  width: collapsed ? "40px" : "30px",
-                  height: collapsed ? "40px" : "30px",
+                  width: "40px",
+                  height: "40px",
                   backgroundColor: "rgba(244, 63, 94, 0.08)",
                   border: "1px solid rgba(244, 63, 94, 0.15)",
                 }}
               >
-                <SignOut
-                  size={collapsed ? 18 : 15}
-                  weight="duotone"
-                  style={{ color: "#fb7185" }}
-                />
+                <SignOut size={18} weight="duotone" style={{ color: "#fb7185" }} />
               </div>
 
               <div
-                className="transition-all duration-300 overflow-hidden"
+                className="absolute right-full mr-2 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
                 style={{
-                  opacity: collapsed ? 0 : 1,
-                  width: collapsed ? 0 : "auto",
-                  whiteSpace: "nowrap",
+                  backgroundColor: "var(--sidebar-tooltip-bg)",
+                  border: "1px solid var(--sidebar-tooltip-border)",
+                  color: "var(--sidebar-tooltip-text)",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+                  backdropFilter: "blur(12px)",
                 }}
               >
-                <span className="text-[13px]" style={{ color: "var(--sidebar-text)" }}>
+                <span
+                  className="text-[12px] font-medium whitespace-nowrap"
+                  style={{ color: "var(--text-primary, rgba(255,255,255,0.85))" }}
+                >
                   {loggingOut ? "Logging out…" : "Logout"}
                 </span>
               </div>
-
-              {/* Tooltip for collapsed state */}
-              {collapsed && (
-                <div
-                  className="absolute left-full ml-2 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
-                  style={{
-                    backgroundColor: "var(--sidebar-tooltip-bg)",
-                    border: "1px solid var(--sidebar-tooltip-border)",
-                    color: "var(--sidebar-tooltip-text)",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
-                    backdropFilter: "blur(12px)",
-                  }}
-                >
-                  <span
-                    className="text-[12px] font-medium whitespace-nowrap"
-                    style={{ color: "rgba(255, 255, 255, 0.85)" }}
-                  >
-                    Logout
-                  </span>
-                </div>
-              )}
             </button>
-
-            {/* Spacer */}
-            <div className="h-px w-full my-2" style={{ background: "var(--sidebar-divider)" }} />
-
-            {/* Logo / Brand area */}
-            <div
-              className="flex items-center overflow-hidden transition-all duration-300"
-              style={{
-                padding: collapsed ? "8px" : "8px 12px",
-                justifyContent: collapsed ? "center" : "flex-start",
-                gap: collapsed ? "0" : "10px",
-              }}
-            >
-              <div
-                className="flex items-center justify-center flex-shrink-0 transition-all duration-200 rounded-lg"
-                style={{
-                  width: collapsed ? "40px" : "30px",
-                  height: collapsed ? "40px" : "30px",
-                  background: "linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))",
-                  boxShadow: "0 0 14px rgba(99, 102, 241, 0.3)",
-                }}
-              >
-                <Note size={collapsed ? 18 : 15} weight="fill" color="white" />
-              </div>
-
-              <div
-                className="transition-all duration-300 overflow-hidden"
-                style={{
-                  opacity: collapsed ? 0 : 1,
-                  width: collapsed ? 0 : "auto",
-                }}
-              >
-                <span
-                  className="text-[13px] font-semibold whitespace-nowrap block"
-                  style={{ color: "var(--sidebar-text)" }}
-                >
-                  NoteStream
-                </span>
-                <span
-                  className="text-[10px] whitespace-nowrap block"
-                  style={{ color: "var(--sidebar-text-muted)" }}
-                >
-                  v0.1 • Early Access
-                </span>
-              </div>
-            </div>
           </div>
         </div>
-      </aside>
+      </motion.aside>
 
       {/* Liquid Glass Styles */}
       <style>{`
@@ -595,24 +746,12 @@ export default function Sidebar() {
           background: var(--sidebar-glass-bg);
           backdrop-filter: blur(40px) saturate(180%);
           -webkit-backdrop-filter: blur(40px) saturate(180%);
-          border-right: 1px solid var(--sidebar-glass-border);
+          border-left: 1px solid var(--sidebar-glass-border);
           box-shadow: var(--sidebar-glass-shadow);
         }
 
-        /* Liquid glass button (neutral) */
-        .liquid-glass-button {
-          background: var(--mobile-nav-glass-bg);
-          backdrop-filter: blur(32px) saturate(160%);
-          -webkit-backdrop-filter: blur(32px) saturate(160%);
-          border: 1px solid var(--mobile-nav-glass-border);
-          box-shadow: var(--mobile-nav-glass-shadow);
-          position: relative;
-          overflow: hidden;
-        }
-
         .liquid-glass-nav::before,
-        .liquid-glass-sidebar::before,
-        .liquid-glass-button::before {
+        .liquid-glass-sidebar::before {
           content: '';
           position: absolute;
           inset: 0;
@@ -631,8 +770,7 @@ export default function Sidebar() {
 
         @media (prefers-reduced-motion: reduce) {
           .liquid-glass-nav::before,
-          .liquid-glass-sidebar::before,
-          .liquid-glass-button::before {
+          .liquid-glass-sidebar::before {
             animation: none;
           }
         }
@@ -640,6 +778,47 @@ export default function Sidebar() {
     </>
   );
 }
+
+/* -----------------------------------------
+   Quick Create Item
+----------------------------------------- */
+const QuickCreateItem = ({ icon, label, sub, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="w-full text-left px-3 py-2.5 rounded-xl transition flex items-start gap-3"
+    style={{ color: "var(--text-secondary)" }}
+    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-hover)")}
+    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+  >
+    <span
+      className="h-8 w-8 rounded-xl flex items-center justify-center flex-shrink-0"
+      style={{
+        backgroundColor: "var(--bg-tertiary)",
+        border: "1px solid var(--border-secondary)",
+        color: "var(--text-primary)",
+      }}
+    >
+      {icon}
+    </span>
+    <span className="flex-1">
+      <div className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>
+        {label}
+      </div>
+      <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+        {sub}
+      </div>
+    </span>
+  </button>
+);
+
+
+
+
+
+
+
+
 
 
 

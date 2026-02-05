@@ -2477,6 +2477,9 @@ textarea:focus-visible {
   display: none !important;
 }
 
+:root {
+  --ns-right-gutter: 16px; /* adjust as needed */
+}
 
 
 

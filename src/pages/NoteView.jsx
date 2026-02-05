@@ -275,6 +275,7 @@ export default function NoteView({
     }
     return { isAiBrief: false };
   }, [body]);
+  const showSidePanel = !isEditing && hasSmartData;
 
   const formatRelative = (date) => {
     const ts = new Date(date).getTime();
@@ -531,38 +532,46 @@ export default function NoteView({
   };
 
   const noteBadge = useMemo(() => {
-    if (note.tag === "Voice") {
-      return (
-        <span
-          className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full"
-          style={{
-            color: "var(--accent-purple)",
-            backgroundColor: "rgba(168, 85, 247, 0.1)",
-            border: "1px solid rgba(168, 85, 247, 0.2)",
-          }}
-        >
-          <FiMic size={10} />
-          Voice
-        </span>
-      );
-    }
-    if (hasSmartData || parsedBrief.isAiBrief) {
-      return (
-        <span
-          className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full"
-          style={{
-            color: "var(--accent-indigo)",
-            backgroundColor: "rgba(99, 102, 241, 0.1)",
-            border: "1px solid rgba(99, 102, 241, 0.2)",
-          }}
-        >
-          <Sparkle size={12} weight="fill" />
-          Smart
-        </span>
-      );
-    }
-    return null;
-  }, [note.tag, hasSmartData, parsedBrief.isAiBrief]);
+  const baseCls =
+    "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0";
+  const baseStyle = { border: "1px solid transparent" };
+
+  if (note.tag === "Voice") {
+    return (
+      <span
+        className={baseCls}
+        style={{
+          ...baseStyle,
+          color: "var(--accent-purple)",
+          backgroundColor: "rgba(168, 85, 247, 0.1)",
+          border: "1px solid rgba(168, 85, 247, 0.2)",
+        }}
+      >
+        <FiMic size={9} />
+        Voice
+      </span>
+    );
+  }
+
+  if (hasSmartData || parsedBrief.isAiBrief) {
+    return (
+      <span
+        className={baseCls}
+        style={{
+          ...baseStyle,
+          color: "var(--accent-indigo)",
+          backgroundColor: "rgba(99, 102, 241, 0.1)",
+          border: "1px solid rgba(99, 102, 241, 0.2)",
+        }}
+      >
+        <Sparkle size={9} weight="fill" />
+        Smart
+      </span>
+    );
+  }
+
+  return null;
+}, [note.tag, hasSmartData, parsedBrief.isAiBrief]);
 
   return (
     <div className="min-h-full w-full pb-[calc(var(--mobile-nav-height)+24px)]">
@@ -882,9 +891,18 @@ export default function NoteView({
 
       {/* CONTENT */}
       <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-4 sm:py-6">
-        <div className="flex flex-col lg:flex-row lg:gap-6">
+        {/* Grid wrapper (1 col when no side panel, 2 cols when smart exists) */}
+        <div
+          className={`grid gap-6 ${
+            showSidePanel ? "lg:grid-cols-[1fr,360px]" : "lg:grid-cols-1"
+          }`}
+        >
           {/* MAIN */}
-          <div className="flex-1 lg:flex-[7] space-y-4">
+          <div
+            className={`space-y-4 ${
+              showSidePanel ? "" : "max-w-3xl mx-auto w-full"
+            }`}
+          >
             {note.audioUrl && (
               <div
                 id="voice-player"
@@ -905,7 +923,10 @@ export default function NoteView({
                     <FiMic style={{ color: "var(--accent-purple)" }} />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                    <p
+                      className="text-sm font-medium"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       Voice Recording
                     </p>
                     <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
@@ -914,7 +935,10 @@ export default function NoteView({
                   </div>
                 </div>
                 <audio controls className="w-full" style={{ height: "40px" }}>
-                  <source src={note.audioUrl} type={note.audioMime || "audio/webm"} />
+                  <source
+                    src={note.audioUrl}
+                    type={note.audioMime || "audio/webm"}
+                  />
                 </audio>
               </div>
             )}
@@ -951,10 +975,16 @@ export default function NoteView({
                     <FiFileText size={22} style={{ color: "var(--accent-indigo)" }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                    <p
+                      className="text-sm font-medium"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       PDF Document
                     </p>
-                    <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>
+                    <p
+                      className="text-[11px] truncate"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       Tap to view full document
                     </p>
                   </div>
@@ -997,7 +1027,7 @@ export default function NoteView({
               ) : (
                 <h1
                   className="text-xl sm:text-2xl font-bold leading-tight"
-                  style={{ 
+                  style={{
                     color: "var(--text-primary)",
                     wordBreak: "break-word",
                     overflowWrap: "anywhere",
@@ -1020,7 +1050,6 @@ export default function NoteView({
                     disabled={isLocked}
                   />
                 ) : parsedBrief.isAiBrief ? (
-                  // Render AI Brief content nicely
                   <AiBriefContent brief={parsedBrief} />
                 ) : body ? (
                   <div
@@ -1052,7 +1081,10 @@ export default function NoteView({
                   >
                     <FiFileText size={14} style={{ color: "var(--text-muted)" }} />
                   </div>
-                  <h3 className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
+                  <h3
+                    className="font-semibold text-sm"
+                    style={{ color: "var(--text-primary)" }}
+                  >
                     Extracted Text
                   </h3>
                 </div>
@@ -1064,157 +1096,186 @@ export default function NoteView({
                 </p>
               </div>
             )}
-          </div>
 
-          {/* SMART PANEL */}
-          <div className="lg:flex-[5] mt-4 lg:mt-0 space-y-4">
-            {!isEditing && hasSmartData ? (
-              <>
-                {smartData.summary && (
-                  <SmartCard
-                    icon={<Sparkle size={16} weight="fill" />}
-                    title="AI Summary"
-                    color="indigo"
-                    delay={0}
+            {/* Optional: Pre-AI CTA kept in MAIN so layout stays clean */}
+            {!isEditing && !hasSmartData && !parsedBrief.isAiBrief && (
+              <div
+                className="rounded-2xl border p-4"
+                style={{
+                  backgroundColor: "var(--bg-surface)",
+                  borderColor: "var(--border-secondary)",
+                }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div
+                    className="h-9 w-9 rounded-2xl flex items-center justify-center"
+                    style={{
+                      backgroundColor: "rgba(99,102,241,0.12)",
+                      border: "1px solid rgba(99,102,241,0.22)",
+                    }}
                   >
-                    <p
-                      className="text-[13px] leading-relaxed"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
-                      {smartData.summary}
-                    </p>
-                  </SmartCard>
-                )}
-
-                {smartData.SmartTasks?.length > 0 && (
-                  <SmartCard icon={<FiCheck size={14} />} title="Tasks" color="emerald" delay={0.04}>
-                    <ul className="space-y-2">
-                      {smartData.SmartTasks.map((task, i) => (
-                        <li
-                          key={i}
-                          className="flex items-start gap-2 text-[13px]"
-                          style={{ color: "var(--text-secondary)" }}
-                        >
-                          <div
-                            className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                            style={{
-                              backgroundColor: "rgba(16, 185, 129, 0.1)",
-                              border: "1px solid rgba(16, 185, 129, 0.3)",
-                            }}
-                          >
-                            <FiCheck size={10} style={{ color: "var(--accent-emerald)" }} />
-                          </div>
-                          {task}
-                        </li>
-                      ))}
-                    </ul>
-                  </SmartCard>
-                )}
-
-                {smartData.SmartHighlights?.length > 0 && (
-                  <SmartCard icon={<FiStar size={14} />} title="Highlights" color="amber" delay={0.08}>
-                    <ul className="space-y-2">
-                      {smartData.SmartHighlights.map((item, i) => (
-                        <li
-                          key={i}
-                          className="flex items-start gap-2 text-[13px]"
-                          style={{ color: "var(--text-secondary)" }}
-                        >
-                          <div
-                            className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                            style={{
-                              backgroundColor: "rgba(245, 158, 11, 0.1)",
-                              border: "1px solid rgba(245, 158, 11, 0.3)",
-                            }}
-                          >
-                            <FiStar size={10} style={{ color: "var(--accent-amber)" }} />
-                          </div>
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </SmartCard>
-                )}
-
-                {smartData.SmartSchedule?.length > 0 && (
-                  <SmartCard
-                    icon={<FiCalendar size={14} />}
-                    title="Schedule"
-                    color="purple"
-                    delay={0.12}
-                  >
-                    <ul className="space-y-2">
-                      {smartData.SmartSchedule.map((date, i) => (
-                        <li
-                          key={i}
-                          className="flex items-start gap-2 text-[13px]"
-                          style={{ color: "var(--text-secondary)" }}
-                        >
-                          <div
-                            className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                            style={{
-                              backgroundColor: "rgba(168, 85, 247, 0.1)",
-                              border: "1px solid rgba(168, 85, 247, 0.3)",
-                            }}
-                          >
-                            <FiCalendar size={10} style={{ color: "var(--accent-purple)" }} />
-                          </div>
-                          {date}
-                        </li>
-                      ))}
-                    </ul>
-                  </SmartCard>
-                )}
-              </>
-            ) : (
-              !isEditing &&
-              !parsedBrief.isAiBrief && (
-                <div
-                  className="rounded-2xl border p-4"
-                  style={{
-                    backgroundColor: "var(--bg-surface)",
-                    borderColor: "var(--border-secondary)",
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <div
-                      className="h-9 w-9 rounded-2xl flex items-center justify-center"
-                      style={{
-                        backgroundColor: "rgba(99,102,241,0.12)",
-                        border: "1px solid rgba(99,102,241,0.22)",
-                      }}
-                    >
-                      <Sparkle size={16} weight="fill" style={{ color: "var(--accent-indigo)" }} />
-                    </div>
-                    <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                      Smart Notes
-                    </p>
+                    <Sparkle
+                      size={16}
+                      weight="fill"
+                      style={{ color: "var(--accent-indigo)" }}
+                    />
                   </div>
                   <p
-                    className="text-[13px] leading-relaxed"
-                    style={{ color: "var(--text-muted)" }}
+                    className="text-sm font-semibold"
+                    style={{ color: "var(--text-primary)" }}
                   >
-                    Run AI Analysis to generate a summary, tasks, highlights, and schedule.
+                    Smart Notes
                   </p>
-                  <button
-                    onClick={fakeSmartNotes}
-                    disabled={isAnalyzing || isVoiceNote}
-                    className="mt-3 w-full py-2.5 rounded-xl text-sm font-medium transition active:scale-[0.99]"
-                    style={{
-                      background: "linear-gradient(90deg, var(--accent-indigo), #4f46e5)",
-                      color: "white",
-                      opacity: isAnalyzing || isVoiceNote ? 0.6 : 1,
-                    }}
-                    title={isVoiceNote ? "AI analysis not available for voice notes" : "Run AI Analysis"}
-                  >
-                    {isAnalyzing ? "Analyzing…" : "Run AI Analysis"}
-                  </button>
                 </div>
-              )
+
+                <p
+                  className="text-[13px] leading-relaxed"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Run AI Analysis to generate a summary, tasks, highlights, and schedule.
+                </p>
+
+                <button
+                  onClick={fakeSmartNotes}
+                  disabled={isAnalyzing || isVoiceNote}
+                  className="mt-3 w-full py-2.5 rounded-xl text-sm font-medium transition active:scale-[0.99]"
+                  style={{
+                    background: "linear-gradient(90deg, var(--accent-indigo), #4f46e5)",
+                    color: "white",
+                    opacity: isAnalyzing || isVoiceNote ? 0.6 : 1,
+                  }}
+                  title={
+                    isVoiceNote ? "AI analysis not available for voice notes" : "Run AI Analysis"
+                  }
+                >
+                  {isAnalyzing ? "Analyzing…" : "Run AI Analysis"}
+                </button>
+              </div>
             )}
           </div>
+
+          {/* SMART PANEL (only when it has content) */}
+          {showSidePanel && (
+            <div className="space-y-4">
+              {smartData.summary && (
+                <SmartCard
+                  icon={<Sparkle size={16} weight="fill" />}
+                  title="AI Summary"
+                  color="indigo"
+                  delay={0}
+                >
+                  <p
+                    className="text-[13px] leading-relaxed"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {smartData.summary}
+                  </p>
+                </SmartCard>
+              )}
+
+              {smartData.SmartTasks?.length > 0 && (
+                <SmartCard
+                  icon={<FiCheck size={14} />}
+                  title="Tasks"
+                  color="emerald"
+                  delay={0.04}
+                >
+                  <ul className="space-y-2">
+                    {smartData.SmartTasks.map((task, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-2 text-[13px]"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        <div
+                          className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                          style={{
+                            backgroundColor: "rgba(16, 185, 129, 0.1)",
+                            border: "1px solid rgba(16, 185, 129, 0.3)",
+                          }}
+                        >
+                          <FiCheck
+                            size={10}
+                            style={{ color: "var(--accent-emerald)" }}
+                          />
+                        </div>
+                        {task}
+                      </li>
+                    ))}
+                  </ul>
+                </SmartCard>
+              )}
+
+              {smartData.SmartHighlights?.length > 0 && (
+                <SmartCard
+                  icon={<FiStar size={14} />}
+                  title="Highlights"
+                  color="amber"
+                  delay={0.08}
+                >
+                  <ul className="space-y-2">
+                    {smartData.SmartHighlights.map((item, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-2 text-[13px]"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        <div
+                          className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                          style={{
+                            backgroundColor: "rgba(245, 158, 11, 0.1)",
+                            border: "1px solid rgba(245, 158, 11, 0.3)",
+                          }}
+                        >
+                          <FiStar
+                            size={10}
+                            style={{ color: "var(--accent-amber)" }}
+                          />
+                        </div>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </SmartCard>
+              )}
+
+              {smartData.SmartSchedule?.length > 0 && (
+                <SmartCard
+                  icon={<FiCalendar size={14} />}
+                  title="Schedule"
+                  color="purple"
+                  delay={0.12}
+                >
+                  <ul className="space-y-2">
+                    {smartData.SmartSchedule.map((date, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-2 text-[13px]"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        <div
+                          className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                          style={{
+                            backgroundColor: "rgba(168, 85, 247, 0.1)",
+                            border: "1px solid rgba(168, 85, 247, 0.3)",
+                          }}
+                        >
+                          <FiCalendar
+                            size={10}
+                            style={{ color: "var(--accent-purple)" }}
+                          />
+                        </div>
+                        {date}
+                      </li>
+                    ))}
+                  </ul>
+                </SmartCard>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
 
       {/* Delete Modal */}
       <AnimatePresence>

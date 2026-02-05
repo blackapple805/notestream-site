@@ -13,7 +13,7 @@ import {
   FiFolder,
   FiX,
 } from "react-icons/fi";
-import { motion, AnimatePresence } from "framer-motion";
+import { useReducedMotion, motion, AnimatePresence } from "framer-motion";
 import {
   House,
   Brain,
@@ -176,6 +176,26 @@ const computeHighlights = (notes, limit = 5) => {
   return list;
 };
 
+const useBodyScrollLock = (locked) => {
+  useEffect(() => {
+    if (!locked) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [locked]);
+};
+
+const safeCloneIcon = (el, inject = {}) => {
+  if (!el || typeof el !== "object" || !("props" in el)) return el;
+
+  const nextProps = { ...inject };
+  if (!("weight" in el.props) && "weight" in nextProps) delete nextProps.weight;
+
+  return cloneElement(el, nextProps);
+};
+
 const NotificationIcon = ({ iconType = "default" }) => {
   const iconConfig = {
     calendar: {
@@ -326,6 +346,8 @@ export default function Dashboard() {
 
 
   const [aiUsesLoading, setAiUsesLoading] = useState(true);
+  const shouldReduceMotion = useReducedMotion();
+  useBodyScrollLock(showNotifications || (showDigest && !!digest));
 
 
 
@@ -1128,19 +1150,24 @@ export default function Dashboard() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
             className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto"
             style={{
-              backgroundColor: "rgba(0,0,0,0.8)",
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
+              backgroundColor: "rgba(0,0,0,0.72)",
+              backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)",
             }}
-            onClick={() => setShowNotifications(false)}
+            onMouseDown={(e) => {
+              // close only when clicking backdrop (not dragging inside)
+              if (e.target === e.currentTarget) setShowNotifications(false);
+            }}
           >
             <div className="w-full min-h-full flex items-center justify-center p-4">
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+             <motion.div
+                initial={{ scale: 0.98, opacity: 0, y: 16 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                exit={{ scale: 0.98, opacity: 0, y: 16 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
                 onClick={(e) => e.stopPropagation()}
                 className="w-full max-w-md rounded-2xl border my-auto"
                 style={{
@@ -1311,13 +1338,16 @@ export default function Dashboard() {
               backdropFilter: "blur(12px)",
               WebkitBackdropFilter: "blur(12px)",
             }}
-            onClick={() => setShowDigest(false)}
+           onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setShowDigest(false);
+            }}
           >
             <div className="w-full min-h-full flex items-center justify-center p-4 py-8">
               <motion.div
-                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                initial={{ scale: 0.98, opacity: 0, y: 16 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                exit={{ scale: 0.98, opacity: 0, y: 16 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
                 onClick={(e) => e.stopPropagation()}
                 className="w-full max-w-lg rounded-2xl border my-auto overflow-hidden"
                 style={{
@@ -1523,38 +1553,54 @@ const LiquidGlassCard = ({ children, className = "" }) => {
       className={`relative rounded-2xl overflow-hidden ${className}`}
       style={{
         background: "var(--card-glass-bg, var(--bg-surface))",
-        backdropFilter: "blur(40px) saturate(180%)",
-        WebkitBackdropFilter: "blur(40px) saturate(180%)",
+        backdropFilter: "blur(42px) saturate(185%)",
+        WebkitBackdropFilter: "blur(42px) saturate(185%)",
         border: "1px solid var(--card-glass-border, var(--border-secondary))",
-        boxShadow: "var(--card-glass-shadow, 0 4px 24px rgba(0,0,0,0.12))",
+        boxShadow: "var(--card-glass-shadow, 0 10px 30px rgba(0,0,0,0.18))",
       }}
     >
-      {/* Inner glow overlay */}
+      {/* soft gradient fog */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: "var(--card-glass-inner-glow, linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 50%, rgba(255,255,255,0.02) 100%))",
-          borderRadius: "inherit",
-          opacity: 0.8,
+          background:
+            "radial-gradient(1200px 400px at 20% 0%, rgba(255,255,255,0.06), transparent 55%)," +
+            "radial-gradient(800px 300px at 90% 30%, rgba(139,92,246,0.07), transparent 60%)," +
+            "linear-gradient(135deg, rgba(255,255,255,0.035), rgba(255,255,255,0.01) 45%, rgba(0,0,0,0.02))",
+          opacity: 1,
         }}
       />
-      {/* Specular highlight */}
+
+      {/* specular line */}
       <div
         className="absolute inset-x-6 top-0 h-[1px] pointer-events-none"
         style={{
-          background: "var(--card-glass-specular, linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%))",
+          background:
+            "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.20) 50%, transparent 100%)",
+          opacity: 0.8,
         }}
       />
-      {/* Content */}
+
+      {/* subtle inner ring */}
+      <div
+        className="absolute inset-0 rounded-2xl pointer-events-none"
+        style={{
+          boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
+        }}
+      />
+
       <div className="relative z-10 p-4">{children}</div>
     </div>
   );
 };
 
+
 /* -----------------------------------------
    HELPER COMPONENTS
 ----------------------------------------- */
 
+// ✅ PATCH 4 — improve QuickStat (better hierarchy + loading skeleton + theme-safe number color)
+// Drop-in replace QuickStat component
 const QuickStat = ({ icon, label, value, suffix, color, loading = false }) => {
   const colorMap = {
     indigo: "text-indigo-400",
@@ -1566,29 +1612,47 @@ const QuickStat = ({ icon, label, value, suffix, color, loading = false }) => {
 
   return (
     <div
-      className="relative rounded-xl px-3 py-3 soft-liquid-glass"
-      style={{ opacity: loading ? 0.9 : 1 }}
+      className="relative rounded-xl px-3 py-3 soft-liquid-glass overflow-hidden"
+      style={{ opacity: loading ? 0.95 : 1 }}
     >
+      {/* shimmer when loading */}
+      {loading && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%)",
+            transform: "translateX(-60%)",
+            animation: "notestream-shimmer 1.1s ease-in-out infinite",
+          }}
+        />
+      )}
+
       <div className="relative z-10">
         <div className="flex items-center gap-2 mb-1">
           <span className={colorMap[color] ?? colorMap.indigo}>{icon}</span>
-          <p className="text-[10px] uppercase tracking-wide text-theme-muted">
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
             {label}
           </p>
         </div>
 
-        <p className="text-xl font-bold text-theme-primary">
-          {safeValue}
+        <div className="flex items-baseline gap-1.5">
+          <p className="text-[22px] leading-none font-extrabold" style={{ color: "var(--text-primary)" }}>
+            {safeValue}
+          </p>
           {suffix && (
-            <span className="text-sm font-normal text-theme-muted ml-1">
+            <span className="text-[12px] font-medium" style={{ color: "var(--text-muted)" }}>
               {suffix}
             </span>
           )}
-        </p>
+        </div>
       </div>
     </div>
   );
 };
+
+// Add this once in your global CSS (or a CSS module imported on Dashboard)
+// @keyframes notestream-shimmer { 0%{transform:translateX(-60%)} 100%{transform:translateX(60%)} }
 
 
 const DigestStatCard = ({ icon, value, label, color, isText = false }) => {
@@ -1708,9 +1772,15 @@ const QuickAction = ({
       {/* ICON */}
       <div
         className={`h-12 w-12 rounded-xl border flex items-center justify-center ${colorMap[color]}`}
+        style={{
+          backdropFilter: "blur(10px) saturate(160%)",
+          WebkitBackdropFilter: "blur(10px) saturate(160%)",
+          boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
+        }}
       >
-        {cloneElement(icon, { size: 18, weight: "fill" })}
+        {safeCloneIcon(icon, { size: 18, weight: "fill" })}
       </div>
+
 
 
       <div className="text-center">

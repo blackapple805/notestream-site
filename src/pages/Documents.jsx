@@ -803,7 +803,7 @@ useMobileNav(isAnyModalOpen);
   }
 
   return (
-    <div className="space-y-5 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
+     <div className="w-full max-w-3xl mx-auto space-y-5 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
       {/* Toast */}
       <AnimatePresence>
         {toast && (
@@ -904,10 +904,11 @@ useMobileNav(isAnyModalOpen);
               "
             >
               <div className="relative z-10 flex items-center justify-center gap-2.5">
-                <FilePlus size={20} className="icon-muted"/>
+                <FilePlus size={20} className="icon-muted" />
                 <span className="font-medium">Upload Document</span>
               </div>
             </motion.button>
+
             <motion.button
               whileHover={{ scale: 1.015 }}
               whileTap={{ scale: 0.98 }}
@@ -922,11 +923,14 @@ useMobileNav(isAnyModalOpen);
               "
             >
               <div className="relative z-10 flex items-center justify-center gap-2.5">
-                <Sparkle size={20} className="icon-muted"/>
-                <span className="font-medium">Synthesize Documents</span>
+                <Sparkle size={20} className="icon-muted" />
+                <span className="font-medium">
+                  {synthesizeMode ? "Cancel" : "Synthesize Documents"}
+                </span>
               </div>
             </motion.button>
           </div>
+
 
       {/* Synthesize Mode Panel */}
       <AnimatePresence>
@@ -1020,21 +1024,21 @@ useMobileNav(isAnyModalOpen);
                       e.stopPropagation();
                       viewBrief(brief);
                     }}
-                    className="h-8 w-8 rounded-lg border flex items-center justify-center transition"
+                    type="button"
+                    title="View brief"
+                    className="
+                      h-8 w-8 rounded-lg border
+                      flex items-center justify-center
+                      transition-all
+                      hover:bg-theme-tertiary
+                      hover:text-theme-primary
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                    "
                     style={{
                       borderColor: "var(--border-secondary)",
                       color: "var(--text-secondary)",
+                      backgroundColor: "transparent",
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "var(--text-primary)";
-                      e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "var(--text-secondary)";
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }}
-                    type="button"
-                    title="View brief"
                   >
                     <FiEye size={16} />
                   </button>
@@ -1045,26 +1049,30 @@ useMobileNav(isAnyModalOpen);
                       e.stopPropagation();
                       deleteBrief(brief.noteId);
                     }}
-                    className="h-8 w-8 rounded-lg border flex items-center justify-center transition"
+                    type="button"
+                    title="Delete brief"
+                    className="
+                      h-8 w-8 rounded-lg border
+                      flex items-center justify-center
+                      transition-all
+                      hover:text-rose-400
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                    "
                     style={{
                       borderColor: "var(--border-secondary)",
                       color: "var(--text-secondary)",
+                      backgroundColor: "transparent",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "var(--accent-rose)";
                       e.currentTarget.style.backgroundColor = "rgba(244, 63, 94, 0.12)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "var(--text-secondary)";
                       e.currentTarget.style.backgroundColor = "transparent";
                     }}
-                    type="button"
-                    title="Delete brief"
                   >
                     <FiTrash2 size={16} />
                   </button>
                 </div>
-
               </motion.div>
             ))}
           </div>
@@ -1198,18 +1206,11 @@ useMobileNav(isAnyModalOpen);
 
                       {/* AI summary in progress */}
                       {isAutoSummarizing && (
-                        <span className="badge-info text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/12 text-indigo-300 border border-indigo-500/25 flex items-center gap-1">
                           <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
                           Summarizing…
                         </span>
                       )}
-
-                        {isAutoSummarizing && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/12 text-indigo-300 border border-indigo-500/25 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
-                            Summarizing…
-                          </span>
-                        )}
                       </div>
 
                       {/* Meta: force single line + truncate so it never wraps into 2 lines on iPhone */}
@@ -1583,6 +1584,7 @@ function QuickStat({ label, value, icon, color }) {
     emerald: "from-emerald-500/20 to-emerald-600/10 border-emerald-500/30 text-emerald-400",
   };
   const colors = colorClasses[color] || colorClasses.indigo;
+
   return (
     <div
       className="rounded-xl px-4 py-3 border"
@@ -1596,6 +1598,7 @@ function QuickStat({ label, value, icon, color }) {
     </div>
   );
 }
+
 
 /* Section Card */
 function SectionCard({ title, icon, color = "indigo", children }) {
@@ -1632,6 +1635,7 @@ const ModalShell = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
       className="fixed inset-0 z-[9999] w-[100dvw] h-[100dvh]"
       style={{
         minHeight: "100vh", 
@@ -1639,7 +1643,9 @@ const ModalShell = ({
         backdropFilter: "blur(10px)",
         WebkitBackdropFilter: "blur(10px)",
       }}
-      onClick={onClose}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     />
 
     {/* Centering container */}
@@ -1654,10 +1660,10 @@ const ModalShell = ({
       "
     >
       <motion.div
-        initial={{ opacity: 0, y: 26, scale: 0.98 }}
+        initial={{ opacity: 0, y: 16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 26, scale: 0.98 }}
-        transition={{ type: "spring", stiffness: 420, damping: 34 }}
+        exit={{ opacity: 0, y: 16, scale: 0.98 }}
+        transition={{ duration: 0.22, ease: "easeOut" }}
         className={`
           pointer-events-auto overflow-hidden shadow-2xl border
           rounded-t-3xl sm:rounded-2xl
