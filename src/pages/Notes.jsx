@@ -1,6 +1,3 @@
-// src/pages/Notes.jsx
-// Fixed black-screen crash + cleaned dependencies + prettier category tag mapping
-// + Liquid glass FAB and menu options
 
 import {
   FiPlus,
@@ -29,6 +26,8 @@ import { useSubscription } from "../hooks/useSubscription";
 import { useMobileNav } from "../hooks/useMobileNav";
 
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { analyzeNote, shouldAutoAnalyze } from "../lib/noteAI";
+
 
 const PIN_KEY = "ns-note-pin";
 const USER_STATS_TABLE = "user_engagement_stats";
@@ -75,10 +74,13 @@ export default function Notes() {
   const navigate = useNavigate();
   const { noteId } = useParams();
   const location = useLocation();
-  const rightGutter =
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--ns-right-gutter")
-    ) || 0;
+
+    const rightGutter = useMemo(() => {
+    if (typeof document === "undefined") return 0;
+    const v = getComputedStyle(document.documentElement).getPropertyValue("--ns-right-gutter");
+    return parseFloat(v) || 0;
+  }, []);
+
 
   const { subscription, isFeatureUnlocked, isLoading, incrementUsage } = useSubscription();
 
@@ -137,9 +139,21 @@ export default function Notes() {
     lastRequestId: null,
   });
 
+  const [analyzingNoteId, setAnalyzingNoteId] = useState(null);
+  const [aiToast, setAiToast] = useState(null);
+  const autoAnalyzeTimerRef = useRef(null);
+
   // Hide mobile nav when any modal is open
   const isAnyModalOpen = editorOpen || pinModalOpen || recOpen || showUpgrade;
   useMobileNav(isAnyModalOpen);
+    useEffect(() => {
+    return () => {
+      if (autoAnalyzeTimerRef.current) {
+        clearTimeout(autoAnalyzeTimerRef.current);
+      }
+    };
+  }, []);
+
 
   // ----------------------------
   // helpers
@@ -362,6 +376,81 @@ export default function Notes() {
     );
   };
 
+  const runNoteAnalysis = useCallback(
+    async (noteId, noteTitle, noteBody, isManual = false) => {
+      if (analyzingNoteId) return; // already analyzing
+      if (!isManual && !shouldAutoAnalyze(noteBody, noteId)) return;
+
+      setAnalyzingNoteId(noteId);
+
+      try {
+        const user = await getAuthedUser();
+        if (!user) {
+          setAnalyzingNoteId(null);
+          return;
+        }
+
+        const result = await analyzeNote({
+          noteId,
+          userId: user.id,
+          title: noteTitle,
+          body: noteBody,
+          incrementUsage,
+          isManual,
+        });
+
+        if (!result) {
+          setAnalyzingNoteId(null);
+          return;
+        }
+
+        if (result.error && result.limitReached) {
+          setAiToast({ message: result.message, type: "error" });
+          setTimeout(() => setAiToast(null), 4000);
+          setAnalyzingNoteId(null);
+          return;
+        }
+
+        if (result.error) {
+          setAnalyzingNoteId(null);
+          return;
+        }
+
+        const smartUpdate = {
+          summary: result.summary,
+          SmartTasks: result.SmartTasks,
+          SmartHighlights: result.SmartHighlights,
+          SmartSchedule: result.SmartSchedule,
+          aiGeneratedAt: result.generatedAt,
+          aiModel: result.model,
+        };
+
+        setNotes((prev) =>
+          prev.map((n) => (n.id === noteId ? { ...n, ...smartUpdate } : n))
+        );
+        setSelectedNote((prev) =>
+          prev && prev.id === noteId ? { ...prev, ...smartUpdate } : prev
+        );
+
+        if (isManual) {
+          setAiToast({ message: "AI analysis complete ✨", type: "success" });
+          setTimeout(() => setAiToast(null), 3000);
+        }
+      } catch (err) {
+        console.error("AI analysis failed:", err);
+        if (isManual) {
+          setAiToast({ message: "Analysis failed. Try again.", type: "error" });
+          setTimeout(() => setAiToast(null), 3000);
+        }
+      } finally {
+        setAnalyzingNoteId(null);
+      }
+    },
+    [analyzingNoteId, getAuthedUser, incrementUsage]
+  );
+ 
+
+
   const createNote = useCallback(async () => {
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -413,6 +502,9 @@ export default function Notes() {
         setNewTagsInput("");
         setNewCategory("meeting");
         setSelectedNote(localNote);
+        if (shouldAutoAnalyze(body, id)) {
+            setTimeout(() => runNoteAnalysis(id, title, body, false), 1000);
+          }
         return;
       }
 
@@ -461,8 +553,10 @@ export default function Notes() {
       setNewTagsInput("");
       setNewCategory("meeting");
       setSelectedNote(ui);
-
       loadTagCounts();
+      if (shouldAutoAnalyze(body, ui.id)) {
+        setTimeout(() => runNoteAnalysis(ui.id, title, body, false), 1500);
+      }
     } catch (err) {
       console.error("createNote unexpected error:", err);
     } finally {
@@ -481,7 +575,9 @@ export default function Notes() {
     parseTagsInput,
     mapDbNoteToUi,
     loadTagCounts,
+    runNoteAnalysis,
   ]);
+
 
   const handleDelete = async (id) => {
     const prevNotes = notes;
@@ -568,7 +664,16 @@ export default function Notes() {
         : prev
     );
 
-    if (!supabaseReady || !supabase) return;
+  if (!supabaseReady || !supabase) {
+    // Auto-analyze after edit (debounced 2s) when this is a normal edit (not AI save)
+    if (!smart && shouldAutoAnalyze(newBody, id)) {
+      if (autoAnalyzeTimerRef.current) clearTimeout(autoAnalyzeTimerRef.current);
+      autoAnalyzeTimerRef.current = setTimeout(() => {
+        runNoteAnalysis(id, newTitle, newBody, false);
+      }, 2000);
+    }
+    return;
+  }
 
     const user = await getAuthedUser();
     if (!user) return;
@@ -620,6 +725,7 @@ export default function Notes() {
       prev && prev.id === id ? { ...prev, ...ui } : prev
     );
   };
+
 
   // PIN operations
   const openSetPinForNote = (noteId) => {
@@ -931,9 +1037,28 @@ export default function Notes() {
     );
   }
 
-  // Note view
-  if (selectedNote) {
-    return (
+// Note view — ✅ passes AI analysis props
+if (selectedNote) {
+  return (
+    <>
+      {/* AI Toast (visible over NoteView) */}
+      <AnimatePresence>
+        {aiToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-4 left-1/2 -translate-x-1/2 z-[10000] px-4 py-3 rounded-xl text-sm font-medium shadow-xl flex items-center gap-2 ${
+              aiToast.type === "error"
+                ? "bg-rose-500 text-white"
+                : "bg-emerald-500 text-white"
+            }`}
+          >
+            {aiToast.type === "success" ? "✨" : "⚠️"} {aiToast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <NoteView
         note={selectedNote}
         onBack={() => {
@@ -948,13 +1073,37 @@ export default function Notes() {
         canUseExport={canUseExport}
         canUseVoice={canUseVoice}
         onRequireUpgrade={() => setShowUpgrade(true)}
+        onAnalyze={(noteId, title, body) =>
+          runNoteAnalysis(noteId, title, body, true)
+        }
+        isAnalyzing={analyzingNoteId === selectedNote?.id}
       />
-    );
-  }
+    </>
+  );
+}
+
 
 
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+100px)] animate-fadeIn">
+      {/* ✅ AI Toast */}
+      <AnimatePresence>
+        {aiToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-4 left-1/2 -translate-x-1/2 z-[10000] px-4 py-3 rounded-xl text-sm font-medium shadow-xl flex items-center gap-2 ${
+              aiToast.type === "error"
+                ? "bg-rose-500 text-white"
+                : "bg-emerald-500 text-white"
+            }`}
+          >
+            {aiToast.type === "success" ? "✨" : "⚠️"} {aiToast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <header className="flex items-center gap-3">
         <div
@@ -964,10 +1113,17 @@ export default function Notes() {
             border: "1px solid rgba(99, 102, 241, 0.25)",
           }}
         >
-          <Note weight="duotone" size={22} style={{ color: "var(--accent-indigo)" }} />
+          <Note
+            weight="duotone"
+            size={22}
+            style={{ color: "var(--accent-indigo)" }}
+          />
         </div>
         <div>
-          <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+          <h1
+            className="text-xl font-semibold"
+            style={{ color: "var(--text-primary)" }}
+          >
             My Notes
           </h1>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -992,6 +1148,7 @@ export default function Notes() {
             Total
           </p>
         </div>
+
         <div
           className="p-3 rounded-xl border text-center"
           style={{
@@ -1006,6 +1163,7 @@ export default function Notes() {
             Favorites
           </p>
         </div>
+
         <div
           className="p-3 rounded-xl border text-center"
           style={{
@@ -1021,6 +1179,7 @@ export default function Notes() {
           </p>
         </div>
       </div>
+
 
       {/* Search Bar */}
       <div
@@ -1197,10 +1356,7 @@ export default function Notes() {
                   e.stopPropagation();
                   const rect = e.currentTarget.getBoundingClientRect();
 
-                  const rightGutter =
-                    parseFloat(
-                      getComputedStyle(document.documentElement).getPropertyValue("--ns-right-gutter")
-                    ) || 0;
+               
                   setMenuPos({
                     x: Math.min(rect.right - 180, window.innerWidth - rightGutter - 200),
                     y: rect.bottom + 8,
@@ -1220,12 +1376,7 @@ export default function Notes() {
                onMenu={(e) => {
                 e.stopPropagation();
                 const rect = e.currentTarget.getBoundingClientRect();
-
-                const rightGutter =
-                  parseFloat(
-                    getComputedStyle(document.documentElement).getPropertyValue("--ns-right-gutter")
-                  ) || 0;
-
+                
                 setMenuPos({
                   x: Math.min(rect.right - 180, window.innerWidth - 200 - rightGutter),
                   y: rect.bottom + 8,
@@ -1326,9 +1477,9 @@ export default function Notes() {
      <div
         className="fab-zone fixed bottom-[calc(var(--mobile-nav-height)+16px)] z-[140]"
         style={{
-          right: "calc(16px + var(--ns-right-gutter, 0px))",
+          right: 16 + rightGutter, // number = px
           willChange: "transform",
-        }}
+                }}
       >
         <AnimatePresence initial={false} mode="wait">
           {showAddMenu && (
@@ -2174,6 +2325,4 @@ const FABOption = ({ icon, label, onClick, pro }) => (
     </span>
   </motion.button>
 );
-
-
 

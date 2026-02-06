@@ -27,6 +27,8 @@ dist-ssr
 .env
 .env.*
 !.env.example
+.env.local
+supabase/.env*
 
 # node/vite
 node_modules
@@ -41,3 +43,5 @@ dist
 *.pem
 *.key
 .certs/*
+
+ANTHROPIC_API_KEY

@@ -1,5 +1,5 @@
 // src/components/Sidebar.jsx
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   House,
   Note,
@@ -20,9 +20,95 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import { showMobileNav } from "../ui/layoutState";
+import {
+  FiArrowRight,
+  FiSearch,
+  FiEdit3,
+  FiFolder,
+  FiZap,
+  FiActivity,
+  FiCpu,
+  FiMic,
+  FiCloud,
+  FiUsers,
+  FiSettings,
+  FiLink,
+  FiHelpCircle,
+  FiMessageCircle,
+  FiBookOpen,
+  FiGrid,
+  FiFileText,
+  FiX,
+} from "react-icons/fi";
+import { Sparkle } from "phosphor-react";
 
 const DESKTOP_HEADER_H = 64; // px
 const SIDEBAR_W_COLLAPSED = 72; // icons only
+
+/* ─────────────────────────────────────────────
+   Searchable index — every navigable destination
+   (shared concept with Search.jsx)
+   ───────────────────────────────────────────── */
+const SEARCH_INDEX = [
+  { id: "dashboard", title: "Dashboard", description: "Workspace overview", path: "/dashboard", category: "Pages", icon: <FiGrid size={15} />, keywords: ["home", "overview", "main", "dashboard", "start", "hub"] },
+  { id: "notes", title: "Notes", description: "Create & manage notes", path: "/dashboard/notes", category: "Pages", icon: <FiEdit3 size={15} />, keywords: ["notes", "write", "create", "edit", "text", "draft", "memo", "new note"] },
+  { id: "documents", title: "Research Synthesizer", description: "Upload docs & generate briefs", path: "/dashboard/documents", category: "Pages", icon: <FiFolder size={15} />, keywords: ["documents", "files", "upload", "pdf", "docx", "research", "synthesize", "brief", "doc"] },
+  { id: "summaries", title: "Insight Explorer", description: "AI-powered workspace search", path: "/dashboard/summaries", category: "Pages", icon: <FiZap size={15} />, keywords: ["summaries", "insights", "explore", "ai search", "ask", "query", "find"] },
+  { id: "activity", title: "Activity", description: "Recent activity & usage", path: "/dashboard/activity", category: "Pages", icon: <FiActivity size={15} />, keywords: ["activity", "history", "timeline", "recent", "log", "usage"] },
+  { id: "ai-lab", title: "AI Lab", description: "Advanced AI tools", path: "/dashboard/ai-lab", category: "AI Tools", icon: <FiCpu size={15} />, keywords: ["ai", "lab", "tools", "experiments", "advanced"] },
+  { id: "custom-training", title: "Custom AI Training", description: "Train AI on your style", path: "/dashboard/ai-lab/training", category: "AI Tools", icon: <FiCpu size={15} />, keywords: ["training", "custom", "style", "writing", "personalize", "pro"] },
+  { id: "voice-notes", title: "Voice Notes", description: "Record & transcribe", path: "/dashboard/ai-lab/voice-notes", category: "AI Tools", icon: <FiMic size={15} />, keywords: ["voice", "record", "audio", "transcribe", "speech", "dictate"] },
+  { id: "cloud-sync", title: "Cloud Sync", description: "Sync across devices", path: "/dashboard/ai-lab/cloud-sync", category: "AI Tools", icon: <FiCloud size={15} />, keywords: ["cloud", "sync", "backup", "devices"] },
+  { id: "team-collaboration", title: "Team Collaboration", description: "Collaborate in real time", path: "/dashboard/ai-lab/team-collaboration", category: "AI Tools", icon: <FiUsers size={15} />, keywords: ["team", "collaboration", "share", "invite"] },
+  { id: "settings", title: "Settings", description: "Account, theme & preferences", path: "/dashboard/settings", category: "Settings", icon: <FiSettings size={15} />, keywords: ["settings", "preferences", "account", "theme", "dark mode", "light mode", "profile", "plan", "billing"] },
+  { id: "integrations", title: "Integrations", description: "Connect third-party services", path: "/dashboard/integrations", category: "Settings", icon: <FiLink size={15} />, keywords: ["integrations", "connect", "apps", "google", "slack", "notion", "api"] },
+  { id: "help-center", title: "Help Center", description: "Guides & FAQs", path: "/dashboard/help-center", category: "Support", icon: <FiHelpCircle size={15} />, keywords: ["help", "support", "faq", "guide", "tutorial", "how to"] },
+  { id: "contact-support", title: "Contact Support", description: "Get help from our team", path: "/dashboard/contact-support", category: "Support", icon: <FiMessageCircle size={15} />, keywords: ["contact", "support", "email", "bug", "report", "feedback"] },
+  { id: "integration-docs", title: "Integration Docs", description: "API docs & guides", path: "/dashboard/integration-docs", category: "Support", icon: <FiBookOpen size={15} />, keywords: ["api", "docs", "documentation", "developer"] },
+  // Quick actions
+  { id: "action-new-note", title: "Create New Note", description: "Start writing now", path: "/dashboard/notes", category: "Quick Actions", icon: <FiEdit3 size={15} />, keywords: ["new", "create", "write", "start", "blank", "note"] },
+  { id: "action-upload", title: "Upload a Document", description: "PDF, DOCX, or spreadsheet", path: "/dashboard/documents", category: "Quick Actions", icon: <FiFolder size={15} />, keywords: ["upload", "import", "add", "file"] },
+  { id: "action-record", title: "Record Voice Note", description: "Start a voice recording", path: "/dashboard/ai-lab/voice-notes", category: "Quick Actions", icon: <FiMic size={15} />, keywords: ["record", "voice", "audio"] },
+];
+
+const CATEGORY_COLORS = {
+  "Pages": { color: "#6366f1", bg: "rgba(99,102,241,0.1)", border: "rgba(99,102,241,0.25)" },
+  "AI Tools": { color: "#a855f7", bg: "rgba(168,85,247,0.1)", border: "rgba(168,85,247,0.25)" },
+  "Settings": { color: "#10b981", bg: "rgba(16,185,129,0.1)", border: "rgba(16,185,129,0.25)" },
+  "Support": { color: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.25)" },
+  "Quick Actions": { color: "#f43f5e", bg: "rgba(244,63,94,0.1)", border: "rgba(244,63,94,0.25)" },
+};
+
+/* ─────────────────────────────────────────────
+   Inline search scorer
+   ───────────────────────────────────────────── */
+function scoreSearch(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const terms = q.split(/\s+/).filter(Boolean);
+
+  return SEARCH_INDEX
+    .map((item) => {
+      let score = 0;
+      const titleLower = item.title.toLowerCase();
+      const descLower = item.description.toLowerCase();
+      const kwStr = item.keywords.join(" ").toLowerCase();
+
+      for (const term of terms) {
+        if (titleLower === term) score += 100;
+        else if (titleLower.startsWith(term)) score += 60;
+        else if (titleLower.includes(term)) score += 40;
+        if (item.keywords.some((kw) => kw.toLowerCase() === term)) score += 50;
+        else if (kwStr.includes(term)) score += 25;
+        if (descLower.includes(term)) score += 15;
+      }
+
+      return { ...item, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+}
+
 
 export default function Sidebar() {
   const location = useLocation();
@@ -33,14 +119,22 @@ export default function Sidebar() {
 
   // Sidebar slide-in state (right sidebar)
   const [desktopOpen, setDesktopOpen] = useState(false);
-
-  // ✅ Separate overlay state so programmatic opens don't create a stuck overlay
   const [desktopOverlayOpen, setDesktopOverlayOpen] = useState(false);
 
-  // ✅ Quick Create (DotsNine) menu
+  // Quick Create (DotsNine) menu
   const [showQuickCreate, setShowQuickCreate] = useState(false);
 
-  // ✅ Force icons-only on desktop (kept for compatibility)
+  // ✅ Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(-1);
+  const searchInputRef = useRef(null);
+  const searchDropdownRef = useRef(null);
+  const searchWrapperRef = useRef(null);
+
+  const searchResults = useMemo(() => scoreSearch(searchQuery).slice(0, 7), [searchQuery]);
+
+  // Force icons-only on desktop
   const collapsed = true;
 
   const isDesktop = () =>
@@ -48,7 +142,6 @@ export default function Sidebar() {
     window.matchMedia &&
     window.matchMedia("(min-width: 768px)").matches;
 
-  // ✅ Only auto-open via events on Notes LIST page (not note view)
   const isNotesListRoute = location.pathname === "/dashboard/notes";
 
   const closeDesktopSidebar = useCallback(() => {
@@ -64,14 +157,10 @@ export default function Sidebar() {
 
   const closeQuickCreate = useCallback(() => setShowQuickCreate(false), []);
 
-  // Quick Create: route + tell Notes what to open
   const goQuickCreate = useCallback(
     (type) => {
-      // close all popovers/overlays first
       setShowQuickCreate(false);
       closeDesktopSidebar();
-
-      // Navigate to Notes and instruct it
       navigate("/dashboard/notes", {
         state: { quickCreate: type, ts: Date.now() },
       });
@@ -79,9 +168,101 @@ export default function Sidebar() {
     [navigate, closeDesktopSidebar]
   );
 
-  /* --------------------------------------------------
-     MOBILE NAV VISIBILITY
-  -------------------------------------------------- */
+  /* ── Search helpers ── */
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setHighlightIdx(-1);
+  }, []);
+
+  const handleSearchNavigate = useCallback(
+    (item) => {
+      closeSearch();
+      setSearchQuery("");
+      navigate(item.path);
+    },
+    [navigate, closeSearch]
+  );
+
+  // Reset highlight when results change
+  useEffect(() => {
+    setHighlightIdx(-1);
+    if (searchQuery.trim().length > 0 && searchResults.length > 0) {
+      setSearchOpen(true);
+    } else {
+      setSearchOpen(false);
+    }
+  }, [searchQuery, searchResults.length]);
+
+  // Close search on outside click
+  useEffect(() => {
+    const handleOutside = (e) => {
+      if (
+        searchWrapperRef.current &&
+        !searchWrapperRef.current.contains(e.target)
+      ) {
+        closeSearch();
+      }
+    };
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [closeSearch]);
+
+  // Close search on route change
+  useEffect(() => {
+    closeSearch();
+    setSearchQuery("");
+  }, [location.pathname, closeSearch]);
+
+  const handleSearchKeyDown = (e) => {
+    if (searchOpen && searchResults.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightIdx((prev) =>
+          prev < searchResults.length - 1 ? prev + 1 : 0
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightIdx((prev) =>
+          prev > 0 ? prev - 1 : searchResults.length - 1
+        );
+        return;
+      }
+      if (e.key === "Tab") {
+        e.preventDefault();
+        const target =
+          highlightIdx >= 0 ? searchResults[highlightIdx] : searchResults[0];
+        if (target) setSearchQuery(target.title);
+        return;
+      }
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (searchOpen && highlightIdx >= 0 && searchResults[highlightIdx]) {
+        handleSearchNavigate(searchResults[highlightIdx]);
+      } else if (searchResults.length > 0) {
+        handleSearchNavigate(searchResults[0]);
+      } else if (searchQuery.trim()) {
+        // Fallback: go to search page
+        closeSearch();
+        navigate("/search");
+      }
+      return;
+    }
+
+    if (e.key === "Escape") {
+      if (searchOpen) {
+        closeSearch();
+      } else {
+        setSearchQuery("");
+        searchInputRef.current?.blur();
+      }
+    }
+  };
+
+  /* ── Mobile nav visibility ── */
   useEffect(() => {
     const handleModalOpen = () => setMobileNavHidden(true);
     const handleModalClose = () => setMobileNavHidden(false);
@@ -108,19 +289,14 @@ export default function Sidebar() {
     };
   }, []);
 
-  /* --------------------------------------------------
-     ✅ CRITICAL: always close sidebar + overlay on route change
-     Prevents stuck overlay after navigating (e.g., opening a note)
-  -------------------------------------------------- */
+  // Close sidebar + overlay on route change
   useEffect(() => {
     if (!isDesktop()) return;
     closeDesktopSidebar();
     setShowQuickCreate(false);
   }, [location.pathname, closeDesktopSidebar]);
 
-  /* --------------------------------------------------
-     Quick Create: close on ESC
-  -------------------------------------------------- */
+  // Quick Create: close on ESC
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") {
@@ -131,11 +307,7 @@ export default function Sidebar() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  /* --------------------------------------------------
-     DESKTOP: allow other pages (Notes) to control sidebar visibility
-     ✅ but ONLY on /dashboard/notes (list). Avoid note-view glitches.
-     ✅ programmatic open does NOT enable overlay.
-  -------------------------------------------------- */
+  // Desktop sidebar events from other components
   useEffect(() => {
     const onOpen = () => {
       if (!isDesktop()) return;
@@ -158,9 +330,7 @@ export default function Sidebar() {
     };
   }, [isNotesListRoute, closeDesktopSidebar]);
 
-  /* --------------------------------------------------
-     NAV CONFIG
-  -------------------------------------------------- */
+  /* ── NAV CONFIG ── */
   const navItems = useMemo(
     () => [
       { label: "Home", icon: House, to: "/dashboard" },
@@ -195,21 +365,13 @@ export default function Sidebar() {
     [location.pathname]
   );
 
-  /* --------------------------------------------------
-     ✅ NAV CLICK:
-     - mobile: show nav
-     - desktop: never call showMobileNav
-     - close desktop sidebar/overlay + close quick create
-  -------------------------------------------------- */
   const onNavClick = useCallback(() => {
     if (!isDesktop()) showMobileNav();
     setShowQuickCreate(false);
     closeDesktopSidebar();
   }, [closeDesktopSidebar]);
 
-  /* --------------------------------------------------
-     LOGOUT
-  -------------------------------------------------- */
+  /* ── LOGOUT ── */
   const handleLogout = async () => {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -229,9 +391,7 @@ export default function Sidebar() {
     }
   };
 
-  /* --------------------------------------------------
-     DESKTOP: reserve space for top header only (no content shift)
-  -------------------------------------------------- */
+  /* ── Desktop header height CSS var ── */
   useEffect(() => {
     if (!isDesktop()) return;
 
@@ -242,7 +402,6 @@ export default function Sidebar() {
       root.style.removeProperty("--ns-desktop-header-h");
     };
   }, []);
-
 
   // Theme-aware tokens
   const TOPBAR_BG = "var(--bg-surface, rgba(10,10,14,0.75))";
@@ -255,7 +414,7 @@ export default function Sidebar() {
   return (
     <>
       {/* ==========================================================
-          DESKTOP TOP HEADER (Docs-like)
+          DESKTOP TOP HEADER
       ========================================================== */}
       <header
         className="hidden md:flex fixed top-0 left-0 right-0 z-[95] items-center"
@@ -301,31 +460,199 @@ export default function Sidebar() {
             </div>
           </Link>
 
-          {/* Center: Search */}
+          {/* ✅ Center: Search with Autocomplete Dropdown */}
           <div className="flex-1 flex justify-center">
-            <div className="w-full max-w-[760px]">
+            <div className="w-full max-w-[760px] relative" ref={searchWrapperRef}>
               <div
-                className="h-11 rounded-full flex items-center gap-2 px-4"
+                className="h-11 rounded-full flex items-center gap-2 px-4 transition-all duration-200"
                 style={{
                   background: BTN_BG,
-                  border: `1px solid ${BTN_BORDER}`,
-                  boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+                  border: `1px solid ${searchOpen ? "rgba(99,102,241,0.5)" : BTN_BORDER}`,
+                  boxShadow: searchOpen
+                    ? "0 10px 30px rgba(0,0,0,0.25), 0 0 16px rgba(99,102,241,0.1)"
+                    : "0 10px 30px rgba(0,0,0,0.25)",
                 }}
               >
                 <MagnifyingGlass size={18} weight="bold" style={{ color: ICON_MUTED }} />
                 <input
+                  ref={searchInputRef}
                   type="text"
-                  placeholder="Search"
+                  placeholder="Search pages, tools, actions…"
                   className="w-full bg-transparent outline-none text-[13px]"
                   style={{ color: "var(--text-primary, rgba(255,255,255,0.9))" }}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  onFocus={() => {
+                    if (searchQuery.trim().length > 0 && searchResults.length > 0) {
+                      setSearchOpen(true);
+                    }
+                  }}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery("");
+                      closeSearch();
+                      searchInputRef.current?.focus();
+                    }}
+                    className="p-1 rounded-full transition flex-shrink-0"
+                    style={{ color: ICON_MUTED }}
+                    aria-label="Clear search"
+                  >
+                    <FiX size={14} />
+                  </button>
+                )}
               </div>
+
+              {/* ✅ Autocomplete Dropdown */}
+              <AnimatePresence>
+                {searchOpen && searchResults.length > 0 && (
+                  <motion.div
+                    ref={searchDropdownRef}
+                    initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="absolute left-0 right-0 top-full mt-2 z-[200] rounded-xl border shadow-2xl overflow-hidden"
+                    style={{
+                      backgroundColor: "var(--bg-surface, rgba(15,15,20,0.95))",
+                      borderColor: "var(--border-secondary)",
+                      backdropFilter: "blur(20px) saturate(180%)",
+                      WebkitBackdropFilter: "blur(20px) saturate(180%)",
+                      boxShadow:
+                        "0 20px 60px rgba(0,0,0,0.4), 0 0 20px rgba(99,102,241,0.06)",
+                    }}
+                  >
+                    {/* Header */}
+                    <div
+                      className="px-3.5 py-2 border-b flex items-center justify-between"
+                      style={{ borderColor: "var(--border-secondary)" }}
+                    >
+                      <span
+                        className="text-[10px] font-medium"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        {searchResults.length} suggestion{searchResults.length !== 1 ? "s" : ""}
+                      </span>
+                      <span
+                        className="text-[10px]"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        ↑↓ navigate · ↵ go · tab complete
+                      </span>
+                    </div>
+
+                    {/* Results */}
+                    <div className="py-1 max-h-[360px] overflow-y-auto">
+                      {searchResults.map((item, idx) => {
+                        const meta =
+                          CATEGORY_COLORS[item.category] || CATEGORY_COLORS["Pages"];
+                        const isHighlighted = idx === highlightIdx;
+
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => handleSearchNavigate(item)}
+                            onMouseEnter={() => setHighlightIdx(idx)}
+                            className="w-full text-left flex items-center gap-3 px-3.5 py-2.5 transition-colors"
+                            style={{
+                              backgroundColor: isHighlighted
+                                ? meta.bg
+                                : "transparent",
+                              borderLeft: isHighlighted
+                                ? `2px solid ${meta.color}`
+                                : "2px solid transparent",
+                            }}
+                          >
+                            {/* Icon */}
+                            <div
+                              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
+                              style={{
+                                backgroundColor: isHighlighted
+                                  ? meta.bg
+                                  : "var(--bg-tertiary, rgba(255,255,255,0.04))",
+                                color: isHighlighted
+                                  ? meta.color
+                                  : "var(--text-muted)",
+                              }}
+                            >
+                              {item.icon}
+                            </div>
+
+                            {/* Text */}
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className="text-[13px] font-medium truncate"
+                                style={{
+                                  color: isHighlighted
+                                    ? "var(--text-primary)"
+                                    : "var(--text-secondary)",
+                                }}
+                              >
+                                {item.title}
+                              </p>
+                              <p
+                                className="text-[11px] truncate"
+                                style={{ color: "var(--text-muted)" }}
+                              >
+                                {item.description}
+                              </p>
+                            </div>
+
+                            {/* Category badge + arrow */}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span
+                                className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md border"
+                                style={{
+                                  color: meta.color,
+                                  backgroundColor: meta.bg,
+                                  borderColor: meta.border,
+                                }}
+                              >
+                                {item.category}
+                              </span>
+                              <FiArrowRight
+                                size={12}
+                                style={{
+                                  color: meta.color,
+                                  opacity: isHighlighted ? 1 : 0,
+                                  transition: "opacity 0.15s ease",
+                                }}
+                              />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Footer hint */}
+                    <div
+                      className="px-3.5 py-2 border-t flex items-center justify-center gap-1.5"
+                      style={{ borderColor: "var(--border-secondary)" }}
+                    >
+                      <FiSearch size={10} style={{ color: "var(--text-muted)" }} />
+                      <span
+                        className="text-[10px]"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        Press Enter to go · Esc to close
+                      </span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
           {/* Right: Quick Create + Hamburger */}
           <div className="flex items-center gap-2">
-            {/* ✅ Quick Create (DotsNine) */}
+            {/* Quick Create (DotsNine) */}
             <div className="relative">
               <button
                 type="button"
@@ -357,7 +684,6 @@ export default function Sidebar() {
               <AnimatePresence>
                 {showQuickCreate && (
                   <>
-                    {/* click-outside */}
                     <motion.div
                       className="fixed inset-0 z-[110] hidden md:block"
                       initial={{ opacity: 0 }}
@@ -546,7 +872,7 @@ export default function Sidebar() {
       </AnimatePresence>
 
       {/* ==========================================================
-          DESKTOP OVERLAY (ONLY when hamburger opened it)
+          DESKTOP OVERLAY
       ========================================================== */}
       <AnimatePresence>
         {desktopOverlayOpen && desktopOpen && (
@@ -811,10 +1137,6 @@ const QuickCreateItem = ({ icon, label, sub, onClick }) => (
     </span>
   </button>
 );
-
-
-
-
 
 
 

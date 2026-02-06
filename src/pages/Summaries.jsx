@@ -856,8 +856,8 @@ export default function Summaries() {
       </div>
 
       {/* Search Bar */}
-      <div className="fixed bottom-[calc(var(--mobile-nav-height)+12px)] left-0 right-0 px-4 z-40 md:left-[220px] md:bottom-5">
-        <div className="max-w-2xl mx-auto">
+      <div className="fixed bottom-[calc(var(--mobile-nav-height)+12px)] inset-x-0 px-4 z-40 md:bottom-5">
+        <div className="max-w-2xl w-full mx-auto">
           <form onSubmit={handleSearch}>
             <div
               className="flex items-center w-full rounded-2xl px-4 py-2.5 transition-all duration-200 border"

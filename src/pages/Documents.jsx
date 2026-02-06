@@ -24,6 +24,8 @@ import {
   FiSearch,
   FiFile,
   FiFolder,
+  FiChevronDown,
+  FiClock,
 } from "react-icons/fi";
 import { Brain, Sparkle, FilePlus, FileDoc, FilePdf, FileXls } from "phosphor-react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
@@ -34,6 +36,8 @@ const STORAGE_BUCKET = "documents";
 
 const TAG_DOC_SUMMARY = "ai:doc_summary";
 const TAG_RESEARCH_BRIEF = "ai:research_brief";
+
+const DOCS_PER_PAGE = 10;
 
 function nowIso() {
   return new Date().toISOString();
@@ -145,6 +149,104 @@ function ToggleButton({ children, active, onClick }) {
   );
 }
 
+/* -----------------------------------------
+   Sort Dropdown Component
+----------------------------------------- */
+function SortDropdown({ sortOrder, setSortOrder }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  const options = [
+    { value: "newest", label: "Newest First", icon: <FiClock size={13} /> },
+    { value: "oldest", label: "Oldest First", icon: <FiClock size={13} /> },
+    { value: "name-az", label: "Name A→Z", icon: <FiFileText size={13} /> },
+    { value: "name-za", label: "Name Z→A", icon: <FiFileText size={13} /> },
+  ];
+
+  const current = options.find((o) => o.value === sortOrder) || options[0];
+
+  // Close on outside click
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    if (open) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((s) => !s)}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition"
+        style={{
+          backgroundColor: "var(--bg-button)",
+          borderColor: "var(--border-secondary)",
+          color: "var(--text-secondary)",
+        }}
+      >
+        {current.icon}
+        <span className="hidden sm:inline">{current.label}</span>
+        <FiChevronDown
+          size={12}
+          className={`transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.97 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 top-full mt-1.5 z-50 min-w-[160px] rounded-xl border shadow-xl overflow-hidden"
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              borderColor: "var(--border-secondary)",
+            }}
+          >
+            {options.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  setSortOrder(opt.value);
+                  setOpen(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs transition text-left"
+                style={{
+                  backgroundColor:
+                    sortOrder === opt.value ? "rgba(99,102,241,0.1)" : "transparent",
+                  color:
+                    sortOrder === opt.value
+                      ? "var(--accent-indigo)"
+                      : "var(--text-secondary)",
+                }}
+                onMouseEnter={(e) => {
+                  if (sortOrder !== opt.value)
+                    e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
+                }}
+                onMouseLeave={(e) => {
+                  if (sortOrder !== opt.value)
+                    e.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                {opt.icon}
+                <span className="font-medium">{opt.label}</span>
+                {sortOrder === opt.value && (
+                  <FiCheck size={13} className="ml-auto" />
+                )}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function Documents({ docs: docsProp = null, setDocs: setDocsProp }) {
   const navigate = useNavigate();
   const { settings } = useWorkspaceSettings();
@@ -156,6 +258,8 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
 
   const [query, setQuery] = useState("");
   const [filterType, setFilterType] = useState("ALL");
+  const [sortOrder, setSortOrder] = useState("newest");
+  const [visibleCount, setVisibleCount] = useState(DOCS_PER_PAGE);
   const fileInputRef = useRef(null);
 
   const [synthesizeMode, setSynthesizeMode] = useState(false);
@@ -183,6 +287,10 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
 
 useMobileNav(isAnyModalOpen);
 
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(DOCS_PER_PAGE);
+  }, [query, filterType, sortOrder]);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -205,19 +313,16 @@ useMobileNav(isAnyModalOpen);
   }, []);
 
   // ✅ FIXED: Use RPC function instead of problematic upsert
-  // This function ensures a stats row exists WITHOUT overwriting existing data
   const ensureUserStatsRow = useCallback(async (user) => {
     if (!user?.id) return;
 
     try {
-      // Use the RPC function that does INSERT ... ON CONFLICT DO NOTHING
       const { error } = await supabase.rpc("ensure_user_stats_exists", {
         p_user_id: user.id,
         p_display_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
       });
 
       if (error) {
-        // Fallback: Try simple select to see if row exists
         console.warn("ensure_user_stats_exists RPC failed, trying fallback:", error);
 
         const { data: existing } = await supabase
@@ -226,7 +331,6 @@ useMobileNav(isAnyModalOpen);
           .eq("user_id", user.id)
           .maybeSingle();
 
-        // Only insert if no row exists
         if (!existing) {
           await supabase.from("user_engagement_stats").insert({
             user_id: user.id,
@@ -250,7 +354,6 @@ useMobileNav(isAnyModalOpen);
       if (!user?.id) return;
 
       try {
-        // Use the RPC function for atomic increment
         const { error } = await supabase.rpc("increment_ai_uses", {
           p_user_id: user.id,
           p_amount: amount,
@@ -259,7 +362,6 @@ useMobileNav(isAnyModalOpen);
         if (error) {
           console.warn("increment_ai_uses RPC failed, trying fallback:", error);
 
-          // Fallback: Manual select + update (less safe but works without RPC)
           await ensureUserStatsRow(user);
 
           const { data: row } = await supabase
@@ -279,7 +381,6 @@ useMobileNav(isAnyModalOpen);
             .eq("user_id", user.id);
         }
 
-        // Dispatch event for other components (like Dashboard) to update
         window.dispatchEvent(
           new CustomEvent("notestream:ai_uses_updated", {
             detail: { increment: amount },
@@ -295,7 +396,6 @@ useMobileNav(isAnyModalOpen);
   const mapDocRowToUi = useCallback((row) => {
     const type = (row?.type || "FILE").toUpperCase();
     const status = row?.status || "ready";
-    // size_bytes column may not exist - handle gracefully
     const size = row?.size_bytes ? bytesToLabel(row.size_bytes) : "—";
 
     return {
@@ -322,10 +422,8 @@ useMobileNav(isAnyModalOpen);
     try {
       const user = await getUser();
 
-      // ✅ Ensure stats row exists (won't overwrite if already exists)
       await ensureUserStatsRow(user);
 
-      // Documents
       const { data: docRows, error: docErr } = await supabase
         .from(DOCS_TABLE)
         .select("*")
@@ -335,7 +433,6 @@ useMobileNav(isAnyModalOpen);
       if (docErr) throw docErr;
       setDocs((docRows || []).map(mapDocRowToUi));
 
-      // AI doc summaries (notes tagged with ai:doc_summary + doc:<id>)
       const { data: summaryNotes, error: sumErr } = await supabase
         .from(NOTES_TABLE)
         .select("id, tags")
@@ -354,7 +451,6 @@ useMobileNav(isAnyModalOpen);
       }
       setSummaryIndex(nextSummaryIndex);
 
-      // Saved briefs (notes tagged with ai:research_brief)
       const { data: briefNotes, error: briefErr } = await supabase
         .from(NOTES_TABLE)
         .select("id, title, body, updated_at, created_at, tags")
@@ -442,14 +538,12 @@ useMobileNav(isAnyModalOpen);
 
       const storagePath = `${user.id}/${docId}/${file.name}`;
 
-      // Upload to Storage
       const { error: upErr } = await supabase.storage
         .from(STORAGE_BUCKET)
         .upload(storagePath, file, { upsert: false, contentType: file.type || "application/octet-stream" });
 
       if (upErr) throw upErr;
 
-      // Insert row into documents table
       const insertPayload = {
         id: docId,
         user_id: user.id,
@@ -510,7 +604,6 @@ useMobileNav(isAnyModalOpen);
   };
 
   const findExistingSummaryNoteId = async (userId, docId) => {
-    // Fast-path from in-memory index
     const cached = summaryIndex?.[docId]?.noteId;
     if (cached) return cached;
 
@@ -536,7 +629,6 @@ useMobileNav(isAnyModalOpen);
 
       const summary = buildSmartSummary(doc);
 
-      // Persist summary as a note
       const existingId = await findExistingSummaryNoteId(user.id, doc.id);
 
       const notePayload = {
@@ -551,7 +643,6 @@ useMobileNav(isAnyModalOpen);
       };
 
       if (existingId) {
-        // UPDATE existing note (doesn't trigger notes_created increment)
         const { error } = await supabase
           .from(NOTES_TABLE)
           .update({ ...notePayload, created_at: undefined })
@@ -562,7 +653,6 @@ useMobileNav(isAnyModalOpen);
 
         setSummaryIndex((prev) => ({ ...(prev || {}), [doc.id]: { noteId: existingId } }));
       } else {
-        // INSERT new note (triggers notes_created increment via DB trigger)
         const { data: inserted, error } = await supabase
           .from(NOTES_TABLE)
           .insert(notePayload)
@@ -574,17 +664,14 @@ useMobileNav(isAnyModalOpen);
         setSummaryIndex((prev) => ({ ...(prev || {}), [doc.id]: { noteId: inserted.id } }));
       }
 
-      // ✅ Increment AI uses (DB)
       await incrementAiUses(user, 1);
 
-      // ✅ Increment daily usage (plan limits)
       try {
         await incrementUsage("aiSummaries");
       } catch {
         // non-blocking
       }
 
-      // ✅ Log activity event for AI summary
       try {
         await supabase.rpc("log_activity_event", {
           p_user_id: user.id,
@@ -684,7 +771,6 @@ useMobileNav(isAnyModalOpen);
       const result = generateSynthesisResult(selectedDocs);
       setSynthesisResult(result);
 
-      // Mark selected docs as synthesized using documents.status
       const docIds = selectedDocs.map((d) => d.id);
 
       const { error: updErr } = await supabase
@@ -699,17 +785,14 @@ useMobileNav(isAnyModalOpen);
         (prev || []).map((d) => (docIds.includes(d.id) ? { ...d, status: "synthesized", updated: "Just now" } : d))
       );
 
-      // ✅ Increment AI uses (DB)
       await incrementAiUses(user, 1);
 
-      // ✅ Increment daily usage (plan limits)
       try {
         await incrementUsage("documentSynth");
       } catch {
         // non-blocking
       }
 
-      // ✅ Log activity event for synthesis
       try {
         await supabase.rpc("log_activity_event", {
           p_user_id: user.id,
@@ -750,7 +833,6 @@ useMobileNav(isAnyModalOpen);
         updated_at: nowIso(),
       };
 
-      // ✅ INSERT will trigger notes_created increment via DB trigger
       const { data: inserted, error } = await supabase.from(NOTES_TABLE).insert(payload).select("id").single();
       if (error) throw error;
 
@@ -779,15 +861,44 @@ useMobileNav(isAnyModalOpen);
 
   const viewBrief = (brief) => setViewingBrief(brief);
 
-  const filteredDocs = useMemo(
-    () =>
-      (docs || []).filter((d) => {
-        const matchesType = filterType === "ALL" || d.type === filterType;
-        const matchesQuery = d.name.toLowerCase().includes(query.toLowerCase());
-        return matchesType && matchesQuery;
-      }),
-    [query, filterType, docs]
+  // ✅ Filtered + sorted docs with pagination
+  const filteredDocs = useMemo(() => {
+    let result = (docs || []).filter((d) => {
+      const matchesType = filterType === "ALL" || d.type === filterType;
+      const matchesQuery = d.name.toLowerCase().includes(query.toLowerCase());
+      return matchesType && matchesQuery;
+    });
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      switch (sortOrder) {
+        case "oldest": {
+          const da = new Date(a.created_at || a.updated_at || 0).getTime();
+          const db = new Date(b.created_at || b.updated_at || 0).getTime();
+          return da - db;
+        }
+        case "name-az":
+          return (a.name || "").localeCompare(b.name || "");
+        case "name-za":
+          return (b.name || "").localeCompare(a.name || "");
+        case "newest":
+        default: {
+          const da = new Date(a.created_at || a.updated_at || 0).getTime();
+          const db = new Date(b.created_at || b.updated_at || 0).getTime();
+          return db - da;
+        }
+      }
+    });
+
+    return result;
+  }, [query, filterType, sortOrder, docs]);
+
+  const visibleDocs = useMemo(
+    () => filteredDocs.slice(0, visibleCount),
+    [filteredDocs, visibleCount]
   );
+
+  const hasMore = visibleCount < filteredDocs.length;
 
   const totalDocs = (docs || []).length;
   const synthesizedCount = (docs || []).filter((d) => (d.status || "") === "synthesized").length;
@@ -872,12 +983,10 @@ useMobileNav(isAnyModalOpen);
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10"
           >
-            {/* Square status icon (FIXED) */}
             <div className="h-7 w-7 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
               <FiZap size={14} className="text-emerald-400" />
             </div>
 
-            {/* Text */}
             <span className="text-xs font-semibold text-emerald-400">
               Auto-summarize enabled
             </span>
@@ -888,8 +997,8 @@ useMobileNav(isAnyModalOpen);
         )}
 
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3">
+          {/* ✅ Action Buttons - always side by side */}
+          <div className="flex flex-row gap-3">
             <motion.button
               whileHover={{ scale: 1.015 }}
               whileTap={{ scale: 0.98 }}
@@ -901,11 +1010,13 @@ useMobileNav(isAnyModalOpen);
                 text-theme-primary
                 hover:bg-theme-tertiary
                 transition
+                min-w-0
               "
             >
-              <div className="relative z-10 flex items-center justify-center gap-2.5">
-                <FilePlus size={20} className="icon-muted" />
-                <span className="font-medium">Upload Document</span>
+              <div className="relative z-10 flex items-center justify-center gap-2">
+                <FilePlus size={18} className="icon-muted flex-shrink-0" />
+                <span className="font-medium text-sm sm:text-base truncate">Upload</span>
+                <span className="font-medium text-sm sm:text-base hidden sm:inline">Document</span>
               </div>
             </motion.button>
 
@@ -920,12 +1031,16 @@ useMobileNav(isAnyModalOpen);
                 text-theme-primary
                 hover:bg-theme-tertiary
                 transition
+                min-w-0
               "
             >
-              <div className="relative z-10 flex items-center justify-center gap-2.5">
-                <Sparkle size={20} className="icon-muted" />
-                <span className="font-medium">
-                  {synthesizeMode ? "Cancel" : "Synthesize Documents"}
+              <div className="relative z-10 flex items-center justify-center gap-2">
+                <Sparkle size={18} className="icon-muted flex-shrink-0" />
+                <span className="font-medium text-sm sm:text-base truncate">
+                  {synthesizeMode ? "Cancel" : "Synthesize"}
+                </span>
+                <span className="font-medium text-sm sm:text-base hidden sm:inline">
+                  {synthesizeMode ? "" : "Docs"}
                 </span>
               </div>
             </motion.button>
@@ -1018,7 +1133,6 @@ useMobileNav(isAnyModalOpen);
                   </p>
                 </div>
                 <div className="flex gap-1">
-                  {/* View brief */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1043,7 +1157,6 @@ useMobileNav(isAnyModalOpen);
                     <FiEye size={16} />
                   </button>
 
-                  {/* Delete brief */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1081,8 +1194,10 @@ useMobileNav(isAnyModalOpen);
 
       {/* Documents List */}
       <GlassCard>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-          <div className="relative flex-1 max-w-md">
+        {/* ✅ Search + Filters + Sort row */}
+        <div className="flex flex-col gap-3 mb-4">
+          {/* Search bar */}
+          <div className="relative flex-1">
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted" size={16} />
             <input
               type="text"
@@ -1093,13 +1208,26 @@ useMobileNav(isAnyModalOpen);
               style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}
             />
           </div>
-          <div className="flex gap-2">
-            {["ALL", "PDF", "DOCX", "XLSX"].map((t) => (
-              <ToggleButton key={t} active={filterType === t} onClick={() => setFilterType(t)}>
-                {t === "ALL" ? "All" : t}
-              </ToggleButton>
-            ))}
+
+          {/* Filters + Sort in one row */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex gap-1.5 flex-wrap">
+              {["ALL", "PDF", "DOCX", "XLSX"].map((t) => (
+                <ToggleButton key={t} active={filterType === t} onClick={() => setFilterType(t)}>
+                  {t === "ALL" ? "All" : t}
+                </ToggleButton>
+              ))}
+            </div>
+
+            <SortDropdown sortOrder={sortOrder} setSortOrder={setSortOrder} />
           </div>
+        </div>
+
+        {/* Doc count label */}
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[11px] text-theme-muted">
+            Showing {Math.min(visibleCount, filteredDocs.length)} of {filteredDocs.length} documents
+          </p>
         </div>
 
         <div className="space-y-2">
@@ -1113,7 +1241,8 @@ useMobileNav(isAnyModalOpen);
             </div>
           )}
 
-          {filteredDocs.map((doc, index) => {
+          {/* ✅ Only render visible slice */}
+          {visibleDocs.map((doc, index) => {
             const isSelected = selectedDocs.find((d) => d.id === doc.id);
             const isAutoSummarizing = autoSummarizing === doc.id;
             const hasSummary = !!summaryIndex?.[doc.id];
@@ -1134,7 +1263,6 @@ useMobileNav(isAnyModalOpen);
                   borderColor: isSelected ? "rgba(168, 85, 247, 0.5)" : "var(--border-secondary)",
                 }}
               >
-                {/* tighter padding */}
                 <div className="px-3 py-2.5">
                   <div className="flex items-center gap-3 min-w-0">
                     {/* Left */}
@@ -1166,7 +1294,6 @@ useMobileNav(isAnyModalOpen);
                       >
                         <FileTypeIcon type={doc.type} size={18} />
 
-                        {/* AI Star Overlay */}
                         {settings.autoSummarize && (
                           <span
                             className="absolute -top-1 -right-1 h-4 w-4 rounded-full flex items-center justify-center"
@@ -1181,14 +1308,12 @@ useMobileNav(isAnyModalOpen);
                       </div>
                     )}
 
-                    {/* Middle (tight) */}
+                    {/* Middle */}
                     <div className="min-w-0 flex-1">
-                     {/* Title always gets width */}
                       <p className="text-theme-primary text-sm font-semibold truncate" title={doc.name}>
                         {doc.name}
                       </p>
 
-                      {/* Tags below (compact) */}
                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                         {isSynthesized && (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/25">
@@ -1196,7 +1321,6 @@ useMobileNav(isAnyModalOpen);
                           </span>
                         )}
 
-                      {/* AI summary completed */}
                       {hasSummary && !isAutoSummarizing && (
                         <span className="tag-success text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
                           <FiCheck size={10} />
@@ -1204,7 +1328,6 @@ useMobileNav(isAnyModalOpen);
                         </span>
                       )}
 
-                      {/* AI summary in progress */}
                       {isAutoSummarizing && (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/12 text-indigo-300 border border-indigo-500/25 flex items-center gap-1">
                           <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
@@ -1213,13 +1336,12 @@ useMobileNav(isAnyModalOpen);
                       )}
                       </div>
 
-                      {/* Meta: force single line + truncate so it never wraps into 2 lines on iPhone */}
                       <p className="text-[11px] text-theme-muted mt-1 truncate">
                         {doc.type} · {doc.size} · Updated {doc.updated}
                       </p>
                     </div>
 
-                    {/* Right actions (tight) */}
+                    {/* Right actions */}
                     {!synthesizeMode && (
                         <div className="shrink-0 flex items-center gap-1">
                         <button
@@ -1268,6 +1390,33 @@ useMobileNav(isAnyModalOpen);
               </motion.div>
             );
           })}
+
+          {/* ✅ Load More button */}
+          {hasMore && (
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              onClick={() => setVisibleCount((prev) => prev + DOCS_PER_PAGE)}
+              type="button"
+              className="w-full py-3 mt-2 rounded-xl border text-sm font-medium transition flex items-center justify-center gap-2"
+              style={{
+                backgroundColor: "var(--bg-button)",
+                borderColor: "var(--border-secondary)",
+                color: "var(--text-secondary)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "rgba(99,102,241,0.4)";
+                e.currentTarget.style.backgroundColor = "rgba(99,102,241,0.06)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "var(--border-secondary)";
+                e.currentTarget.style.backgroundColor = "var(--bg-button)";
+              }}
+            >
+              <FiChevronDown size={16} />
+              Show More ({filteredDocs.length - visibleCount} remaining)
+            </motion.button>
+          )}
         </div>
       </GlassCard>
 
@@ -1307,7 +1456,7 @@ useMobileNav(isAnyModalOpen);
         )}
       </AnimatePresence>
 
-      {/* Brief Modal (same style as Notes modal) */}
+      {/* Brief Modal */}
       <AnimatePresence>
         {(synthesisResult || viewingBrief) && (
           <ModalShell
