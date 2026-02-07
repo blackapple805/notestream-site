@@ -11,6 +11,7 @@ import GlassCard from "../components/GlassCard";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
 import { useSubscription } from "../hooks/useSubscription";
 import { useMobileNav } from "../hooks/useMobileNav";
+import { smartSummarizeDocument, synthesizeDocuments } from "../lib/documentAI";
 import {
   FiEye,
   FiFileText,
@@ -495,19 +496,6 @@ useMobileNav(isAnyModalOpen);
     loadDocsAndAiArtifacts();
   }, [loadDocsAndAiArtifacts]);
 
-  const buildSmartSummary = (doc) => {
-    const baseTitle = doc.name.replace(/\.[^/.]+$/, "");
-    return {
-      summaryText: `High-level summary for "${baseTitle}".`,
-      keyInsights: ["Main objective.", "Notable constraints.", "Timeline impacts."],
-      actionPlan: [
-        { priority: "High", title: "Confirm milestone", ownerHint: "Project lead", effort: "2h", dueHint: "1–2 days" },
-        { priority: "Medium", title: "Clarify blockers", ownerHint: "Engineering", effort: "1–3h", dueHint: "This week" },
-      ],
-      risks: ["Timeline slippage.", "Missing assets."],
-      meta: { generatedAt: nowIso(), sourceDocId: doc.id },
-    };
-  };
 
   const handlePreview = (doc) => navigate(`/dashboard/documents/view/${doc.id}`);
 
@@ -627,7 +615,7 @@ useMobileNav(isAnyModalOpen);
 
       if (isAutomatic) setAutoSummarizing(doc.id);
 
-      const summary = buildSmartSummary(doc);
+      const summary = await smartSummarizeDocument(doc);
 
       const existingId = await findExistingSummaryNoteId(user.id, doc.id);
 
@@ -715,44 +703,6 @@ useMobileNav(isAnyModalOpen);
     setSelectedDocs([]);
   };
 
-  const generateSynthesisResult = (docsToUse) => {
-    const docNames = docsToUse.map((d) => d.name.replace(/\.[^/.]+$/, ""));
-    return {
-      id: `brief-${Date.now()}`,
-      title: `Research Brief: ${docNames.slice(0, 2).join(" & ")}${
-        docsToUse.length > 2 ? ` +${docsToUse.length - 2} more` : ""
-      }`,
-      generatedAt: nowIso(),
-      sourceCount: docsToUse.length,
-      sources: docsToUse.map((d) => d.name),
-      docIds: docsToUse.map((d) => d.id),
-      executiveSummary: `This synthesized brief combines insights from ${docsToUse.length} documents to provide a unified view of the research findings, key themes, and recommended actions.`,
-      keyThemes: [
-        { theme: "Timeline & Delivery Pressure", frequency: "High", insight: "Multiple documents reference urgent deadlines." },
-        { theme: "Cross-Team Dependencies", frequency: "Medium", insight: "Several handoffs between teams are potential bottlenecks." },
-        { theme: "Resource Constraints", frequency: "Medium", insight: "Budget and staffing limitations mentioned." },
-      ],
-      consolidatedInsights: [
-        "Primary focus should be on resolving blockers before next milestone.",
-        "Communication gaps exist between technical and business teams.",
-        "Client expectations may need to be reset based on current constraints.",
-        "Quick wins are available if resource allocation is optimized.",
-      ],
-      unifiedActionPlan: [
-        { priority: "Critical", action: "Align all stakeholders on revised timeline", owners: "Project Lead + Client Success", deadline: "Within 48 hours" },
-        { priority: "High", action: "Resolve technical blockers", owners: "Engineering Lead", deadline: "This week" },
-        { priority: "Medium", action: "Update resource allocation", owners: "Operations Manager", deadline: "Next week" },
-      ],
-      contradictions: [
-        { topic: "Budget estimates", conflict: "Document A suggests $45K while Document B references $52K allocation.", recommendation: "Clarify with finance team before proceeding." },
-      ],
-      gaps: [
-        "No clear escalation path defined for critical issues.",
-        "Missing sign-off requirements for final deliverables.",
-        "Risk mitigation strategies not fully documented.",
-      ],
-    };
-  };
 
   const runSynthesis = async () => {
     if (selectedDocs.length < 2) {
@@ -766,12 +716,17 @@ useMobileNav(isAnyModalOpen);
     try {
       const user = await getUser();
 
-      await new Promise((r) => setTimeout(r, 1800));
+      const result = await synthesizeDocuments(selectedDocs);
 
-      const result = generateSynthesisResult(selectedDocs);
       setSynthesisResult(result);
 
       const docIds = selectedDocs.map((d) => d.id);
+      result.id = `brief-${Date.now()}`;
+      result.title = `Research Brief: ${selectedDocs.map(d => d.name.replace(/\.[^/.]+$/, "")).slice(0, 2).join(" & ")}${selectedDocs.length > 2 ? ` +${selectedDocs.length - 2} more` : ""}`;
+      result.generatedAt = result.meta?.generatedAt || new Date().toISOString();
+      result.sourceCount = selectedDocs.length;
+      result.sources = selectedDocs.map(d => d.name);
+      result.docIds = selectedDocs.map(d => d.id);
 
       const { error: updErr } = await supabase
         .from(DOCS_TABLE)

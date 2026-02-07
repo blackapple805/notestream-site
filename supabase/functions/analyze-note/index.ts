@@ -1,19 +1,23 @@
 // supabase/functions/analyze-note/index.ts
-import "@supabase/functions-js/edge-runtime.d.ts";
-
+// deno-lint-ignore no-import-prefix
+import "jsr:@supabase/functions-js@^2/edge-runtime.d.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const MODEL = "claude-sonnet-4-20250514";
 const MAX_INPUT_CHARS = 8000;
 
+// ✅ CORS: allow Supabase JS added headers + preflight
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform",
 };
 
 type AnthropicTextBlock = { type: "text"; text: string };
-type AnthropicBlock = AnthropicTextBlock | { type: string; [k: string]: unknown };
+type AnthropicBlock =
+  | AnthropicTextBlock
+  | { type: string; [k: string]: unknown };
 
 type AnalyzeResponse = {
   summary?: unknown;
@@ -25,8 +29,14 @@ type AnalyzeResponse = {
   generatedAt?: unknown;
 };
 
+// ✅ Avoid `any` (fixes deno-lint no-explicit-any)
+type AnalyzePayload = {
+  title?: unknown;
+  body?: unknown;
+};
+
 Deno.serve(async (req: Request) => {
-  // CORS preflight
+  // ✅ CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -45,9 +55,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const payload = await req.json().catch(() => ({}));
-    const title = typeof payload?.title === "string" ? payload.title : "Untitled";
-    const body = typeof payload?.body === "string" ? payload.body : "";
+    const payload: AnalyzePayload = await req.json().catch(() => ({}));
+
+    const title = typeof payload.title === "string" ? payload.title : "Untitled";
+    const body = typeof payload.body === "string" ? payload.body : "";
 
     if (!body.trim() || body.trim().length < 10) {
       return new Response(
@@ -61,8 +72,7 @@ Deno.serve(async (req: Request) => {
 
     const truncatedBody = body.slice(0, MAX_INPUT_CHARS);
 
-    const systemPrompt =
-      `You are an AI assistant for the NoteStream app.
+    const systemPrompt = `You are an AI assistant for the NoteStream app.
 
 Return ONLY valid JSON with these exact fields:
 - "summary": string (2–3 sentences)
@@ -74,8 +84,7 @@ Return ONLY valid JSON with these exact fields:
 
 No markdown. No backticks. No explanations.`;
 
-    const userMessage =
-      `Note Title: ${title || "Untitled"}
+    const userMessage = `Note Title: ${title || "Untitled"}
 
 Note Content:
 ${truncatedBody}`;
@@ -99,7 +108,6 @@ ${truncatedBody}`;
       const errText = await response.text();
       console.error("Anthropic API error:", response.status, errText);
 
-      // Return status + truncated body so you can debug from curl
       return new Response(
         JSON.stringify({
           error: "Anthropic API request failed",
@@ -114,8 +122,7 @@ ${truncatedBody}`;
       );
     }
 
-
-    const data = await response.json() as { content?: AnthropicBlock[] };
+    const data = (await response.json()) as { content?: AnthropicBlock[] };
 
     const text = (data.content ?? [])
       .map((b) => (b.type === "text" ? (b as AnthropicTextBlock).text : ""))

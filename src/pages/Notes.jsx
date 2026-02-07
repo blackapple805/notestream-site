@@ -378,43 +378,33 @@ export default function Notes() {
 
   const runNoteAnalysis = useCallback(
     async (noteId, noteTitle, noteBody, isManual = false) => {
-      if (analyzingNoteId) return; // already analyzing
+      if (analyzingNoteId) return;
       if (!isManual && !shouldAutoAnalyze(noteBody, noteId)) return;
 
       setAnalyzingNoteId(noteId);
 
       try {
         const user = await getAuthedUser();
-        if (!user) {
-          setAnalyzingNoteId(null);
-          return;
-        }
+        if (!user) return;
 
+        // ✅ NEW: analyzeNote no longer takes incrementUsage
         const result = await analyzeNote({
           noteId,
           userId: user.id,
           title: noteTitle,
           body: noteBody,
-          incrementUsage,
           isManual,
         });
 
-        if (!result) {
-          setAnalyzingNoteId(null);
-          return;
-        }
+        if (!result) return;
 
         if (result.error && result.limitReached) {
           setAiToast({ message: result.message, type: "error" });
           setTimeout(() => setAiToast(null), 4000);
-          setAnalyzingNoteId(null);
           return;
         }
 
-        if (result.error) {
-          setAnalyzingNoteId(null);
-          return;
-        }
+        if (result.error) return;
 
         const smartUpdate = {
           summary: result.summary,
@@ -428,6 +418,7 @@ export default function Notes() {
         setNotes((prev) =>
           prev.map((n) => (n.id === noteId ? { ...n, ...smartUpdate } : n))
         );
+
         setSelectedNote((prev) =>
           prev && prev.id === noteId ? { ...prev, ...smartUpdate } : prev
         );
@@ -446,10 +437,8 @@ export default function Notes() {
         setAnalyzingNoteId(null);
       }
     },
-    [analyzingNoteId, getAuthedUser, incrementUsage]
+    [analyzingNoteId, getAuthedUser]
   );
- 
-
 
   const createNote = useCallback(async () => {
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1447,31 +1436,45 @@ if (selectedNote) {
                     setActiveMenuId(null);
                   }}
                 />
-                <ContextMenuItem
-                  icon={<FiLock size={15} />}
-                  label={
-                    notes.find((n) => n.id === activeMenuId)?.locked ? "Unlock" : "Lock"
-                  }
-                  onClick={() => {
-                    handleLockToggle(activeMenuId);
-                    setActiveMenuId(null);
-                  }}
-                />
-                <div className="h-px my-1" style={{ backgroundColor: "var(--border-secondary)" }} />
-                <ContextMenuItem
-                  icon={<FiTrash2 size={15} />}
-                  label="Delete"
-                  danger
-                  onClick={() => {
-                    handleDelete(activeMenuId);
-                    setActiveMenuId(null);
-                  }}
-                />
+              <ContextMenuItem
+                icon={<FiLock size={15} />}
+                label={
+                  notes.find((n) => n.id === activeMenuId)?.locked ? "Unlock" : "Lock"
+                }
+                onClick={() => {
+                  handleLockToggle(activeMenuId);
+                  setActiveMenuId(null);
+                }}
+              />
+
+              <ContextMenuItem
+                icon={<FiZap size={15} />}
+                label={analyzingNoteId === activeMenuId ? "Analyzing..." : "Analyze"}
+                onClick={() => {
+                  const n = notes.find((x) => x.id === activeMenuId);
+                  if (n) runNoteAnalysis(n.id, n.title, n.body, true);
+                  setActiveMenuId(null);
+                }}
+              />
+
+              <div className="h-px my-1" style={{ backgroundColor: "var(--border-secondary)" }} />
+
+              <ContextMenuItem
+                icon={<FiTrash2 size={15} />}
+                label="Delete"
+                danger
+                onClick={() => {
+                  handleDelete(activeMenuId);
+                  setActiveMenuId(null);
+                }}
+              />
+
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
 
      {/* FAB Zone - Theme-aware Liquid Glass Style */}
      <div

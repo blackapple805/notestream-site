@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
+import { createSpeechRecognizer, processTranscription } from "../lib/voiceAI";
+import { analyzeWritingStyle, generateInStyle, loadStoredProfile, getProfileSummary } from "../lib/writingProfileAI";
 import {
   Crown,
   Lightning,
@@ -141,7 +143,7 @@ export default function AiLab() {
     isFeatureUnlocked,
     subscribe,
     cancelSubscription,
-    loadSubscription, 
+    loadSubscription,
     isLoading,
   } = useSubscription();
 
@@ -157,6 +159,10 @@ export default function AiLab() {
   const [cardCvc, setCardCvc] = useState("");
   const [cardName, setCardName] = useState("");
 
+  // ✅ Writing profile state (ADD HERE)
+  const [writingProfile, setWritingProfile] = useState(null);
+  const [profileSummary, setProfileSummary] = useState("");
+
   const currentPlan = getCurrentPlan();
   const isPro = subscription.plan !== "free";
 
@@ -169,6 +175,7 @@ export default function AiLab() {
     optimisticCancel ||
     subscription?.cancelAtPeriodEnd ||
     subscription?.status === "canceling";
+
 
   useEffect(() => {
     // Start polling only while we're in optimistic cancel mode AND DB hasn't reflected it yet
@@ -221,6 +228,31 @@ export default function AiLab() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [optimisticCancel]);
+
+  useEffect(() => {
+  let mounted = true;
+
+  (async () => {
+    try {
+      // ✅ get user id (adjust if your hook exposes it differently)
+      const userId = subscription?.userId || subscription?.user_id;
+      if (!userId) return;
+
+      const profile = await loadStoredProfile(userId);
+      if (!mounted) return;
+
+      setWritingProfile(profile);
+      setProfileSummary(getProfileSummary(profile));
+    } catch (e) {
+      console.error("loadStoredProfile failed:", e);
+    }
+  })();
+
+  return () => {
+    mounted = false;
+  };
+}, [subscription?.userId, subscription?.user_id]);
+
 
 
   const handleUpgrade = () => setShowPricing(true);
@@ -1224,31 +1256,57 @@ function VoiceNotesDemo() {
   };
 
   const handleToggleRecording = () => {
+    // STOP recording → process transcription
     if (isRecording) {
       setIsRecording(false);
       setIsTranscribing(true);
       setWaveformBars(Array(20).fill(0.2));
 
-      setTimeout(async () => {
-        try {
-          const randomTranscription =
-            sampleTranscriptions[Math.floor(Math.random() * sampleTranscriptions.length)];
-          setTranscription(randomTranscription);
+      const recognizer = recognizerRef.current;
+      if (!recognizer) {
+        setIsTranscribing(false);
+        return;
+      }
 
-          // ✅ count only after success (transcription completed)
+      recognizer.onEnd(async (finalText) => {
+        try {
+          const result = await processTranscription(finalText);
+
+          // Choose what you want to display
+          setTranscription(result?.cleanedText || finalText);
+
+          // ✅ count only after transcription + AI processing succeeds
           await incrementUsage("voiceTranscriptions");
         } catch (e) {
-          console.error("Voice transcription increment failed:", e);
+          console.error("processTranscription failed:", e);
+          setTranscription(finalText);
         } finally {
           setIsTranscribing(false);
+          recognizerRef.current = null;
         }
-      }, 2000);
-    } else {
-      setIsRecording(true);
-      setRecordingTime(0);
-      setTranscription("");
+      });
+
+      // Triggers onEnd
+      recognizer.stop();
+      return;
     }
+
+    // START recording
+    setIsRecording(true);
+    setRecordingTime(0);
+    setTranscription("");
+    setLiveText("");
+
+    const recognizer = createSpeechRecognizer();
+    recognizerRef.current = recognizer;
+
+    recognizer.onResult(({ combined }) => {
+      setLiveText(combined);
+    });
+
+    recognizer.start();
   };
+
 
   const handleReset = () => {
     setIsRecording(false);
@@ -1599,6 +1657,9 @@ function CloudSyncDemo({ unlocked }) {
   const [lastSync, setLastSync] = useState(() => new Date(Date.now() - 1000 * 60 * 17));
   const [status, setStatus] = useState("Up to date");
   const timerRef = useRef(null);
+  const recognizerRef = useRef(null);
+  const [liveText, setLiveText] = useState("");
+
 
   const [devices, setDevices] = useState([
     { id: "mac", name: "MacBook Pro", state: "Synced", last: new Date(Date.now() - 1000 * 60 * 4) },

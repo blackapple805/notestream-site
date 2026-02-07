@@ -15,6 +15,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import { consumeAiUsage } from "../lib/usage";
+import { queryInsight } from "../lib/insightAI";
 
 const DOCS_TABLE = "documents";
 const NOTES_TABLE = "notes";
@@ -313,48 +314,6 @@ export default function Summaries() {
     inputRef.current?.focus();
   };
 
-  const generateMockResponse = (q, files) => {
-    const lowerQuery = q.toLowerCase();
-    const pickedSources = files?.length > 0 ? files.map((f) => f.name) : ["Multiple files"];
-
-    if (lowerQuery.includes("meeting") || lowerQuery.includes("action")) {
-      return {
-        answer:
-          "Based on your workspace, here are the key action items:\n\n• **Complete UI mockups** - Due Friday\n• **Review budget proposal** - Pending Sarah's input\n• **Schedule follow-up** with design team\n• **Update project timeline** in shared doc",
-        sources: pickedSources.slice(0, 2),
-      };
-    }
-
-    if (lowerQuery.includes("deadline") || lowerQuery.includes("due")) {
-      return {
-        answer:
-          "I found the following deadlines across your workspace:\n\n• **Jan 15** - Q1 Budget review\n• **Jan 20** - UI mockups delivery\n• **Feb 01** - Project milestone 1\n• **Feb 15** - Research presentation",
-        sources: pickedSources.slice(0, 2),
-      };
-    }
-
-    if (lowerQuery.includes("budget") || lowerQuery.includes("cost")) {
-      return {
-        answer:
-          "Here's a summary of budget-related information:\n\n• **Total Q1 Budget**: $45,000\n• **Spent to date**: $12,500 (28%)\n• **Largest expense**: Software licenses ($5,200)\n• **Pending approvals**: $3,800",
-        sources: pickedSources.slice(0, 2),
-      };
-    }
-
-    if (lowerQuery.includes("research") || lowerQuery.includes("notes")) {
-      return {
-        answer:
-          "From your workspace notes, the main points are:\n\n• **Key finding**: User engagement increased 40% with new UI\n• **Recommendation**: Implement progressive onboarding\n• **Next steps**: A/B testing scheduled for next sprint\n• **Resources needed**: 2 additional developers",
-        sources: pickedSources.slice(0, 2),
-      };
-    }
-
-    return {
-      answer:
-        "I searched across your workspace and found relevant information.\n\n• Your query relates to multiple items\n• I found **3 relevant mentions** across your workspace\n• Tell me which file you want to drill into, or ask for a tighter summary",
-      sources: pickedSources,
-    };
-  };
 
   const runSearch = async (userQuery) => {
     if (!userQuery.trim()) return;
@@ -389,11 +348,8 @@ export default function Summaries() {
         }
       }
 
-      // mock latency (represents real AI call time)
-      await new Promise((r) => setTimeout(r, 900 + Math.random() * 700));
-
-      const aiResponse = generateMockResponse(userQuery, selectedFiles);
-
+     const aiResponse = await queryInsight(userQuery, selectedFiles, conversations);
+     
       setConversations((prev) => [
         ...prev,
         {
