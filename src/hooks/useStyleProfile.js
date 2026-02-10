@@ -1,318 +1,529 @@
 // src/hooks/useStyleProfile.js
-import { useState, useEffect, useCallback } from 'react';
-import { 
-  analyzeWritingStyle, 
-  getDefaultProfile, 
-  generateStylePrompt, 
-  mergeProfiles 
-} from '../utils/styleAnalyzer';
+// ✅ Rewritten: Supabase writing_profiles table replaces localStorage
+// ✅ Calls writing-profile edge function for AI analysis
+// ✅ All values start at 0 for new users (no mock data)
+// ✅ Same return interface — CustomTraining.jsx needs zero changes
+// ✅ Removed: localStorage, styleAnalyzer imports
 
-const STORAGE_KEY = 'notestream_style_profile';
-const SAMPLES_KEY = 'notestream_writing_samples';
+import { useState, useEffect, useCallback } from "react";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import {
+  loadStoredProfile,
+  saveProfile as dbSaveProfile,
+  analyzeWritingStyle,
+  analyzeManualSamples,
+} from "../lib/writingProfileAI";
 
-/**
- * Custom hook for managing AI style profiles
- * Currently uses localStorage, structured for easy MongoDB migration
- * 
- * MongoDB Migration Notes:
- * - Replace localStorage calls with API calls to /api/style-profile
- * - Profile structure matches MongoDB schema in styleAnalyzer.js
- * - Samples would be stored in a separate collection
- */
+// ─── Defaults (everything starts at 0) ────────────────────────
+
+function getDefaultProfile() {
+  return {
+    tone: { formal: 0, casual: 0, friendly: 0, professional: 0 },
+    metrics: {
+      formalityScore: 0,
+      brevityScore: 0,
+      bulletRate: 0,
+      emojiRate: 0,
+      avgWordsPerSentence: 0,
+      avgWordsPerSample: 0,
+      punctuationRate: 0,
+    },
+    structure: { bulletListUsage: 0, headerUsage: 0, avgParagraphLength: 0 },
+    vocabulary: { complexity: "moderate", commonWords: [], industryTerms: [] },
+    preferences: { useEmojis: false },
+    userOverrides: { preferredTone: null, customInstructions: "" },
+    settings: {
+      enabled: true,
+      learnFromNotes: true,
+      learnFromDocuments: true,
+      learnFromSummaries: false,
+      autoUpdate: true,
+    },
+    training: {
+      confidence: 0,
+      samplesAnalyzed: 0,
+      totalTokens: 0,
+      lastTrainedAt: null,
+    },
+    _raw: null,
+  };
+}
+
+// ─── Map AI edge-function response → UI shape ─────────────────
+
+function mapAiProfileToUi(aiData, existingOverrides, existingSettings) {
+  if (!aiData) return getDefaultProfile();
+
+  const tone = aiData.toneProfile || {};
+  const vocab = aiData.vocabularyStats || {};
+  const structure = aiData.structurePatterns || {};
+  const habits = aiData.writingHabits || {};
+
+  const formalityMap = { formal: 80, "semi-formal": 55, casual: 25, mixed: 50 };
+  const formalityScore = formalityMap[tone.formality] ?? 50;
+
+  const energyMap = { high: 30, medium: 50, low: 75, varied: 50 };
+  const brevityScore = energyMap[tone.energy] ?? 50;
+
+  const bulletRate =
+    structure.preferredListStyle === "bullets" ? 0.6
+    : structure.preferredListStyle === "numbered" ? 0.4
+    : structure.preferredListStyle === "none" ? 0
+    : 0.2;
+
+  const emojiRate = habits.usesEmoji ? 0.3 : 0;
+
+  return {
+    tone: {
+      formal: formalityScore,
+      casual: 100 - formalityScore,
+      friendly: tone.primary === "friendly" || tone.secondary === "friendly" ? 70 : 30,
+      professional: tone.primary === "professional" || tone.secondary === "professional" ? 70 : 40,
+    },
+    metrics: {
+      formalityScore,
+      brevityScore,
+      bulletRate,
+      emojiRate,
+      avgWordsPerSentence: vocab.averageSentenceLength || 0,
+      avgWordsPerSample:
+        (aiData.tokensProcessed || 0) / Math.max(aiData.samplesAnalyzed || 1, 1),
+      punctuationRate: structure.usesHeaders ? 0.12 : 0.04,
+    },
+    structure: {
+      bulletListUsage: bulletRate * 100,
+      headerUsage: structure.usesHeaders ? 12 : 0,
+      avgParagraphLength:
+        structure.averageNoteLength === "long" ? 6
+        : structure.averageNoteLength === "medium" ? 4
+        : 2,
+    },
+    vocabulary: {
+      complexity: vocab.complexityLevel || "moderate",
+      commonWords: vocab.favoriteWords || [],
+      industryTerms: vocab.jargonDomains || [],
+    },
+    preferences: { useEmojis: !!habits.usesEmoji },
+    userOverrides: existingOverrides || { preferredTone: null, customInstructions: "" },
+    settings: existingSettings || {
+      enabled: true,
+      learnFromNotes: true,
+      learnFromDocuments: true,
+      learnFromSummaries: false,
+      autoUpdate: true,
+    },
+    training: {
+      confidence: aiData.confidenceScore || 0,
+      samplesAnalyzed: aiData.samplesAnalyzed || 0,
+      totalTokens: aiData.tokensProcessed || 0,
+      lastTrainedAt: aiData.analyzedAt || new Date().toISOString(),
+    },
+    _raw: aiData,
+  };
+}
+
+// ─── Hook ──────────────────────────────────────────────────────
+
 export function useStyleProfile() {
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(getDefaultProfile());
   const [samples, setSamples] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isTraining, setIsTraining] = useState(false);
   const [error, setError] = useState(null);
+  const [userId, setUserId] = useState(null);
 
-  // Load profile from storage on mount
-  useEffect(() => {
-    loadProfile();
-  }, []);
+  const supabaseReady =
+    typeof isSupabaseConfigured === "function"
+      ? isSupabaseConfigured()
+      : !!isSupabaseConfigured;
 
-  const loadProfile = useCallback(() => {
+  // ─── Persist helper ──────────────────────────────────────────
+
+  const persistToDb = useCallback(
+    async (prof, samplesArr, overrides) => {
+      if (!userId) return;
+      const raw = prof?._raw || prof;
+      await dbSaveProfile(userId, raw, {
+        samples: samplesArr,
+        samplesCount: samplesArr?.length ?? 0,
+        tokensCount: raw?.tokensProcessed ?? prof?.training?.totalTokens ?? 0,
+        confidence: raw?.confidenceScore ?? prof?.training?.confidence ?? 0,
+        userOverrides: overrides ?? prof?.userOverrides,
+      }).catch((err) => console.warn("persistToDb failed:", err));
+    },
+    [userId]
+  );
+
+  // ─── Load on mount ──────────────────────────────────────────
+
+  const loadProfile = useCallback(async () => {
+    if (!supabaseReady || !supabase) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
-      
-      // Load profile
-      const storedProfile = localStorage.getItem(STORAGE_KEY);
-      if (storedProfile) {
-        setProfile(JSON.parse(storedProfile));
-      } else {
-        const defaultProfile = getDefaultProfile();
-        setProfile(defaultProfile);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultProfile));
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const uid = session?.user?.id;
+      if (!uid) {
+        setIsLoading(false);
+        return;
       }
-      
-      // Load samples
-      const storedSamples = localStorage.getItem(SAMPLES_KEY);
-      if (storedSamples) {
-        setSamples(JSON.parse(storedSamples));
+      setUserId(uid);
+
+      const row = await loadStoredProfile(uid);
+
+      if (row) {
+        const pd = row.profile_data || {};
+        const overrides =
+          row.user_overrides && typeof row.user_overrides === "object"
+            ? row.user_overrides
+            : undefined;
+
+        const mapped = mapAiProfileToUi(pd, overrides);
+
+        // Restore training stats from DB columns (source of truth)
+        mapped.training = {
+          confidence: row.confidence_score || 0,
+          samplesAnalyzed: row.samples_count || 0,
+          totalTokens: row.tokens_count || 0,
+          lastTrainedAt: row.last_trained_at || null,
+        };
+
+        setProfile(mapped);
+        setSamples(Array.isArray(row.samples) ? row.samples : []);
       }
-      
+      // else: all defaults (0s) stay in place
+
       setError(null);
     } catch (err) {
-      console.error('Failed to load profile:', err);
-      setError('Failed to load profile');
-      setProfile(getDefaultProfile());
+      console.error("useStyleProfile load failed:", err);
+      setError("Failed to load profile");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [supabaseReady]);
 
-  const saveProfile = useCallback((newProfile) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newProfile));
-      setProfile(newProfile);
-      setError(null);
-    } catch (err) {
-      console.error('Failed to save profile:', err);
-      setError('Failed to save profile');
-    }
-  }, []);
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
-  const saveSamples = useCallback((newSamples) => {
-    try {
-      // Keep only last 50 samples to manage storage
-      const trimmedSamples = newSamples.slice(-50);
-      localStorage.setItem(SAMPLES_KEY, JSON.stringify(trimmedSamples));
-      setSamples(trimmedSamples);
-    } catch (err) {
-      console.error('Failed to save samples:', err);
-    }
-  }, []);
+  // ─── Add a writing sample ───────────────────────────────────
 
-  /**
-   * Add a writing sample and optionally train
-   */
-  const addSample = useCallback((text, source = 'manual', autoTrain = true) => {
-    if (!text || text.trim().length < 20) {
-      return { success: false, error: 'Text too short (minimum 20 characters)' };
-    }
+  const addSample = useCallback(
+    (text, source = "manual", autoTrain = true) => {
+      if (!text || text.trim().length < 20) {
+        return { success: false, error: "Text too short (minimum 20 characters)" };
+      }
 
-    const newSample = {
-      id: `sample_${Date.now()}`,
-      text: text.trim(),
-      source,
-      addedAt: new Date().toISOString(),
-      wordCount: text.trim().split(/\s+/).length,
-    };
-
-    const updatedSamples = [...samples, newSample];
-    saveSamples(updatedSamples);
-
-    if (autoTrain) {
-      trainOnSamples([text]);
-    }
-
-    return { success: true, sample: newSample };
-  }, [samples, saveSamples]);
-
-  /**
-   * Train on multiple text samples
-   */
-  const trainOnSamples = useCallback(async (textSamples) => {
-    if (!textSamples || textSamples.length === 0) {
-      return { success: false, error: 'No samples provided' };
-    }
-
-    setIsTraining(true);
-    setError(null);
-
-    try {
-      // Simulate processing time for UX
-      await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 400));
-
-      // Analyze new samples
-      const newAnalysis = analyzeWritingStyle(textSamples);
-
-      // Merge with existing profile
-      const updatedProfile = mergeProfiles(profile, newAnalysis);
-      
-      saveProfile(updatedProfile);
-
-      return { 
-        success: true, 
-        profile: updatedProfile,
-        samplesProcessed: textSamples.length,
+      const wordCount = text.trim().split(/\s+/).length;
+      const newSample = {
+        id: `sample_${Date.now()}`,
+        text: text.trim(),
+        source,
+        addedAt: new Date().toISOString(),
+        wordCount,
       };
-    } catch (err) {
-      console.error('Training failed:', err);
-      setError('Training failed');
-      return { success: false, error: err.message };
-    } finally {
-      setIsTraining(false);
-    }
-  }, [profile, saveProfile]);
 
-  /**
-   * Run full training on all stored samples
-   */
+      const updated = [...samples, newSample].slice(-50);
+      setSamples(updated);
+
+      // Update training stats optimistically
+      setProfile((prev) => ({
+        ...prev,
+        training: {
+          ...prev.training,
+          samplesAnalyzed: (prev.training.samplesAnalyzed || 0) + 1,
+          totalTokens: (prev.training.totalTokens || 0) + wordCount,
+        },
+      }));
+
+      // Persist samples to DB
+      if (userId) {
+        persistToDb(profile, updated, profile.userOverrides);
+      }
+
+      // Auto-train if requested
+      if (autoTrain) {
+        trainOnSamples([text]);
+      }
+
+      return { success: true, sample: newSample };
+    },
+    [samples, userId, profile, persistToDb]
+  );
+
+  // ─── Train on text samples (AI edge function) ───────────────
+
+  const trainOnSamples = useCallback(
+    async (textSamples) => {
+      if (!textSamples || textSamples.length === 0) {
+        return { success: false, error: "No samples provided" };
+      }
+      if (!userId) {
+        return { success: false, error: "Not authenticated" };
+      }
+
+      setIsTraining(true);
+      setError(null);
+
+      try {
+        const samplesForAi = textSamples.map((t, i) => ({
+          title: `Sample ${i + 1}`,
+          text: t,
+        }));
+
+        const aiResult = await analyzeManualSamples(
+          userId,
+          samplesForAi,
+          profile._raw
+        );
+
+        const mapped = mapAiProfileToUi(
+          aiResult,
+          profile.userOverrides,
+          profile.settings
+        );
+
+        setProfile(mapped);
+        await persistToDb(mapped, samples, profile.userOverrides);
+
+        return {
+          success: true,
+          profile: mapped,
+          samplesProcessed: textSamples.length,
+        };
+      } catch (err) {
+        console.error("Training failed:", err);
+        setError("Training failed");
+        return { success: false, error: err.message };
+      } finally {
+        setIsTraining(false);
+      }
+    },
+    [userId, profile, samples, persistToDb]
+  );
+
+  // ─── Run full training on all stored samples ────────────────
+
   const runFullTraining = useCallback(async () => {
     if (samples.length === 0) {
-      return { success: false, error: 'No samples to train on' };
+      return { success: false, error: "No samples to train on" };
     }
-
-    const textSamples = samples.map(s => s.text);
+    const textSamples = samples.map((s) => s.text);
     return trainOnSamples(textSamples);
   }, [samples, trainOnSamples]);
 
-  /**
-   * Train from notes (integrates with notes stored in localStorage)
-   */
+  // ─── Train from user's notes in Supabase ────────────────────
+
   const trainFromNotes = useCallback(async () => {
+    if (!userId) {
+      return { success: false, error: "Not authenticated", notesProcessed: 0 };
+    }
+
     setIsTraining(true);
     setError(null);
 
     try {
-      // Get notes from localStorage (matches NoteStream's note storage)
-      const storedNotes = localStorage.getItem('notestream_notes');
-      
-      if (!storedNotes) {
-        setIsTraining(false);
-        return { success: false, error: 'No notes found', notesProcessed: 0 };
-      }
+      const existing = profile._raw || null;
+      const aiResult = await analyzeWritingStyle(userId, existing);
 
-      const notes = JSON.parse(storedNotes);
-      
-      if (!Array.isArray(notes) || notes.length === 0) {
-        setIsTraining(false);
-        return { success: false, error: 'No notes found', notesProcessed: 0 };
-      }
+      const mapped = mapAiProfileToUi(
+        aiResult,
+        profile.userOverrides,
+        profile.settings
+      );
 
-      // Extract text content from notes
-      const textSamples = notes
-        .map(note => note.content || note.text || '')
-        .filter(text => text.trim().length >= 20);
+      setProfile(mapped);
+      await persistToDb(mapped, samples, profile.userOverrides);
 
-      if (textSamples.length === 0) {
-        setIsTraining(false);
-        return { success: false, error: 'Notes too short to analyze', notesProcessed: 0 };
-      }
-
-      // Add notes as samples
-      textSamples.forEach(text => {
-        addSample(text, 'note', false);
-      });
-
-      // Train on all notes
-      const result = await trainOnSamples(textSamples);
-      
       return {
-        ...result,
-        notesProcessed: textSamples.length,
+        success: true,
+        notesProcessed: aiResult.samplesAnalyzed || 0,
       };
     } catch (err) {
-      console.error('Training from notes failed:', err);
-      setError('Failed to train from notes');
+      console.error("Training from notes failed:", err);
+      setError(err.message || "Failed to train from notes");
       return { success: false, error: err.message, notesProcessed: 0 };
+    } finally {
+      setIsTraining(false);
     }
-  }, [addSample, trainOnSamples]);
+  }, [userId, profile, samples, persistToDb]);
 
-  /**
-   * Update user overrides
-   */
-  const updateOverrides = useCallback((overrides) => {
-    const updatedProfile = {
-      ...profile,
-      userOverrides: {
-        ...profile.userOverrides,
-        ...overrides,
-      },
-    };
-    saveProfile(updatedProfile);
-    return { success: true, profile: updatedProfile };
-  }, [profile, saveProfile]);
+  // ─── Update user overrides ──────────────────────────────────
 
-  /**
-   * Toggle training settings
-   */
-  const updateTrainingSettings = useCallback((settings) => {
-    const updatedProfile = {
-      ...profile,
-      settings: {
-        ...profile.settings,
-        ...settings,
-      },
-    };
-    saveProfile(updatedProfile);
+  const updateOverrides = useCallback(
+    (overrides) => {
+      const merged = { ...profile.userOverrides, ...overrides };
+      const updated = { ...profile, userOverrides: merged };
+      setProfile(updated);
+
+      if (userId) persistToDb(updated, samples, merged);
+
+      return { success: true, profile: updated };
+    },
+    [profile, userId, samples, persistToDb]
+  );
+
+  // ─── Update training settings ───────────────────────────────
+
+  const updateTrainingSettings = useCallback(
+    (settings) => {
+      const updated = {
+        ...profile,
+        settings: { ...profile.settings, ...settings },
+      };
+      setProfile(updated);
+      if (userId) persistToDb(updated, samples, profile.userOverrides);
+      return { success: true };
+    },
+    [profile, userId, samples, persistToDb]
+  );
+
+  // ─── Reset profile ─────────────────────────────────────────
+
+  const resetProfile = useCallback(async () => {
+    setProfile(getDefaultProfile());
+    setSamples([]);
+    setError(null);
+
+    if (userId && supabase) {
+      try {
+        await supabase
+          .from("writing_profiles")
+          .delete()
+          .eq("user_id", userId);
+      } catch (err) {
+        console.error("resetProfile delete failed:", err);
+      }
+    }
+
     return { success: true };
-  }, [profile, saveProfile]);
+  }, [userId]);
 
-  /**
-   * Reset profile to defaults
-   */
-  const resetProfile = useCallback(() => {
-    const defaultProfile = getDefaultProfile();
-    saveProfile(defaultProfile);
-    saveSamples([]);
-    return { success: true };
-  }, [saveProfile, saveSamples]);
+  // ─── Delete a sample ────────────────────────────────────────
 
-  /**
-   * Delete a specific sample
-   */
-  const deleteSample = useCallback((sampleId) => {
-    const updatedSamples = samples.filter(s => s.id !== sampleId);
-    saveSamples(updatedSamples);
-    return { success: true };
-  }, [samples, saveSamples]);
+  const deleteSample = useCallback(
+    (sampleId) => {
+      const removed = samples.find((s) => s.id === sampleId);
+      const updated = samples.filter((s) => s.id !== sampleId);
+      setSamples(updated);
 
-  /**
-   * Export profile as JSON
-   */
+      if (removed) {
+        setProfile((prev) => ({
+          ...prev,
+          training: {
+            ...prev.training,
+            totalTokens: Math.max(
+              0,
+              (prev.training.totalTokens || 0) - (removed.wordCount || 0)
+            ),
+          },
+        }));
+      }
+
+      if (userId) persistToDb(profile, updated, profile.userOverrides);
+
+      return { success: true };
+    },
+    [samples, userId, profile, persistToDb]
+  );
+
+  // ─── Export / Import ────────────────────────────────────────
+
   const exportProfile = useCallback(() => {
     return {
-      profile,
+      profile: profile._raw || profile,
       samples,
+      overrides: profile.userOverrides,
       exportedAt: new Date().toISOString(),
-      version: '1.0',
+      version: "1.0",
     };
   }, [profile, samples]);
 
-  /**
-   * Import profile from JSON
-   */
-  const importProfile = useCallback((data) => {
-    try {
-      if (data.profile) {
-        saveProfile(data.profile);
-      }
-      if (data.samples) {
-        saveSamples(data.samples);
-      }
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: 'Invalid import data' };
-    }
-  }, [saveProfile, saveSamples]);
+  const importProfile = useCallback(
+    (data) => {
+      try {
+        if (!data || typeof data !== "object") {
+          return { success: false, error: "Invalid import data" };
+        }
 
-  /**
-   * Get the generated style prompt for AI
-   */
+        const imported = data.profile || data;
+        const importedSamples = Array.isArray(data.samples) ? data.samples : [];
+        const importedOverrides = data.overrides || {};
+
+        const mapped = mapAiProfileToUi(imported, {
+          ...profile.userOverrides,
+          ...importedOverrides,
+        });
+
+        setProfile(mapped);
+        setSamples(importedSamples);
+
+        if (userId) persistToDb(mapped, importedSamples, mapped.userOverrides);
+
+        return { success: true };
+      } catch {
+        return { success: false, error: "Invalid import data" };
+      }
+    },
+    [userId, profile.userOverrides, persistToDb]
+  );
+
+  // ─── Generate style prompt ─────────────────────────────────
+
   const getStylePrompt = useCallback(() => {
-    return generateStylePrompt(profile);
+    const raw = profile._raw;
+    if (!raw || !raw.overallDescription) return "";
+
+    const parts = [`Writing style: ${raw.overallDescription}`];
+
+    if (raw.toneProfile) {
+      parts.push(
+        `Tone: ${raw.toneProfile.primary || ""} / ${raw.toneProfile.secondary || ""}, formality: ${raw.toneProfile.formality || "mixed"}`
+      );
+    }
+
+    if (raw.vocabularyStats?.favoriteWords?.length) {
+      parts.push(`Frequently used words: ${raw.vocabularyStats.favoriteWords.join(", ")}`);
+    }
+
+    if (raw.structurePatterns) {
+      parts.push(
+        `Preferred format: ${raw.structurePatterns.preferredFormat || "mixed"}, list style: ${raw.structurePatterns.preferredListStyle || "bullets"}`
+      );
+    }
+
+    if (profile.userOverrides?.preferredTone) {
+      parts.push(`User prefers a ${profile.userOverrides.preferredTone} tone.`);
+    }
+
+    if (profile.userOverrides?.customInstructions) {
+      parts.push(`Custom instructions: ${profile.userOverrides.customInstructions}`);
+    }
+
+    return parts.join("\n");
   }, [profile]);
 
-  /**
-   * Check if profile has enough data for personalization
-   */
-  const isReady = profile && profile.training.confidence >= 20;
+  // ─── Derived ────────────────────────────────────────────────
 
-  /**
-   * Get training status
-   */
+  const isReady = profile && (profile.training?.confidence || 0) >= 20;
+
   const trainingStatus = {
-    isReady,
-    confidence: profile?.training.confidence || 0,
-    samplesCount: profile?.training.samplesAnalyzed || 0,
-    tokensCount: profile?.training.totalTokens || 0,
-    lastTrainedAt: profile?.training.lastTrainedAt,
+    isReady: !!isReady,
+    confidence: profile?.training?.confidence || 0,
+    samplesCount: profile?.training?.samplesAnalyzed || 0,
+    tokensCount: profile?.training?.totalTokens || 0,
+    lastTrainedAt: profile?.training?.lastTrainedAt || null,
   };
 
+  // ─── Return (same interface as original) ────────────────────
+
   return {
-    // State
     profile,
     samples,
     isLoading,
@@ -321,7 +532,6 @@ export function useStyleProfile() {
     isReady,
     trainingStatus,
 
-    // Actions
     addSample,
     trainOnSamples,
     runFullTraining,

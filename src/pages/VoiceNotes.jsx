@@ -1,11 +1,15 @@
 // src/pages/VoiceNotes.jsx
-// Adds daily_usage tracking via useSubscription.incrementUsage("voiceTranscriptions")
-// Calls increment when a transcription completes (stopRecording -> after transcription finishes)
+// ✅ Real Web Speech API for live speech-to-text
+// ✅ AI processing via transcribe-voice edge function (voiceAI.js)
+// ✅ Saves recordings to Supabase voice_recordings table
+// ✅ No mock data — starts empty, loads from DB
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../components/GlassCard";
+import { createSpeechRecognizer, processTranscription } from "../lib/voiceAI";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import {
   Microphone,
   Stop,
@@ -19,9 +23,12 @@ import {
   PencilSimple,
   Copy,
   SpeakerHigh,
+  Warning,
 } from "phosphor-react";
 import { FiX, FiCheck, FiTrash2, FiCopy } from "react-icons/fi";
 import { useSubscription } from "../hooks/useSubscription";
+
+const RECORDINGS_TABLE = "voice_recordings";
 
 export default function VoiceNotes() {
   const navigate = useNavigate();
@@ -30,6 +37,11 @@ export default function VoiceNotes() {
   const isPro = subscription.plan !== "free";
   const isUnlocked = isFeatureUnlocked("voice");
 
+  const supabaseReady =
+    typeof isSupabaseConfigured === "function"
+      ? isSupabaseConfigured()
+      : !!isSupabaseConfigured;
+
   // Redirect non-Pro users
   useEffect(() => {
     if (!isPro || !isUnlocked) {
@@ -37,101 +49,143 @@ export default function VoiceNotes() {
     }
   }, [isPro, isUnlocked, navigate]);
 
-  // Recording state
+  // ─── Recording state ────────────────────────────────────────
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [waveformBars, setWaveformBars] = useState(Array(40).fill(0.15));
+  const [liveText, setLiveText] = useState("");
 
-  // Transcription state
+  // ─── Transcription state ────────────────────────────────────
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcription, setTranscription] = useState("");
   const [editedTranscription, setEditedTranscription] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [aiPayload, setAiPayload] = useState(null);
 
-  // Saved recordings (demo/local)
-  const [recordings, setRecordings] = useState([
-    {
-      id: 1,
-      title: "Meeting Notes - Q4 Planning",
-      duration: 245,
-      transcription:
-        "Discussed Q4 goals including increasing user engagement by 25%. Key action items: redesign onboarding flow, implement new analytics dashboard, and launch referral program by end of October.",
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2),
-      status: "transcribed",
-    },
-    {
-      id: 2,
-      title: "Product Ideas Brainstorm",
-      duration: 180,
-      transcription:
-        "Voice command integration could be huge. Users want hands-free note taking while driving or cooking. Also consider real-time collaboration features and better mobile experience.",
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
-      status: "transcribed",
-    },
-    {
-      id: 3,
-      title: "Quick Reminder",
-      duration: 32,
-      transcription:
-        "Remember to follow up with the design team about the new dashboard layout before Friday's review meeting.",
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48),
-      status: "transcribed",
-    },
-  ]);
+  // ─── Saved recordings (from DB) ─────────────────────────────
+  const [recordings, setRecordings] = useState([]);
+  const [recordingsLoading, setRecordingsLoading] = useState(true);
 
+  // ─── Save modal ─────────────────────────────────────────────
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [noteTitle, setNoteTitle] = useState("");
   const [copiedId, setCopiedId] = useState(null);
 
-  // Refs for intervals + async safety
+  // ─── Browser support ────────────────────────────────────────
+  const [browserSupported, setBrowserSupported] = useState(true);
+
+  // ─── Refs ───────────────────────────────────────────────────
   const timerRef = useRef(null);
   const waveformRef = useRef(null);
-  const transcribeTimeoutRef = useRef(null);
+  const recognizerRef = useRef(null);
   const aliveRef = useRef(true);
 
-  // Sample transcriptions for demo
-  const sampleTranscriptions = [
-    "This is a test recording to demonstrate the voice notes feature. The AI will automatically transcribe your speech into text that you can edit and save as a note.",
-    "Meeting notes: We discussed the new product roadmap and decided to prioritize mobile features. The team will focus on improving performance and adding offline support.",
-    "Quick reminder to review the quarterly report before tomorrow's presentation. Also need to schedule a follow-up call with the marketing team.",
-    "Ideas for the new feature: implement drag and drop functionality, add keyboard shortcuts, and create a quick capture widget for the desktop.",
-  ];
-
-  // Format time display
+  // ─── Format helpers ─────────────────────────────────────────
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Format relative time
   const formatRelativeTime = (date) => {
+    const d = date instanceof Date ? date : new Date(date);
     const now = new Date();
-    const diff = Math.floor((now - date) / 1000 / 60);
-
+    const diff = Math.floor((now - d) / 1000 / 60);
     if (diff < 1) return "Just now";
     if (diff < 60) return `${diff}m ago`;
     if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
-    return date.toLocaleDateString();
+    return d.toLocaleDateString();
   };
 
-  const clearIntervals = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+  // ─── Auth helper ────────────────────────────────────────────
+  const getUser = useCallback(async () => {
+    if (!supabaseReady || !supabase) return null;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      return session?.user || null;
+    } catch {
+      return null;
     }
-    if (waveformRef.current) {
-      clearInterval(waveformRef.current);
-      waveformRef.current = null;
-    }
-    if (transcribeTimeoutRef.current) {
-      clearTimeout(transcribeTimeoutRef.current);
-      transcribeTimeoutRef.current = null;
-    }
+  }, [supabaseReady]);
+
+  // ─── Load recordings from DB ────────────────────────────────
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      if (!supabaseReady || !supabase) {
+        if (alive) {
+          setRecordings([]);
+          setRecordingsLoading(false);
+        }
+        return;
+      }
+
+      const user = await getUser();
+      if (!user || !alive) {
+        if (alive) setRecordingsLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from(RECORDINGS_TABLE)
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (!alive) return;
+
+      if (error) {
+        console.error("Load recordings error:", error);
+        setRecordings([]);
+      } else {
+        setRecordings(
+          (data || []).map((r) => ({
+            id: r.id,
+            title: r.title,
+            duration: r.duration,
+            transcription: r.transcription,
+            createdAt: r.created_at,
+            status: r.status,
+            aiPayload: r.ai_payload,
+          }))
+        );
+      }
+
+      setRecordingsLoading(false);
+    })();
+
+    return () => { alive = false; };
+  }, [supabaseReady, getUser]);
+
+  // ─── Check browser support ──────────────────────────────────
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) setBrowserSupported(false);
   }, []);
 
-  // Start recording
+  // ─── Cleanup on unmount ─────────────────────────────────────
+  const clearIntervals = useCallback(() => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (waveformRef.current) { clearInterval(waveformRef.current); waveformRef.current = null; }
+  }, []);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+      clearIntervals();
+      if (recognizerRef.current) {
+        try { recognizerRef.current.abort(); } catch {}
+        recognizerRef.current = null;
+      }
+    };
+  }, [clearIntervals]);
+
+  // ─── Start recording (Web Speech API) ──────────────────────
   const startRecording = () => {
     clearIntervals();
 
@@ -141,30 +195,55 @@ export default function VoiceNotes() {
     setTranscription("");
     setEditedTranscription("");
     setIsEditing(false);
+    setLiveText("");
+    setAiPayload(null);
 
-    // Start timer
+    // Timer
     timerRef.current = setInterval(() => {
       setRecordingTime((prev) => prev + 1);
     }, 1000);
 
-    // Animate waveform
+    // Waveform animation
     waveformRef.current = setInterval(() => {
       setWaveformBars((prev) => prev.map(() => Math.random() * 0.85 + 0.15));
     }, 100);
+
+    // Speech recognition
+    const recognizer = createSpeechRecognizer();
+    if (!recognizer) {
+      setBrowserSupported(false);
+      setIsRecording(false);
+      clearIntervals();
+      return;
+    }
+
+    recognizerRef.current = recognizer;
+
+    recognizer.onResult(({ combined }) => {
+      setLiveText(combined);
+    });
+
+    recognizer.onError((err) => {
+      console.warn("Speech recognition error:", err);
+    });
+
+    recognizer.start();
   };
 
-  // Pause recording
+  // ─── Pause recording ───────────────────────────────────────
   const pauseRecording = () => {
     setIsPaused(true);
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (waveformRef.current) clearInterval(waveformRef.current);
-    timerRef.current = null;
-    waveformRef.current = null;
-
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (waveformRef.current) { clearInterval(waveformRef.current); waveformRef.current = null; }
     setWaveformBars((prev) => prev.map((v) => v * 0.3));
+
+    // Stop recognition (will be restarted on resume)
+    if (recognizerRef.current) {
+      try { recognizerRef.current.stop(); } catch {}
+    }
   };
 
-  // Resume recording
+  // ─── Resume recording ──────────────────────────────────────
   const resumeRecording = () => {
     setIsPaused(false);
 
@@ -175,63 +254,134 @@ export default function VoiceNotes() {
     waveformRef.current = setInterval(() => {
       setWaveformBars((prev) => prev.map(() => Math.random() * 0.85 + 0.15));
     }, 100);
+
+    // Restart recognition
+    const recognizer = createSpeechRecognizer();
+    if (recognizer) {
+      recognizerRef.current = recognizer;
+      recognizer.onResult(({ combined }) => {
+        setLiveText((prev) => {
+          // Append new text to what we had before pause
+          const existing = prev ? prev + " " : "";
+          return existing + combined;
+        });
+      });
+      recognizer.start();
+    }
   };
 
-  // Stop recording and transcribe
+  // ─── Stop recording → AI transcription ─────────────────────
   const stopRecording = async () => {
     setIsRecording(false);
     setIsPaused(false);
-
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (waveformRef.current) clearInterval(waveformRef.current);
-    timerRef.current = null;
-    waveformRef.current = null;
-
+    clearIntervals();
     setWaveformBars(Array(40).fill(0.15));
 
-    // Simulate transcription
+    // Get final text from speech recognizer
+    let finalText = liveText || "";
+
+    if (recognizerRef.current) {
+      try {
+        const recFinal = recognizerRef.current.getFinalTranscript();
+        if (recFinal && recFinal.length > finalText.length) {
+          finalText = recFinal;
+        }
+        recognizerRef.current.stop();
+      } catch {}
+      recognizerRef.current = null;
+    }
+
+    if (!finalText.trim()) {
+      setTranscription("");
+      setEditedTranscription("");
+      return;
+    }
+
+    // Process through AI
     setIsTranscribing(true);
 
-    transcribeTimeoutRef.current = setTimeout(async () => {
+    try {
+      const result = await processTranscription(finalText);
+
       if (!aliveRef.current) return;
 
-      const randomTranscription =
-        sampleTranscriptions[Math.floor(Math.random() * sampleTranscriptions.length)];
+      const cleaned = result?.cleanedText || finalText;
+      setTranscription(cleaned);
+      setEditedTranscription(cleaned);
+      setAiPayload(result);
 
-      setTranscription(randomTranscription);
-      setEditedTranscription(randomTranscription);
-      setIsTranscribing(false);
-
-      // ✅ Track a "voice transcription" usage AFTER successful transcription
-      try {
-        await incrementUsage("voiceTranscriptions");
-      } catch {
-        // incrementUsage already handles fallback; keep silent
+      // Set title suggestion from AI
+      if (result?.title && result.title !== "Voice Note") {
+        setNoteTitle(result.title);
       }
-    }, 2500);
+
+      // Track usage
+      try { await incrementUsage("voiceTranscriptions"); } catch {}
+    } catch (err) {
+      console.warn("AI processing failed, using raw text:", err);
+      if (!aliveRef.current) return;
+      setTranscription(finalText);
+      setEditedTranscription(finalText);
+    } finally {
+      if (aliveRef.current) setIsTranscribing(false);
+    }
   };
 
-  // Cancel recording
+  // ─── Cancel recording ──────────────────────────────────────
   const cancelRecording = () => {
     clearIntervals();
+    if (recognizerRef.current) {
+      try { recognizerRef.current.abort(); } catch {}
+      recognizerRef.current = null;
+    }
     setIsRecording(false);
     setIsPaused(false);
     setRecordingTime(0);
+    setLiveText("");
     setWaveformBars(Array(40).fill(0.15));
   };
 
-  // Save as note (demo/local)
-  const saveAsNote = () => {
+  // ─── Save to Supabase ──────────────────────────────────────
+  const saveAsNote = async () => {
     if (!editedTranscription.trim()) return;
 
+    const user = await getUser();
+
     const newRecording = {
-      id: Date.now(),
       title: noteTitle || `Voice Note - ${new Date().toLocaleString()}`,
       duration: recordingTime,
       transcription: editedTranscription,
-      createdAt: new Date(),
       status: "transcribed",
+      aiPayload: aiPayload || {},
+      createdAt: new Date().toISOString(),
     };
+
+    // Save to DB
+    if (user && supabaseReady && supabase) {
+      const { data, error } = await supabase
+        .from(RECORDINGS_TABLE)
+        .insert({
+          user_id: user.id,
+          title: newRecording.title,
+          duration: newRecording.duration,
+          transcription: newRecording.transcription,
+          status: newRecording.status,
+          ai_payload: newRecording.aiPayload,
+          ai_model: aiPayload?.model || null,
+        })
+        .select("id, created_at")
+        .single();
+
+      if (!error && data) {
+        newRecording.id = data.id;
+        newRecording.createdAt = data.created_at;
+      } else {
+        console.error("Save recording error:", error);
+        newRecording.id = `local-${Date.now()}`;
+      }
+    } else {
+      newRecording.id = `local-${Date.now()}`;
+    }
 
     setRecordings((prev) => [newRecording, ...prev]);
     setShowSaveModal(false);
@@ -240,32 +390,35 @@ export default function VoiceNotes() {
     setEditedTranscription("");
     setRecordingTime(0);
     setIsEditing(false);
+    setLiveText("");
+    setAiPayload(null);
   };
 
-  // Delete recording
-  const deleteRecording = (id) => {
+  // ─── Delete recording ──────────────────────────────────────
+  const deleteRecording = async (id) => {
     setRecordings((prev) => prev.filter((r) => r.id !== id));
+
+    if (supabaseReady && supabase && typeof id === "string" && !id.startsWith("local-")) {
+      const user = await getUser();
+      if (user) {
+        await supabase
+          .from(RECORDINGS_TABLE)
+          .delete()
+          .eq("id", id)
+          .eq("user_id", user.id);
+      }
+    }
   };
 
-  // Copy transcription
+  // ─── Copy transcription ────────────────────────────────────
   const copyTranscription = (text, id) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Cleanup on unmount
-  useEffect(() => {
-    aliveRef.current = true;
-    return () => {
-      aliveRef.current = false;
-      clearIntervals();
-    };
-  }, [clearIntervals]);
-
-  if (!isPro || !isUnlocked) {
-    return null;
-  }
+  // ─── Guards ─────────────────────────────────────────────────
+  if (!isPro || !isUnlocked) return null;
 
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
@@ -294,10 +447,25 @@ export default function VoiceNotes() {
         </div>
       </header>
 
+      {/* Browser Support Warning */}
+      {!browserSupported && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10">
+          <Warning size={20} className="text-amber-500 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-amber-500">
+              Speech recognition not supported
+            </p>
+            <p className="text-xs text-theme-muted">
+              Try Chrome, Edge, or Safari for the best experience.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Recording Section */}
       <GlassCard className="border-purple-500/30 bg-gradient-to-br from-purple-500/5 to-pink-500/5">
         <div className="flex flex-col items-center py-6">
-          {/* Waveform Visualization */}
+          {/* Waveform */}
           <div className="flex items-center justify-center gap-[3px] h-20 w-full max-w-md mb-6">
             {waveformBars.map((height, i) => (
               <motion.div
@@ -315,9 +483,20 @@ export default function VoiceNotes() {
           </div>
 
           {/* Timer */}
-          <div className="text-4xl font-mono font-light text-theme-primary mb-6">
+          <div className="text-4xl font-mono font-light text-theme-primary mb-2">
             {formatTime(recordingTime)}
           </div>
+
+          {/* Live Text Preview (while recording) */}
+          {isRecording && liveText && (
+            <div
+              className="w-full max-w-md mb-4 p-3 rounded-xl text-sm text-theme-secondary max-h-24 overflow-y-auto"
+              style={{ backgroundColor: "var(--bg-input)" }}
+            >
+              <p className="text-xs text-purple-400 mb-1 font-medium">Live transcription:</p>
+              <p className="text-theme-secondary text-xs leading-relaxed">{liveText}</p>
+            </div>
+          )}
 
           {/* Recording Status */}
           {isRecording && (
@@ -337,7 +516,7 @@ export default function VoiceNotes() {
             <div className="flex items-center gap-2 mb-4">
               <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
               <span className="text-sm text-theme-muted">
-                Transcribing with AI...
+                Processing with AI...
               </span>
             </div>
           )}
@@ -349,7 +528,8 @@ export default function VoiceNotes() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={startRecording}
-                className="h-16 w-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition"
+                disabled={!browserSupported}
+                className="h-16 w-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Microphone size={28} weight="fill" className="text-white" />
               </motion.button>
@@ -391,7 +571,7 @@ export default function VoiceNotes() {
             )}
           </div>
 
-          {!isRecording && !transcription && !isTranscribing && (
+          {!isRecording && !transcription && !isTranscribing && browserSupported && (
             <p className="text-xs text-theme-muted mt-4">Tap to start recording</p>
           )}
         </div>
@@ -456,6 +636,30 @@ export default function VoiceNotes() {
               </p>
             )}
 
+            {/* AI Insights (if available) */}
+            {aiPayload?.actionItems?.length > 0 && (
+              <div className="mt-3 p-3 rounded-xl border" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
+                <p className="text-xs font-medium text-theme-secondary mb-2">
+                  Action Items Detected:
+                </p>
+                <ul className="space-y-1">
+                  {aiPayload.actionItems.map((item, i) => (
+                    <li key={i} className="text-xs text-theme-muted flex items-start gap-2">
+                      <span className="text-purple-400 mt-0.5">•</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {aiPayload?.summary && (
+              <div className="mt-2 p-3 rounded-xl border" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
+                <p className="text-xs font-medium text-theme-secondary mb-1">AI Summary:</p>
+                <p className="text-xs text-theme-muted">{aiPayload.summary}</p>
+              </div>
+            )}
+
             <div className="flex items-center gap-3 mt-4">
               <button
                 onClick={() => {
@@ -463,6 +667,8 @@ export default function VoiceNotes() {
                   setEditedTranscription("");
                   setRecordingTime(0);
                   setIsEditing(false);
+                  setLiveText("");
+                  setAiPayload(null);
                 }}
                 className="flex-1 py-2.5 rounded-xl border text-theme-muted font-medium text-sm hover:bg-white/5 transition"
                 style={{ borderColor: "var(--border-secondary)" }}
@@ -494,7 +700,7 @@ export default function VoiceNotes() {
         <GlassCard className="p-4">
           <div className="text-center">
             <p className="text-2xl font-bold text-theme-primary">
-              {formatTime(recordings.reduce((acc, r) => acc + r.duration, 0))}
+              {formatTime(recordings.reduce((acc, r) => acc + (r.duration || 0), 0))}
             </p>
             <p className="text-xs text-theme-muted">Total Time</p>
           </div>
@@ -503,7 +709,10 @@ export default function VoiceNotes() {
         <GlassCard className="p-4">
           <div className="text-center">
             <p className="text-2xl font-bold text-theme-primary">
-              {recordings.reduce((acc, r) => acc + r.transcription.split(" ").length, 0)}
+              {recordings.reduce(
+                (acc, r) => acc + (r.transcription || "").split(" ").filter(Boolean).length,
+                0
+              )}
             </p>
             <p className="text-xs text-theme-muted">Words</p>
           </div>
@@ -517,7 +726,11 @@ export default function VoiceNotes() {
           <span className="text-xs text-theme-muted">{recordings.length} total</span>
         </div>
 
-        {recordings.length === 0 ? (
+        {recordingsLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : recordings.length === 0 ? (
           <div className="text-center py-8">
             <div className="h-16 w-16 rounded-2xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center mx-auto mb-4">
               <Microphone size={28} className="text-purple-400" />
@@ -551,7 +764,7 @@ export default function VoiceNotes() {
                         {recording.title}
                       </p>
                       <div className="flex items-center gap-2 text-xs text-theme-muted">
-                        <span>{formatTime(recording.duration)}</span>
+                        <span>{formatTime(recording.duration || 0)}</span>
                         <span>•</span>
                         <span>{formatRelativeTime(recording.createdAt)}</span>
                       </div>
@@ -560,7 +773,9 @@ export default function VoiceNotes() {
 
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => copyTranscription(recording.transcription, recording.id)}
+                      onClick={() =>
+                        copyTranscription(recording.transcription, recording.id)
+                      }
                       className="h-8 w-8 rounded-lg flex items-center justify-center text-theme-muted hover:text-theme-primary hover:bg-white/5 transition"
                     >
                       {copiedId === recording.id ? (
@@ -596,7 +811,10 @@ export default function VoiceNotes() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[999] flex items-center justify-center p-4"
-            style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+            style={{
+              backgroundColor: "rgba(0,0,0,0.6)",
+              backdropFilter: "blur(8px)",
+            }}
             onClick={() => setShowSaveModal(false)}
           >
             <motion.div
@@ -605,10 +823,15 @@ export default function VoiceNotes() {
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl p-6 border"
-              style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                borderColor: "var(--border-secondary)",
+              }}
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-theme-primary">Save Voice Note</h2>
+                <h2 className="text-xl font-semibold text-theme-primary">
+                  Save Voice Note
+                </h2>
                 <button
                   onClick={() => setShowSaveModal(false)}
                   className="h-8 w-8 rounded-full flex items-center justify-center text-theme-muted hover:text-theme-primary transition"
@@ -654,6 +877,12 @@ export default function VoiceNotes() {
                 <div className="flex items-center gap-2 text-xs text-theme-muted">
                   <Clock size={14} />
                   <span>Duration: {formatTime(recordingTime)}</span>
+                  {aiPayload?.category && (
+                    <>
+                      <span>•</span>
+                      <span className="capitalize">{aiPayload.category}</span>
+                    </>
+                  )}
                 </div>
               </div>
 

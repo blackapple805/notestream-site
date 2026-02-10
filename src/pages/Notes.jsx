@@ -1478,7 +1478,7 @@ if (selectedNote) {
 
      {/* FAB Zone - Theme-aware Liquid Glass Style */}
      <div
-        className="fab-zone fixed bottom-[calc(var(--mobile-nav-height)+16px)] z-[140]"
+        className="fab-zone fixed bottom-[calc(var(--mobile-nav-height)+16px)] z-[140] md:hidden"
         style={{
           right: 16 + rightGutter, // number = px
           willChange: "transform",

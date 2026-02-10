@@ -1,7 +1,7 @@
 // src/lib/writingProfileAI.js
 // ✅ AI Writing Profile — calls writing-profile edge function
+// ✅ Uses writing_profiles table (not user_engagement_stats)
 // ✅ Two modes: analyze (build profile from notes) and suggest (write in user's style)
-// ✅ Stores profile in Supabase user_engagement_stats or a dedicated table
 // ✅ Graceful fallback when AI is unavailable
 
 import { supabase } from "./supabaseClient";
@@ -10,7 +10,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 const NOTES_TABLE = "notes";
-const STATS_TABLE = "user_engagement_stats";
+const PROFILES_TABLE = "writing_profiles";
 
 // ─── Auth helper ───────────────────────────────────────────────
 
@@ -64,7 +64,63 @@ async function callEdgeFunction(payload) {
   return data;
 }
 
-// ─── Local fallback profile ────────────────────────────────────
+// ─── DB helpers ────────────────────────────────────────────────
+
+/**
+ * Load the user's writing profile row from Supabase.
+ */
+export async function loadStoredProfile(userId) {
+  if (!supabase || !userId) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from(PROFILES_TABLE)
+      .select("*")
+      .eq("user_id", userId)
+      .single();
+
+    if (error) {
+      // PGRST116 = no rows found — not an error, just no profile yet
+      if (error.code === "PGRST116") return null;
+      console.error("loadStoredProfile error:", error);
+      return null;
+    }
+
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Upsert writing profile to Supabase.
+ */
+export async function saveProfile(userId, profileData, extras = {}) {
+  if (!supabase || !userId) return;
+
+  const row = {
+    user_id: userId,
+    profile_data: profileData,
+    samples_count: extras.samplesCount ?? profileData?.samplesAnalyzed ?? 0,
+    tokens_count: extras.tokensCount ?? profileData?.tokensProcessed ?? 0,
+    confidence_score: extras.confidence ?? profileData?.confidenceScore ?? 0,
+    last_trained_at: new Date().toISOString(),
+    ...(extras.samples !== undefined ? { samples: extras.samples } : {}),
+    ...(extras.userOverrides !== undefined ? { user_overrides: extras.userOverrides } : {}),
+  };
+
+  try {
+    const { error } = await supabase
+      .from(PROFILES_TABLE)
+      .upsert(row, { onConflict: "user_id" });
+
+    if (error) console.error("saveProfile error:", error);
+  } catch (err) {
+    console.warn("Failed to save writing profile:", err);
+  }
+}
+
+// ─── Local fallback profile builder ────────────────────────────
 
 function localBuildProfile(notes) {
   const totalWords = notes.reduce((sum, n) => {
@@ -84,7 +140,7 @@ function localBuildProfile(notes) {
     vocabularyStats: {
       averageSentenceLength: 14,
       complexityLevel: "intermediate",
-      favoriteWords: ["need", "important", "review", "update", "plan"],
+      favoriteWords: [],
       avoidedPatterns: [],
       jargonDomains: ["general"],
     },
@@ -95,12 +151,7 @@ function localBuildProfile(notes) {
       usesHeaders: false,
       preferredListStyle: "bullets",
     },
-    topicDistribution: [
-      { topic: "Work & Tasks", percentage: 40 },
-      { topic: "Ideas", percentage: 25 },
-      { topic: "Personal", percentage: 20 },
-      { topic: "Research", percentage: 15 },
-    ],
+    topicDistribution: [{ topic: "General", percentage: 100 }],
     writingHabits: {
       writesInFirstPerson: true,
       usesContractions: true,
@@ -109,12 +160,11 @@ function localBuildProfile(notes) {
       capitalizationStyle: "standard",
     },
     strengthsAndWeaknesses: {
-      strengths: ["Clear and concise", "Action-oriented"],
-      areasForImprovement: ["Could use more structure", "Add more context"],
+      strengths: [],
+      areasForImprovement: [],
     },
-    overallDescription:
-      "Your writing style is direct and task-oriented, favoring concise bullet points and action items. You tend toward a semi-formal tone with practical, no-nonsense language.",
-    confidenceScore: 35,
+    overallDescription: "Not enough data to build a complete profile yet.",
+    confidenceScore: 0,
     samplesAnalyzed: notes.length,
     tokensProcessed: totalWords,
     model: "local-fallback",
@@ -122,80 +172,14 @@ function localBuildProfile(notes) {
   };
 }
 
-// ─── Profile persistence ───────────────────────────────────────
-
-/**
- * Load stored writing profile from Supabase.
- * Stored as JSON in user_engagement_stats.metadata or a dedicated column.
- */
-export async function loadStoredProfile(userId) {
-  if (!supabase || !userId) return null;
-
-  try {
-    const { data, error } = await supabase
-      .from(STATS_TABLE)
-      .select("metadata")
-      .eq("user_id", userId)
-      .single();
-
-    if (error || !data?.metadata) return null;
-
-    const meta = typeof data.metadata === "string"
-      ? JSON.parse(data.metadata)
-      : data.metadata;
-
-    return meta?.writingProfile || null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Save writing profile to Supabase.
- */
-export async function saveProfile(userId, profile) {
-  if (!supabase || !userId || !profile) return;
-
-  try {
-    // Load existing metadata first
-    const { data } = await supabase
-      .from(STATS_TABLE)
-      .select("metadata")
-      .eq("user_id", userId)
-      .single();
-
-    const existingMeta = data?.metadata || {};
-    const mergedMeta = {
-      ...(typeof existingMeta === "object" ? existingMeta : {}),
-      writingProfile: profile,
-      writingProfileUpdatedAt: new Date().toISOString(),
-    };
-
-    await supabase
-      .from(STATS_TABLE)
-      .update({ metadata: mergedMeta, updated_at: new Date().toISOString() })
-      .eq("user_id", userId);
-  } catch (err) {
-    console.warn("Failed to save writing profile:", err);
-  }
-}
-
 // ─── Public API ────────────────────────────────────────────────
 
 /**
- * Fetch user's notes and analyze their writing style.
- * Returns a comprehensive writing profile.
- *
- * @param {string} userId
- * @param {object|null} existingProfile - Previous profile for incremental update
- * @returns {object} Writing style profile
+ * Fetch user's notes and analyze their writing style via edge function.
  */
 export async function analyzeWritingStyle(userId, existingProfile = null) {
-  if (!supabase || !userId) {
-    throw new Error("Not authenticated");
-  }
+  if (!supabase || !userId) throw new Error("Not authenticated");
 
-  // Fetch user's notes
   const { data: notes, error } = await supabase
     .from(NOTES_TABLE)
     .select("title, body")
@@ -212,16 +196,11 @@ export async function analyzeWritingStyle(userId, existingProfile = null) {
   try {
     const result = await callEdgeFunction({
       mode: "analyze",
-      notes: notes.map((n) => ({
-        title: n.title || "Untitled",
-        body: n.body || "",
-      })),
+      notes: notes.map((n) => ({ title: n.title || "Untitled", body: n.body || "" })),
       existingProfile: existingProfile || undefined,
     });
 
-    // Save to DB
     await saveProfile(userId, result);
-
     return result;
   } catch (err) {
     console.warn("AI writing analysis unavailable, using local fallback:", err);
@@ -232,11 +211,30 @@ export async function analyzeWritingStyle(userId, existingProfile = null) {
 }
 
 /**
+ * Analyze specific text samples (manual add) via edge function.
+ */
+export async function analyzeManualSamples(userId, samplesArray, existingProfile = null) {
+  if (!supabase || !userId) throw new Error("Not authenticated");
+  if (!samplesArray || samplesArray.length < 1) throw new Error("No samples provided");
+
+  try {
+    const result = await callEdgeFunction({
+      mode: "analyze",
+      notes: samplesArray.map((s, i) => ({
+        title: s.title || `Sample ${i + 1}`,
+        body: s.text || s.body || "",
+      })),
+      existingProfile: existingProfile || undefined,
+    });
+    return result;
+  } catch (err) {
+    console.warn("AI sample analysis unavailable:", err);
+    return localBuildProfile(samplesArray.map((s) => ({ body: s.text || s.body || "" })));
+  }
+}
+
+/**
  * Generate text in the user's writing style.
- *
- * @param {object} profile - The user's writing profile
- * @param {string} prompt - What to write
- * @returns {{ generatedText: string, styleMatchScore: number, styleNotes: string[] }}
  */
 export async function generateInStyle(profile, prompt) {
   if (!profile) throw new Error("No writing profile available");
@@ -248,7 +246,6 @@ export async function generateInStyle(profile, prompt) {
       profile,
       prompt: prompt.trim(),
     });
-
     return {
       generatedText: result.generatedText || "",
       styleMatchScore: result.styleMatchScore || 0,
@@ -267,23 +264,22 @@ export async function generateInStyle(profile, prompt) {
 /**
  * Get a quick summary of the profile for display.
  */
-export function getProfileSummary(profile) {
-  if (!profile) return null;
-
+export function getProfileSummary(profileData) {
+  if (!profileData) return null;
   return {
-    description: profile.overallDescription || "No profile built yet.",
-    confidence: profile.confidenceScore || 0,
-    samplesAnalyzed: profile.samplesAnalyzed || 0,
-    tokensProcessed: profile.tokensProcessed || 0,
-    tone: profile.toneProfile?.primary || "unknown",
-    formality: profile.toneProfile?.formality || "unknown",
-    complexity: profile.vocabularyStats?.complexityLevel || "unknown",
-    format: profile.structurePatterns?.preferredFormat || "unknown",
-    topTopics: (profile.topicDistribution || []).slice(0, 5),
-    strengths: profile.strengthsAndWeaknesses?.strengths || [],
-    improvements: profile.strengthsAndWeaknesses?.areasForImprovement || [],
-    favoriteWords: profile.vocabularyStats?.favoriteWords || [],
-    lastUpdated: profile.analyzedAt || null,
-    model: profile.model || "unknown",
+    description: profileData.overallDescription || "No profile built yet.",
+    confidence: profileData.confidenceScore || 0,
+    samplesAnalyzed: profileData.samplesAnalyzed || 0,
+    tokensProcessed: profileData.tokensProcessed || 0,
+    tone: profileData.toneProfile?.primary || "unknown",
+    formality: profileData.toneProfile?.formality || "unknown",
+    complexity: profileData.vocabularyStats?.complexityLevel || "unknown",
+    format: profileData.structurePatterns?.preferredFormat || "unknown",
+    topTopics: (profileData.topicDistribution || []).slice(0, 5),
+    strengths: profileData.strengthsAndWeaknesses?.strengths || [],
+    improvements: profileData.strengthsAndWeaknesses?.areasForImprovement || [],
+    favoriteWords: profileData.vocabularyStats?.favoriteWords || [],
+    lastUpdated: profileData.analyzedAt || null,
+    model: profileData.model || "unknown",
   };
 }
