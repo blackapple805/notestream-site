@@ -30,6 +30,7 @@ export default function DashboardLayout() {
         text-theme-primary
         relative
         transition-colors duration-300
+        overflow-x-hidden
       "
     >
       {/* Sidebar (desktop + mobile) */}
@@ -43,10 +44,21 @@ export default function DashboardLayout() {
           min-h-[100dvh]
           relative
           z-[10]
-          overflow-y-visible md:overflow-y-auto
-          pb-[90px] md:pb-12
+          overflow-y-auto
           transition-colors duration-300
         "
+        style={{
+          // ✅ Mobile-safe paddings (iPhone) via CSS vars
+          paddingTop: "var(--app-content-top, 0px)",
+          paddingBottom: "var(--app-content-bottom, 0px)",
+
+          // ✅ Desktop-only right gutter (sidebar space) via CSS var
+          paddingRight: "var(--ns-layout-right-pad, 0px)",
+
+          // ✅ Prevent anchor/scrollIntoView from hiding under fixed header/nav
+          scrollPaddingTop: "var(--app-content-top, 0px)",
+          scrollPaddingBottom: "var(--app-content-bottom, 0px)",
+        }}
       >
         <AnimatePresence mode="wait" initial={false}>
           <motion.main
@@ -58,10 +70,9 @@ export default function DashboardLayout() {
             className="
               mx-auto
               w-full
-              max-w-[1200px]
+              max-w-[1500px]
               px-4 sm:px-5 md:px-8
               pt-6 sm:pt-8
-              md:pt-[calc(var(--ns-desktop-header-h,0px)+24px)]
             "
           >
             <Outlet />
@@ -74,4 +85,3 @@ export default function DashboardLayout() {
     </div>
   );
 }
-

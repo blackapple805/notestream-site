@@ -4,26 +4,44 @@
 
 /* ==============================================================
    NOTESTREAM — MASTER STYLESHEET
-   Organized Structure:
    1. CSS Variables (Theme System)
-   2. Base & Reset
-   3. Layout & Body
-   4. Typography
-   5. Interactive Elements
-   6. Navigation
-   7. Components (Cards, Modals, Buttons, etc.)
-   8. Animations
-   9. Utilities
 ============================================================== */
 
-/* ==============================================================
-   1. CSS VARIABLES — THEME SYSTEM
-============================================================== */
-
+/* Layout paddings:
+   - Mobile: no right padding (prevents iPhone shrink)
+   - Desktop: reserve space for the right sidebar
+*/
 :root {
-  /* Layout */
-  --vh: 1vh;
+  /* --------------------------------------------------------------
+     Layout padding tokens
+  -------------------------------------------------------------- */
+  --ns-layout-right-pad: 0px;
+
+  /* --------------------------------------------------------------
+     iOS safe areas
+  -------------------------------------------------------------- */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* --------------------------------------------------------------
+     Base heights
+  -------------------------------------------------------------- */
   --mobile-nav-height: 90px;
+
+  /* Default (desktop/tablet). Mobile overrides below */
+  --app-header-h: 72px;
+
+  /* Optional extra nudges */
+  --app-content-top-offset: 0px;
+  --app-content-bottom-offset: 12px;
+
+  /* Computed paddings (used by DashboardLayout) */
+  --app-content-top: calc(
+    var(--safe-top) + var(--app-header-h) + var(--app-content-top-offset)
+  );
+  --app-content-bottom: calc(
+    var(--safe-bottom) + var(--mobile-nav-height) + var(--app-content-bottom-offset)
+  );
 
   /* ============================================
      PAGE HEADER SYSTEM - Universal Variables
@@ -38,7 +56,6 @@
   --page-header-subtitle-size: 0.875rem;
   --page-header-gap: 12px;
 
-  /* Page header icon background gradients (dark default) */
   --page-header-icon-bg: linear-gradient(
     135deg,
     rgba(99, 102, 241, 0.2),
@@ -203,10 +220,35 @@
     rgba(139, 92, 246, 0.25) 100%
   );
   --mobile-pill-border: rgba(99, 102, 241, 0.35);
-  --mobile-pill-shadow: 0 0 14px rgba(99, 102, 241, 0.35),
+  --mobile-pill-shadow:
+    0 0 14px rgba(99, 102, 241, 0.35),
     inset 0 1px 1px rgba(255, 255, 255, 0.1);
 }
 
+/* md breakpoint: reserve right padding for desktop sidebar
+   + remove mobile bottom-nav padding on desktop */
+@media (min-width: 768px) {
+  :root {
+    /* ✅ remove hardcoded 72px fallback */
+    --ns-layout-right-pad: var(--ns-desktop-sidebar-w, 0px);
+
+    /* desktop should not reserve mobile nav space */
+    --mobile-nav-height: 0px;
+    --app-content-bottom-offset: 0px;
+  }
+}
+
+
+/* ✅ mobile only: move content to top, keep bottom safe for nav */
+@media (max-width: 767px) {
+  :root {
+    --app-header-h: 0px;
+    --app-content-top-offset: 0px;
+
+    /* tighten bottom spacing above the nav (optional) */
+    --app-content-bottom-offset: 0px;
+  }
+}
 /* -----------------------------
    Light Theme Overrides
 ------------------------------ */
