@@ -219,7 +219,9 @@ export default function Settings() {
       if (isSupabaseConfigured && supabase) {
         const { error } = await supabase.rpc("delete_my_account");
         if (error) throw error;
-        await supabase.auth.signOut();
+        // Sign out locally — this clears the Supabase session token
+        // even though the auth user is already deleted server-side
+        try { await supabase.auth.signOut({ scope: "local" }); } catch {}
       }
     } catch (err) {
       console.error("Account deletion failed:", err);
@@ -231,8 +233,8 @@ export default function Settings() {
     localStorage.clear();
     setDeleteLoading(false);
     setShowDeleteModal(false);
-    showToast("Account deleted permanently");
-    setTimeout(() => navigate("/"), 300);
+    // Hard redirect to clear any remaining auth state
+    window.location.href = "/";
   };
 
   /* ── Export ── */
