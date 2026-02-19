@@ -1,8 +1,8 @@
 // src/pages/Signup.jsx
 // ═══════════════════════════════════════════════════════════════════
 // Matching Login layout: single centered card, mobile-first, wider on desktop.
-// Google/Apple: greyed out with "Coming soon" (not yet enabled in Supabase).
-// All signup logic (auth.signUp + table insert) — UNCHANGED.
+// Google: ACTIVE · Apple: greyed out with "Coming soon"
+// Includes leaked password validation via passwordSafety.js
 // ═══════════════════════════════════════════════════════════════════
 
 import { useRef, useState } from "react";
@@ -10,6 +10,7 @@ import { motion, useInView } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { FiLock, FiMail, FiUser, FiArrowRight, FiInfo, FiEye, FiEyeOff } from "react-icons/fi";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { validatePassword } from "../lib/passwordSafety";
 
 /* ─── Same scoped styles as Login ─── */
 const AUTH_STYLES = `
@@ -55,15 +56,31 @@ const AUTH_STYLES = `
   font-size: 13px; font-weight: 600; color: var(--text-muted);
   cursor: not-allowed; opacity: 0.45; position: relative;
 }
+.ns-auth-oauth-active {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 13px 16px; border-radius: 16px;
+  border: 1px solid var(--border-secondary);
+  background: var(--bg-input, var(--bg-tertiary));
+  font-size: 13px; font-weight: 600; color: var(--text-primary);
+  cursor: pointer; transition: all 0.2s ease;
+}
+.ns-auth-oauth-active:hover {
+  border-color: rgba(99,102,241,0.3);
+  background: rgba(255,255,255,0.05);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  transform: translateY(-1px);
+}
+.ns-auth-oauth-active:active { transform: translateY(0); }
+.ns-auth-oauth-active:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 `;
 
 /* ─── Icons ─── */
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" opacity=".45"/>
-    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" opacity=".45"/>
-    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A11.96 11.96 0 001 12c0 1.94.46 3.77 1.18 5.07l3.66-2.98z" fill="#FBBC05" opacity=".45"/>
-    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" opacity=".45"/>
+    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A11.96 11.96 0 001 12c0 1.94.46 3.77 1.18 5.07l3.66-2.98z" fill="#FBBC05"/>
+    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
   </svg>
 );
 const AppleIcon = () => (
@@ -95,13 +112,34 @@ export default function SignupPage() {
   const inView = useInView(ref, { amount: 0.2 });
   const onChange = (e) => { setErrorMsg(""); setForm((s) => ({ ...s, [e.target.name]: e.target.value })); };
 
-  /* ── Signup handler (unchanged) ── */
+  /* ── Google OAuth ── */
+  const handleGoogleSignUp = async () => {
+    if (!isSupabaseConfigured || !supabase || submitting) return;
+    setSubmitting(true);
+    setErrorMsg("");
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/dashboard` },
+      });
+      if (error) throw error;
+    } catch (err) {
+      setErrorMsg(err?.message || "Google sign-up failed.");
+      setSubmitting(false);
+    }
+  };
+
+  /* ── Email/password signup ── */
   const handleSignup = async (e) => {
     e.preventDefault(); setErrorMsg("");
     if (!isSupabaseConfigured || !supabase) { setErrorMsg("Supabase env vars missing."); return; }
     const fullName = form.fullName.trim(); const email = form.email.trim(); const password = form.password;
     if (!fullName || !email || !password) { setErrorMsg("Please fill out all fields."); return; }
     setSubmitting(true);
+    try {
+      const pw = await validatePassword(password);
+      if (!pw.valid) { setErrorMsg(pw.errors[0]); setSubmitting(false); return; }
+    } catch { /* fail open if API unreachable */ }
     try {
       const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName }, emailRedirectTo: `${window.location.origin}/login` } });
       if (error) throw error;
@@ -155,9 +193,11 @@ export default function SignupPage() {
                   </motion.div>
                 )}
 
-                {/* OAuth — disabled */}
+                {/* OAuth */}
                 <div className="space-y-2.5 mb-5">
-                  <div className="ns-auth-oauth"><GoogleIcon /><span>Sign up with Google</span><SoonBadge /></div>
+                  <button onClick={handleGoogleSignUp} disabled={submitting} className="ns-auth-oauth-active">
+                    <GoogleIcon /><span>Sign up with Google</span>
+                  </button>
                   <div className="ns-auth-oauth"><AppleIcon /><span>Sign up with Apple</span><SoonBadge /></div>
                 </div>
 
@@ -259,6 +299,5 @@ export default function SignupPage() {
     </>
   );
 }
-
 
 
