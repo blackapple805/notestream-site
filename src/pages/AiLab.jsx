@@ -135,7 +135,7 @@ export default function AiLab() {
   const currentPlan = getCurrentPlan();
   const isPro = subscription.plan !== "free";
 
-  // Cancel UX: optimistic + polling (unchanged)
+  // Cancel UX: optimistic + polling
   const [optimisticCancel, setOptimisticCancel] = useState(false);
   const [cancelError, setCancelError] = useState(null);
   const cancelPollRef = useRef(null);
@@ -171,7 +171,7 @@ export default function AiLab() {
     return () => { mounted = false; };
   }, [subscription?.userId, subscription?.user_id]);
 
-  /* ── Handlers (all unchanged) ── */
+  /* ── Handlers ── */
   const handleUpgrade = () => setShowPricing(true);
   const handleSelectPlan = (plan) => { if (plan.id === "free" || plan.id === subscription.plan) return; setShowPricing(false); setShowCheckout(plan); };
 
@@ -207,8 +207,9 @@ export default function AiLab() {
     finally { setIsProcessing(false); }
   };
 
+  /* FIX: removed setShowManage(false) so modal stays open and transitions smoothly to canceling state */
   const handleCancelSubscription = async () => {
-    setCancelError(null); setOptimisticCancel(true); setShowManage(false); setIsProcessing(true);
+    setCancelError(null); setOptimisticCancel(true); setIsProcessing(true);
     try {
       await Promise.race([cancelSubscription(), new Promise((_, rej) => setTimeout(() => rej(new Error("Cancel timed out")), 6000))]);
       await loadSubscription();
@@ -269,51 +270,73 @@ export default function AiLab() {
           </div>
         </header>
 
-        {/* ── PLAN STATUS BANNER ── */}
-        {isPro ? (
-          <div className="ns-lab-card" style={{ borderColor: "rgba(16,185,129,0.25)" }}>
-            <div className="relative z-10 p-4 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "linear-gradient(135deg, #10b981, #0d9488)", boxShadow: "0 4px 16px rgba(16,185,129,0.3)" }}>
-                  <CheckCircle size={22} weight="fill" className="text-white" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{currentPlan.name} Plan Active</h3>
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-lg" style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", color: "#10b981" }}>ACTIVE</span>
+        {/* ── PLAN STATUS BANNER (smooth transition, no stutter) ── */}
+        <motion.div layout transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
+          {isPro ? (
+            <div className="ns-lab-card" style={{ borderColor: isCancelingUI ? "rgba(245,158,11,0.25)" : "rgba(16,185,129,0.25)", transition: "border-color 0.3s ease" }}>
+              <div className="relative z-10 p-4 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all duration-300"
+                    style={{
+                      background: isCancelingUI
+                        ? "linear-gradient(135deg, rgba(245,158,11,0.15), rgba(249,115,22,0.1))"
+                        : "linear-gradient(135deg, #10b981, #0d9488)",
+                      boxShadow: isCancelingUI ? "none" : "0 4px 16px rgba(16,185,129,0.3)",
+                      border: isCancelingUI ? "1px solid rgba(245,158,11,0.25)" : "none",
+                    }}>
+                    {isCancelingUI
+                      ? <FiCalendar size={20} style={{ color: "#f59e0b" }} />
+                      : <CheckCircle size={22} weight="fill" className="text-white" />
+                    }
                   </div>
-                  <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>All Pro features unlocked</p>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                        {isCancelingUI ? `${currentPlan.name} Plan Canceling` : `${currentPlan.name} Plan Active`}
+                      </h3>
+                      {isCancelingUI ? (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-lg" style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)", color: "#f59e0b" }}>CANCELING</span>
+                      ) : (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-lg" style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", color: "#10b981" }}>ACTIVE</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                      {isCancelingUI
+                        ? `Access until ${subscription.expiresAt ? new Date(subscription.expiresAt).toLocaleDateString(undefined, { month: "long", day: "numeric" }) : "end of billing period"}`
+                        : "All Pro features unlocked"
+                      }
+                    </p>
+                  </div>
                 </div>
+                <button onClick={() => setShowManage(true)}
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-[12px] font-semibold transition"
+                  style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>
+                  Manage Plan
+                </button>
               </div>
-              <button onClick={() => setShowManage(true)}
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-[12px] font-semibold transition"
-                style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>
-                Manage Plan
-              </button>
             </div>
-          </div>
-        ) : (
-          <div className="ns-lab-card" style={{ borderColor: "rgba(99,102,241,0.25)" }}>
-            <div className="relative z-10 p-4 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+          ) : (
+            <div className="ns-lab-card" style={{ borderColor: "rgba(99,102,241,0.25)" }}>
+              <div className="relative z-10 p-4 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 16px rgba(99,102,241,0.3)" }}>
+                    <Lightning size={22} weight="fill" className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Upgrade to Pro</h3>
+                    <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>Unlimited AI, voice notes, cloud sync & more</p>
+                  </div>
+                </div>
+                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={handleUpgrade}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition"
                   style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 16px rgba(99,102,241,0.3)" }}>
-                  <Lightning size={22} weight="fill" className="text-white" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Upgrade to Pro</h3>
-                  <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>Unlimited AI, voice notes, cloud sync & more</p>
-                </div>
+                  <Crown size={15} weight="fill" /> View Plans
+                </motion.button>
               </div>
-              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={handleUpgrade}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition"
-                style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 16px rgba(99,102,241,0.3)" }}>
-                <Crown size={15} weight="fill" /> View Plans
-              </motion.button>
             </div>
-          </div>
-        )}
+          )}
+        </motion.div>
 
         {/* Cancel error */}
         {cancelError && (
@@ -401,7 +424,7 @@ export default function AiLab() {
                       Preview
                     </button>
                   ) : (
-                    <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{feature.id === "collab" ? "Requires Team" : "Requires Pro"}</span>
+                    <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>Requires Pro</span>
                   )}
                 </motion.div>
               );
@@ -535,41 +558,156 @@ export default function AiLab() {
         <AnimatePresence>
           {showManage && (
             <ModalOverlay onClose={() => !isProcessing && setShowManage(false)}>
-              <div className="w-full max-w-md ns-lab-card mx-4">
-                <div className="relative z-10 p-5">
-                  <div className="flex items-center justify-between mb-5">
-                    <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>Manage Subscription</h2>
-                    <CloseBtn onClick={() => setShowManage(false)} disabled={isProcessing} />
-                  </div>
-                  <div className="rounded-xl p-4 mb-5" style={{ background: "var(--bg-input)", border: "1px solid var(--border-secondary)" }}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h3 className="font-bold" style={{ color: "var(--text-primary)" }}>{currentPlan.name}</h3>
-                        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>${currentPlan.price}/{currentPlan.period}</p>
+              <div className="w-full max-w-md sm:max-w-lg md:max-w-xl ns-lab-card mx-4">
+                <div className="relative z-10">
+                  {/* Header */}
+                  <div className="p-5 sm:p-6 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+                          style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.18), rgba(168,85,247,0.12))", border: "1px solid rgba(99,102,241,0.28)" }}>
+                          <Crown weight="duotone" size={20} className="text-indigo-400" />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>Manage Subscription</h2>
+                          <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>View and manage your billing</p>
+                        </div>
                       </div>
-                      {isCancelingUI
-                        ? <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg" style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)", color: "#f59e0b" }}>Canceling</span>
-                        : <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg" style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", color: "#10b981" }}>Active</span>}
+                      <CloseBtn onClick={() => setShowManage(false)} disabled={isProcessing} />
                     </div>
-                    {subscription.paymentMethod && (
-                      <div className="flex items-center gap-2 text-[12px]" style={{ color: "var(--text-secondary)" }}>
-                        <CreditCard size={14} /> {subscription.paymentMethod.brand} •••• {subscription.paymentMethod.last4}
+                  </div>
+
+                  {/* Body */}
+                  <div className="p-5 sm:p-6 space-y-4">
+                    {/* Plan + Payment Card */}
+                    <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border-secondary)" }}>
+                      <div className="p-4 sm:p-5 flex items-center justify-between"
+                        style={{ background: isCancelingUI ? "rgba(245,158,11,0.04)" : "rgba(16,185,129,0.04)" }}>
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                            style={{
+                              background: isCancelingUI
+                                ? "linear-gradient(135deg, rgba(245,158,11,0.15), rgba(249,115,22,0.1))"
+                                : "linear-gradient(135deg, #10b981, #0d9488)",
+                              boxShadow: isCancelingUI ? "none" : "0 4px 16px rgba(16,185,129,0.25)",
+                              border: isCancelingUI ? "1px solid rgba(245,158,11,0.25)" : "none",
+                            }}>
+                            {isCancelingUI
+                              ? <FiCalendar size={20} style={{ color: "#f59e0b" }} />
+                              : <CheckCircle size={22} weight="fill" className="text-white" />
+                            }
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>{currentPlan.name}</h3>
+                              {isCancelingUI ? (
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-lg"
+                                  style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)", color: "#f59e0b" }}>CANCELING</span>
+                              ) : (
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-lg"
+                                  style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", color: "#10b981" }}>ACTIVE</span>
+                              )}
+                            </div>
+                            <p className="text-[13px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                              <span className="font-bold" style={{ color: "var(--text-secondary)" }}>${currentPlan.price}</span>/{currentPlan.period}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    {subscription.expiresAt && (
-                      <div className="flex items-center gap-2 text-[12px] mt-1.5" style={{ color: "var(--text-muted)" }}>
-                        <FiCalendar size={12} /> Renews {new Date(subscription.expiresAt).toLocaleDateString()}
+                      <div className="h-px" style={{ background: "var(--border-secondary)" }} />
+                      <div className="p-4 sm:p-5 space-y-3" style={{ background: "var(--bg-input)" }}>
+                        {subscription.paymentMethod && (
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-xl flex items-center justify-center"
+                              style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)" }}>
+                              <CreditCard size={16} weight="duotone" style={{ color: "#818cf8" }} />
+                            </div>
+                            <div>
+                              <p className="text-[13px] font-medium" style={{ color: "var(--text-primary)" }}>
+                                {subscription.paymentMethod.brand} •••• {subscription.paymentMethod.last4}
+                              </p>
+                              <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Payment method</p>
+                            </div>
+                          </div>
+                        )}
+                        {subscription.expiresAt && (
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-xl flex items-center justify-center"
+                              style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.2)" }}>
+                              <FiCalendar size={14} style={{ color: "#a855f7" }} />
+                            </div>
+                            <div>
+                              <p className="text-[13px] font-medium" style={{ color: "var(--text-primary)" }}>
+                                {isCancelingUI ? "Access until" : "Renews"} {new Date(subscription.expiresAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+                              </p>
+                              <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                                {isCancelingUI ? "Your plan expires on this date" : "Next billing date"}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* What's included */}
+                    <div className="rounded-2xl p-4 sm:p-5" style={{ background: "var(--bg-input)", border: "1px solid var(--border-secondary)" }}>
+                      <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "var(--text-muted)" }}>
+                        {isCancelingUI ? "You'll lose access to" : "Your plan includes"}
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {currentPlan.features.slice(0, 6).map((f, i) => (
+                          <div key={i} className="flex items-center gap-2 text-[12px]" style={{ color: isCancelingUI ? "var(--text-muted)" : "var(--text-secondary)" }}>
+                            {isCancelingUI
+                              ? <FiX size={12} style={{ color: "#f43f5e", flexShrink: 0 }} />
+                              : <FiCheck size={12} style={{ color: "#10b981", flexShrink: 0 }} />
+                            }
+                            <span style={{ textDecoration: isCancelingUI ? "line-through" : "none", opacity: isCancelingUI ? 0.6 : 1 }}>{f}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Canceling info banner */}
+                    {isCancelingUI && (
+                      <div className="rounded-2xl p-4" style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)" }}>
+                        <div className="flex items-start gap-3">
+                          <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                            style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)" }}>
+                            <ShieldCheck size={14} weight="duotone" style={{ color: "#f59e0b" }} />
+                          </div>
+                          <div>
+                            <p className="text-[12px] font-bold" style={{ color: "#f59e0b" }}>Cancellation scheduled</p>
+                            <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                              You'll keep Pro access until {subscription.expiresAt ? new Date(subscription.expiresAt).toLocaleDateString(undefined, { month: "long", day: "numeric" }) : "the end of your billing period"}. After that, you'll be downgraded to the Free plan.
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <button onClick={handleCancelSubscription} disabled={isProcessing || isCancelingUI}
-                      className="w-full py-3 rounded-xl font-semibold text-sm transition disabled:opacity-40"
-                      style={{ background: "rgba(244,63,94,0.06)", border: "1px solid rgba(244,63,94,0.25)", color: "#f43f5e" }}>
-                      {isCancelingUI ? "Cancellation Pending…" : isProcessing ? "Cancelling…" : "Cancel Subscription"}
-                    </button>
-                    {cancelError && <p className="text-[11px] text-center" style={{ color: "#f43f5e" }}>{cancelError}</p>}
-                    <p className="text-[11px] text-center" style={{ color: "var(--text-muted)" }}>Access continues until billing period ends.</p>
+
+                  {/* Footer */}
+                  <div className="p-5 sm:p-6 border-t" style={{ borderColor: "var(--border-secondary)", background: "var(--bg-tertiary)" }}>
+                    <div className="space-y-2">
+                      {!isCancelingUI && (
+                        <button onClick={handleCancelSubscription} disabled={isProcessing}
+                          className="w-full py-3 rounded-xl font-semibold text-sm transition disabled:opacity-40"
+                          style={{ background: "rgba(244,63,94,0.06)", border: "1px solid rgba(244,63,94,0.25)", color: "#f43f5e" }}>
+                          {isProcessing ? "Cancelling…" : "Cancel Subscription"}
+                        </button>
+                      )}
+                      <button onClick={() => setShowManage(false)}
+                        className="w-full py-3 rounded-xl font-semibold text-sm transition"
+                        style={{ background: "var(--bg-input)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>
+                        {isCancelingUI ? "Close" : "Keep My Plan"}
+                      </button>
+                      {cancelError && <p className="text-[11px] text-center" style={{ color: "#f43f5e" }}>{cancelError}</p>}
+                      {!isCancelingUI && (
+                        <p className="text-[11px] text-center" style={{ color: "var(--text-muted)" }}>
+                          Access continues until your billing period ends.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -586,11 +724,12 @@ export default function AiLab() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2.5">
                       {showDemo.icon && (() => {
+                        const DemoIcon = showDemo.icon;
                         const c = colorMap[showDemo.color];
                         return (
                           <div className="h-9 w-9 rounded-xl flex items-center justify-center"
                             style={{ background: `rgba(${c.rgb},0.1)`, border: `1px solid rgba(${c.rgb},0.25)` }}>
-                            <showDemo.icon size={18} weight="duotone" style={{ color: c.accent }} />
+                            <DemoIcon size={18} weight="duotone" style={{ color: c.accent }} />
                           </div>
                         );
                       })()}
@@ -628,6 +767,7 @@ export default function AiLab() {
             </ModalOverlay>
           )}
         </AnimatePresence>
+
       </div>
     </>
   );
@@ -690,7 +830,7 @@ function UsageBar({ label, used, max, isPro }) {
 
 
 /* ═══════════════════════════════════════════════════════
-   DEMO COMPONENTS (logic unchanged, minimal style touches)
+   DEMO COMPONENTS
 ═══════════════════════════════════════════════════════ */
 
 function VoiceNotesDemo() {
@@ -777,12 +917,12 @@ function CollaborationDemo() {
   const [cursors, setCursors] = useState([{ id: 1, name: "Alex", color: "#8b5cf6", x: 60, y: 45 }, { id: 2, name: "Sarah", color: "#10b981", x: 180, y: 90 }, { id: 3, name: "Mike", color: "#f59e0b", x: 120, y: 140 }]);
   const [text, setText] = useState("Project Brief: Q4 Marketing Strategy\n\nObjectives:\n• Increase brand awareness by 25%\n• Launch 3 new campaigns\n• ");
   const [typingUser, setTypingUser] = useState(null);
-  const additions = [{ user: "Alex", text: "Expand social media presence" }, { user: "Sarah", text: "Partner with influencers" }, { user: "Mike", text: "Optimize ad spend ROI" }];
+  const additions = useRef([{ user: "Alex", text: "Expand social media presence" }, { user: "Sarah", text: "Partner with influencers" }, { user: "Mike", text: "Optimize ad spend ROI" }]);
 
   useEffect(() => {
     const ci = setInterval(() => { setCursors((p) => p.map((c) => ({ ...c, x: Math.max(20, Math.min(280, c.x + (Math.random() - 0.5) * 40)), y: Math.max(20, Math.min(180, c.y + (Math.random() - 0.5) * 30)) }))); }, 1500);
     let idx = 0;
-    const ti = setInterval(() => { const a = additions[idx % additions.length]; setTypingUser(a.user); setTimeout(() => { setText((p) => p + a.text + "\n• "); setTypingUser(null); idx++; }, 1500); }, 4000);
+    const ti = setInterval(() => { const a = additions.current[idx % additions.current.length]; setTypingUser(a.user); setTimeout(() => { setText((p) => p + a.text + "\n• "); setTypingUser(null); idx++; }, 1500); }, 4000);
     return () => { clearInterval(ci); clearInterval(ti); };
   }, []);
 
