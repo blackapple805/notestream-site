@@ -1,7 +1,8 @@
 // src/pages/Settings.jsx
 // ═══════════════════════════════════════════════════════════════════
 // REDESIGNED: Matching bento-glass visual system.
-// All Supabase / auth / profile / workspace logic is UNCHANGED.
+// + Page loading skeleton on initial load
+// + Full account deletion (data + auth user via RPC)
 // ═══════════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
@@ -73,6 +74,16 @@ const SETTINGS_STYLES = `
 .ns-set-row:hover {
   border-color: rgba(99,102,241,0.2);
 }
+
+@keyframes ns-skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.15; }
+}
+.ns-skeleton {
+  border-radius: 10px;
+  background: var(--border-secondary);
+  animation: ns-skeleton-pulse 1.8s ease-in-out infinite;
+}
 `;
 
 function formatDateShort(d) {
@@ -83,15 +94,45 @@ function getLast7DaysRange() {
   const end = new Date(); const start = new Date(); start.setDate(end.getDate() - 7); return { start, end };
 }
 
+/* ─── Loading Skeleton ─── */
+function SettingsSkeleton() {
+  return (
+    <div className="space-y-5">
+      {/* Header skeleton */}
+      <div className="flex items-center gap-3">
+        <div className="ns-skeleton h-11 w-11 rounded-2xl" />
+        <div className="space-y-2">
+          <div className="ns-skeleton h-5 w-24 rounded-lg" />
+          <div className="ns-skeleton h-3 w-48 rounded-lg" />
+        </div>
+      </div>
+      {/* Card skeletons */}
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="ns-set-card">
+          <div className="relative z-10 p-4 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <div className="ns-skeleton h-8 w-8 rounded-lg" />
+              <div className="ns-skeleton h-4 w-20 rounded-lg" />
+            </div>
+            <div className="ns-skeleton h-12 w-full rounded-xl" />
+            <div className="ns-skeleton h-12 w-full rounded-xl" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════
-   MAIN COMPONENT — all logic unchanged
+   MAIN COMPONENT
 ═══════════════════════════════════════════════════════ */
 export default function Settings() {
   const navigate = useNavigate();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { settings, updateSetting } = useWorkspaceSettings();
 
-  /* ── State (unchanged) ── */
+  /* ── State ── */
+  const [pageLoading, setPageLoading] = useState(true);
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -101,6 +142,7 @@ export default function Settings() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -110,7 +152,7 @@ export default function Settings() {
 
   const showToast = (message) => { setToast(message); setTimeout(() => setToast(null), 3000); };
 
-  /* ── Auth + DB helpers (unchanged) ── */
+  /* ── Auth + DB helpers ── */
   const getUser = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) return null;
     const { data, error } = await supabase.auth.getSession();
@@ -143,7 +185,7 @@ export default function Settings() {
       if (!savingRef.current) setDisplayName(data?.display_name || "");
       setStats(data ? { notes_created: data.notes_created ?? 0, ai_uses: data.ai_uses ?? 0, active_days: data.active_days ?? 0, streak_days: data.streak_days ?? 0, last_active_date: data.last_active_date ?? null } : null);
     } catch (e) { setStats(null); setStatsError(e?.message || "Failed to load stats."); }
-    finally { if (myReq === reqRef.current) { setProfileLoading(false); setStatsLoading(false); } }
+    finally { if (myReq === reqRef.current) { setProfileLoading(false); setStatsLoading(false); setPageLoading(false); } }
   }, [ensureStatsRow, getUser]);
 
   useEffect(() => {
@@ -153,7 +195,7 @@ export default function Settings() {
     return () => sub?.subscription?.unsubscribe();
   }, []);
 
-  /* ── Profile save (unchanged) ── */
+  /* ── Profile save ── */
   const handleSaveProfile = async () => {
     const cleanName = (displayName || "").trim();
     if (!cleanName) return showToast("Display name cannot be empty.");
@@ -170,7 +212,30 @@ export default function Settings() {
     } catch (err) { showToast(err?.message || "Save failed."); savingRef.current = false; reqRef.current += 1; hydrateFromDb(); }
   };
 
-  /* ── Export (unchanged) ── */
+  /* ── DELETE ACCOUNT (full removal via RPC) ── */
+  const handleDeleteAccount = async () => {
+    setDeleteLoading(true);
+    try {
+      if (isSupabaseConfigured && supabase) {
+        const { error } = await supabase.rpc("delete_my_account");
+        if (error) throw error;
+        await supabase.auth.signOut();
+      }
+    } catch (err) {
+      console.error("Account deletion failed:", err);
+      showToast("Failed to delete account: " + (err?.message || "Unknown error"));
+      setDeleteLoading(false);
+      setShowDeleteModal(false);
+      return;
+    }
+    localStorage.clear();
+    setDeleteLoading(false);
+    setShowDeleteModal(false);
+    showToast("Account deleted permanently");
+    setTimeout(() => navigate("/"), 300);
+  };
+
+  /* ── Export ── */
   const handleExportData = async () => {
     try {
       const exportData = { exportDate: new Date().toISOString(), version: "1.0.0", profile: { displayName: displayName || "Unknown", email: email || "Unknown" }, settings: { theme: theme || "dark", autoSummarize: !!settings.autoSummarize, smartNotifications: !!settings.smartNotifications, weeklyDigest: !!settings.weeklyDigest, pinEnabled: localStorage.getItem("ns-note-pin") !== null }, stats: stats || {}, notes: [], documents: [], activity: [] };
@@ -189,7 +254,7 @@ export default function Settings() {
     } catch (err) { setShowExportModal(false); showToast("Export failed."); }
   };
 
-  /* ── Setting handlers (unchanged) ── */
+  /* ── Setting handlers ── */
   const handleAutoSummarizeChange = (v) => { updateSetting("autoSummarize", v); showToast(v ? "Auto-summarize enabled" : "Auto-summarize disabled"); };
   const handleWeeklyDigestChange = async (v) => { updateSetting("weeklyDigest", v); if (v && isSupabaseConfigured && supabase) { try { await hydrateFromDb(); } catch {} } showToast(v ? "Weekly digest enabled" : "Weekly digest disabled"); };
   const handleSmartNotificationsChange = (v) => { updateSetting("smartNotifications", v); showToast(v ? "Smart notifications enabled" : "Smart notifications disabled"); };
@@ -207,6 +272,17 @@ export default function Settings() {
   /* ═══════════════════════════════════════════════════════
      RENDER
   ═══════════════════════════════════════════════════════ */
+
+  // Show skeleton while loading
+  if (pageLoading) {
+    return (
+      <>
+        <style>{SETTINGS_STYLES}</style>
+        <SettingsSkeleton />
+      </>
+    );
+  }
+
   return (
     <>
       <style>{SETTINGS_STYLES}</style>
@@ -329,7 +405,6 @@ export default function Settings() {
               <ToggleSetting label="Weekly digest" description="Summary card on your dashboard" enabled={settings.weeklyDigest} onChange={handleWeeklyDigestChange} />
             </div>
 
-            {/* Digest preview */}
             {settings.weeklyDigest && (
               <div className="mt-4 pt-4 border-t" style={{ borderColor: "var(--border-secondary)" }}>
                 <div className="flex items-center justify-between mb-2.5">
@@ -361,7 +436,6 @@ export default function Settings() {
               </div>
             )}
 
-            {/* Active features */}
             <div className="mt-4 pt-4 border-t" style={{ borderColor: "var(--border-secondary)" }}>
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>Active features</p>
               <div className="flex flex-wrap gap-1.5">
@@ -426,7 +500,7 @@ export default function Settings() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold" style={{ color: "#f43f5e" }}>Delete account</p>
-                  <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Permanently delete all data</p>
+                  <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Permanently remove all data & auth account</p>
                 </div>
               </button>
             </div>
@@ -442,14 +516,16 @@ export default function Settings() {
         {/* ── MODALS ── */}
         <AnimatePresence>
           {showDeleteModal && (
-            <ConfirmModal title="Delete Account?" description="This will permanently delete all your notes, documents, and settings. This cannot be undone."
-              confirmLabel="Delete Forever" confirmStyle={{ background: "linear-gradient(135deg, #e11d48, #f43f5e)" }}
-              icon={<FiTrash2 size={18} style={{ color: "#f43f5e" }} />} iconBg="rgba(244,63,94,0.12)" iconBorder="rgba(244,63,94,0.25)"
-              onConfirm={async () => {
-                try { if (isSupabaseConfigured && supabase) { const user = await getUser(); if (user?.id) { await supabase.from("activity_events").delete().eq("user_id", user.id); await supabase.from("notes").delete().eq("user_id", user.id); await supabase.from("documents").delete().eq("user_id", user.id); await supabase.from(USER_STATS_TABLE).delete().eq("user_id", user.id); await supabase.auth.signOut(); } } } catch (err) { console.error(err); }
-                localStorage.clear(); setShowDeleteModal(false); showToast("Account deleted"); setTimeout(() => navigate("/"), 300);
-              }}
-              onCancel={() => setShowDeleteModal(false)} />
+            <ConfirmModal title="Delete Account?" description="This will permanently delete all your notes, documents, settings, AND your login account. This cannot be undone."
+              confirmLabel={deleteLoading ? "Deleting…" : "Delete Forever"} confirmDisabled={deleteLoading}
+              confirmStyle={{ background: "linear-gradient(135deg, #e11d48, #f43f5e)" }}
+              icon={deleteLoading
+                ? <div className="w-5 h-5 border-2 border-rose-300/30 border-t-rose-400 rounded-full animate-spin" />
+                : <FiTrash2 size={18} style={{ color: "#f43f5e" }} />
+              }
+              iconBg="rgba(244,63,94,0.12)" iconBorder="rgba(244,63,94,0.25)"
+              onConfirm={handleDeleteAccount}
+              onCancel={() => { if (!deleteLoading) setShowDeleteModal(false); }} />
           )}
         </AnimatePresence>
 
@@ -562,7 +638,7 @@ function FeaturePill({ icon, label, color }) {
   );
 }
 
-function ConfirmModal({ title, description, confirmLabel, confirmStyle, icon, iconBg, iconBorder, onConfirm, onCancel }) {
+function ConfirmModal({ title, description, confirmLabel, confirmStyle, confirmDisabled, icon, iconBg, iconBorder, onConfirm, onCancel }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-[9999] flex items-center justify-center px-4"
@@ -577,9 +653,9 @@ function ConfirmModal({ title, description, confirmLabel, confirmStyle, icon, ic
           </div>
           <p className="text-[13px] mb-5 leading-relaxed" style={{ color: "var(--text-muted)" }}>{description}</p>
           <div className="flex gap-3">
-            <button onClick={onCancel} className="flex-1 py-3 rounded-xl text-sm font-semibold transition"
+            <button onClick={onCancel} disabled={confirmDisabled} className="flex-1 py-3 rounded-xl text-sm font-semibold transition disabled:opacity-50"
               style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>Cancel</button>
-            <button onClick={onConfirm} className="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition"
+            <button onClick={onConfirm} disabled={confirmDisabled} className="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition disabled:opacity-70"
               style={{ boxShadow: "0 4px 16px rgba(0,0,0,0.2)", ...confirmStyle }}>{confirmLabel}</button>
           </div>
         </div>
