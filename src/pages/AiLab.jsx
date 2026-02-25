@@ -62,6 +62,16 @@ const AILAB_STYLES = `
 .ns-lab-stagger > *:nth-child(5) { animation-delay: 0.14s; }
 .ns-lab-stagger > *:nth-child(6) { animation-delay: 0.17s; }
 
+/* iPhone safe-area full coverage */
+.ns-lab-wrapper {
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .ns-lab-card {
   position: relative;
   border-radius: 20px;
@@ -131,9 +141,38 @@ export default function AiLab() {
   const [cardName, setCardName] = useState("");
   const [writingProfile, setWritingProfile] = useState(null);
   const [profileSummary, setProfileSummary] = useState("");
+  const [showLimitReached, setShowLimitReached] = useState(null);
 
   const currentPlan = getCurrentPlan();
   const isPro = subscription.plan !== "free";
+
+  /* ── Limit enforcement for free users ── */
+  const usageLimitMap = {
+    voice: { key: "voiceTranscriptions", limitKey: "voiceTranscriptions", label: "Voice Transcriptions" },
+    export: { key: "documentSynth", limitKey: "documentSynth", label: "Document Synthesis" },
+    unlimited: { key: "aiSummaries", limitKey: "aiSummaries", label: "AI Summaries" },
+  };
+
+  const isLimitReached = (featureId) => {
+    if (isPro) return false;
+    const mapping = usageLimitMap[featureId];
+    if (!mapping) return false;
+    const used = usage[mapping.key] || 0;
+    const limit = currentPlan.limits[mapping.limitKey];
+    if (limit === Infinity || limit === undefined) return false;
+    return used >= limit;
+  };
+
+  const checkAndEnforce = (featureId) => {
+    if (isLimitReached(featureId)) {
+      const mapping = usageLimitMap[featureId];
+      const used = usage[mapping.key] || 0;
+      const limit = currentPlan.limits[mapping.limitKey];
+      setShowLimitReached({ featureId, label: mapping.label, used, limit });
+      return true;
+    }
+    return false;
+  };
 
   // Cancel UX: optimistic + polling
   const [optimisticCancel, setOptimisticCancel] = useState(false);
@@ -219,6 +258,9 @@ export default function AiLab() {
 
   const handleDemo = (feature, unlocked) => setShowDemo({ ...feature, unlocked });
   const openFeature = (feature, unlocked) => {
+    /* Enforce usage limits for free users before opening anything */
+    if (!isPro && checkAndEnforce(feature.id)) return;
+
     if (unlocked) { const route = featureRoutes[feature.id]; if (route) { setShowDemo(null); setShowPricing(false); setShowCheckout(null); setShowManage(false); navigate(route); return; } if (feature.demo !== true) return; return handleDemo(feature, true); }
     if (feature.demo === true) return handleDemo(feature, false);
     return handleUpgrade();
@@ -248,7 +290,7 @@ export default function AiLab() {
     <>
       <style>{AILAB_STYLES}</style>
 
-      <div className="space-y-5 pb-[calc(var(--mobile-nav-height)+24px)] ns-lab-stagger">
+      <div className="space-y-5 pb-6 ns-lab-stagger ns-lab-wrapper">
 
         {/* ── HEADER ── */}
         <header className="flex items-center justify-between gap-3">
@@ -380,6 +422,7 @@ export default function AiLab() {
               const Icon = feature.icon;
               const unlocked = isFeatureUnlocked(feature.id);
               const canPreview = feature.demo === true;
+              const limitHit = !isPro && isLimitReached(feature.id);
 
               return (
                 <motion.div key={feature.id} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
@@ -391,6 +434,10 @@ export default function AiLab() {
                       <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)" }}>
                         <FiCheck size={11} style={{ color: "#10b981" }} />
                       </div>
+                    ) : limitHit ? (
+                      <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)" }}>
+                        <Lightning size={11} weight="fill" style={{ color: "#f59e0b" }} />
+                      </div>
                     ) : (
                       <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--border-secondary)" }}>
                         <Lock size={11} weight="fill" style={{ color: "var(--text-muted)" }} />
@@ -400,14 +447,16 @@ export default function AiLab() {
 
                   {/* Icon */}
                   <div className="h-10 w-10 rounded-xl flex items-center justify-center mb-3"
-                    style={{ background: `rgba(${c.rgb},0.1)`, border: `1px solid rgba(${c.rgb},0.25)` }}>
+                    style={{ background: `rgba(${c.rgb},${limitHit ? "0.05" : "0.1"})`, border: `1px solid rgba(${c.rgb},0.25)`, opacity: limitHit ? 0.6 : 1 }}>
                     <Icon size={20} weight="duotone" style={{ color: c.accent }} />
                   </div>
 
                   <h4 className="text-[13px] font-bold mb-1" style={{ color: "var(--text-primary)" }}>{feature.title}</h4>
                   <p className="text-[11px] leading-relaxed mb-3" style={{ color: "var(--text-muted)" }}>{feature.desc}</p>
 
-                  {unlocked ? (
+                  {limitHit ? (
+                    <span className="text-[10px] font-bold px-3 py-1 rounded-lg" style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)", color: "#f59e0b" }}>Limit Reached</span>
+                  ) : unlocked ? (
                     featureRoutes[feature.id] ? (
                       <button type="button" onClick={(e) => { e.stopPropagation(); openFeature(feature, true); }}
                         className="text-[11px] font-bold px-3.5 py-1.5 rounded-lg transition"
@@ -690,23 +739,23 @@ export default function AiLab() {
                   <div className="p-5 sm:p-6 border-t" style={{ borderColor: "var(--border-secondary)", background: "var(--bg-tertiary)" }}>
                     <div className="space-y-2">
                       {!isCancelingUI && (
-                        <button onClick={handleCancelSubscription} disabled={isProcessing}
-                          className="w-full py-3 rounded-xl font-semibold text-sm transition disabled:opacity-40"
-                          style={{ background: "rgba(244,63,94,0.06)", border: "1px solid rgba(244,63,94,0.25)", color: "#f43f5e" }}>
-                          {isProcessing ? "Cancelling…" : "Cancel Subscription"}
-                        </button>
+                        <>
+                          <button onClick={handleCancelSubscription} disabled={isProcessing}
+                            className="w-full py-3 rounded-xl font-semibold text-sm transition disabled:opacity-40"
+                            style={{ background: "rgba(244,63,94,0.06)", border: "1px solid rgba(244,63,94,0.25)", color: "#f43f5e" }}>
+                            {isProcessing ? "Cancelling…" : "Cancel Subscription"}
+                          </button>
+                          <button onClick={() => setShowManage(false)}
+                            className="w-full py-3 rounded-xl font-semibold text-sm transition"
+                            style={{ background: "var(--bg-input)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>
+                            Keep My Plan
+                          </button>
+                          <p className="text-[11px] text-center" style={{ color: "var(--text-muted)" }}>
+                            Access continues until your billing period ends.
+                          </p>
+                        </>
                       )}
-                      <button onClick={() => setShowManage(false)}
-                        className="w-full py-3 rounded-xl font-semibold text-sm transition"
-                        style={{ background: "var(--bg-input)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>
-                        {isCancelingUI ? "Close" : "Keep My Plan"}
-                      </button>
                       {cancelError && <p className="text-[11px] text-center" style={{ color: "#f43f5e" }}>{cancelError}</p>}
-                      {!isCancelingUI && (
-                        <p className="text-[11px] text-center" style={{ color: "var(--text-muted)" }}>
-                          Access continues until your billing period ends.
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -768,6 +817,44 @@ export default function AiLab() {
           )}
         </AnimatePresence>
 
+        {/* ── LIMIT REACHED MODAL ── */}
+        <AnimatePresence>
+          {showLimitReached && (
+            <ModalOverlay onClose={() => setShowLimitReached(null)}>
+              <div className="w-full max-w-sm ns-lab-card mx-4">
+                <div className="relative z-10 p-6 text-center">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                    style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)" }}>
+                    <Lightning size={28} weight="fill" style={{ color: "#f59e0b" }} />
+                  </div>
+                  <h3 className="text-lg font-bold mb-1" style={{ color: "var(--text-primary)" }}>Daily Limit Reached</h3>
+                  <p className="text-[13px] mb-4" style={{ color: "var(--text-muted)" }}>
+                    You've used <span className="font-bold" style={{ color: "#f59e0b" }}>{showLimitReached.used}/{showLimitReached.limit}</span> {showLimitReached.label} today.
+                  </p>
+                  <div className="h-2 rounded-full overflow-hidden mb-4" style={{ background: "var(--bg-tertiary)" }}>
+                    <div className="h-full rounded-full" style={{ width: "100%", background: "linear-gradient(90deg, #f59e0b, #f43f5e)" }} />
+                  </div>
+                  <p className="text-[12px] mb-5" style={{ color: "var(--text-muted)" }}>
+                    Upgrade to Pro for unlimited access to all features. Limits reset at midnight.
+                  </p>
+                  <div className="space-y-2">
+                    <button onClick={() => { setShowLimitReached(null); handleUpgrade(); }}
+                      className="w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition"
+                      style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 16px rgba(99,102,241,0.3)" }}>
+                      <Crown size={15} weight="fill" /> Upgrade to Pro
+                    </button>
+                    <button onClick={() => setShowLimitReached(null)}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold transition"
+                      style={{ color: "var(--text-muted)" }}>
+                      Maybe Later
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ModalOverlay>
+          )}
+        </AnimatePresence>
+
       </div>
     </>
   );
@@ -780,11 +867,11 @@ export default function AiLab() {
 
 const ModalOverlay = ({ children, onClose }) => (
   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-    className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-    style={{ backgroundColor: "var(--bg-overlay, rgba(0,0,0,0.6))", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
+    className="fixed inset-0 z-[9999] flex items-center justify-center"
+    style={{ backgroundColor: "var(--bg-overlay, rgba(0,0,0,0.6))", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", padding: "16px env(safe-area-inset-right, 16px) 16px env(safe-area-inset-left, 16px)" }}
     onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.(); }}>
     <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-      transition={{ duration: 0.2 }} onClick={(e) => e.stopPropagation()}>
+      transition={{ duration: 0.2 }} className="w-full flex justify-center" onClick={(e) => e.stopPropagation()}>
       {children}
     </motion.div>
   </motion.div>
@@ -809,21 +896,27 @@ const FormField = ({ label, icon, input }) => (
 );
 
 function UsageBar({ label, used, max, isPro }) {
-  const pct = max === Infinity ? 30 : (used / max) * 100;
+  const pct = max === Infinity ? 30 : Math.min(100, (used / max) * 100);
   const isLow = !isPro && pct >= 80;
+  const isOver = !isPro && max !== Infinity && used >= max;
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
         <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>{label}</span>
-        <span className="text-[11px] font-bold" style={{ color: isLow ? "#f59e0b" : "var(--text-secondary)" }}>
+        <span className="text-[11px] font-bold" style={{ color: isOver ? "#f43f5e" : isLow ? "#f59e0b" : "var(--text-secondary)" }}>
           {isPro ? <span style={{ color: "#10b981" }}>Unlimited</span> : `${used}/${max}`}
         </span>
       </div>
       <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-tertiary)" }}>
         <motion.div initial={{ width: 0 }} animate={{ width: isPro ? "100%" : `${pct}%` }} transition={{ duration: 0.5 }}
           className="h-full rounded-full"
-          style={{ background: isPro ? "linear-gradient(90deg, #10b981, #0d9488)" : isLow ? "linear-gradient(90deg, #f59e0b, #f97316)" : "linear-gradient(90deg, #6366f1, #8b5cf6)" }} />
+          style={{ background: isPro ? "linear-gradient(90deg, #10b981, #0d9488)" : isOver ? "linear-gradient(90deg, #f43f5e, #e11d48)" : isLow ? "linear-gradient(90deg, #f59e0b, #f97316)" : "linear-gradient(90deg, #6366f1, #8b5cf6)" }} />
       </div>
+      {isOver && (
+        <p className="text-[10px] mt-0.5 font-medium" style={{ color: "#f43f5e" }}>
+          Daily limit reached — upgrade for unlimited
+        </p>
+      )}
     </div>
   );
 }
@@ -1123,5 +1216,3 @@ function CustomTrainingDemo({ unlocked }) {
     </div>
   );
 }
-
-

@@ -171,11 +171,6 @@ export default function SignupPage() {
 
             {/* Brand */}
             <div className="text-center mb-8">
-              <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-                className="h-14 w-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                style={{ background: "linear-gradient(135deg, #8b5cf6, #6366f1)", boxShadow: "0 8px 32px rgba(139,92,246,0.35)" }}>
-                <LogoIcon />
-              </motion.div>
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight" style={{ color: "var(--text-primary)" }}>Create your account</h1>
               <p className="text-[13px] mt-1" style={{ color: "var(--text-muted)" }}>
                 Get started with <span style={{ color: "#818cf8" }}>NoteStream</span> for free
@@ -299,5 +294,3 @@ export default function SignupPage() {
     </>
   );
 }
-
-

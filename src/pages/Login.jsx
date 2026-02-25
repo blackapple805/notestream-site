@@ -197,11 +197,6 @@ export default function LoginPage() {
 
             {/* Brand */}
             <div className="text-center mb-8">
-              <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-                className="h-14 w-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 8px 32px rgba(99,102,241,0.35)" }}>
-                <LogoIcon />
-              </motion.div>
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight" style={{ color: "var(--text-primary)" }}>Welcome back</h1>
               <p className="text-[13px] mt-1" style={{ color: "var(--text-muted)" }}>Sign in to continue to <span style={{ color: "#818cf8" }}>NoteStream</span></p>
             </div>
@@ -318,7 +313,3 @@ function TipCard({ text }) {
     </div>
   );
 }
-
-
-
-

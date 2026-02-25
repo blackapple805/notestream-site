@@ -2,6 +2,7 @@
 // Fully fixed: removed ALL phosphor-react usage + replaced with react-icons/fi only
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../../components/GlassCard";
@@ -162,30 +163,58 @@ export default function Integrations() {
   const [waitlist, setWaitlist] = useState({});
   const [showToast, setShowToast] = useState(null);
 
+  // Lock body scroll when modal is open to prevent page jump
+  const openModal = (integration) => {
+    document.body.style.overflow = "hidden";
+    setSelectedIntegration(integration);
+  };
+  const closeModal = () => {
+    document.body.style.overflow = "";
+    setSelectedIntegration(null);
+  };
+
   const displayToast = (message, type = "success") => {
     setShowToast({ message, type });
     setTimeout(() => setShowToast(null), 3000);
   };
 
   const handleConnect = (integrationId) => {
+    const scrollY = window.scrollY;
+    document.body.style.overflow = "hidden";
     setConnectedIntegrations((prev) => ({ ...prev, [integrationId]: true }));
     setSelectedIntegration(null);
     displayToast(`${integrations.find((i) => i.id === integrationId)?.title} connected successfully!`);
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+      document.body.style.overflow = "";
+    });
   };
 
   const handleDisconnect = (integrationId) => {
+    const scrollY = window.scrollY;
+    document.body.style.overflow = "hidden";
     setConnectedIntegrations((prev) => {
       const updated = { ...prev };
       delete updated[integrationId];
       return updated;
     });
     displayToast(`Integration disconnected`, "info");
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+      document.body.style.overflow = "";
+    });
   };
 
   const handleJoinWaitlist = (integrationId) => {
+    const scrollY = window.scrollY;
+    document.body.style.overflow = "hidden";
     setWaitlist((prev) => ({ ...prev, [integrationId]: true }));
     setSelectedIntegration(null);
     displayToast(`You're on the waitlist! We'll notify you when it's ready.`);
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+      document.body.style.overflow = "";
+    });
   };
 
   const availableIntegrations = integrations.filter((i) => i.status === "available");
@@ -194,24 +223,51 @@ export default function Integrations() {
 
   return (
     <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
-      {/* Toast */}
-      <AnimatePresence>
-        {showToast && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2 ${
-              showToast.type === "success"
-                ? "bg-emerald-900/80 border border-emerald-500/40 text-emerald-200"
-                : "bg-indigo-900/80 border border-indigo-500/40 text-indigo-200"
-            }`}
-          >
-            <FiCheck size={16} />
-            {showToast.message}
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+      {/* Toast — rendered via portal so it never affects page layout */}
+      {createPortal(
+        <AnimatePresence>
+          {showToast && (
+            <>
+              {/* Responsive toast positioning */}
+              <style>{`
+                .ns-toast {
+                  position: fixed;
+                  top: calc(env(safe-area-inset-top, 0px) + 68px);
+                  left: 50%;
+                  transform: translateX(-50%);
+                  z-index: 9999;
+                  pointer-events: none;
+                  max-width: min(90vw, 400px);
+                }
+                @media (min-width: 768px) {
+                  .ns-toast {
+                    top: calc(var(--app-header-h, 72px) + 12px);
+                    left: auto;
+                    right: calc(var(--ns-layout-right-pad, 0px) + 24px);
+                    transform: none;
+                  }
+                }
+              `}</style>
+              <motion.div
+                initial={{ opacity: 0, y: -12, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -12, scale: 0.95 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className={`ns-toast px-4 py-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2 text-sm font-medium ${
+                  showToast.type === "success"
+                    ? "bg-emerald-900/90 border border-emerald-500/40 text-emerald-200"
+                    : "bg-indigo-900/90 border border-indigo-500/40 text-indigo-200"
+                }`}
+              >
+                <FiCheck size={14} className="flex-shrink-0" />
+                {showToast.message}
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* Header */}
       <header className="page-header">
@@ -271,7 +327,7 @@ export default function Integrations() {
                   backgroundColor: "var(--bg-surface)",
                   borderColor: isConnected ? "rgba(16,185,129,0.3)" : "var(--border-secondary)",
                 }}
-                onClick={() => setSelectedIntegration(integration)}
+                onClick={() => openModal(integration)}
               >
                 <div className="flex items-start justify-between mb-4">
                   <IconTile tone={integration.tone} size="md">
@@ -361,7 +417,7 @@ export default function Integrations() {
                 whileHover={{ y: -2 }}
                 className="rounded-2xl border p-5 transition-all cursor-pointer group opacity-80 hover:opacity-100"
                 style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
-                onClick={() => setSelectedIntegration(integration)}
+                onClick={() => openModal(integration)}
               >
                 <div className="flex items-start justify-between mb-4">
                   <IconTile tone={integration.tone} size="md">
@@ -451,185 +507,198 @@ export default function Integrations() {
         </div>
       </GlassCard>
 
-      {/* Integration Detail Modal */}
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          INTEGRATION DETAIL MODAL — Centered on all viewports
+      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <AnimatePresence>
         {selectedIntegration && (
           <>
+            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[100]"
-              style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
-              onClick={() => setSelectedIntegration(null)}
+              style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
+              onClick={() => closeModal()}
             />
 
+            {/* Modal — true center via inset + margin auto (transform-safe for Framer Motion) */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed z-[101] inset-x-4 top-1/2 -translate-y-1/2 max-w-md mx-auto rounded-2xl border shadow-2xl overflow-hidden"
-              style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: "spring", damping: 28, stiffness: 350 }}
+              className="fixed z-[101] w-[calc(100%-2rem)] max-w-md rounded-2xl border shadow-2xl overflow-y-auto"
+              style={{
+                backgroundColor: "var(--bg-surface)",
+                borderColor: "var(--border-secondary)",
+                inset: 0,
+                margin: "auto",
+                maxHeight: "calc(100dvh - 3rem)",
+                height: "fit-content",
+              }}
+              onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
-              <div className="p-6 border-b" style={{ borderColor: "var(--border-secondary)" }}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <IconTile tone={selectedIntegration.tone} size="lg">
-                      {(() => {
-                        const Icon = selectedIntegration.icon;
-                        return <Icon className="h-7 w-7" />;
-                      })()}
-                    </IconTile>
-                    <div>
-                      <h3 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
-                        {selectedIntegration.title}
-                      </h3>
+                {/* Header */}
+                <div className="p-6 border-b" style={{ borderColor: "var(--border-secondary)" }}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <IconTile tone={selectedIntegration.tone} size="lg">
+                        {(() => {
+                          const Icon = selectedIntegration.icon;
+                          return <Icon className="h-7 w-7" />;
+                        })()}
+                      </IconTile>
+                      <div>
+                        <h3 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
+                          {selectedIntegration.title}
+                        </h3>
 
-                      {selectedIntegration.status === "coming-soon" ? (
-                        <span className="text-sm text-amber-400 flex items-center gap-1">
-                          <FiClock size={12} />
-                          Coming Soon
-                        </span>
-                      ) : connectedIntegrations[selectedIntegration.id] ? (
-                        <span className="text-sm text-emerald-400 flex items-center gap-1">
-                          <FiCheck size={12} />
-                          Connected
-                        </span>
-                      ) : (
-                        <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                          Available
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setSelectedIntegration(null)}
-                    className="h-8 w-8 rounded-lg flex items-center justify-center transition"
-                    style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-muted)" }}
-                  >
-                    <FiX size={16} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Body */}
-              <div className="p-6">
-                <p className="mb-6" style={{ color: "var(--text-muted)" }}>
-                  {selectedIntegration.desc}
-                </p>
-
-                {/* Features */}
-                <div className="mb-6">
-                  <p className="text-xs font-semibold mb-3 uppercase tracking-wide" style={{ color: "var(--text-secondary)" }}>
-                    Features included
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {selectedIntegration.features.map((feature, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-2 p-2.5 rounded-xl border"
-                        style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
-                      >
-                        <div
-                          className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: "rgba(99,102,241,0.2)" }}
-                        >
-                          <FiCheck size={10} className="text-indigo-400" />
-                        </div>
-                        <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                          {feature}
-                        </span>
+                        {selectedIntegration.status === "coming-soon" ? (
+                          <span className="text-sm text-amber-400 flex items-center gap-1">
+                            <FiClock size={12} />
+                            Coming Soon
+                          </span>
+                        ) : connectedIntegrations[selectedIntegration.id] ? (
+                          <span className="text-sm text-emerald-400 flex items-center gap-1">
+                            <FiCheck size={12} />
+                            Connected
+                          </span>
+                        ) : (
+                          <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+                            Available
+                          </span>
+                        )}
                       </div>
-                    ))}
+                    </div>
+
+                    <button
+                      onClick={() => closeModal()}
+                      className="h-8 w-8 rounded-lg flex items-center justify-center transition"
+                      style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-muted)" }}
+                    >
+                      <FiX size={16} />
+                    </button>
                   </div>
                 </div>
 
-                {/* Pro Badge */}
-                {!isPro && selectedIntegration.status === "available" && (
-                  <div
-                    className="mb-6 p-3 rounded-xl border flex items-center gap-3"
-                    style={{ backgroundColor: "rgba(251,191,36,0.1)", borderColor: "rgba(251,191,36,0.25)" }}
-                  >
-                    <FiZap size={20} className="text-amber-400" />
-                    <div className="flex-1">
-                      <p className="text-xs font-medium text-amber-400">Pro Feature</p>
-                      <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                        Some features require a Pro subscription
-                      </p>
+                {/* Body */}
+                <div className="p-6">
+                  <p className="mb-6" style={{ color: "var(--text-muted)" }}>
+                    {selectedIntegration.desc}
+                  </p>
+
+                  {/* Features */}
+                  <div className="mb-6">
+                    <p className="text-xs font-semibold mb-3 uppercase tracking-wide" style={{ color: "var(--text-secondary)" }}>
+                      Features included
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedIntegration.features.map((feature, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 p-2.5 rounded-xl border"
+                          style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
+                        >
+                          <div
+                            className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ backgroundColor: "rgba(99,102,241,0.2)" }}
+                          >
+                            <FiCheck size={10} className="text-indigo-400" />
+                          </div>
+                          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                            {feature}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Footer */}
-              <div
-                className="p-6 border-t"
-                style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}
-              >
-                {selectedIntegration.status === "coming-soon" ? (
-                  waitlist[selectedIntegration.id] ? (
-                    <button
-                      disabled
-                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium"
-                      style={{
-                        backgroundColor: "rgba(16,185,129,0.15)",
-                        border: "1px solid rgba(16,185,129,0.25)",
-                        color: "var(--accent-emerald)",
-                      }}
+                  {/* Pro Badge */}
+                  {!isPro && selectedIntegration.status === "available" && (
+                    <div
+                      className="mb-6 p-3 rounded-xl border flex items-center gap-3"
+                      style={{ backgroundColor: "rgba(251,191,36,0.1)", borderColor: "rgba(251,191,36,0.25)" }}
                     >
-                      <FiCheck size={16} />
-                      You're on the waitlist!
-                    </button>
+                      <FiZap size={20} className="text-amber-400" />
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-amber-400">Pro Feature</p>
+                        <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                          Some features require a Pro subscription
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div
+                  className="p-6 border-t"
+                  style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}
+                >
+                  {selectedIntegration.status === "coming-soon" ? (
+                    waitlist[selectedIntegration.id] ? (
+                      <button
+                        disabled
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium"
+                        style={{
+                          backgroundColor: "rgba(16,185,129,0.15)",
+                          border: "1px solid rgba(16,185,129,0.25)",
+                          color: "var(--accent-emerald)",
+                        }}
+                      >
+                        <FiCheck size={16} />
+                        You're on the waitlist!
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleJoinWaitlist(selectedIntegration.id)}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90 transition"
+                      >
+                        <FiBell size={16} />
+                        Join Waitlist
+                      </button>
+                    )
+                  ) : connectedIntegrations[selectedIntegration.id] ? (
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => closeModal()}
+                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium border transition hover:bg-white/5"
+                        style={{ borderColor: "var(--border-secondary)", color: "var(--text-secondary)" }}
+                      >
+                        <FiSettings size={16} />
+                        Manage Settings
+                      </button>
+                      <button
+                        onClick={() => handleDisconnect(selectedIntegration.id)}
+                        className="px-5 py-3 rounded-xl text-sm font-medium transition"
+                        style={{
+                          backgroundColor: "rgba(244,63,94,0.15)",
+                          border: "1px solid rgba(244,63,94,0.25)",
+                          color: "var(--accent-rose)",
+                        }}
+                      >
+                        Disconnect
+                      </button>
+                    </div>
                   ) : (
                     <button
-                      onClick={() => handleJoinWaitlist(selectedIntegration.id)}
-                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90 transition"
+                      onClick={() => handleConnect(selectedIntegration.id)}
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 transition shadow-lg"
                     >
-                      <FiBell size={16} />
-                      Join Waitlist
+                      <FiPlus size={16} />
+                      Connect {selectedIntegration.title}
                     </button>
-                  )
-                ) : connectedIntegrations[selectedIntegration.id] ? (
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setSelectedIntegration(null)}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium border transition hover:bg-white/5"
-                      style={{ borderColor: "var(--border-secondary)", color: "var(--text-secondary)" }}
-                    >
-                      <FiSettings size={16} />
-                      Manage Settings
-                    </button>
-                    <button
-                      onClick={() => handleDisconnect(selectedIntegration.id)}
-                      className="px-5 py-3 rounded-xl text-sm font-medium transition"
-                      style={{
-                        backgroundColor: "rgba(244,63,94,0.15)",
-                        border: "1px solid rgba(244,63,94,0.25)",
-                        color: "var(--accent-rose)",
-                      }}
-                    >
-                      Disconnect
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => handleConnect(selectedIntegration.id)}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 transition shadow-lg"
-                  >
-                    <FiPlus size={16} />
-                    Connect {selectedIntegration.title}
-                  </button>
-                )}
+                  )}
 
-                <p className="text-[11px] text-center mt-3" style={{ color: "var(--text-muted)" }}>
-                  {selectedIntegration.status === "coming-soon"
-                    ? "We'll email you when this integration launches"
-                    : "You can disconnect anytime from settings"}
-                </p>
-              </div>
-            </motion.div>
+                  <p className="text-[11px] text-center mt-3" style={{ color: "var(--text-muted)" }}>
+                    {selectedIntegration.status === "coming-soon"
+                      ? "We'll email you when this integration launches"
+                      : "You can disconnect anytime from settings"}
+                  </p>
+                </div>
+              </motion.div>
           </>
         )}
       </AnimatePresence>

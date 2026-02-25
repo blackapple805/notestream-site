@@ -48,14 +48,9 @@ export default function DashboardLayout() {
           transition-colors duration-300
         "
         style={{
-          // ✅ Mobile-safe paddings (iPhone) via CSS vars
           paddingTop: "var(--app-content-top, 0px)",
           paddingBottom: "var(--app-content-bottom, 0px)",
-
-          // ✅ Desktop-only right gutter (sidebar space) via CSS var
           paddingRight: "var(--ns-layout-right-pad, 0px)",
-
-          // ✅ Prevent anchor/scrollIntoView from hiding under fixed header/nav
           scrollPaddingTop: "var(--app-content-top, 0px)",
           scrollPaddingBottom: "var(--app-content-bottom, 0px)",
         }}
@@ -68,6 +63,7 @@ export default function DashboardLayout() {
             animate="visible"
             exit="exit"
             className="
+              ns-dashboard-content
               mx-auto
               w-full
               max-w-[1500px]
@@ -82,6 +78,15 @@ export default function DashboardLayout() {
 
       {/* Global Toast Target */}
       <div id="global-toast" className="hidden opacity-0 pointer-events-none" />
+
+      {/* Mobile header clearance — applied globally to all dashboard pages */}
+      <style>{`
+        @media (max-width: 767px) {
+          .ns-dashboard-content {
+            padding-top: calc(env(safe-area-inset-top, 0px) + 68px) !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

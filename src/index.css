@@ -1281,8 +1281,9 @@ html.dark {
 html,
 body,
 #root {
-  min-height: 100%;
-  height: auto !important;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+  width: 100%;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -1379,7 +1380,11 @@ textarea:focus,
 select:focus {
   outline: none;
   border-color: var(--accent-indigo) !important;
-  box-shadow: 0 0 0 2px rgba(99,102,241,0.10);
+}
+
+.ns-search-bar-glow input:focus {
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 

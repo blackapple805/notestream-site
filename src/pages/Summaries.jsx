@@ -99,8 +99,8 @@ const INSIGHT_STYLES = `
 }
 
 .ns-search-bar-glow:focus-within {
-  border-color: rgba(99,102,241,0.5) !important;
-  box-shadow: 0 0 24px rgba(99,102,241,0.12), 0 8px 32px rgba(0,0,0,0.15) !important;
+  border-color: rgba(99,102,241,0.35) !important;
+  box-shadow: none !important;
 }
 
 .ns-msg-enter {
@@ -633,41 +633,23 @@ export default function Summaries() {
             bottom: "var(--mobile-nav-height, 0px)",
           }}
         >
-          {/* Gradient fade backdrop — blends chat into the bar */}
-          <div
-            className="absolute inset-x-0 bottom-0 pointer-events-none"
-            style={{
-              height: "80px",
-              background: "linear-gradient(to top, var(--bg-primary, #0a0a0e) 40%, transparent)",
-            }}
-          />
-
           <div className="relative max-w-2xl w-full mx-auto px-4 pb-3 pt-2 md:pb-0 md:pt-0">
             <form onSubmit={handleSearch}>
               <div
-                className="ns-search-bar-glow flex items-center w-full rounded-2xl px-4 py-3 transition-all duration-200"
+                className="ns-search-bar-glow flex items-center w-full rounded-full px-5 py-3 transition-all duration-200"
                 style={{
                   background: "var(--card-glass-bg, var(--bg-surface))",
                   backdropFilter: "blur(40px) saturate(180%)",
                   WebkitBackdropFilter: "blur(40px) saturate(180%)",
-                  border: `1px solid ${query ? "rgba(99,102,241,0.5)" : "var(--card-glass-border, var(--border-secondary))"}`,
-                  boxShadow: query
-                    ? "0 0 24px rgba(99,102,241,0.12), 0 -4px 24px rgba(0,0,0,0.2)"
-                    : "0 -4px 24px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.15)",
+                  border: `1px solid ${query ? "rgba(99,102,241,0.3)" : "var(--card-glass-border, var(--border-secondary))"}`,
+                  boxShadow: "none",
                 }}
               >
-                <div
-                  className="h-8 w-8 rounded-lg flex items-center justify-center mr-3 flex-shrink-0"
-                  style={{
-                    background: query ? "rgba(99,102,241,0.12)" : "rgba(255,255,255,0.04)",
-                    transition: "background 0.2s ease",
-                  }}
-                >
-                  <FiSearch
-                    size={16}
-                    style={{ color: query ? "#818cf8" : "var(--text-muted)", transition: "color 0.2s ease" }}
-                  />
-                </div>
+                <FiSearch
+                  size={18}
+                  className="mr-3 flex-shrink-0"
+                  style={{ color: query ? "#818cf8" : "var(--text-muted)", transition: "color 0.2s ease" }}
+                />
 
                 <input
                   ref={inputRef}
@@ -800,14 +782,5 @@ const AIBubble = ({ msg }) => (
     </div>
   </div>
 );
-
-
-
-
-
-
-
-
-
 
 
