@@ -16,3 +16,11 @@ window.addEventListener("resize", setViewportHeight);
 // app-level providers (Subscription, Workspace, Integrations). Wrapping it
 // again here would just nest a second provider for no benefit.
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+
+// Reveal the body now that the stylesheet has been imported and React has
+// kicked off its first render. This pairs with the `html:not(.theme-ready)
+// body { visibility: hidden }` rule in index.html to eliminate any residual
+// flash of unstyled content.
+requestAnimationFrame(() => {
+  document.documentElement.classList.add("theme-ready");
+});

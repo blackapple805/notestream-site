@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#0a0a0f" />
+    <meta name="theme-color" content="#FDFCF9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14120F" media="(prefers-color-scheme: dark)" />
     <title>NoteStream</title>
 
   
@@ -15,16 +16,45 @@
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
 
 
-    <!-- THEME FLASH PREVENTION -->
+    <!-- THEME FLASH PREVENTION
+         Must run BEFORE the first paint. Sets the theme class on <html>
+         and the background color directly on documentElement so the very
+         first frame matches the resolved theme. -->
     <script>
-      const theme = localStorage.getItem("notestream-theme") || "dark";
-      let resolved = theme === "system"
-        ? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
-        : theme;
+      (function () {
+        try {
+          var saved = localStorage.getItem("notestream-theme");
+          var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-      document.documentElement.classList.add(resolved);
-      document.documentElement.setAttribute("data-theme", resolved);
+          // Default to system preference when nothing is stored.
+          var theme = saved || "system";
+          var resolved =
+            theme === "system"
+              ? (prefersDark ? "dark" : "light")
+              : theme;
+
+          var root = document.documentElement;
+          root.classList.remove("light", "dark");
+          root.classList.add(resolved);
+          root.setAttribute("data-theme", resolved);
+
+          // Paint the correct background on the FIRST frame, before CSS loads.
+          // Values mirror --bg-primary in src/index.css.
+          root.style.backgroundColor = resolved === "dark" ? "#14120F" : "#FDFCF9";
+          root.style.colorScheme = resolved;
+        } catch (e) {
+          // If localStorage is blocked (private mode, etc.), fall through to
+          // CSS defaults — better than throwing during page load.
+        }
+      })();
     </script>
+
+    <!-- Belt-and-braces: hide the body until the stylesheet has applied,
+         then reveal. Prevents any residual flash of unstyled text. -->
+    <style>
+      html:not(.theme-ready) body { visibility: hidden; }
+      html.theme-ready body { visibility: visible; }
+    </style>
   </head>
 
   <body class="bg-theme-primary text-theme-primary">
