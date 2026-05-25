@@ -316,20 +316,43 @@ button { font-family: inherit; cursor: pointer; }
 
 .weekly-streak-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);  /* Fixed: kebab-case */
-  gap: 8px;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
+.ns-act-streak-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 4px;
+  font-size: 24px;
+  font-weight: 500;
+  transition: background 0.2s ease;
+}
+
+/* Responsive breakpoints */
 @media (max-width: 767px) {
   .weekly-streak-grid {
     grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  
+  .ns-act-streak-cell {
+    font-size: 20px;
   }
 }
 
 @media (max-width: 480px) {
   .weekly-streak-grid {
     grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  
+  .ns-act-streak-cell {
+    font-size: 18px;
   }
 }
-
 

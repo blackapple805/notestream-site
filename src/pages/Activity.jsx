@@ -758,18 +758,17 @@ export default function Activity() {
             </div>
           </div>
 
-        {/* Weekly streak — paper card with day cells */}
-        <div>
-          <SectionHeader
+      {/* Weekly streak — paper card with day cells */}
+      <div>
+        <SectionHeader
             chapter="§ B"
             kicker="— THE WEEK"
             title="Days on the desk."
           />
           <div className="ns-act-card" style={{ padding: 20, marginTop: 18 }}>
-            {/* Changed: Added className, removed inline style */}
             <div className="weekly-streak-grid">
               {streakDays.map((d, i) => (
-                <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
                   <div
                     className="ns-act-streak-cell"
                     style={d.active
@@ -783,50 +782,51 @@ export default function Activity() {
                     fontFamily: ED.mono, fontSize: 9.5, letterSpacing: "0.14em",
                     textTransform: "uppercase", color: ED.inkFaint,
                     textAlign: "center",
+                    whiteSpace: "nowrap",
                   }}>
                     {d.day}
-                    </span>
-                  </div>
-                ))}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <hr style={{
+              border: 0, borderTop: `1px solid ${ED.ruleSoft}`,
+              margin: "20px 0 16px",
+            }} />
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <div>
+                <p style={{
+                  fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.16em",
+                  textTransform: "uppercase", color: ED.inkFaint, margin: 0,
+                }}>Current streak</p>
+                <p style={{
+                  fontFamily: ED.serif, fontStyle: "italic", fontSize: 44,
+                  color: ED.accent, margin: "4px 0 0", lineHeight: 1,
+                }}>
+                  {stats.streak_days}
+                  <span style={{ fontSize: 18, color: ED.inkMute, marginLeft: 6 }}>days</span>
+                </p>
               </div>
-
-              <hr style={{
-                border: 0, borderTop: `1px solid ${ED.ruleSoft}`,
-                margin: "20px 0 16px",
-              }} />
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <div>
-                  <p style={{
-                    fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.16em",
-                    textTransform: "uppercase", color: ED.inkFaint, margin: 0,
-                  }}>Current streak</p>
-                  <p style={{
-                    fontFamily: ED.serif, fontStyle: "italic", fontSize: 44,
-                    color: ED.accent, margin: "4px 0 0", lineHeight: 1,
-                  }}>
-                    {stats.streak_days}
-                    <span style={{ fontSize: 18, color: ED.inkMute, marginLeft: 6 }}>days</span>
-                  </p>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <p style={{
-                    fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.16em",
-                    textTransform: "uppercase", color: ED.inkFaint, margin: 0,
-                  }}>Active days</p>
-                  <p style={{
-                    fontFamily: ED.serif, fontStyle: "italic", fontSize: 44,
-                    color: ED.ink, margin: "4px 0 0", lineHeight: 1,
-                  }}>
-                    {stats.active_days_count}
-                  </p>
-                </div>
+              <div style={{ textAlign: "right" }}>
+                <p style={{
+                  fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.16em",
+                  textTransform: "uppercase", color: ED.inkFaint, margin: 0,
+                }}>Active days</p>
+                <p style={{
+                  fontFamily: ED.serif, fontStyle: "italic", fontSize: 44,
+                  color: ED.ink, margin: "4px 0 0", lineHeight: 1,
+                }}>
+                  {stats.active_days_count}
+                </p>
               </div>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* ═══ CLARITY + USAGE BREAKDOWN + DAILY BARS ═══ */}
+      {/* ═══ CLARITY + USAGE BREAKDOWN + DAILY BARS ═══ */}
         <section style={{ marginTop: 56 }}>
           <SectionHeader
             chapter="§ C"
