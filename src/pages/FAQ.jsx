@@ -1,14 +1,19 @@
 // src/pages/FAQ.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useEditorial, ED } from "../lib/editorial";
 import { FiPlus, FiArrowUpRight, FiArrowRight } from "react-icons/fi";
 
 export default function FAQ() {
   useEditorial();
+  const location = useLocation();
   const [openIds, setOpenIds] = useState({ 0: 0 }); // first item open in section 0
 
+  // The `slug` matches the link target on the Help Center page so anchors
+  // like /faq#ai-reasoning land on the right section.
   const groups = [
     {
+      slug: "getting-started",
       title: "Getting started",
       qs: [
         { q: "Do I need to install anything to try NoteStream?",
@@ -20,6 +25,7 @@ export default function FAQ() {
       ],
     },
     {
+      slug: "ai-reasoning",
       title: "How it works",
       qs: [
         { q: "What's the difference between Search and Reasoning?",
@@ -31,6 +37,7 @@ export default function FAQ() {
       ],
     },
     {
+      slug: "privacy-security",
       title: "Privacy & data",
       qs: [
         { q: "Is my archive used to train AI models?",
@@ -42,6 +49,7 @@ export default function FAQ() {
       ],
     },
     {
+      slug: "settings-billing",
       title: "Billing",
       qs: [
         { q: "Do you offer annual billing?",
@@ -53,6 +61,30 @@ export default function FAQ() {
       ],
     },
   ];
+
+  // Scroll to the section matching the URL hash whenever it changes.
+  // Runs after render so the target element is in the DOM. Also opens the
+  // first question in that section so the user sees something useful.
+  useEffect(() => {
+    if (!location.hash) return;
+    const id = location.hash.slice(1);
+
+    // If the hash matches a group, open its first question.
+    const idx = groups.findIndex((g) => g.slug === id);
+    if (idx !== -1) {
+      setOpenIds((prev) => ({ ...prev, [idx]: 0 }));
+    }
+
+    // Defer scroll one frame so layout is settled.
+    const t = requestAnimationFrame(() => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+    return () => cancelAnimationFrame(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.hash, location.key]);
 
   return (
     <div className="ns-ed" style={{ minHeight: "100vh" }}>
@@ -90,7 +122,11 @@ export default function FAQ() {
       <section style={{ padding: "0 0 96px" }}>
         <div className="ed-page">
           {groups.map((g, gi) => (
-            <div key={g.title} style={{ marginBottom: 56 }}>
+            <div
+              key={g.title}
+              id={g.slug}
+              style={{ marginBottom: 56, scrollMarginTop: 100 }}
+            >
               <div style={{
                 display: "flex", justifyContent: "space-between", alignItems: "baseline",
                 marginBottom: 16, gap: 16,

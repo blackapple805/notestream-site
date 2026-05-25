@@ -1,5 +1,6 @@
 // src/pages/HelpCenter.jsx
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useEditorial, ED } from "../lib/editorial";
 import { FiSearch, FiArrowRight, FiArrowUpRight } from "react-icons/fi";
 
@@ -7,8 +8,12 @@ export default function HelpCenter() {
   useEditorial();
   const [q, setQ] = useState("");
 
+  // Each `slug` maps to an id on the FAQ page so the anchor lands on the
+  // matching section. When dedicated article pages exist later, point
+  // these at /help/<slug> instead.
   const collections = [
     {
+      slug: "getting-started",
       h: "Getting started",
       desc: "First-week essentials",
       articles: [
@@ -20,6 +25,7 @@ export default function HelpCenter() {
       ],
     },
     {
+      slug: "voice-capture",
       h: "Voice & capture",
       desc: "Speaking to NoteStream",
       articles: [
@@ -31,6 +37,7 @@ export default function HelpCenter() {
       ],
     },
     {
+      slug: "ai-reasoning",
       h: "AI & reasoning",
       desc: "Asking the archive",
       articles: [
@@ -42,6 +49,7 @@ export default function HelpCenter() {
       ],
     },
     {
+      slug: "team-sharing",
       h: "Team & sharing",
       desc: "Editor plan workflows",
       articles: [
@@ -53,6 +61,7 @@ export default function HelpCenter() {
       ],
     },
     {
+      slug: "settings-billing",
       h: "Settings & billing",
       desc: "Plans, billing, account",
       articles: [
@@ -64,6 +73,7 @@ export default function HelpCenter() {
       ],
     },
     {
+      slug: "privacy-security",
       h: "Privacy & security",
       desc: "How your archive is kept",
       articles: [
@@ -85,50 +95,48 @@ export default function HelpCenter() {
             marginBottom: 48, flexWrap: "wrap", gap: 16,
           }}>
             <div className="ed-chapter">
-              <span className="num">№ 01</span>
-              <span>The Help Centre</span>
+              <span className="num">№ 02</span>
+              <span>Help Center</span>
             </div>
             <div className="ed-mono" style={{
               fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint,
             }}>
-              168 articles · Updated weekly
+              Six collections · One archive
             </div>
           </div>
           <hr className="ed-rule-dbl" style={{ marginBottom: 48 }} />
 
           <h1 className="ed-display" style={{
-            fontSize: "clamp(48px, 7.4vw, 120px)", margin: 0, color: ED.ink,
+            fontSize: "clamp(48px, 7vw, 110px)", margin: 0, color: ED.ink,
           }}>
-            A small<br />
-            <span className="ed-italic" style={{ color: ED.accent }}>library</span> of answers.
+            How can we<br />
+            <span className="ed-italic" style={{ color: ED.accent }}>help?</span>
           </h1>
           <p className="ed-lede" style={{ marginTop: 28, maxWidth: 620 }}>
-            Articles written by the team that builds NoteStream. Short where
-            possible, long when something deserves it. Search below, or browse
-            by collection.
+            Six collections, organised by what you'd actually search for. Or write to{" "}
+            <a href="mailto:help@notestream.co" className="ed-ulink" style={{ color: ED.accent }}>help@notestream.co</a>{" "}
+            — a real person reads every message.
           </p>
 
-          {/* Search bar */}
           <div style={{
-            marginTop: 36, display: "flex", alignItems: "center", gap: 14,
-            padding: "16px 22px", background: ED.paper50,
-            border: `1px solid ${ED.rule}`, borderRadius: 14, maxWidth: 560,
+            marginTop: 36, maxWidth: 560, position: "relative",
           }}>
-            <FiSearch size={18} style={{ color: ED.inkMute }} />
+            <FiSearch style={{
+              position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
+              color: ED.inkFaint, pointerEvents: "none",
+            }} size={16} />
             <input
+              type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search the help centre…"
+              placeholder="Search the collections"
               style={{
-                flex: 1, border: 0, background: "transparent", outline: "none",
-                fontFamily: ED.serif, fontSize: 18, color: ED.ink,
+                width: "100%", padding: "13px 14px 13px 42px",
+                background: ED.paper50, border: `1px solid ${ED.rule}`,
+                borderRadius: 10, fontFamily: ED.sans, fontSize: 15,
+                color: ED.ink, outline: "none",
               }}
             />
-            <span className="ed-mono" style={{
-              fontSize: 10.5, letterSpacing: "0.08em",
-              color: ED.inkFaint, padding: "3px 9px",
-              background: ED.paper200, borderRadius: 4,
-            }}>⌘K</span>
           </div>
         </div>
       </section>
@@ -136,22 +144,22 @@ export default function HelpCenter() {
       <section style={{ padding: "0 0 96px" }}>
         <div className="ed-page">
           <div className="hc-grid" style={{
-            display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0,
+            display: "grid", gridTemplateColumns: "repeat(3, 1fr)",
+            background: ED.paper50, borderRadius: 14,
             border: `1px solid ${ED.rule}`,
           }}>
             {collections.map((c, i) => {
               const col = i % 3;
               const row = Math.floor(i / 3);
               return (
-                <article key={c.h} style={{
+                <article key={c.slug} style={{
                   padding: "32px 28px 28px",
                   borderRight: col < 2 ? `1px solid ${ED.rule}` : "none",
                   borderBottom: row === 0 ? `1px solid ${ED.rule}` : "none",
                   transition: "background .25s ease",
-                  cursor: "pointer",
                 }}
                 className="hc-cell"
-                onMouseEnter={(e) => e.currentTarget.style.background = ED.paper50}
+                onMouseEnter={(e) => e.currentTarget.style.background = ED.paper100}
                 onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
                   <div className="ed-serif ed-italic" style={{
                     fontSize: 24, color: ED.accent, marginBottom: 4,
@@ -174,27 +182,35 @@ export default function HelpCenter() {
                   <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 7 }}>
                     {c.articles.map((a, j) => (
                       <li key={j}>
-                        <a href="#" className="ed-ulink" style={{
-                          display: "flex", alignItems: "baseline", gap: 8,
-                          fontFamily: ED.serif, fontSize: 14.5, color: ED.inkSoft,
-                          lineHeight: 1.4,
-                        }}>
+                        <Link
+                          to={`/faq#${c.slug}`}
+                          className="ed-ulink"
+                          style={{
+                            display: "flex", alignItems: "baseline", gap: 8,
+                            fontFamily: ED.serif, fontSize: 14.5, color: ED.inkSoft,
+                            lineHeight: 1.4,
+                          }}
+                        >
                           <span className="ed-mono" style={{
                             fontSize: 10, color: ED.inkFaint, minWidth: 16,
                           }}>{String(j + 1).padStart(2, "0")}</span>
                           {a}
-                        </a>
+                        </Link>
                       </li>
                     ))}
                   </ul>
 
-                  <a href="#" className="ed-mono" style={{
-                    display: "inline-flex", alignItems: "center", gap: 6, marginTop: 20,
-                    fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase",
-                    color: ED.accent,
-                  }}>
+                  <Link
+                    to={`/faq#${c.slug}`}
+                    className="ed-mono"
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6, marginTop: 20,
+                      fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase",
+                      color: ED.accent, textDecoration: "none",
+                    }}
+                  >
                     Open collection <FiArrowRight size={11} />
-                  </a>
+                  </Link>
                 </article>
               );
             })}
@@ -220,9 +236,9 @@ export default function HelpCenter() {
               <p style={{ fontSize: 14.5, lineHeight: 1.6, color: ED.inkMute, margin: 0 }}>
                 If your question is on most people's lips, it's on the FAQ page — sorted by topic, answered plainly.
               </p>
-              <a href="/faq" className="ed-btn ed-btn-ghost" style={{ marginTop: 18 }}>
+              <Link to="/faq" className="ed-btn ed-btn-ghost" style={{ marginTop: 18 }}>
                 Read the FAQ <FiArrowRight size={13} />
-              </a>
+              </Link>
             </div>
 
             <div style={{
@@ -245,11 +261,11 @@ export default function HelpCenter() {
               <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "rgba(255,255,255,0.7)", margin: 0 }}>
                 Our support is small but careful. Real people, replying within a day.
               </p>
-              <a href="/support" className="ed-btn" style={{
+              <Link to="/support" className="ed-btn" style={{
                 marginTop: 18, background: ED.accent, color: "#fff", borderColor: ED.accent,
               }}>
                 Contact support <FiArrowUpRight size={13} />
-              </a>
+              </Link>
             </div>
           </div>
         </div>
