@@ -1,19 +1,38 @@
-// src/pages/dashboard/Integrations.jsx
-// Fully fixed: removed ALL phosphor-react usage + replaced with react-icons/fi only
+// src/pages/dashboard/Integrations.jsx — "The Correspondents"
+// ═══════════════════════════════════════════════════════════════════
+// EDITORIAL RESKIN — what changed and why
+// ─────────────────────────────────────────────────────────────────
+// Wrapped the page in `<div className="ns-ed">` and called
+// `useEditorial()`. The bento-tile integration grid is now an
+// editorial directory: chapter mark (`№ 07 — THE CORRESPONDENTS`),
+// a serif display title ("Letters from elsewhere.") with
+// "elsewhere" in italic accent blue, a mono dateline (n services /
+// n connected / n coming soon), a double-rule break, a brief lede,
+// mono filter pills, then full-width editorial article rows —
+// mono ordinal · serif name with terminal period · serif
+// description · mono meta with status chip · right-aligned aside
+// reading CONNECT → / MANAGE → / WAITLIST →. The detail modal is
+// a paper-50 EdModal with serif title, mono "Features included"
+// eyebrow, and ink/ghost buttons in the footer. Toast retained
+// via portal, restyled to mono editorial. Bottom help card is now
+// a paper-50 strip (left: serif title + italic-italic "elsewhere"
+// hint, right: docs and support buttons).
+// All Supabase / subscription / connect / disconnect / waitlist
+// logic is UNCHANGED. The IconTile helper is removed since
+// editorial typography carries identity; the original icons are
+// reused as small monoline glyphs in the meta line.
+// ═══════════════════════════════════════════════════════════════════
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import GlassCard from "../../components/GlassCard";
 import { useSubscription } from "../../hooks/useSubscription";
+import { useEditorial, ED } from "../../lib/editorial";
 
-import { PlugsIcon as Plugs } from "@phosphor-icons/react";
 import {
   FiX,
   FiCheck,
-  FiPlus,
-  FiExternalLink,
   FiCloud,
   FiLink2,
   FiDatabase,
@@ -22,138 +41,41 @@ import {
   FiRefreshCw,
   FiGithub,
   FiInbox,
-  FiClock,
   FiBell,
   FiZap,
+  FiArrowRight,
+  FiArrowUpRight,
 } from "react-icons/fi";
 
-/* Icon Tile - matches Dashboard squircle style */
-const IconTile = ({ children, tone = "indigo", size = "md" }) => {
-  const sizes = {
-    sm: "h-10 w-10 rounded-[12px]",
-    md: "h-12 w-12 rounded-[14px]",
-    lg: "h-14 w-14 rounded-[16px]",
-  };
-
-  const toneMap = {
-    indigo: {
-      bg: "rgba(99,102,241,0.12)",
-      border: "rgba(99,102,241,0.22)",
-      text: "text-indigo-400",
-    },
-    purple: {
-      bg: "rgba(168,85,247,0.12)",
-      border: "rgba(168,85,247,0.22)",
-      text: "text-purple-400",
-    },
-    emerald: {
-      bg: "rgba(16,185,129,0.12)",
-      border: "rgba(16,185,129,0.22)",
-      text: "text-emerald-400",
-    },
-    amber: {
-      bg: "rgba(245,158,11,0.12)",
-      border: "rgba(245,158,11,0.22)",
-      text: "text-amber-400",
-    },
-    rose: {
-      bg: "rgba(244,63,94,0.12)",
-      border: "rgba(244,63,94,0.22)",
-      text: "text-rose-400",
-    },
-    blue: {
-      bg: "rgba(59,130,246,0.12)",
-      border: "rgba(59,130,246,0.22)",
-      text: "text-blue-400",
-    },
-    orange: {
-      bg: "rgba(249,115,22,0.12)",
-      border: "rgba(249,115,22,0.22)",
-      text: "text-orange-400",
-    },
-    slate: {
-      bg: "rgba(100,116,139,0.12)",
-      border: "rgba(100,116,139,0.22)",
-      text: "text-slate-400",
-    },
-    gray: {
-      bg: "rgba(107,114,128,0.12)",
-      border: "rgba(107,114,128,0.22)",
-      text: "text-gray-400",
-    },
-  };
-
-  const t = toneMap[tone] ?? toneMap.indigo;
-
-  return (
-    <div
-      className={`${sizes[size]} border flex items-center justify-center ${t.text} shadow-[0_8px_24px_rgba(0,0,0,0.2)]`}
-      style={{ backgroundColor: t.bg, borderColor: t.border }}
-    >
-      {children}
-    </div>
-  );
-};
-
-// Integration data with react-icons/fi icons
 const integrations = [
   {
-    id: "google-drive",
-    title: "Google Drive",
-    desc: "Sync docs, sheets, and slides directly to NoteStream",
-    icon: FiCloud,
-    tone: "blue",
-    features: ["Auto-sync files", "Folder organization", "Real-time updates", "Two-way sync"],
-    status: "available",
+    id: "google-drive", title: "Google Drive", desc: "Syncs docs, sheets, and slides back into the archive every fifteen minutes.",
+    icon: FiCloud,    features: ["Auto-sync files", "Folder organisation", "Real-time updates", "Two-way sync"], status: "available",
   },
   {
-    id: "slack",
-    title: "Slack",
-    desc: "Turn Slack conversations into organized notes",
-    icon: FiLink2,
-    tone: "purple",
-    features: ["Channel summaries", "Thread extraction", "Direct messaging", "Workspace sync"],
-    status: "available",
+    id: "slack", title: "Slack", desc: "Turn Slack conversations into organised notes — channels read, threads extracted, drafts kept.",
+    icon: FiLink2,    features: ["Channel summaries", "Thread extraction", "Direct messaging", "Workspace sync"], status: "available",
   },
   {
-    id: "notion",
-    title: "Notion",
-    desc: "Import and sync your Notion workspace",
-    icon: FiDatabase,
-    tone: "slate",
-    features: ["Page sync", "Database updates", "Block formatting", "Template support"],
-    status: "available",
+    id: "notion", title: "Notion", desc: "Import and sync your Notion workspace, with pages, databases, and block formatting preserved.",
+    icon: FiDatabase, features: ["Page sync", "Database updates", "Block formatting", "Template support"],   status: "available",
   },
   {
-    id: "zapier",
-    title: "Zapier",
-    desc: "Automate workflows with 5000+ apps",
-    icon: FiRefreshCw,
-    tone: "orange",
-    features: ["5000+ apps", "Custom workflows", "Trigger actions", "Multi-step zaps"],
-    status: "available",
+    id: "zapier", title: "Zapier", desc: "Automate workflows with five thousand apps. NoteStream sits quietly in the middle.",
+    icon: FiRefreshCw, features: ["5000+ apps", "Custom workflows", "Trigger actions", "Multi-step zaps"],    status: "available",
   },
   {
-    id: "github",
-    title: "GitHub",
-    desc: "Link repos and track project notes",
-    icon: FiGithub,
-    tone: "gray",
-    features: ["Issue creation", "PR summaries", "Repo integration", "Commit linking"],
-    status: "coming-soon",
+    id: "github", title: "GitHub", desc: "Link repos and track project notes. Issues created, pull requests summarised.",
+    icon: FiGithub,   features: ["Issue creation", "PR summaries", "Repo integration", "Commit linking"],     status: "coming-soon",
   },
   {
-    id: "email",
-    title: "Email Import",
-    desc: "Forward emails and get instant summaries",
-    icon: FiInbox,
-    tone: "rose",
-    features: ["Email forwarding", "Attachment parsing", "Auto-categorize", "Smart replies"],
-    status: "coming-soon",
+    id: "email", title: "Email import", desc: "Forward emails and receive instant summaries with attachments parsed and categorised.",
+    icon: FiInbox,    features: ["Email forwarding", "Attachment parsing", "Auto-categorise", "Smart replies"], status: "coming-soon",
   },
 ];
 
 export default function Integrations() {
+  useEditorial();
   const navigate = useNavigate();
   const { subscription } = useSubscription();
   const isPro = subscription?.plan && subscription.plan !== "free";
@@ -162,8 +84,9 @@ export default function Integrations() {
   const [connectedIntegrations, setConnectedIntegrations] = useState({});
   const [waitlist, setWaitlist] = useState({});
   const [showToast, setShowToast] = useState(null);
+  const [filter, setFilter] = useState("all");
 
-  // Lock body scroll when modal is open to prevent page jump
+  /* Lock body scroll when modal is open to prevent page jump (UNCHANGED) */
   const openModal = (integration) => {
     document.body.style.overflow = "hidden";
     setSelectedIntegration(integration);
@@ -183,7 +106,7 @@ export default function Integrations() {
     document.body.style.overflow = "hidden";
     setConnectedIntegrations((prev) => ({ ...prev, [integrationId]: true }));
     setSelectedIntegration(null);
-    displayToast(`${integrations.find((i) => i.id === integrationId)?.title} connected successfully!`);
+    displayToast(`${integrations.find((i) => i.id === integrationId)?.title} connected.`);
     requestAnimationFrame(() => {
       window.scrollTo(0, scrollY);
       document.body.style.overflow = "";
@@ -198,7 +121,7 @@ export default function Integrations() {
       delete updated[integrationId];
       return updated;
     });
-    displayToast(`Integration disconnected`, "info");
+    displayToast("Integration disconnected.", "info");
     requestAnimationFrame(() => {
       window.scrollTo(0, scrollY);
       document.body.style.overflow = "";
@@ -210,7 +133,7 @@ export default function Integrations() {
     document.body.style.overflow = "hidden";
     setWaitlist((prev) => ({ ...prev, [integrationId]: true }));
     setSelectedIntegration(null);
-    displayToast(`You're on the waitlist! We'll notify you when it's ready.`);
+    displayToast("You're on the list. We'll write when it lands.");
     requestAnimationFrame(() => {
       window.scrollTo(0, scrollY);
       document.body.style.overflow = "";
@@ -221,411 +144,216 @@ export default function Integrations() {
   const comingSoonIntegrations = integrations.filter((i) => i.status === "coming-soon");
   const connectedCount = Object.keys(connectedIntegrations).length;
 
+  const visible = useMemo(() => {
+    if (filter === "connected") return integrations.filter((i) => connectedIntegrations[i.id]);
+    if (filter === "available") return availableIntegrations;
+    if (filter === "coming")    return comingSoonIntegrations;
+    return integrations;
+  }, [filter, connectedIntegrations, availableIntegrations, comingSoonIntegrations]);
+
   return (
-    <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
+    <div className="ns-ed">
+      <style>{INT_STYLES}</style>
 
-      {/* Toast — rendered via portal so it never affects page layout */}
-      {createPortal(
-        <AnimatePresence>
-          {showToast && (
-            <>
-              {/* Responsive toast positioning */}
-              <style>{`
-                .ns-toast {
-                  position: fixed;
-                  top: calc(env(safe-area-inset-top, 0px) + 68px);
-                  left: 50%;
-                  transform: translateX(-50%);
-                  z-index: 9999;
-                  pointer-events: none;
-                  max-width: min(90vw, 400px);
-                }
-                @media (min-width: 768px) {
-                  .ns-toast {
-                    top: calc(var(--app-header-h, 72px) + 12px);
-                    left: auto;
-                    right: calc(var(--ns-layout-right-pad, 0px) + 24px);
-                    transform: none;
-                  }
-                }
-              `}</style>
+      <div className="ed-page ns-int-wrap">
+
+        {/* ── TOAST (portal, mono editorial) ── */}
+        {createPortal(
+          <AnimatePresence>
+            {showToast && (
               <motion.div
-                initial={{ opacity: 0, y: -12, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -12, scale: 0.95 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-                className={`ns-toast px-4 py-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2 text-sm font-medium ${
-                  showToast.type === "success"
-                    ? "bg-emerald-900/90 border border-emerald-500/40 text-emerald-200"
-                    : "bg-indigo-900/90 border border-indigo-500/40 text-indigo-200"
-                }`}
+                initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.2 }}
+                className="ns-int-toast ed-mono"
+                style={{ borderColor: showToast.type === "success" ? ED.accent : ED.rule }}
               >
-                <FiCheck size={14} className="flex-shrink-0" />
-                {showToast.message}
+                <FiCheck size={13} /> {showToast.message}
               </motion.div>
-            </>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
 
-      {/* Header */}
-      <header className="page-header">
-        <div className="page-header-content">
-          <div className="page-header-icon">
-            <Plugs size={20} />
-          </div>
+        {/* ── HEADER ── */}
+        <header className="ns-int-head">
           <div>
-            <h1 className="page-header-title">Integrations</h1>
-            <p className="page-header-subtitle">Connect with popular tools and platforms to streamline your workflow</p>
-          </div>
-        </div>
-      </header>
-
-      {/* Stats Row */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Connected", value: connectedCount, color: "var(--accent-indigo)" },
-          { label: "Available", value: availableIntegrations.length, color: "var(--accent-emerald)" },
-          { label: "Coming Soon", value: comingSoonIntegrations.length, color: "var(--accent-amber)" },
-        ].map((stat, i) => (
-          <div
-            key={i}
-            className="p-4 rounded-xl border text-center"
-            style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
-          >
-            <p className="text-2xl font-bold" style={{ color: stat.color }}>
-              {stat.value}
-            </p>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {stat.label}
+            <div className="ed-chapter" style={{ marginBottom: 18 }}>
+              <span className="num">№ 07</span>
+              <span>— The correspondents</span>
+            </div>
+            <h1 className="ed-display ns-int-title">
+              Letters from{" "}
+              <span className="ed-italic" style={{ color: ED.accent }}>elsewhere.</span>
+            </h1>
+            <p className="ed-mono ns-int-sub">
+              {integrations.length} SERVICES · {connectedCount} CONNECTED · {comingSoonIntegrations.length} COMING SOON
             </p>
           </div>
-        ))}
-      </div>
+        </header>
 
-      {/* Available Integrations */}
-      <div>
-        <div className="flex items-center gap-2 mb-4 px-1">
-          <FiCheck size={16} className="text-emerald-400" />
-          <h2 className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
-            Available Integrations
-          </h2>
+        <hr className="ed-rule-dbl" />
+
+        {/* ── LEDE ── */}
+        <p className="ed-serif ns-int-lede">
+          The archive doesn't insist on being the only place you write. These are the rooms it sends letters to and waits at the door of. Connect what you use; ignore the rest.
+        </p>
+
+        {/* ── FILTERS ── */}
+        <div className="ns-int-filters">
+          {[
+            { id: "all",       label: "All",        n: integrations.length },
+            { id: "connected", label: "Connected",  n: connectedCount },
+            { id: "available", label: "Available",  n: availableIntegrations.length },
+            { id: "coming",    label: "Coming soon", n: comingSoonIntegrations.length },
+          ].map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFilter(f.id)}
+              className={`ns-int-filter ${filter === f.id ? "is-on" : ""}`}
+            >
+              {f.label} <span className="n">{f.n}</span>
+            </button>
+          ))}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {availableIntegrations.map((integration) => {
-            const isConnected = connectedIntegrations[integration.id];
-            const IconComponent = integration.icon;
+        <hr className="ed-rule" style={{ marginTop: 18 }} />
 
-            return (
-              <motion.div
-                key={integration.id}
-                whileHover={{ y: -2 }}
-                className="rounded-2xl border p-5 transition-all cursor-pointer group"
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  borderColor: isConnected ? "rgba(16,185,129,0.3)" : "var(--border-secondary)",
-                }}
-                onClick={() => openModal(integration)}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <IconTile tone={integration.tone} size="md">
-                    <IconComponent className="h-6 w-6" />
-                  </IconTile>
+        {/* ── DIRECTORY ── */}
+        <div className="ns-int-list">
+          {visible.length === 0 ? (
+            <p className="ed-serif ed-italic" style={{ padding: "56px 0", color: ED.inkMute, textAlign: "center", fontSize: 18, margin: 0 }}>
+              Nothing in this column.
+            </p>
+          ) : (
+            visible.map((integration, i) => {
+              const isConnected = connectedIntegrations[integration.id];
+              const isOnWaitlist = waitlist[integration.id];
+              const IconComponent = integration.icon;
+              const comingSoon = integration.status === "coming-soon";
 
-                  {isConnected && (
-                    <div
-                      className="flex items-center gap-1 px-2 py-1 rounded-full"
-                      style={{
-                        backgroundColor: "rgba(16,185,129,0.15)",
-                        border: "1px solid rgba(16,185,129,0.25)",
-                      }}
-                    >
-                      <FiCheck size={12} className="text-emerald-400" />
-                      <span className="text-[10px] font-medium text-emerald-400">Connected</span>
-                    </div>
-                  )}
-                </div>
-
-                <h3
-                  className="text-base font-semibold mb-1.5 transition-colors group-hover:text-indigo-400"
-                  style={{ color: "var(--text-primary)" }}
+              return (
+                <article
+                  key={integration.id}
+                  className="ns-int-row"
+                  onClick={() => openModal(integration)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter") openModal(integration); }}
                 >
-                  {integration.title}
-                </h3>
-                <p className="text-sm leading-relaxed mb-4" style={{ color: "var(--text-muted)" }}>
-                  {integration.desc}
-                </p>
-
-                {isConnected ? (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition hover:bg-white/5"
-                      style={{ borderColor: "var(--border-secondary)", color: "var(--text-secondary)" }}
-                    >
-                      <FiSettings size={14} />
-                      Settings
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDisconnect(integration.id);
-                      }}
-                      className="px-4 py-2.5 rounded-xl border text-sm font-medium transition hover:bg-rose-500/10"
-                      style={{ borderColor: "var(--border-secondary)", color: "var(--accent-rose)" }}
-                    >
-                      <FiX size={14} />
-                    </button>
+                  <span className="ord">{String(i + 1).padStart(2, "0")}</span>
+                  <div className="body">
+                    <h3 className="title">
+                      <IconComponent size={16} style={{ verticalAlign: "middle", marginRight: 10, color: ED.inkFaint }} />
+                      {integration.title}{!/[.!?]$/.test(integration.title) ? "." : ""}
+                    </h3>
+                    <p className="excerpt">{integration.desc}</p>
+                    <div className="meta">
+                      {isConnected && <span className="ed-chip ed-chip-accent">CONNECTED</span>}
+                      {comingSoon && !isOnWaitlist && <span className="ed-chip">COMING SOON</span>}
+                      {isOnWaitlist && <span className="ed-chip ed-chip-accent">ON THE WAITLIST</span>}
+                      {!isConnected && !comingSoon && <span className="ed-chip">AVAILABLE</span>}
+                      <span>{integration.features.length} FEATURES</span>
+                    </div>
                   </div>
-                ) : (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleConnect(integration.id);
-                    }}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 transition shadow-lg shadow-indigo-500/25"
-                  >
-                    <FiPlus size={14} />
-                    Connect
-                  </button>
-                )}
-              </motion.div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Coming Soon Integrations */}
-      <div>
-        <div className="flex items-center gap-2 mb-4 px-1">
-          <FiClock size={16} className="text-amber-400" />
-          <h2 className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
-            Coming Soon
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {comingSoonIntegrations.map((integration) => {
-            const isOnWaitlist = waitlist[integration.id];
-            const IconComponent = integration.icon;
-
-            return (
-              <motion.div
-                key={integration.id}
-                whileHover={{ y: -2 }}
-                className="rounded-2xl border p-5 transition-all cursor-pointer group opacity-80 hover:opacity-100"
-                style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
-                onClick={() => openModal(integration)}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <IconTile tone={integration.tone} size="md">
-                    <IconComponent className="h-6 w-6" />
-                  </IconTile>
-                  <div
-                    className="px-2 py-1 rounded-full"
-                    style={{
-                      backgroundColor: "rgba(245,158,11,0.15)",
-                      border: "1px solid rgba(245,158,11,0.25)",
-                    }}
-                  >
-                    <span className="text-[10px] font-semibold text-amber-400">COMING SOON</span>
+                  <div className="aside">
+                    {isConnected ? "MANAGE →" : isOnWaitlist ? "WAITING →" : comingSoon ? "JOIN →" : "CONNECT →"}
                   </div>
-                </div>
-
-                <h3 className="text-base font-semibold mb-1.5" style={{ color: "var(--text-primary)" }}>
-                  {integration.title}
-                </h3>
-                <p className="text-sm leading-relaxed mb-4" style={{ color: "var(--text-muted)" }}>
-                  {integration.desc}
-                </p>
-
-                {isOnWaitlist ? (
-                  <button
-                    disabled
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium"
-                    style={{
-                      backgroundColor: "rgba(16,185,129,0.1)",
-                      border: "1px solid rgba(16,185,129,0.25)",
-                      color: "var(--accent-emerald)",
-                    }}
-                  >
-                    <FiCheck size={14} />
-                    On Waitlist
-                  </button>
-                ) : (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleJoinWaitlist(integration.id);
-                    }}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border transition hover:bg-white/5"
-                    style={{ borderColor: "var(--border-secondary)", color: "var(--text-secondary)" }}
-                  >
-                    <FiBell size={14} />
-                    Notify Me
-                  </button>
-                )}
-              </motion.div>
-            );
-          })}
+                </article>
+              );
+            })
+          )}
         </div>
-      </div>
 
-      {/* Help Card */}
-      <GlassCard className="p-6">
-        <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-          <IconTile tone="indigo" size="lg">
-            <FiBookOpen className="h-7 w-7" />
-          </IconTile>
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold mb-1" style={{ color: "var(--text-primary)" }}>
-              Need help with integrations?
+        {/* ── HELP STRIP ── */}
+        <section className="ns-int-help">
+          <div>
+            <p className="ed-mono ns-int-help-eye">NEED A HAND</p>
+            <h3 className="ed-serif ns-int-help-title">
+              Stuck connecting one of <span className="ed-italic" style={{ color: ED.accent }}>these?</span>
             </h3>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Check out our documentation or contact support for assistance.
+            <p className="ns-int-help-desc">
+              The docs walk through OAuth and webhook setup. Support reads every email.
             </p>
           </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => navigate("/dashboard/integration-docs")}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium hover:opacity-90 transition shadow-lg shadow-indigo-500/25"
-            >
-              <FiBookOpen size={16} />
-              View Docs
+          <div className="ns-int-help-cta">
+            <button onClick={() => navigate("/dashboard/integration-docs")} className="ed-btn ed-btn-ghost">
+              <FiBookOpen size={13} /> Read the docs
             </button>
-            <button
-              onClick={() => navigate("/dashboard/contact-support")}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl border text-sm font-medium transition hover:bg-white/5"
-              style={{ borderColor: "var(--border-secondary)", color: "var(--text-secondary)" }}
-            >
-              <FiExternalLink size={16} />
-              Get Help
+            <button onClick={() => navigate("/dashboard/contact-support")} className="ed-btn ed-btn-primary">
+              Contact support <FiArrowUpRight size={13} />
             </button>
           </div>
-        </div>
-      </GlassCard>
+        </section>
 
-      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          INTEGRATION DETAIL MODAL — Centered on all viewports
-      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <AnimatePresence>
-        {selectedIntegration && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100]"
-              style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
-              onClick={() => closeModal()}
-            />
-
-            {/* Modal — true center via inset + margin auto (transform-safe for Framer Motion) */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ type: "spring", damping: 28, stiffness: 350 }}
-              className="fixed z-[101] w-[calc(100%-2rem)] max-w-md rounded-2xl border shadow-2xl overflow-y-auto"
-              style={{
-                backgroundColor: "var(--bg-surface)",
-                borderColor: "var(--border-secondary)",
-                inset: 0,
-                margin: "auto",
-                maxHeight: "calc(100dvh - 3rem)",
-                height: "fit-content",
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            INTEGRATION DETAIL MODAL (editorial)
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        <AnimatePresence>
+          {selectedIntegration && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="ns-int-backdrop"
+                onClick={() => closeModal()}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ type: "spring", damping: 26, stiffness: 320 }}
+                className="ns-int-modal"
+                onClick={(e) => e.stopPropagation()}
+              >
                 {/* Header */}
-                <div className="p-6 border-b" style={{ borderColor: "var(--border-secondary)" }}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <IconTile tone={selectedIntegration.tone} size="lg">
-                        {(() => {
-                          const Icon = selectedIntegration.icon;
-                          return <Icon className="h-7 w-7" />;
-                        })()}
-                      </IconTile>
-                      <div>
-                        <h3 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
-                          {selectedIntegration.title}
-                        </h3>
-
-                        {selectedIntegration.status === "coming-soon" ? (
-                          <span className="text-sm text-amber-400 flex items-center gap-1">
-                            <FiClock size={12} />
-                            Coming Soon
-                          </span>
-                        ) : connectedIntegrations[selectedIntegration.id] ? (
-                          <span className="text-sm text-emerald-400 flex items-center gap-1">
-                            <FiCheck size={12} />
-                            Connected
-                          </span>
-                        ) : (
-                          <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                            Available
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => closeModal()}
-                      className="h-8 w-8 rounded-lg flex items-center justify-center transition"
-                      style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-muted)" }}
-                    >
-                      <FiX size={16} />
-                    </button>
+                <div className="ns-int-modal-head">
+                  <div>
+                    <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, margin: 0 }}>
+                      <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>№</span>
+                      CORRESPONDENT
+                    </p>
+                    <h2 className="ed-serif ns-int-modal-title">
+                      {selectedIntegration.title}.
+                    </h2>
+                    <p className="ed-mono ns-int-modal-sub">
+                      {selectedIntegration.status === "coming-soon"
+                        ? "COMING SOON"
+                        : connectedIntegrations[selectedIntegration.id]
+                        ? "CONNECTED"
+                        : "AVAILABLE"}
+                    </p>
                   </div>
+                  <button onClick={() => closeModal()} className="ns-int-modal-close" aria-label="Close">
+                    <FiX size={13} />
+                  </button>
                 </div>
+                <hr className="ed-rule" />
 
                 {/* Body */}
-                <div className="p-6">
-                  <p className="mb-6" style={{ color: "var(--text-muted)" }}>
+                <div className="ns-int-modal-body">
+                  <p className="ed-serif ns-int-modal-desc">
                     {selectedIntegration.desc}
                   </p>
 
-                  {/* Features */}
-                  <div className="mb-6">
-                    <p className="text-xs font-semibold mb-3 uppercase tracking-wide" style={{ color: "var(--text-secondary)" }}>
-                      Features included
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {selectedIntegration.features.map((feature, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-2 p-2.5 rounded-xl border"
-                          style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
-                        >
-                          <div
-                            className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ backgroundColor: "rgba(99,102,241,0.2)" }}
-                          >
-                            <FiCheck size={10} className="text-indigo-400" />
-                          </div>
-                          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                            {feature}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <p className="ed-mono ns-int-modal-eye">FEATURES INCLUDED</p>
+                  <ul className="ns-int-modal-features">
+                    {selectedIntegration.features.map((feature, i) => (
+                      <li key={i}>
+                        <span className="ed-mono ord">{String(i + 1).padStart(2, "0")}</span>
+                        <span className="ed-serif">{feature}.</span>
+                      </li>
+                    ))}
+                  </ul>
 
-                  {/* Pro Badge */}
                   {!isPro && selectedIntegration.status === "available" && (
-                    <div
-                      className="mb-6 p-3 rounded-xl border flex items-center gap-3"
-                      style={{ backgroundColor: "rgba(251,191,36,0.1)", borderColor: "rgba(251,191,36,0.25)" }}
-                    >
-                      <FiZap size={20} className="text-amber-400" />
-                      <div className="flex-1">
-                        <p className="text-xs font-medium text-amber-400">Pro Feature</p>
-                        <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                          Some features require a Pro subscription
+                    <div className="ns-int-modal-pro">
+                      <FiZap size={14} style={{ color: ED.accent, marginTop: 3, flexShrink: 0 }} />
+                      <div>
+                        <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.accent, margin: 0 }}>
+                          PRO FEATURE
+                        </p>
+                        <p className="ed-serif" style={{ fontSize: 14, color: ED.inkMute, margin: "4px 0 0 0" }}>
+                          Some features require a Pro subscription.
                         </p>
                       </div>
                     </div>
@@ -633,51 +361,30 @@ export default function Integrations() {
                 </div>
 
                 {/* Footer */}
-                <div
-                  className="p-6 border-t"
-                  style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}
-                >
+                <div className="ns-int-modal-foot">
                   {selectedIntegration.status === "coming-soon" ? (
                     waitlist[selectedIntegration.id] ? (
-                      <button
-                        disabled
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium"
-                        style={{
-                          backgroundColor: "rgba(16,185,129,0.15)",
-                          border: "1px solid rgba(16,185,129,0.25)",
-                          color: "var(--accent-emerald)",
-                        }}
-                      >
-                        <FiCheck size={16} />
-                        You're on the waitlist!
+                      <button disabled className="ed-btn ed-btn-ghost" style={{ width: "100%", justifyContent: "center", opacity: 0.7 }}>
+                        <FiCheck size={13} /> On the waitlist
                       </button>
                     ) : (
                       <button
                         onClick={() => handleJoinWaitlist(selectedIntegration.id)}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90 transition"
+                        className="ed-btn ed-btn-primary"
+                        style={{ width: "100%", justifyContent: "center" }}
                       >
-                        <FiBell size={16} />
-                        Join Waitlist
+                        <FiBell size={13} /> Join the waitlist
                       </button>
                     )
                   ) : connectedIntegrations[selectedIntegration.id] ? (
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => closeModal()}
-                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium border transition hover:bg-white/5"
-                        style={{ borderColor: "var(--border-secondary)", color: "var(--text-secondary)" }}
-                      >
-                        <FiSettings size={16} />
-                        Manage Settings
+                    <div className="ns-int-modal-actions">
+                      <button onClick={() => closeModal()} className="ed-btn ed-btn-ghost">
+                        <FiSettings size={13} /> Manage settings
                       </button>
                       <button
                         onClick={() => handleDisconnect(selectedIntegration.id)}
-                        className="px-5 py-3 rounded-xl text-sm font-medium transition"
-                        style={{
-                          backgroundColor: "rgba(244,63,94,0.15)",
-                          border: "1px solid rgba(244,63,94,0.25)",
-                          color: "var(--accent-rose)",
-                        }}
+                        className="ed-btn"
+                        style={{ background: "transparent", color: "#a3261c", borderColor: "#f5c2bd" }}
                       >
                         Disconnect
                       </button>
@@ -685,23 +392,203 @@ export default function Integrations() {
                   ) : (
                     <button
                       onClick={() => handleConnect(selectedIntegration.id)}
-                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 transition shadow-lg"
+                      className="ed-btn ed-btn-primary"
+                      style={{ width: "100%", justifyContent: "center" }}
                     >
-                      <FiPlus size={16} />
-                      Connect {selectedIntegration.title}
+                      Connect {selectedIntegration.title} <FiArrowRight size={13} />
                     </button>
                   )}
 
-                  <p className="text-[11px] text-center mt-3" style={{ color: "var(--text-muted)" }}>
+                  <p className="ed-mono ns-int-modal-foot-note">
                     {selectedIntegration.status === "coming-soon"
-                      ? "We'll email you when this integration launches"
-                      : "You can disconnect anytime from settings"}
+                      ? "WE'LL WRITE WHEN IT LAUNCHES"
+                      : "YOU CAN DISCONNECT ANY TIME FROM SETTINGS"}
                   </p>
                 </div>
               </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+            </>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
+
+/* ═══════════════════════════════════════════════════════
+   SCOPED STYLES
+═══════════════════════════════════════════════════════ */
+const INT_STYLES = `
+  .ns-ed .ns-int-wrap { padding-top: 40px; padding-bottom: 96px; }
+
+  .ns-ed .ns-int-toast {
+    position: fixed; top: calc(env(safe-area-inset-top, 0px) + 80px);
+    left: 50%; transform: translateX(-50%);
+    z-index: 9999;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 16px;
+    background: var(--ed-paper-50);
+    border: 1px solid var(--ed-rule);
+    border-radius: 999px;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ed-ink);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  }
+
+  .ns-ed .ns-int-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 32px; flex-wrap: wrap; }
+  .ns-ed .ns-int-title { font-size: clamp(40px, 5vw, 64px); margin: 0; padding-bottom: 0.06em; }
+  .ns-ed .ns-int-sub { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ed-ink-faint); margin-top: 28px; }
+  .ns-ed .ns-int-lede {
+    font-size: 18px; line-height: 1.55; color: var(--ed-ink-mute);
+    margin: 36px 0 0 0; max-width: 680px;
+  }
+
+  /* filters */
+  .ns-ed .ns-int-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 28px; }
+  .ns-ed .ns-int-filter {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--ed-mono); font-size: 11px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--ed-ink-mute);
+    padding: 7px 12px; border-radius: 999px;
+    border: 1px solid var(--ed-rule); background: transparent;
+    cursor: pointer; transition: all .15s ease;
+  }
+  .ns-ed .ns-int-filter:hover { border-color: var(--ed-ink); color: var(--ed-ink); }
+  .ns-ed .ns-int-filter.is-on { background: var(--ed-ink); color: var(--ed-paper-50); border-color: var(--ed-ink); }
+  .ns-ed .ns-int-filter .n { opacity: 0.7; }
+
+  /* list */
+  .ns-ed .ns-int-list { padding: 8px 0 24px; }
+  .ns-ed .ns-int-row {
+    display: grid; grid-template-columns: 56px 1fr minmax(0, 130px); gap: 18px;
+    padding: 22px 14px; border-bottom: 1px solid var(--ed-rule-soft);
+    cursor: pointer; transition: background-color .12s, padding .12s;
+    align-items: start;
+  }
+  .ns-ed .ns-int-row:hover { background: var(--ed-paper-150); padding-left: 18px; }
+  .ns-ed .ns-int-row:focus-visible { outline: 0; background: var(--ed-paper-150); box-shadow: inset 4px 0 0 var(--ed-accent); }
+  .ns-ed .ns-int-row .ord {
+    font-family: var(--ed-mono); font-size: 11px; letter-spacing: 0.14em;
+    color: var(--ed-ink-faint); padding-top: 6px; transition: all .15s ease;
+  }
+  .ns-ed .ns-int-row:hover .ord { color: var(--ed-accent); font-family: var(--ed-serif); font-style: italic; font-size: 17px; }
+  .ns-ed .ns-int-row .body { min-width: 0; max-width: 760px; }
+  .ns-ed .ns-int-row .title {
+    font-family: var(--ed-serif); font-size: clamp(20px, 1.8vw, 26px);
+    line-height: 1.22; color: var(--ed-ink); margin: 0; padding-bottom: 0.04em;
+    transition: color .15s ease;
+  }
+  .ns-ed .ns-int-row:hover .title { color: var(--ed-accent); }
+  .ns-ed .ns-int-row .excerpt {
+    font-family: var(--ed-serif); font-size: 16px; line-height: 1.5;
+    color: var(--ed-ink-mute); margin: 8px 0 0 0;
+  }
+  .ns-ed .ns-int-row .meta {
+    font-family: var(--ed-mono); font-size: 10.5px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ed-ink-faint);
+    margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+  }
+  .ns-ed .ns-int-row .aside {
+    font-family: var(--ed-mono); font-size: 10.5px; letter-spacing: 0.14em;
+    color: var(--ed-ink-faint); padding-top: 8px; text-align: right;
+  }
+
+  /* help strip */
+  .ns-ed .ns-int-help {
+    margin-top: 56px; padding: 32px;
+    background: var(--ed-paper-50); border: 1px solid var(--ed-rule); border-radius: 14px;
+    display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center;
+  }
+  .ns-ed .ns-int-help-eye {
+    font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ed-ink-faint); margin: 0 0 8px 0;
+  }
+  .ns-ed .ns-int-help-title {
+    font-size: 26px; color: var(--ed-ink); margin: 0; letterSpacing: -0.01em;
+  }
+  .ns-ed .ns-int-help-desc {
+    font-size: 14.5px; line-height: 1.55; color: var(--ed-ink-mute); margin: 8px 0 0 0; max-width: 480px;
+  }
+  .ns-ed .ns-int-help-cta { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* modal */
+  .ns-ed .ns-int-backdrop {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(35, 28, 14, 0.4);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  }
+  .ns-ed .ns-int-modal {
+    position: fixed; inset: 0; margin: auto;
+    z-index: 101; max-width: 520px; width: calc(100% - 2rem);
+    max-height: calc(100dvh - 3rem); height: fit-content;
+    background: var(--ed-paper-50);
+    border: 1px solid var(--ed-rule); border-radius: 14px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.12);
+    overflow-y: auto;
+  }
+  .ns-ed .ns-int-modal-head {
+    padding: 24px 28px;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  }
+  .ns-ed .ns-int-modal-title {
+    font-size: 32px; color: var(--ed-ink); margin: 4px 0 0 0;
+    letter-spacing: -0.01em; padding-bottom: 0.04em;
+  }
+  .ns-ed .ns-int-modal-sub {
+    font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ed-ink-faint); margin: 8px 0 0 0;
+  }
+  .ns-ed .ns-int-modal-close {
+    width: 28px; height: 28px; border-radius: 999px;
+    background: transparent; border: 1px solid var(--ed-rule);
+    color: var(--ed-ink-faint); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: all .15s ease; flex-shrink: 0;
+  }
+  .ns-ed .ns-int-modal-close:hover { border-color: var(--ed-ink); color: var(--ed-ink); }
+  .ns-ed .ns-int-modal-body { padding: 20px 28px 24px; }
+  .ns-ed .ns-int-modal-desc {
+    font-size: 17px; line-height: 1.55; color: var(--ed-ink-mute);
+    margin: 0 0 24px 0;
+  }
+  .ns-ed .ns-int-modal-eye {
+    font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ed-ink-faint); margin: 0 0 10px 0;
+  }
+  .ns-ed .ns-int-modal-features {
+    list-style: none; margin: 0; padding: 0; display: grid; gap: 8px;
+    border-top: 1px solid var(--ed-rule-soft);
+  }
+  .ns-ed .ns-int-modal-features li {
+    display: grid; grid-template-columns: 36px 1fr; gap: 12px;
+    align-items: baseline; padding: 10px 0;
+    border-bottom: 1px solid var(--ed-rule-soft);
+  }
+  .ns-ed .ns-int-modal-features li .ord {
+    font-size: 10px; letter-spacing: 0.14em; color: var(--ed-ink-faint);
+  }
+  .ns-ed .ns-int-modal-features li .ed-serif {
+    font-size: 15.5px; color: var(--ed-ink);
+  }
+  .ns-ed .ns-int-modal-pro {
+    margin-top: 20px; padding: 14px; border-radius: 10px;
+    background: var(--ed-accent-soft); border: 1px solid transparent;
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .ns-ed .ns-int-modal-foot {
+    padding: 20px 28px 24px;
+    border-top: 1px solid var(--ed-rule);
+    background: var(--ed-paper-100);
+  }
+  .ns-ed .ns-int-modal-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .ns-ed .ns-int-modal-foot-note {
+    font-size: 10px; letter-spacing: 0.14em; text-align: center;
+    color: var(--ed-ink-faint); margin: 12px 0 0 0;
+  }
+
+  @media (max-width: 720px) {
+    .ns-ed .ns-int-help { grid-template-columns: 1fr; }
+    .ns-ed .ns-int-row { grid-template-columns: 44px 1fr; padding: 16px 8px; }
+    .ns-ed .ns-int-row .aside { display: none; }
+    .ns-ed .ns-int-modal-actions { grid-template-columns: 1fr; }
+  }
+`;

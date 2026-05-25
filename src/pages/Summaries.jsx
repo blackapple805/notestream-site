@@ -1,7 +1,26 @@
-// src/pages/Summaries.jsx — "Insight Explorer"
+// src/pages/Summaries.jsx — "The Synthesis Desk"
 // ═══════════════════════════════════════════════════════════════════
-// REDESIGNED: Matching bento-glass visual system from Dashboard/Notes.
-// All Supabase / AI / conversation logic is UNCHANGED.
+// EDITORIAL RESKIN — what changed and why
+// ─────────────────────────────────────────────────────────────────
+// Wrapped the page in `<div className="ns-ed">` and called
+// `useEditorial()`. The bento-glass insight explorer is now a
+// magazine column: chapter mark (`№ 06 — THE SYNTHESIS DESK`), a
+// serif display title ("What does the archive say?") with "say?"
+// in italic accent blue, a mono dateline (open inquiries / answered
+// this week / citations enabled), a double-rule break, then the
+// composer rendered as a `letter being typed` (paper-50 card,
+// hairline border, mono "ASK THE ARCHIVE" eyebrow, serif italic
+// placeholder, mono context picker dropdown, primary "Ask →"
+// button). Empty state lists three suggested prompts as
+// editorial article-rows in italic serif with quote marks.
+// Conversation bubbles become magazine responses: user message =
+// paper-50 card with serif italic in quotes; AI answer = drop-cap
+// serif paragraph + `§ 02 — CITATIONS` block listing sources as
+// article-rows.
+// All Supabase loadWorkspace, file-selector, query/consumeAiUsage,
+// queryInsight, logActivityEvent, and runSearch / handleSearch
+// logic is UNCHANGED. RichText markdown formatter is preserved
+// exactly. The "/" keyboard shortcut is preserved.
 // ═══════════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
@@ -12,126 +31,43 @@ import {
   FiTrash2,
   FiX,
   FiChevronDown,
-  FiZap,
-  FiMessageCircle,
-  FiCpu,
+  FiArrowRight,
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  LightningIcon as Lightning,
-  MagnifyingGlassIcon as MagnifyingGlass,
-  SparkleIcon as Sparkle,
-  FileTextIcon as FileText,
-  NoteIcon as Note,
-  BrainIcon as Brain,
-} from "@phosphor-icons/react";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { consumeAiUsage } from "../lib/usage";
 import { queryInsight } from "../lib/insightAI";
 import { logActivityEvent } from "../lib/activityEvents";
+import { useEditorial, ED } from "../lib/editorial";
 
 const DOCS_TABLE = "documents";
 const NOTES_TABLE = "notes";
 
 const exampleQuestions = [
-  "What were the key action items from last week's meeting?",
-  "Summarize the main points from my research notes",
-  "What deadlines are mentioned across my documents?",
-  "Find all mentions of budget or costs",
+  "What did I decide about the rebrand timeline?",
+  "Summarise everything I've written about latency.",
+  "Which notes mention Karl?",
 ];
 
 const quickChips = [
-  { label: "Action items", icon: <Lightning size={12} weight="fill" /> },
-  { label: "Deadlines", icon: <Sparkle size={12} weight="fill" /> },
-  { label: "Budget", icon: <FileText size={12} weight="duotone" /> },
-  { label: "Key risks", icon: <Brain size={12} weight="duotone" /> },
+  { label: "Action items" },
+  { label: "Deadlines" },
+  { label: "Budget" },
+  { label: "Key risks" },
 ];
 
 const typeLabel = (t) => {
   switch (String(t || "").toLowerCase()) {
     case "pdf": return "PDF";
-    case "doc": case "docx": return "Doc";
-    case "video": case "mp4": return "Video";
-    case "note": return "Note";
-    case "spreadsheet": case "xls": case "xlsx": return "Sheet";
-    default: return "File";
+    case "doc": case "docx": return "DOC";
+    case "video": case "mp4": return "VIDEO";
+    case "note": return "NOTE";
+    case "spreadsheet": case "xls": case "xlsx": return "SHEET";
+    default: return "FILE";
   }
 };
 
-/* ─── scoped styles ─── */
-const INSIGHT_STYLES = `
-@keyframes ns-insight-fade-up {
-  0%   { opacity: 0; transform: translateY(12px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-@keyframes ns-insight-pulse {
-  0%, 100% { opacity: 0.4; }
-  50%      { opacity: 1; }
-}
-@keyframes ns-typing-dot {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; }
-  40% { transform: scale(1); opacity: 1; }
-}
-
-.ns-insight-card {
-  position: relative;
-  border-radius: 20px;
-  overflow: hidden;
-  background: var(--card-glass-bg, var(--bg-surface));
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 1px solid var(--card-glass-border, var(--border-secondary));
-  box-shadow: var(--card-glass-shadow, 0 8px 32px rgba(0,0,0,0.12));
-}
-.ns-insight-card::before {
-  content: '';
-  position: absolute; inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%);
-  pointer-events: none; z-index: 1;
-}
-.ns-insight-card::after {
-  content: '';
-  position: absolute;
-  left: 24px; right: 24px; top: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
-  pointer-events: none; z-index: 2;
-}
-
-.ns-search-bar-glow:focus-within {
-  border-color: rgba(99,102,241,0.35) !important;
-  box-shadow: none !important;
-}
-
-.ns-msg-enter {
-  animation: ns-insight-fade-up 0.35s cubic-bezier(.22,1,.36,1) both;
-}
-
-.ns-typing-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: rgba(99,102,241,0.6);
-  animation: ns-typing-dot 1.4s ease-in-out infinite;
-}
-.ns-typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.ns-typing-dot:nth-child(3) { animation-delay: 0.4s; }
-
-.ns-scroll::-webkit-scrollbar { width: 4px; }
-.ns-scroll::-webkit-scrollbar-track { background: transparent; }
-.ns-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 4px; }
-
-.ns-example-btn {
-  transition: all 0.2s ease;
-}
-.ns-example-btn:hover {
-  border-color: rgba(99,102,241,0.35) !important;
-  background-color: rgba(99,102,241,0.06) !important;
-  transform: translateX(4px);
-}
-`;
-
-/**
- * Minimal inline formatter for **bold** and *italic*
- */
+/* Minimal inline formatter for **bold** and *italic* (UNCHANGED) */
 function RichText({ text, className = "", style = {} }) {
   const parts = useMemo(() => {
     if (!text) return [];
@@ -183,10 +119,8 @@ function RichText({ text, className = "", style = {} }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
-   MAIN COMPONENT
-═══════════════════════════════════════════════════════ */
 export default function Summaries() {
+  useEditorial();
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [conversations, setConversations] = useState([]);
@@ -200,9 +134,7 @@ export default function Summaries() {
   const chatEndRef = useRef(null);
 
   // Scroll to latest
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [conversations, isSearching]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [conversations, isSearching]);
 
   // "/" shortcut
   useEffect(() => {
@@ -220,19 +152,14 @@ export default function Summaries() {
     const { data: { session }, error } = await supabase.auth.getSession();
     if (error) throw error;
     return session?.user ?? null;
-  }, [supabaseReady]);
+  }, []);
 
   const logActivity = useCallback(async (userId, metadata = {}) => {
     if (!userId) return;
-    await logActivityEvent({
-      userId,
-      eventType: "ai_used",
-      metadata,
-      title: "Insight Explorer query",
-    });
+    await logActivityEvent({ userId, eventType: "ai_used", metadata, title: "Insight Explorer query" });
   }, []);
 
-  // Load workspace files
+  // Load workspace files (UNCHANGED)
   useEffect(() => {
     let alive = true;
     const loadWorkspace = async () => {
@@ -261,7 +188,7 @@ export default function Summaries() {
     };
     loadWorkspace();
     return () => { alive = false; };
-  }, [supabaseReady, getAuthedUser]);
+  }, [getAuthedUser]);
 
   const contextLabel = useMemo(() => {
     if (selectedFiles.length === 0) return "All workspace";
@@ -310,480 +237,490 @@ export default function Summaries() {
   /* ─── Loading ─── */
   if (filesLoading) {
     return (
-      <>
+      <div className="ns-ed">
         <style>{INSIGHT_STYLES}</style>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <div className="relative h-14 w-14">
-            <div className="absolute inset-0 rounded-full" style={{ border: "2.5px solid transparent", borderTopColor: "rgba(99,102,241,0.8)", borderRightColor: "rgba(168,85,247,0.4)", animation: "spin 0.8s linear infinite" }} />
-            <div className="absolute inset-2 rounded-full" style={{ border: "2px solid transparent", borderBottomColor: "rgba(6,182,212,0.6)", animation: "spin 1.2s linear infinite reverse" }} />
-            <FiZap size={18} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-indigo-400" />
-          </div>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading workspace…</p>
+        <div className="ed-page ns-ins-loading">
+          <p className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint }}>
+            Loading the workspace…
+          </p>
+          <hr className="ns-ins-loading-bar" />
         </div>
-      </>
+      </div>
     );
   }
 
   const hasConversation = conversations.length > 0;
+  const answeredCount = conversations.filter((m) => m.type === "ai").length;
 
-  /* ═══════════════════════════════════════════════════════
-     RENDER
-  ═══════════════════════════════════════════════════════ */
   return (
-    <>
+    <div className="ns-ed">
       <style>{INSIGHT_STYLES}</style>
 
-      <div className="space-y-5 pb-[calc(var(--mobile-nav-height)+100px)] md:pb-[120px]">
+      <div className="ed-page ns-ins-wrap">
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            HEADER
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.header
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="flex items-center justify-between gap-3"
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{
-                background: "linear-gradient(135deg, rgba(99,102,241,0.18), rgba(6,182,212,0.12))",
-                border: "1px solid rgba(99,102,241,0.28)",
-              }}
-            >
-              <FiZap size={20} className="text-indigo-400" />
+        {/* ── HEADER ── */}
+        <header className="ns-ins-head">
+          <div>
+            <div className="ed-chapter" style={{ marginBottom: 18 }}>
+              <span className="num">№ 06</span>
+              <span>— The synthesis desk</span>
             </div>
-            <div className="min-w-0">
-              <h1 className="text-xl font-extrabold tracking-tight" style={{ color: "var(--text-primary)" }}>
-                Insight Explorer
-              </h1>
-              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                AI-powered search across your workspace
-              </p>
-            </div>
+            <h1 className="ed-display ns-ins-title">
+              What does the archive{" "}
+              <span className="ed-italic" style={{ color: ED.accent }}>say?</span>
+            </h1>
+            <p className="ed-mono ns-ins-sub">
+              {hasConversation ? `${conversations.length / 2 | 0} OPEN INQUIRY${(conversations.length / 2 | 0) === 1 ? "" : "IES"}` : "0 OPEN INQUIRIES"} · {answeredCount} ANSWERED THIS SESSION · CITATIONS ENABLED
+            </p>
           </div>
-
-          {/* Conversation count + clear */}
           {hasConversation && (
-            <motion.button
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={clearConversation}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold transition"
-              style={{
-                background: "rgba(244,63,94,0.08)",
-                border: "1px solid rgba(244,63,94,0.2)",
-                color: "#f43f5e",
-              }}
-            >
-              <FiTrash2 size={12} />
-              Clear
-            </motion.button>
+            <button onClick={clearConversation} className="ed-btn ed-btn-ghost">
+              Clear desk <FiTrash2 size={12} />
+            </button>
           )}
-        </motion.header>
+        </header>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            FILE CONTEXT SELECTOR
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.05 }}
-        >
-          <div className="ns-insight-card">
-            <div className="relative z-10 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div
-                    className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8" }}
+        <hr className="ed-rule-dbl" />
+
+        {/* ── COMPOSER ── */}
+        <section className="ns-ins-composer">
+          <p className="ed-mono ns-ins-composer-eyebrow">ASK THE ARCHIVE</p>
+
+          <form onSubmit={handleSearch}>
+            <input
+              ref={inputRef}
+              type="text"
+              className="ns-ins-composer-input"
+              placeholder="What did we decide about the loading rule?"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              disabled={isSearching}
+              autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+            />
+
+            <div className="ns-ins-composer-foot">
+              {/* Context picker */}
+              <div className="ns-ins-context">
+                <button
+                  type="button"
+                  onClick={() => setShowFileSelector((s) => !s)}
+                  className="ns-ins-context-btn"
+                  disabled={filesLoading}
+                >
+                  <FiFile size={12} />
+                  <span className="ed-mono ns-ins-context-label">CONTEXT:</span>
+                  <span className="ns-ins-context-value">{contextLabel}</span>
+                  <FiChevronDown size={11} style={{ transform: showFileSelector ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
+                </button>
+
+                {selectedFiles.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFiles([])}
+                    className="ns-ins-context-clear ed-mono"
                   >
-                    <FiFile size={14} />
-                  </div>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>Context:</span>
-                    <span
-                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg truncate"
-                      style={{
-                        background: selectedFiles.length > 0 ? "rgba(99,102,241,0.1)" : "var(--bg-tertiary)",
-                        border: `1px solid ${selectedFiles.length > 0 ? "rgba(99,102,241,0.25)" : "var(--border-secondary)"}`,
-                        color: selectedFiles.length > 0 ? "#818cf8" : "var(--text-secondary)",
-                      }}
-                    >
-                      {contextLabel}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {selectedFiles.length > 0 && (
-                    <button type="button" onClick={() => setSelectedFiles([])}
-                      className="text-[11px] font-medium transition" style={{ color: "var(--text-muted)" }}>
-                      Clear
-                    </button>
-                  )}
-                  <button type="button" onClick={() => setShowFileSelector((s) => !s)}
-                    className="text-[11px] font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition disabled:opacity-60"
-                    style={{ color: "#818cf8", background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)" }}
-                    disabled={filesLoading}>
-                    Select
-                    <FiChevronDown size={12} className={`${showFileSelector ? "rotate-180" : ""} transition-transform`} />
+                    CLEAR
                   </button>
-                </div>
+                )}
               </div>
 
-              {filesError && (
-                <p className="text-[11px] mt-2" style={{ color: "#f43f5e" }}>{filesError}</p>
-              )}
+              <button
+                type="submit"
+                disabled={!query.trim() || isSearching}
+                className="ed-btn ed-btn-primary"
+                style={{ opacity: !query.trim() || isSearching ? 0.5 : 1, cursor: !query.trim() || isSearching ? "not-allowed" : "pointer" }}
+              >
+                {isSearching ? "Asking…" : "Ask"} <FiArrowRight size={13} />
+              </button>
+            </div>
 
-              {/* Selected file pills */}
-              {selectedFiles.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {selectedFiles.map((file) => (
-                    <span key={file.id}
-                      className="text-[11px] font-medium px-2.5 py-1 rounded-lg flex items-center gap-1.5"
-                      style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)", color: "var(--text-secondary)" }}>
-                      <span className="truncate max-w-[130px]">{file.name}</span>
-                      <button type="button" onClick={() => toggleFileSelection(file)}
-                        className="transition" style={{ color: "var(--text-muted)" }} aria-label="Remove file">
-                        <FiX size={11} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
+            {filesError && (
+              <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "#a3261c", marginTop: 12 }}>
+                {filesError}
+              </p>
+            )}
 
-              {/* File selector dropdown */}
-              <AnimatePresence>
-                {showFileSelector && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="mt-3 pt-3 border-t overflow-hidden"
-                    style={{ borderColor: "var(--border-secondary)" }}
-                  >
+            {/* Selected file pills */}
+            {selectedFiles.length > 0 && (
+              <div className="ns-ins-pills">
+                {selectedFiles.map((file) => (
+                  <span key={file.id} className="ns-ins-pill">
+                    <span className="ed-mono ns-ins-pill-type">{typeLabel(file.type)}</span>
+                    <span className="ns-ins-pill-name">{file.name}</span>
+                    <button type="button" onClick={() => toggleFileSelection(file)} className="ns-ins-pill-close" aria-label="Remove">
+                      <FiX size={11} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* File picker */}
+            <AnimatePresence>
+              {showFileSelector && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="ns-ins-filepick-wrap"
+                >
+                  <div className="ns-ins-filepick">
                     {(workspaceFiles || []).length === 0 ? (
-                      <div className="text-[12px] rounded-xl border p-4 text-center"
-                        style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)", color: "var(--text-muted)" }}>
+                      <p className="ed-serif ed-italic" style={{ padding: 24, textAlign: "center", color: ED.inkMute, fontSize: 16, margin: 0 }}>
                         No files yet. Upload a document or create a note.
-                      </div>
+                      </p>
                     ) : (
-                      <div className="grid grid-cols-1 gap-1.5 max-h-[200px] overflow-y-auto ns-scroll">
+                      <div className="ns-ins-filelist">
                         {(workspaceFiles || []).map((file) => {
                           const selected = fileIdSet.has(file.id);
                           return (
-                            <button key={file.id} type="button" onClick={() => toggleFileSelection(file)}
-                              className="text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between gap-2"
-                              style={{
-                                background: selected ? "rgba(99,102,241,0.1)" : "var(--bg-input)",
-                                border: `1px solid ${selected ? "rgba(99,102,241,0.3)" : "var(--border-secondary)"}`,
-                              }}>
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-md tracking-wide"
-                                  style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-muted)" }}>
-                                  {typeLabel(file.type)}
-                                </span>
-                                <span className="text-[13px] font-medium truncate" style={{ color: "var(--text-primary)" }}>{file.name}</span>
-                              </div>
-                              <div className="w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0"
-                                style={{ borderColor: selected ? "rgba(99,102,241,0.5)" : "var(--border-secondary)", background: selected ? "rgba(99,102,241,0.2)" : "transparent" }}>
-                                {selected && <div className="w-2 h-2 rounded-full" style={{ background: "#818cf8" }} />}
-                              </div>
+                            <button
+                              key={file.id} type="button"
+                              onClick={() => toggleFileSelection(file)}
+                              className={`ns-ins-fileitem ${selected ? "is-on" : ""}`}
+                            >
+                              <span className="ed-mono ns-ins-pill-type">{typeLabel(file.type)}</span>
+                              <span className="ns-ins-fileitem-name">{file.name}</span>
+                              <span className={`ns-ins-fileitem-tick ${selected ? "is-on" : ""}`}>
+                                {selected ? "ON" : ""}
+                              </span>
                             </button>
                           );
                         })}
                       </div>
                     )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            CONVERSATION / EMPTY STATE
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="min-h-[280px]"
-        >
-          {!hasConversation ? (
-            /* ── Empty state ── */
-            <div className="ns-insight-card">
-              <div className="relative z-10 p-6">
-                {/* Hero */}
-                <div className="text-center mb-6">
-                  <div
-                    className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-                    style={{
-                      background: "linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.1))",
-                      border: "1px solid rgba(99,102,241,0.25)",
-                      boxShadow: "0 0 20px rgba(99,102,241,0.1)",
-                    }}
-                  >
-                    <MagnifyingGlass size={24} weight="duotone" className="text-indigo-400" />
                   </div>
-                  <h3 className="text-base font-bold mb-1" style={{ color: "var(--text-primary)" }}>
-                    Ask anything about your workspace
-                  </h3>
-                  <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-                    Search documents, notes, and files with AI
-                  </p>
-                </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </form>
+        </section>
 
-                {/* Quick chips */}
-                <div className="flex flex-wrap gap-2 justify-center mb-6">
+        {/* ── ANSWER / EMPTY ── */}
+        <section className="ns-ins-results">
+          {!hasConversation ? (
+            <div className="ns-ins-empty">
+              <div className="ed-chapter" style={{ marginBottom: 16 }}>
+                <span className="num">§ 01</span>
+                <span>— Try asking</span>
+              </div>
+              <hr className="ed-rule" />
+              {exampleQuestions.map((q, i) => (
+                <article
+                  key={i}
+                  className="ns-ins-suggest"
+                  onClick={() => handleExampleClick(q)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleExampleClick(q); }}
+                >
+                  <span className="ord">{String(i + 1).padStart(2, "0")}</span>
+                  <p className="title ed-italic">"{q}"</p>
+                  <span className="aside">USE →</span>
+                </article>
+              ))}
+
+              <div className="ns-ins-quickchips">
+                <p className="ed-mono ns-ins-quickchips-eye">OR REACH FOR A FAMILIAR ONE</p>
+                <div className="ns-ins-quickchips-row">
                   {quickChips.map((chip) => (
                     <button
                       key={chip.label}
                       type="button"
-                      onClick={() => handleExampleClick(`Find ${chip.label.toLowerCase()} across my documents`)}
-                      className="flex items-center gap-1.5 text-[11px] font-semibold px-3.5 py-2 rounded-xl transition"
-                      style={{
-                        background: "var(--bg-tertiary)",
-                        border: "1px solid var(--border-secondary)",
-                        color: "var(--text-secondary)",
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(99,102,241,0.35)"; e.currentTarget.style.background = "rgba(99,102,241,0.06)"; e.currentTarget.style.color = "#818cf8"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-secondary)"; e.currentTarget.style.background = "var(--bg-tertiary)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
+                      onClick={() => handleExampleClick(`Find ${chip.label.toLowerCase()} across my documents.`)}
+                      className="ed-chip ns-ins-quickchip"
                     >
-                      {chip.icon}
                       {chip.label}
                     </button>
                   ))}
                 </div>
-
-                {/* Example questions */}
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: "var(--text-muted)" }}>
-                    Try asking
-                  </p>
-                  <div className="space-y-1.5">
-                    {exampleQuestions.map((q, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => handleExampleClick(q)}
-                        className="ns-example-btn w-full text-left text-[13px] rounded-xl px-4 py-3 flex items-center gap-3"
-                        style={{
-                          background: "var(--bg-input)",
-                          border: "1px solid var(--border-secondary)",
-                          color: "var(--text-secondary)",
-                        }}
-                      >
-                        <FiMessageCircle size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-                        <span className="truncate">"{q}"</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
           ) : (
-            /* ── Conversation ── */
-            <div className="space-y-3">
+            <div className="ns-ins-thread">
               {conversations.map((msg, i) => (
-                <div key={i} className="ns-msg-enter" style={{ animationDelay: `${Math.min(i * 0.05, 0.3)}s` }}>
+                <div key={i} className="ns-ins-msg">
                   {msg.type === "user" ? (
-                    <UserBubble msg={msg} />
+                    <UserMsg msg={msg} />
                   ) : (
-                    <AIBubble msg={msg} />
+                    <AIMsg msg={msg} index={i} />
                   )}
                 </div>
               ))}
 
-              {/* Typing indicator */}
               {isSearching && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="ns-insight-card max-w-[90%]"
-                >
-                  <div className="relative z-10 p-4 flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ background: "rgba(99,102,241,0.12)" }}>
-                      <FiCpu size={14} className="text-indigo-400" />
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="ns-typing-dot" />
-                      <div className="ns-typing-dot" />
-                      <div className="ns-typing-dot" />
-                    </div>
-                    <span className="text-[11px] ml-1" style={{ color: "var(--text-muted)" }}>Thinking…</span>
-                  </div>
-                </motion.div>
+                <div className="ns-ins-typing">
+                  <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, margin: 0 }}>
+                    THE ARCHIVE IS READING…
+                  </p>
+                  <hr className="ns-ins-typing-bar" />
+                </div>
               )}
 
               <div ref={chatEndRef} />
             </div>
           )}
-        </motion.div>
-
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            SEARCH BAR (fixed bottom, mobile-aware)
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div
-          className="fixed inset-x-0 z-40 md:bottom-4"
-          style={{
-            bottom: "var(--mobile-nav-height, 0px)",
-          }}
-        >
-          <div className="relative max-w-2xl w-full mx-auto px-4 pb-3 pt-2 md:pb-0 md:pt-0">
-            <form onSubmit={handleSearch}>
-              <div
-                className="ns-search-bar-glow flex items-center w-full rounded-full px-5 py-3 transition-all duration-200"
-                style={{
-                  background: "var(--card-glass-bg, var(--bg-surface))",
-                  backdropFilter: "blur(40px) saturate(180%)",
-                  WebkitBackdropFilter: "blur(40px) saturate(180%)",
-                  border: `1px solid ${query ? "rgba(99,102,241,0.3)" : "var(--card-glass-border, var(--border-secondary))"}`,
-                  boxShadow: "none",
-                }}
-              >
-                <FiSearch
-                  size={18}
-                  className="mr-3 flex-shrink-0"
-                  style={{ color: query ? "#818cf8" : "var(--text-muted)", transition: "color 0.2s ease" }}
-                />
-
-                <input
-                  ref={inputRef}
-                  type="text"
-                  placeholder="Ask about your workspace..."
-                  className="flex-1 bg-transparent outline-none min-w-0"
-                  style={{ color: "var(--text-primary)", fontSize: "15px", lineHeight: "1.5" }}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  disabled={isSearching}
-                  autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
-                />
-
-                {query.trim() && !isSearching && (
-                  <button type="button"
-                    onClick={() => { setQuery(""); inputRef.current?.focus(); }}
-                    className="p-1.5 rounded-full transition mr-1.5" style={{ color: "var(--text-muted)" }}
-                    aria-label="Clear query">
-                    <FiX size={15} />
-                  </button>
-                )}
-
-                <button type="submit" disabled={!query.trim() || isSearching}
-                  className="h-9 w-9 rounded-xl transition-all flex-shrink-0 flex items-center justify-center disabled:opacity-40"
-                  style={{
-                    background: query.trim() && !isSearching
-                      ? "linear-gradient(135deg, #6366f1, #8b5cf6)"
-                      : "rgba(255,255,255,0.04)",
-                    border: query.trim() && !isSearching
-                      ? "1px solid rgba(99,102,241,0.4)"
-                      : "1px solid var(--border-secondary)",
-                    color: query.trim() && !isSearching ? "#fff" : "var(--text-muted)",
-                    boxShadow: query.trim() && !isSearching ? "0 4px 16px rgba(99,102,241,0.3)" : "none",
-                  }}
-                  aria-label="Send">
-                  {isSearching ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <FiSend size={14} />
-                  )}
-                </button>
-              </div>
-
-              <p className="text-center text-[10px] mt-1.5 hidden md:block" style={{ color: "var(--text-muted)", opacity: 0.4 }}>
-                Press{" "}
-                <kbd className="px-1.5 py-0.5 rounded-md text-[10px] font-medium"
-                  style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>
-                  /
-                </kbd>{" "}
-                to focus
-              </p>
-            </form>
-          </div>
-        </div>
+        </section>
       </div>
-    </>
+    </div>
   );
 }
 
-
 /* ═══════════════════════════════════════════════════════
-   MESSAGE BUBBLES
+   MESSAGE BUBBLES — editorial vocabulary
 ═══════════════════════════════════════════════════════ */
 
-const UserBubble = ({ msg }) => (
-  <div className="flex justify-end">
-    <div
-      className="rounded-2xl rounded-tr-md px-4 py-3 max-w-[85%]"
-      style={{
-        background: "linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.08))",
-        border: "1px solid rgba(99,102,241,0.25)",
-      }}
-    >
-      <RichText
-        text={msg.content}
-        className="text-[13px] leading-relaxed whitespace-pre-wrap"
-        style={{ color: "var(--text-primary)" }}
-      />
-      <p className="text-[10px] mt-1.5 text-right" style={{ color: "var(--text-muted)", opacity: 0.6 }}>
-        {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-      </p>
+const UserMsg = ({ msg }) => (
+  <div className="ns-ins-user">
+    <div className="ed-chapter" style={{ marginBottom: 10 }}>
+      <span className="num">§</span>
+      <span>— YOU ASKED</span>
     </div>
+    <RichText
+      text={msg.content}
+      className="ed-serif ed-italic ns-ins-user-text"
+    />
+    <p className="ed-mono ns-ins-msg-time">
+      {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+    </p>
   </div>
 );
 
-const AIBubble = ({ msg }) => (
-  <div className="ns-insight-card max-w-[95%]">
-    <div className="relative z-10 p-4">
-      <div className="flex items-start gap-3">
-        <div
-          className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-          style={{
-            background: "linear-gradient(135deg, rgba(99,102,241,0.15), rgba(6,182,212,0.1))",
-            border: "1px solid rgba(99,102,241,0.25)",
-          }}
-        >
-          <FiZap size={14} className="text-indigo-400" />
-        </div>
+const AIMsg = ({ msg, index }) => (
+  <div className="ns-ins-ai">
+    <div className="ed-chapter" style={{ marginBottom: 10 }}>
+      <span className="num">§ {String(index + 1).padStart(2, "0")}</span>
+      <span>— THE ANSWER</span>
+    </div>
 
-        <div className="flex-1 min-w-0">
-          <RichText
-            text={msg.content}
-            className="text-[13px] leading-relaxed"
-            style={{ color: "var(--text-secondary)" }}
-          />
+    <RichText
+      text={msg.content}
+      className="ed-serif ed-dropcap ns-ins-ai-text"
+    />
 
-          {/* Sources */}
-          {msg.sources && msg.sources.length > 0 && (
-            <div className="mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border-secondary)" }}>
-              <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--text-muted)" }}>
-                Sources
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {msg.sources.map((source, j) => (
-                  <span key={j}
-                    className="text-[10px] font-medium px-2.5 py-1 rounded-lg"
-                    style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-muted)" }}>
-                    {source}
-                  </span>
-                ))}
-              </div>
+    {msg.sources && msg.sources.length > 0 && (
+      <div className="ns-ins-cites">
+        <p className="ed-mono ns-ins-cites-eye">CITATIONS</p>
+        <hr className="ed-rule" />
+        <div className="ns-ins-cites-list">
+          {msg.sources.map((source, j) => (
+            <div key={j} className="ns-ins-cite">
+              <span className="ord">{String(j + 1).padStart(2, "0")}</span>
+              <span className="ns-ins-cite-name">{source}</span>
+              <span className="aside">OPEN →</span>
             </div>
-          )}
-
-          <p className="text-[10px] mt-2" style={{ color: "var(--text-muted)", opacity: 0.5 }}>
-            {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-          </p>
+          ))}
         </div>
       </div>
-    </div>
+    )}
+
+    <p className="ed-mono ns-ins-msg-time">
+      {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+    </p>
   </div>
 );
 
+/* ═══════════════════════════════════════════════════════
+   SCOPED STYLES
+═══════════════════════════════════════════════════════ */
+const INSIGHT_STYLES = `
+  .ns-ed .ns-ins-wrap { padding-top: 40px; padding-bottom: 96px; }
+  .ns-ed .ns-ins-loading { padding: 80px 32px; display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+  .ns-ed .ns-ins-loading-bar { width: 160px; height: 1px; background: var(--ed-rule); border: 0; margin: 0; animation: ns-ins-pulse 1.4s ease-in-out infinite; }
+  @keyframes ns-ins-pulse { 50% { background: var(--ed-accent); } }
 
+  .ns-ed .ns-ins-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 32px; flex-wrap: wrap; }
+  .ns-ed .ns-ins-title { font-size: clamp(40px, 5vw, 64px); margin: 0; padding-bottom: 0.06em; }
+  .ns-ed .ns-ins-sub { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ed-ink-faint); margin-top: 28px; }
+
+  /* ── COMPOSER ── */
+  .ns-ed .ns-ins-composer {
+    margin-top: 36px;
+    background: var(--ed-paper-50); border: 1px solid var(--ed-rule);
+    border-radius: 14px; padding: 28px;
+  }
+  .ns-ed .ns-ins-composer-eyebrow {
+    font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ed-ink-faint); margin: 0 0 14px 0;
+  }
+  .ns-ed .ns-ins-composer-input {
+    width: 100%; background: transparent; border: 0; outline: 0;
+    font-family: var(--ed-serif); font-size: 21px; line-height: 1.5;
+    color: var(--ed-ink); padding: 6px 0;
+  }
+  .ns-ed .ns-ins-composer-input::placeholder {
+    color: var(--ed-ink-faint); font-style: italic;
+  }
+  .ns-ed .ns-ins-composer-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; margin-top: 18px;
+    padding-top: 18px; border-top: 1px solid var(--ed-rule-soft);
+    flex-wrap: wrap;
+  }
+
+  .ns-ed .ns-ins-context { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .ns-ed .ns-ins-context-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 12px; background: transparent;
+    border: 1px solid var(--ed-rule); border-radius: 999px;
+    color: var(--ed-ink-mute); cursor: pointer;
+    font-family: var(--ed-sans); font-size: 13px;
+    transition: all .15s ease;
+  }
+  .ns-ed .ns-ins-context-btn:hover { border-color: var(--ed-ink); color: var(--ed-ink); }
+  .ns-ed .ns-ins-context-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ns-ed .ns-ins-context-label { font-size: 10px; letter-spacing: 0.14em; color: var(--ed-ink-faint); }
+  .ns-ed .ns-ins-context-value { font-family: var(--ed-serif); font-style: italic; font-size: 14px; color: var(--ed-accent); }
+  .ns-ed .ns-ins-context-clear {
+    font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    background: transparent; border: 0; color: var(--ed-ink-faint); cursor: pointer;
+  }
+  .ns-ed .ns-ins-context-clear:hover { color: var(--ed-ink); }
+
+  /* file picker */
+  .ns-ed .ns-ins-filepick-wrap { overflow: hidden; }
+  .ns-ed .ns-ins-filepick { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--ed-rule-soft); }
+  .ns-ed .ns-ins-filelist {
+    display: grid; gap: 4px; max-height: 240px; overflow-y: auto;
+    padding-right: 4px;
+  }
+  .ns-ed .ns-ins-fileitem {
+    display: grid; grid-template-columns: 60px 1fr 56px;
+    gap: 12px; align-items: center; padding: 10px 12px;
+    background: transparent; border: 1px solid transparent; border-radius: 8px;
+    cursor: pointer; transition: all .12s ease; text-align: left;
+  }
+  .ns-ed .ns-ins-fileitem:hover { background: var(--ed-paper-100); border-color: var(--ed-rule); }
+  .ns-ed .ns-ins-fileitem.is-on { background: var(--ed-paper-150); border-color: var(--ed-ink); }
+  .ns-ed .ns-ins-fileitem-name {
+    font-family: var(--ed-serif); font-size: 16px; color: var(--ed-ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ns-ed .ns-ins-fileitem-tick {
+    font-family: var(--ed-mono); font-size: 10px; letter-spacing: 0.14em;
+    color: var(--ed-accent); text-align: right;
+  }
+
+  /* selected pills */
+  .ns-ed .ns-ins-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .ns-ed .ns-ins-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 4px 4px 4px 10px; border-radius: 999px;
+    border: 1px solid var(--ed-rule); background: var(--ed-paper-100);
+    font-family: var(--ed-sans); font-size: 12px; color: var(--ed-ink);
+    max-width: 240px;
+  }
+  .ns-ed .ns-ins-pill-type {
+    font-size: 9.5px; letter-spacing: 0.14em; color: var(--ed-ink-faint);
+  }
+  .ns-ed .ns-ins-pill-name {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ns-ed .ns-ins-pill-close {
+    width: 18px; height: 18px; border-radius: 999px;
+    background: transparent; border: 0; color: var(--ed-ink-faint);
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .ns-ed .ns-ins-pill-close:hover { color: var(--ed-ink); background: var(--ed-paper-200); }
+
+  /* ── RESULTS ── */
+  .ns-ed .ns-ins-results { margin-top: 56px; }
+  .ns-ed .ns-ins-empty { padding: 0; }
+  .ns-ed .ns-ins-suggest {
+    display: grid; grid-template-columns: 56px 1fr minmax(0, 80px);
+    gap: 18px; padding: 22px 14px; border-bottom: 1px solid var(--ed-rule-soft);
+    align-items: center; cursor: pointer; transition: background-color .12s, padding .12s;
+  }
+  .ns-ed .ns-ins-suggest:hover { background: var(--ed-paper-150); padding-left: 18px; }
+  .ns-ed .ns-ins-suggest .ord {
+    font-family: var(--ed-mono); font-size: 11px; letter-spacing: 0.14em;
+    color: var(--ed-ink-faint); transition: all .15s ease;
+  }
+  .ns-ed .ns-ins-suggest:hover .ord { color: var(--ed-accent); font-family: var(--ed-serif); font-style: italic; font-size: 17px; }
+  .ns-ed .ns-ins-suggest .title {
+    font-family: var(--ed-serif); font-size: clamp(18px, 1.5vw, 22px);
+    color: var(--ed-ink); margin: 0; line-height: 1.3;
+  }
+  .ns-ed .ns-ins-suggest .aside {
+    font-family: var(--ed-mono); font-size: 10.5px; letter-spacing: 0.14em;
+    color: var(--ed-ink-faint); text-align: right;
+  }
+
+  .ns-ed .ns-ins-quickchips { margin-top: 48px; }
+  .ns-ed .ns-ins-quickchips-eye {
+    font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ed-ink-faint); margin: 0 0 14px 0;
+  }
+  .ns-ed .ns-ins-quickchips-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ns-ed .ns-ins-quickchip {
+    cursor: pointer; transition: all .15s ease;
+  }
+  .ns-ed .ns-ins-quickchip:hover {
+    background: var(--ed-ink); color: var(--ed-paper-50); border-color: var(--ed-ink);
+  }
+
+  /* ── THREAD ── */
+  .ns-ed .ns-ins-thread { display: flex; flex-direction: column; gap: 48px; }
+  .ns-ed .ns-ins-msg { animation: ns-ins-fadeup 0.4s cubic-bezier(.22,1,.36,1) both; }
+  @keyframes ns-ins-fadeup { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  .ns-ed .ns-ins-user {
+    padding: 24px; border-left: 3px solid var(--ed-accent);
+    background: var(--ed-paper-50); border-radius: 0 14px 14px 0;
+  }
+  .ns-ed .ns-ins-user-text {
+    font-size: 20px; line-height: 1.45; color: var(--ed-ink-soft);
+    margin: 0; max-width: 720px;
+  }
+  .ns-ed .ns-ins-msg-time {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ed-ink-faint); margin: 14px 0 0 0;
+  }
+
+  .ns-ed .ns-ins-ai { padding: 0 4px; }
+  .ns-ed .ns-ins-ai-text {
+    font-size: 18px; line-height: 1.6; color: var(--ed-ink);
+    margin: 0; max-width: 720px;
+  }
+
+  .ns-ed .ns-ins-cites { margin-top: 28px; }
+  .ns-ed .ns-ins-cites-eye {
+    font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ed-ink-faint); margin: 0 0 8px 0;
+  }
+  .ns-ed .ns-ins-cites-list { margin-top: 8px; }
+  .ns-ed .ns-ins-cite {
+    display: grid; grid-template-columns: 40px 1fr minmax(0, 80px);
+    gap: 12px; align-items: baseline; padding: 12px 0;
+    border-bottom: 1px solid var(--ed-rule-soft);
+  }
+  .ns-ed .ns-ins-cite .ord {
+    font-family: var(--ed-mono); font-size: 10.5px; letter-spacing: 0.14em;
+    color: var(--ed-ink-faint);
+  }
+  .ns-ed .ns-ins-cite-name {
+    font-family: var(--ed-serif); font-size: 16px; color: var(--ed-ink-soft);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ns-ed .ns-ins-cite .aside {
+    font-family: var(--ed-mono); font-size: 10px; letter-spacing: 0.14em;
+    color: var(--ed-ink-faint); text-align: right;
+  }
+
+  .ns-ed .ns-ins-typing { padding: 16px 0; }
+  .ns-ed .ns-ins-typing-bar {
+    width: 220px; height: 1px; background: var(--ed-rule); border: 0; margin: 12px 0 0 0;
+    animation: ns-ins-pulse 1.2s ease-in-out infinite;
+  }
+
+  @media (max-width: 720px) {
+    .ns-ed .ns-ins-composer { padding: 20px; }
+    .ns-ed .ns-ins-composer-input { font-size: 18px; }
+    .ns-ed .ns-ins-composer-foot { flex-direction: column; align-items: stretch; }
+    .ns-ed .ns-ins-suggest { grid-template-columns: 32px 1fr; padding: 14px 8px; }
+    .ns-ed .ns-ins-suggest .aside { display: none; }
+    .ns-ed .ns-ins-cite { grid-template-columns: 32px 1fr; }
+    .ns-ed .ns-ins-cite .aside { display: none; }
+  }
+`;

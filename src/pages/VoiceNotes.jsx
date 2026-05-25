@@ -1,87 +1,113 @@
 // src/pages/VoiceNotes.jsx
 // ═══════════════════════════════════════════════════════════════════
-// EDITORIAL RESKIN — what changed and why
-// ─────────────────────────────────────────────────────────────────
-// Wrapped the page in `<div className="ns-ed">` and called
-// `useEditorial()`. The dark glass recording card, neon waveform,
-// gradient gradient circular buttons, and frosted save modal are
-// gone. The page is now "Dispatches in your own voice":
-//
-//   • Header — `№ 03 — DISPATCHES IN YOUR OWN VOICE` chapter
-//     mark, serif display title ("Spoken first, *read* later."),
-//     mono dateline with totals (n recordings · total time · total
-//     words), and an upper-right "Back to AI Lab" mono link.
-//
-//   • Recorder — a single paper-50 card holding a slim hairline
-//     waveform that paints from a Web Audio AnalyserNode (kept
-//     entirely intact — same `startWaveformLoop`), a huge serif
-//     italic accent-blue tabular timer, an italic-serif live
-//     transcript line, and three editorial control buttons (start
-//     is an `.ed-btn-primary`, pause/cancel/stop are `.ed-btn-ghost`
-//     with hairline circles). Recording state pulses a single ink
-//     dot, not a neon glow.
-//
-//   • Transcription result — when recState === "done" the same
-//     card flips into a reading view: an `§` section header
-//     ("§ Reading"), the transcript in serif body type with
-//     drop-cap, an italic-accent-blue AI summary block, a list
-//     of mono-prefixed action items, and Discard / Save buttons.
-//     Edit mode swaps the body for a serif textarea.
-//
-//   • Archive — `§ 02 — THE TAPE LIBRARY` chapter mark, then full
-//     editorial article rows: a play/pause toggle as the row's
-//     ord glyph, serif title, italic-serif transcript excerpt,
-//     mono metadata (date · duration · ♪ when audio attached),
-//     hairline-bordered copy/delete actions on hover.
-//
-//   • Save modal rebuilt as paper-50 EdModal with mono labels,
-//     paper-50 inputs, ink-primary save button.
-//
-//   • Mic-error banner is a hairline strip with an italic-accent
-//     `!` glyph, no neon.
-//
-// NO Supabase / hook / data-flow changes — every useState, useEffect,
-// useRef, useCallback is byte-identical to the previous file:
-// MediaRecorder pipeline, Web Speech API recognizer, audio upload to
-// the voice-recordings Supabase bucket, transcription via
-// processTranscription edge function, playback control, delete,
-// AnalyserNode waveform loop, and the pro-gate redirect.
+// ✅ REAL audio capture via MediaRecorder + getUserMedia
+// ✅ Real waveform from Web Audio AnalyserNode
+// ✅ Audio saved to Supabase Storage (voice-recordings bucket)
+// ✅ audio_url persisted in voice_recordings table
+// ✅ Playback for saved recordings
+// ✅ Web Speech API live speech-to-text
+// ✅ AI processing via transcribe-voice edge function
+// ✅ FIX: mic permission race condition resolved
+// ✅ FIX: removed non-existent Phosphor export (Waveform/WaveformSlash)
 // ═══════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { createPortal } from "react-dom";
 import { createSpeechRecognizer, processTranscription } from "../lib/voiceAI";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { formatTimer } from "../lib/formatDate";
-import { useEditorial, ED } from "../lib/editorial";
 import {
-  FiMic, FiSquare, FiPause, FiPlay, FiTrash2, FiSave,
-  FiArrowLeft, FiClock, FiCheck, FiEdit2, FiCopy,
-  FiVolume2, FiX, FiAlertTriangle, FiArrowRight,
-} from "react-icons/fi";
+  MicrophoneIcon as Microphone,
+  StopIcon as Stop,
+  PauseIcon as Pause,
+  PlayIcon as Play,
+  TrashIcon as Trash,
+  FloppyDiskIcon as FloppyDisk,
+  ArrowLeftIcon as ArrowLeft,
+  ClockIcon as Clock,
+  CheckCircleIcon as CheckCircle,
+  PencilSimpleIcon as PencilSimple,
+  CopyIcon as Copy,
+  SpeakerHighIcon as SpeakerHigh,
+  WarningIcon as Warning,
+} from "@phosphor-icons/react";
+import { FiX, FiCheck, FiTrash2, FiCopy } from "react-icons/fi";
 import { useSubscription } from "../hooks/useSubscription";
 
 const RECORDINGS_TABLE = "voice_recordings";
-const STORAGE_BUCKET   = "voice-recordings";
+const STORAGE_BUCKET = "voice-recordings";
+
+/* ─── Scoped styles ───────────────────────────────────────── */
+const VN_STYLES = `
+@keyframes ns-vn-pulse { 0%,100% { opacity:.6; } 50% { opacity:1; } }
+@keyframes ns-vn-float {
+  0%,100% { transform: translateY(0) scale(1); }
+  50%     { transform: translateY(-8px) scale(1.05); }
+}
+@keyframes ns-vn-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(168,85,247,0.4); }
+  70%  { box-shadow: 0 0 0 16px rgba(168,85,247,0); }
+  100% { box-shadow: 0 0 0 0 rgba(168,85,247,0); }
+}
+.ns-vn-card {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--card-glass-bg, var(--bg-surface));
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--card-glass-border, var(--border-secondary));
+  box-shadow: var(--card-glass-shadow, 0 8px 32px rgba(0,0,0,0.12));
+}
+.ns-vn-card::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 50%);
+  pointer-events: none; z-index: 1;
+}
+.ns-vn-card::after {
+  content: '';
+  position: absolute;
+  left: 24px; right: 24px; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  pointer-events: none; z-index: 2;
+}
+.ns-vn-rec-btn {
+  animation: ns-vn-float 3s ease-in-out infinite;
+}
+.ns-vn-rec-btn:hover { animation: none; }
+.ns-vn-recording-ring { animation: ns-vn-ring 1.5s ease-out infinite; }
+.ns-vn-stagger > * {
+  animation: ns-vn-fadeUp 0.4s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes ns-vn-fadeUp {
+  0%   { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.ns-vn-stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.ns-vn-stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.ns-vn-stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.ns-vn-stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.ns-vn-stagger > *:nth-child(5) { animation-delay: 0.18s; }
+`;
 
 export default function VoiceNotes() {
-  useEditorial();
-
   const navigate = useNavigate();
   const { subscription, isFeatureUnlocked, incrementUsage } = useSubscription();
 
-  const isPro      = subscription.plan !== "free";
-  const isUnlocked = isFeatureUnlocked("voice");
-  useEffect(() => {
-    if (!isPro || !isUnlocked) navigate("/dashboard/ai-lab");
-  }, [isPro, isUnlocked, navigate]);
+  // Voice notes is available to all logged-in users. The previous gate that
+  // redirected free users to AI Lab has been removed — usage is still
+  // counted via incrementUsage, but the page is no longer plan-locked.
+  const isPro = subscription.plan !== "free";
+  const isUnlocked = true;
 
-  /* ─── State (UNCHANGED) ─── */
+  // ─── State machine ─────────────────────────────────────────
+  // "idle" | "requesting" | "recording" | "paused" | "processing" | "done"
   const [recState, setRecState] = useState("idle");
   const [recordingTime, setRecordingTime] = useState(0);
-  const [waveformBars, setWaveformBars] = useState(Array(48).fill(0.08));
+  const [waveformBars, setWaveformBars] = useState(Array(40).fill(0.08));
   const [liveText, setLiveText] = useState("");
 
   const [transcription, setTranscription] = useState("");
@@ -102,20 +128,20 @@ export default function VoiceNotes() {
   const [copiedId, setCopiedId] = useState(null);
   const [micError, setMicError] = useState(null);
 
-  /* ─── Refs (UNCHANGED) ─── */
-  const timerRef          = useRef(null);
-  const waveformRef       = useRef(null);
-  const recognizerRef     = useRef(null);
-  const aliveRef          = useRef(true);
-  const cancelledRef      = useRef(false);
-  const mediaRecorderRef  = useRef(null);
-  const audioChunksRef    = useRef([]);
-  const mediaStreamRef    = useRef(null);
-  const analyserRef       = useRef(null);
-  const audioContextRef   = useRef(null);
-  const audioElRef        = useRef(null);
+  // ─── Refs ───────────────────────────────────────────────────
+  const timerRef = useRef(null);
+  const waveformRef = useRef(null);
+  const recognizerRef = useRef(null);
+  const aliveRef = useRef(true);
+  const cancelledRef = useRef(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const mediaStreamRef = useRef(null);
+  const analyserRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const audioElRef = useRef(null);
 
-  /* ─── Helpers (UNCHANGED) ─── */
+  // ─── Helpers ────────────────────────────────────────────────
   const fmtRelative = (date) => {
     const d = date instanceof Date ? date : new Date(date);
     const diff = Math.floor((Date.now() - d) / 60000);
@@ -128,46 +154,94 @@ export default function VoiceNotes() {
   const getUser = useCallback(async () => {
     if (!supabaseReady || !supabase) return null;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       return session?.user || null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }, [supabaseReady]);
 
-  /* ─── Load recordings (UNCHANGED) ─── */
+  // ─── Load recordings ───────────────────────────────────────
   useEffect(() => {
     let alive = true;
     (async () => {
-      if (!supabaseReady || !supabase) { if (alive) { setRecordings([]); setRecordingsLoading(false); } return; }
+      if (!supabaseReady || !supabase) {
+        if (alive) {
+          setRecordings([]);
+          setRecordingsLoading(false);
+        }
+        return;
+      }
       const user = await getUser();
-      if (!user || !alive) { if (alive) setRecordingsLoading(false); return; }
-      const { data, error } = await supabase.from(RECORDINGS_TABLE).select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50);
+      if (!user || !alive) {
+        if (alive) setRecordingsLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from(RECORDINGS_TABLE)
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
       if (!alive) return;
-      if (error) { console.error("Load error:", error); setRecordings([]); }
-      else {
-        setRecordings((data || []).map((r) => ({
-          id: r.id, title: r.title, duration: r.duration, transcription: r.transcription,
-          createdAt: r.created_at, status: r.status, aiPayload: r.ai_payload,
-          audioUrl: r.audio_url || null,
-        })));
+      if (error) {
+        console.error("Load error:", error);
+        setRecordings([]);
+      } else {
+        setRecordings(
+          (data || []).map((r) => ({
+            id: r.id,
+            title: r.title,
+            duration: r.duration,
+            transcription: r.transcription,
+            createdAt: r.created_at,
+            status: r.status,
+            aiPayload: r.ai_payload,
+            audioUrl: r.audio_url || null,
+          }))
+        );
       }
       setRecordingsLoading(false);
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [supabaseReady, getUser]);
 
-  /* ─── Cleanup (UNCHANGED) ─── */
+  // ─── Cleanup helpers ───────────────────────────────────────
   const clearTimers = useCallback(() => {
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-    if (waveformRef.current) { cancelAnimationFrame(waveformRef.current); waveformRef.current = null; }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (waveformRef.current) {
+      cancelAnimationFrame(waveformRef.current);
+      waveformRef.current = null;
+    }
   }, []);
 
   const cleanupAudio = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      try { mediaRecorderRef.current.stop(); } catch {}
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
     }
     mediaRecorderRef.current = null;
-    if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach((t) => t.stop()); mediaStreamRef.current = null; }
-    if (audioContextRef.current) { try { audioContextRef.current.close(); } catch {} audioContextRef.current = null; analyserRef.current = null; }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      try {
+        audioContextRef.current.close();
+      } catch {}
+      audioContextRef.current = null;
+      analyserRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
@@ -175,35 +249,50 @@ export default function VoiceNotes() {
     return () => {
       aliveRef.current = false;
       clearTimers();
-      if (recognizerRef.current) { try { recognizerRef.current.abort(); } catch {} }
+      if (recognizerRef.current) {
+        try {
+          recognizerRef.current.abort();
+        } catch {}
+      }
       cleanupAudio();
     };
   }, [clearTimers, cleanupAudio]);
 
-  /* ─── Waveform loop (UNCHANGED) ─── */
+  // ─── Waveform loop ─────────────────────────────────────────
   const startWaveformLoop = useCallback(() => {
     const analyser = analyserRef.current;
     if (!analyser) return;
     const buf = new Uint8Array(analyser.frequencyBinCount);
-    const step = Math.floor(buf.length / 48);
+    const step = Math.floor(buf.length / 40);
     const loop = () => {
       if (!analyserRef.current) return;
       analyser.getByteFrequencyData(buf);
       const bars = [];
-      for (let i = 0; i < 48; i++) bars.push(Math.max(0.06, buf[i * step] / 255));
+      for (let i = 0; i < 40; i++) bars.push(Math.max(0.06, buf[i * step] / 255));
       setWaveformBars(bars);
       waveformRef.current = requestAnimationFrame(loop);
     };
     waveformRef.current = requestAnimationFrame(loop);
   }, []);
 
-  /* ─── Recording handlers (UNCHANGED) ─── */
+  // ═══════════════════════════════════════════════════════════
+  //  START — fixes the race condition
+  // ═══════════════════════════════════════════════════════════
   const startRecording = async () => {
     setRecState("requesting");
-    setMicError(null); setRecordingTime(0); setTranscription(""); setEditedTranscription("");
-    setIsEditing(false); setLiveText(""); setAiPayload(null); setAudioBlob(null);
+    setMicError(null);
+    setRecordingTime(0);
+    setTranscription("");
+    setEditedTranscription("");
+    setIsEditing(false);
+    setLiveText("");
+    setAiPayload(null);
+    setAudioBlob(null);
     cancelledRef.current = false;
-    if (audioUrl) { URL.revokeObjectURL(audioUrl); setAudioUrl(null); }
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
     audioChunksRef.current = [];
 
     let stream;
@@ -213,11 +302,18 @@ export default function VoiceNotes() {
     } catch (err) {
       console.error("Mic denied:", err);
       setRecState("idle");
-      setMicError(err?.name === "NotAllowedError" ? "Microphone access denied. Allow it in browser settings." : "Could not access microphone.");
+      setMicError(
+        err?.name === "NotAllowedError"
+          ? "Microphone access denied. Allow it in browser settings."
+          : "Could not access microphone."
+      );
       return;
     }
 
-    if (!aliveRef.current) { stream.getTracks().forEach((t) => t.stop()); return; }
+    if (!aliveRef.current) {
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
 
     setRecState("recording");
 
@@ -233,21 +329,31 @@ export default function VoiceNotes() {
     } catch {}
 
     try {
-      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm"
-        : MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "";
+      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+        ? "audio/mp4"
+        : "";
       const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
       mediaRecorderRef.current = rec;
-      rec.ondataavailable = (e) => { if (e.data?.size > 0) audioChunksRef.current.push(e.data); };
+      rec.ondataavailable = (e) => {
+        if (e.data?.size > 0) audioChunksRef.current.push(e.data);
+      };
       rec.onstop = () => {
         if (!cancelledRef.current && audioChunksRef.current.length > 0) {
-          const blob = new Blob(audioChunksRef.current, { type: rec.mimeType || "audio/webm" });
+          const blob = new Blob(audioChunksRef.current, {
+            type: rec.mimeType || "audio/webm",
+          });
           setAudioBlob(blob);
           setAudioUrl(URL.createObjectURL(blob));
         }
       };
       rec.start(1000);
-    } catch (err) { console.warn("MediaRecorder failed:", err); }
+    } catch (err) {
+      console.warn("MediaRecorder failed:", err);
+    }
 
     timerRef.current = setInterval(() => setRecordingTime((p) => p + 1), 1000);
 
@@ -264,23 +370,43 @@ export default function VoiceNotes() {
 
   const pauseRecording = () => {
     setRecState("paused");
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-    if (waveformRef.current) { cancelAnimationFrame(waveformRef.current); waveformRef.current = null; }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (waveformRef.current) {
+      cancelAnimationFrame(waveformRef.current);
+      waveformRef.current = null;
+    }
     setWaveformBars((p) => p.map((v) => v * 0.25));
-    if (mediaRecorderRef.current?.state === "recording") { try { mediaRecorderRef.current.pause(); } catch {} }
-    if (recognizerRef.current) { try { recognizerRef.current.stop(); } catch {} }
+    if (mediaRecorderRef.current?.state === "recording") {
+      try {
+        mediaRecorderRef.current.pause();
+      } catch {}
+    }
+    if (recognizerRef.current) {
+      try {
+        recognizerRef.current.stop();
+      } catch {}
+    }
   };
 
   const resumeRecording = () => {
     setRecState("recording");
     timerRef.current = setInterval(() => setRecordingTime((p) => p + 1), 1000);
     startWaveformLoop();
-    if (mediaRecorderRef.current?.state === "paused") { try { mediaRecorderRef.current.resume(); } catch {} }
+    if (mediaRecorderRef.current?.state === "paused") {
+      try {
+        mediaRecorderRef.current.resume();
+      } catch {}
+    }
     try {
       const r = createSpeechRecognizer();
       if (r) {
         recognizerRef.current = r;
-        r.onResult(({ combined }) => setLiveText((p) => (p ? p + " " : "") + combined));
+        r.onResult(({ combined }) =>
+          setLiveText((p) => (p ? p + " " : "") + combined)
+        );
         r.onError(() => {});
         r.start();
       }
@@ -289,19 +415,39 @@ export default function VoiceNotes() {
 
   const stopRecording = async () => {
     clearTimers();
-    setWaveformBars(Array(48).fill(0.08));
+    setWaveformBars(Array(40).fill(0.08));
 
-    if (mediaRecorderRef.current?.state !== "inactive") { try { mediaRecorderRef.current.stop(); } catch {} }
-    if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach((t) => t.stop()); mediaStreamRef.current = null; }
-    if (audioContextRef.current) { try { audioContextRef.current.close(); } catch {} audioContextRef.current = null; analyserRef.current = null; }
+    if (mediaRecorderRef.current?.state !== "inactive") {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      try {
+        audioContextRef.current.close();
+      } catch {}
+      audioContextRef.current = null;
+      analyserRef.current = null;
+    }
 
     let finalText = liveText || "";
     if (recognizerRef.current) {
-      try { const t = recognizerRef.current.getFinalTranscript(); if (t && t.length > finalText.length) finalText = t; recognizerRef.current.stop(); } catch {}
+      try {
+        const t = recognizerRef.current.getFinalTranscript();
+        if (t && t.length > finalText.length) finalText = t;
+        recognizerRef.current.stop();
+      } catch {}
       recognizerRef.current = null;
     }
 
-    if (!finalText.trim()) { setRecState("idle"); return; }
+    if (!finalText.trim()) {
+      setRecState("idle");
+      return;
+    }
 
     setRecState("processing");
     try {
@@ -312,7 +458,9 @@ export default function VoiceNotes() {
       setEditedTranscription(cleaned);
       setAiPayload(result);
       if (result?.title && result.title !== "Voice Note") setNoteTitle(result.title);
-      try { await incrementUsage("voiceTranscriptions"); } catch {}
+      try {
+        await incrementUsage("voiceTranscriptions");
+      } catch {}
     } catch {
       if (!aliveRef.current) return;
       setTranscription(finalText);
@@ -324,26 +472,41 @@ export default function VoiceNotes() {
   const cancelRecording = () => {
     cancelledRef.current = true;
     clearTimers();
-    if (recognizerRef.current) { try { recognizerRef.current.abort(); } catch {} recognizerRef.current = null; }
+    if (recognizerRef.current) {
+      try {
+        recognizerRef.current.abort();
+      } catch {}
+      recognizerRef.current = null;
+    }
     audioChunksRef.current = [];
     cleanupAudio();
     setRecState("idle");
     setRecordingTime(0);
     setLiveText("");
-    setWaveformBars(Array(48).fill(0.08));
+    setWaveformBars(Array(40).fill(0.08));
     setAudioBlob(null);
-    if (audioUrl) { URL.revokeObjectURL(audioUrl); setAudioUrl(null); }
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
   };
 
   const uploadAudio = async (blob, userId) => {
     if (!blob || !userId || !supabaseReady || !supabase) return null;
     try {
       const ext = blob.type.includes("mp4") ? "mp4" : "webm";
-      const { data, error } = await supabase.storage.from(STORAGE_BUCKET).upload(`${userId}/${Date.now()}.${ext}`, blob, { contentType: blob.type || "audio/webm", upsert: false });
+      const { data, error } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(`${userId}/${Date.now()}.${ext}`, blob, {
+          contentType: blob.type || "audio/webm",
+          upsert: false,
+        });
       if (error) return null;
       const { data: u } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(data.path);
       return u?.publicUrl || null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
 
   const saveAsNote = async () => {
@@ -364,22 +527,43 @@ export default function VoiceNotes() {
     };
 
     if (user && supabaseReady && supabase) {
-      const { data, error } = await supabase.from(RECORDINGS_TABLE).insert({
-        user_id: user.id, title: rec.title, duration: rec.duration,
-        transcription: rec.transcription, status: rec.status,
-        ai_payload: rec.aiPayload, ai_model: aiPayload?.model || null,
-        audio_url: url,
-      }).select("id, created_at").single();
+      const { data, error } = await supabase
+        .from(RECORDINGS_TABLE)
+        .insert({
+          user_id: user.id,
+          title: rec.title,
+          duration: rec.duration,
+          transcription: rec.transcription,
+          status: rec.status,
+          ai_payload: rec.aiPayload,
+          ai_model: aiPayload?.model || null,
+          audio_url: url,
+        })
+        .select("id, created_at")
+        .single();
 
-      if (!error && data) { rec.id = data.id; rec.createdAt = data.created_at; }
-      else rec.id = `local-${Date.now()}`;
+      if (!error && data) {
+        rec.id = data.id;
+        rec.createdAt = data.created_at;
+      } else rec.id = `local-${Date.now()}`;
     } else rec.id = `local-${Date.now()}`;
 
     setRecordings((p) => [rec, ...p]);
-    setShowSaveModal(false); setNoteTitle(""); setTranscription(""); setEditedTranscription("");
-    setRecordingTime(0); setIsEditing(false); setLiveText(""); setAiPayload(null);
-    setIsUploading(false); setAudioBlob(null); setRecState("idle");
-    if (audioUrl) { URL.revokeObjectURL(audioUrl); setAudioUrl(null); }
+    setShowSaveModal(false);
+    setNoteTitle("");
+    setTranscription("");
+    setEditedTranscription("");
+    setRecordingTime(0);
+    setIsEditing(false);
+    setLiveText("");
+    setAiPayload(null);
+    setIsUploading(false);
+    setAudioBlob(null);
+    setRecState("idle");
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
   };
 
   const deleteRecording = async (id) => {
@@ -408,14 +592,28 @@ export default function VoiceNotes() {
 
   const togglePlayback = (r) => {
     if (!r.audioUrl) return;
-    if (playingId === r.id) { if (audioElRef.current) audioElRef.current.pause(); audioElRef.current = null; setPlayingId(null); return; }
+    if (playingId === r.id) {
+      if (audioElRef.current) audioElRef.current.pause();
+      audioElRef.current = null;
+      setPlayingId(null);
+      return;
+    }
     if (audioElRef.current) audioElRef.current.pause();
     const a = new Audio(r.audioUrl);
     audioElRef.current = a;
     setPlayingId(r.id);
-    a.onended = () => { setPlayingId(null); audioElRef.current = null; };
-    a.onerror = () => { setPlayingId(null); audioElRef.current = null; };
-    a.play().catch(() => { setPlayingId(null); audioElRef.current = null; });
+    a.onended = () => {
+      setPlayingId(null);
+      audioElRef.current = null;
+    };
+    a.onerror = () => {
+      setPlayingId(null);
+      audioElRef.current = null;
+    };
+    a.play().catch(() => {
+      setPlayingId(null);
+      audioElRef.current = null;
+    });
   };
 
   const copyText = (text, id) => {
@@ -425,694 +623,710 @@ export default function VoiceNotes() {
   };
 
   const discardResult = () => {
-    setTranscription(""); setEditedTranscription(""); setRecordingTime(0);
-    setIsEditing(false); setLiveText(""); setAiPayload(null);
-    setAudioBlob(null); setRecState("idle");
-    if (audioUrl) { URL.revokeObjectURL(audioUrl); setAudioUrl(null); }
+    setTranscription("");
+    setEditedTranscription("");
+    setRecordingTime(0);
+    setIsEditing(false);
+    setLiveText("");
+    setAiPayload(null);
+    setAudioBlob(null);
+    setRecState("idle");
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
   };
 
-  if (!isPro || !isUnlocked) return null;
-
   const isActive = recState === "recording" || recState === "paused";
-  const totalDuration = recordings.reduce((a, r) => a + (r.duration || 0), 0);
-  const totalWords    = recordings.reduce((a, r) => a + (r.transcription || "").split(" ").filter(Boolean).length, 0);
 
-  /* ═══════════════════════════════════════════════════════
-     RENDER
-  ═══════════════════════════════════════════════════════ */
   return (
-    <div className="ns-ed">
-      <VNScopedStyles />
-
-      <div style={{ paddingBottom: "calc(var(--mobile-nav-height, 0px) + 100px)" }}>
-
-        {/* ━━━━━━━━━━━━━━ HEADER ━━━━━━━━━━━━━━ */}
-        <header className="ed-reveal" style={{ paddingTop: 32 }}>
+    <>
+      <style>{VN_STYLES}</style>
+      <div className="space-y-5 pb-[calc(var(--mobile-nav-height)+24px)] ns-vn-stagger">
+        {/* Header */}
+        <header className="pt-1 px-1">
           <button
-            type="button"
             onClick={() => navigate("/dashboard/ai-lab")}
-            className="ed-ulink ed-mono"
-            style={{
-              fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase",
-              color: ED.inkMute, background: "transparent", border: 0, cursor: "pointer",
-              padding: 0, marginBottom: 18, display: "inline-flex", alignItems: "center", gap: 6,
-            }}
+            className="flex items-center gap-2 mb-3 transition"
+            style={{ color: "var(--text-muted)" }}
           >
-            <FiArrowLeft size={12} /> BACK TO AI LAB
+            <ArrowLeft size={16} />
+            <span className="text-[12px] font-medium">Back to AI Lab</span>
           </button>
-
-          <div className="ed-chapter" style={{ marginBottom: 18 }}>
-            <span className="num">№ 03</span>
-            <span>— DISPATCHES IN YOUR OWN VOICE</span>
+          <div className="flex items-center gap-3">
+            <div
+              className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(168,85,247,0.18), rgba(236,72,153,0.12))",
+                border: "1px solid rgba(168,85,247,0.28)",
+              }}
+            >
+              <Microphone weight="duotone" size={22} className="text-purple-400" />
+            </div>
+            <div>
+              <h1
+                className="text-xl font-extrabold tracking-tight"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Voice Notes
+              </h1>
+              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                Record, transcribe & save with AI
+              </p>
+            </div>
           </div>
-
-          <h1
-            className="ed-display"
-            style={{ fontSize: "clamp(40px, 5vw, 64px)", margin: 0, paddingBottom: "0.06em", maxWidth: 920 }}
-          >
-            Spoken first, <span className="ed-italic" style={{ color: ED.accent }}>read</span> later.
-          </h1>
-
-          <p
-            className="ed-mono"
-            style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint, marginTop: 28 }}
-          >
-            {recordings.length} {recordings.length === 1 ? "RECORDING" : "RECORDINGS"}
-            <span className="ns-dotsep">·</span>
-            {formatTimer(totalDuration)} ON TAPE
-            <span className="ns-dotsep">·</span>
-            {totalWords.toLocaleString()} WORDS TRANSCRIBED
-          </p>
         </header>
 
-        <hr className="ed-rule-dbl" style={{ marginTop: 32 }} />
-
-        {/* ━━━━━━━━━━━━━━ MIC ERROR ━━━━━━━━━━━━━━ */}
+        {/* Mic error */}
         {micError && (
-          <div className="ns-vn-err">
-            <span className="ed-mono" style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 18, marginRight: 10 }}>!</span>
-            <div style={{ flex: 1 }}>
-              <p className="ed-mono ns-vn-err-eyebrow">MICROPHONE</p>
-              <p className="ed-serif" style={{ fontSize: 17, color: ED.ink, marginTop: 4 }}>{micError}</p>
+          <div
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl"
+            style={{
+              background: "rgba(244,63,94,0.06)",
+              border: "1px solid rgba(244,63,94,0.2)",
+            }}
+          >
+            <Warning size={18} weight="fill" style={{ color: "#f43f5e" }} />
+            <div>
+              <p className="text-[12px] font-semibold" style={{ color: "#f43f5e" }}>
+                Microphone Error
+              </p>
+              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                {micError}
+              </p>
             </div>
-            <button onClick={() => setMicError(null)} className="ns-icon-btn-sm" aria-label="Dismiss">
-              <FiX size={13} />
+            <button
+              onClick={() => setMicError(null)}
+              className="ml-auto"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <FiX size={14} />
             </button>
           </div>
         )}
 
-        {/* ━━━━━━━━━━━━━━ RECORDER CARD ━━━━━━━━━━━━━━ */}
-        <section className="ns-vn-card ed-card" style={{ marginTop: 32 }}>
-          {/* ── recorder body ── */}
-          {(recState !== "done" || !transcription) && (
-            <div className="ns-vn-body">
-              {/* waveform */}
-              <div className="ns-vn-wave" aria-hidden>
+        {/* ════ RECORDING CARD ════ */}
+        <div
+          className="ns-vn-card"
+          style={{ borderColor: isActive ? "rgba(168,85,247,0.35)" : undefined }}
+        >
+          <div className="relative z-10 p-5 sm:p-6">
+            <div className="flex flex-col items-center">
+              {/* Waveform bars */}
+              <div className="flex items-center justify-center gap-[3px] h-20 w-full max-w-md mb-5">
                 {waveformBars.map((h, i) => (
-                  <span
+                  <motion.div
                     key={i}
+                    className="w-1.5 rounded-full"
+                    animate={{ height: `${h * 100}%` }}
+                    transition={{ duration: 0.08 }}
                     style={{
-                      height: `${Math.max(8, h * 100)}%`,
-                      background: isActive ? ED.accent : ED.rule,
-                      opacity: isActive ? 0.6 + h * 0.4 : 0.7,
+                      minHeight: "6px",
+                      maxHeight: "80px",
+                      background: isActive
+                        ? `linear-gradient(to top, rgba(168,85,247,${0.4 + h * 0.6}), rgba(236,72,153,${0.3 + h * 0.7}))`
+                        : "rgba(168,85,247,0.18)",
                     }}
                   />
                 ))}
               </div>
 
-              {/* timer */}
-              <p className="ns-vn-timer">{formatTimer(recordingTime)}</p>
+              {/* Timer */}
+              <div
+                className="text-4xl font-mono font-light mb-1 tabular-nums"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {formatTimer(recordingTime)}
+              </div>
 
-              {/* status */}
-              <p className="ns-vn-status">
-                {recState === "idle" && "Quiet now. Press record when ready."}
-                {recState === "requesting" && (<><span className="ns-vn-dot" /> Requesting the microphone…</>)}
-                {recState === "recording" && (<><span className="ns-vn-dot" /> Recording in real time</>)}
-                {recState === "paused" && (<><span className="ns-vn-dot is-still" /> Paused</>)}
-                {recState === "processing" && (<><span className="ns-vn-dot" /> The model is reading along…</>)}
-              </p>
-
-              {/* live transcript */}
+              {/* Live text */}
               {isActive && liveText && (
-                <div className="ns-vn-live">
-                  <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint, margin: 0 }}>LIVE</p>
-                  <p className="ed-serif ed-italic" style={{ fontSize: 18, color: ED.inkMute, marginTop: 8, lineHeight: 1.55 }}>
-                    "{liveText}"
+                <div
+                  className="w-full max-w-md mt-3 mb-3 p-3 rounded-xl text-[11px] max-h-20 overflow-y-auto"
+                  style={{
+                    background: "var(--bg-input, var(--bg-tertiary))",
+                    border: "1px solid var(--border-secondary)",
+                  }}
+                >
+                  <p className="font-semibold mb-1" style={{ color: "#a855f7" }}>
+                    Live:
                   </p>
+                  <p style={{ color: "var(--text-secondary)" }}>{liveText}</p>
                 </div>
               )}
 
-              {/* controls */}
-              <div className="ns-vn-controls">
-                {recState === "idle" && (
-                  <button className="ed-btn ed-btn-primary" onClick={startRecording} style={{ padding: "13px 26px" }}>
-                    <FiMic size={14} /> Start recording
-                  </button>
+              {/* Status */}
+              {isActive && (
+                <div className="flex items-center gap-2 mb-4 mt-1">
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{
+                      background: recState === "paused" ? "#f59e0b" : "#f43f5e",
+                      animation:
+                        recState === "paused"
+                          ? "none"
+                          : "ns-vn-pulse 1.2s ease-in-out infinite",
+                    }}
+                  />
+                  <span className="text-[12px] font-medium" style={{ color: "var(--text-muted)" }}>
+                    {recState === "paused" ? "Paused" : "Recording…"}
+                  </span>
+                </div>
+              )}
+              {recState === "requesting" && (
+                <div className="flex items-center gap-2 mb-4 mt-2">
+                  <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+                    Requesting microphone…
+                  </span>
+                </div>
+              )}
+              {recState === "processing" && (
+                <div className="flex items-center gap-2 mb-4 mt-2">
+                  <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+                    AI is processing…
+                  </span>
+                </div>
+              )}
+
+              {/* Controls */}
+              <div className="flex items-center gap-4 mt-1">
+                {recState === "idle" && !transcription && (
+                  <motion.button
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.92 }}
+                    onClick={startRecording}
+                    className="ns-vn-rec-btn h-[72px] w-[72px] rounded-full flex items-center justify-center"
+                    style={{
+                      background: "linear-gradient(135deg, #a855f7, #ec4899)",
+                      boxShadow: "0 6px 24px rgba(168,85,247,0.35)",
+                    }}
+                  >
+                    <Microphone size={30} weight="fill" className="text-white" />
+                  </motion.button>
                 )}
 
                 {recState === "requesting" && (
-                  <button className="ed-btn ed-btn-primary" disabled style={{ padding: "13px 26px", opacity: 0.5, pointerEvents: "none" }}>
-                    <FiMic size={14} /> Requesting…
-                  </button>
+                  <div
+                    className="h-[72px] w-[72px] rounded-full flex items-center justify-center opacity-60"
+                    style={{ background: "linear-gradient(135deg, #a855f7, #ec4899)" }}
+                  >
+                    <div className="w-7 h-7 border-[3px] border-white/30 border-t-white rounded-full animate-spin" />
+                  </div>
                 )}
 
                 {isActive && (
                   <>
-                    <button className="ed-btn ed-btn-ghost" onClick={cancelRecording}>
-                      <FiTrash2 size={13} /> Cancel
-                    </button>
-                    <button className="ed-btn ed-btn-ghost" onClick={recState === "paused" ? resumeRecording : pauseRecording}>
-                      {recState === "paused" ? <><FiPlay size={13} /> Resume</> : <><FiPause size={13} /> Pause</>}
-                    </button>
-                    <button className="ed-btn ed-btn-primary" onClick={stopRecording}>
-                      <FiSquare size={13} /> Stop &amp; transcribe
-                    </button>
+                    <motion.button
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.92 }}
+                      onClick={cancelRecording}
+                      className="h-12 w-12 rounded-full flex items-center justify-center"
+                      style={{
+                        background: "rgba(255,255,255,0.06)",
+                        border: "1px solid var(--border-secondary)",
+                      }}
+                    >
+                      <Trash size={18} style={{ color: "var(--text-muted)" }} />
+                    </motion.button>
+
+                    <motion.button
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.92 }}
+                      onClick={recState === "paused" ? resumeRecording : pauseRecording}
+                      className="h-14 w-14 rounded-full flex items-center justify-center"
+                      style={{
+                        background:
+                          recState === "paused"
+                            ? "linear-gradient(135deg, #a855f7, #8b5cf6)"
+                            : "rgba(245,158,11,0.15)",
+                        border: recState === "paused" ? "none" : "1px solid rgba(245,158,11,0.3)",
+                      }}
+                    >
+                      {recState === "paused" ? (
+                        <Play size={22} weight="fill" className="text-white ml-0.5" />
+                      ) : (
+                        <Pause size={22} weight="fill" style={{ color: "#f59e0b" }} />
+                      )}
+                    </motion.button>
+
+                    <motion.button
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.92 }}
+                      onClick={stopRecording}
+                      className="ns-vn-recording-ring h-16 w-16 rounded-full flex items-center justify-center"
+                      style={{
+                        background: "linear-gradient(135deg, #f43f5e, #e11d48)",
+                        boxShadow: "0 6px 24px rgba(244,63,94,0.35)",
+                      }}
+                    >
+                      <Stop size={26} weight="fill" className="text-white" />
+                    </motion.button>
                   </>
                 )}
+              </div>
 
-                {recState === "processing" && (
-                  <button className="ed-btn ed-btn-primary" disabled style={{ padding: "13px 26px", opacity: 0.5, pointerEvents: "none" }}>
-                    Reading…
-                  </button>
+              {recState === "idle" && !transcription && (
+                <p className="text-[11px] mt-4" style={{ color: "var(--text-muted)" }}>
+                  Tap to start recording
+                </p>
+              )}
+            </div>
+
+            {/* Audio preview */}
+            {audioUrl && recState === "done" && transcription && (
+              <div
+                className="mt-4 p-3 rounded-xl flex items-center gap-3"
+                style={{ background: "var(--bg-input)", border: "1px solid var(--border-secondary)" }}
+              >
+                <div
+                  className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{
+                    background: "rgba(168,85,247,0.12)",
+                    border: "1px solid rgba(168,85,247,0.25)",
+                  }}
+                >
+                  <SpeakerHigh size={14} className="text-purple-400" />
+                </div>
+                <audio controls src={audioUrl} className="flex-1 h-8" style={{ maxWidth: "100%" }} />
+              </div>
+            )}
+
+            {/* Transcription result */}
+            {transcription && recState === "done" && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-5 pt-5"
+                style={{ borderTop: "1px solid var(--border-secondary)" }}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle size={15} weight="fill" style={{ color: "#10b981" }} />
+                    <span className="text-[12px] font-bold" style={{ color: "#10b981" }}>
+                      Transcription Complete
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setIsEditing(!isEditing)}
+                      className="h-7 w-7 rounded-lg flex items-center justify-center transition"
+                      style={{
+                        background: isEditing ? "rgba(168,85,247,0.15)" : "transparent",
+                        border: isEditing ? "1px solid rgba(168,85,247,0.3)" : "1px solid transparent",
+                        color: isEditing ? "#a855f7" : "var(--text-muted)",
+                      }}
+                    >
+                      <PencilSimple size={14} />
+                    </button>
+                    <button
+                      onClick={() => copyText(editedTranscription, "current")}
+                      className="h-7 w-7 rounded-lg flex items-center justify-center"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      {copiedId === "current" ? (
+                        <FiCheck size={14} style={{ color: "#10b981" }} />
+                      ) : (
+                        <Copy size={14} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {isEditing ? (
+                  <textarea
+                    value={editedTranscription}
+                    onChange={(e) => setEditedTranscription(e.target.value)}
+                    className="w-full h-28 p-3 rounded-xl text-[13px] resize-none outline-none"
+                    style={{
+                      background: "var(--bg-input)",
+                      color: "var(--text-primary)",
+                      border: "1px solid rgba(168,85,247,0.3)",
+                    }}
+                  />
+                ) : (
+                  <p
+                    className="text-[13px] leading-relaxed p-3 rounded-xl"
+                    style={{ background: "var(--bg-input)", color: "var(--text-secondary)" }}
+                  >
+                    {editedTranscription}
+                  </p>
                 )}
+
+                {aiPayload?.actionItems?.length > 0 && (
+                  <div
+                    className="mt-3 p-3 rounded-xl"
+                    style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)" }}
+                  >
+                    <p className="text-[11px] font-bold mb-2" style={{ color: "var(--text-secondary)" }}>
+                      Action Items:
+                    </p>
+                    <ul className="space-y-1">
+                      {aiPayload.actionItems.map((item, i) => (
+                        <li
+                          key={i}
+                          className="text-[11px] flex items-start gap-2"
+                          style={{ color: "var(--text-muted)" }}
+                        >
+                          <span className="text-purple-400 mt-0.5">•</span>
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {aiPayload?.summary && (
+                  <div
+                    className="mt-2 p-3 rounded-xl"
+                    style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)" }}
+                  >
+                    <p className="text-[11px] font-bold mb-1" style={{ color: "var(--text-secondary)" }}>
+                      AI Summary:
+                    </p>
+                    <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                      {aiPayload.summary}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 mt-4">
+                  <button
+                    onClick={discardResult}
+                    className="flex-1 py-2.5 rounded-xl text-[12px] font-semibold transition"
+                    style={{
+                      background: "var(--bg-tertiary)",
+                      border: "1px solid var(--border-secondary)",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    Discard
+                  </button>
+                  <button
+                    onClick={() => setShowSaveModal(true)}
+                    className="flex-1 py-2.5 rounded-xl text-[12px] font-semibold text-white flex items-center justify-center gap-2 transition"
+                    style={{
+                      background: "linear-gradient(135deg, #a855f7, #ec4899)",
+                      boxShadow: "0 4px 16px rgba(168,85,247,0.25)",
+                    }}
+                  >
+                    <FloppyDisk size={14} /> Save Note
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Recordings", value: recordings.length },
+            {
+              label: "Total Time",
+              value: formatTimer(recordings.reduce((a, r) => a + (r.duration || 0), 0)),
+            },
+            {
+              label: "Words",
+              value: recordings.reduce(
+                (a, r) => a + (r.transcription || "").split(" ").filter(Boolean).length,
+                0
+              ),
+            },
+          ].map(({ label, value }) => (
+            <div key={label} className="ns-vn-card">
+              <div className="relative z-10 p-3 text-center">
+                <p className="text-xl font-extrabold" style={{ color: "var(--text-primary)" }}>
+                  {value}
+                </p>
+                <p className="text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>
+                  {label}
+                </p>
               </div>
             </div>
-          )}
+          ))}
+        </div>
 
-          {/* ── transcription result ── */}
-          {recState === "done" && transcription && (
-            <div className="ns-vn-result">
-              <header className="ns-vn-result-head">
-                <p className="ed-chapter">
-                  <span className="num">§ READING</span>
-                  <span>— {fmtMetaTimer(recordingTime)} OF SPEECH</span>
+        {/* Saved recordings */}
+        <div className="ns-vn-card">
+          <div className="relative z-10 p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[13px] font-bold" style={{ color: "var(--text-primary)" }}>
+                Recent Recordings
+              </h3>
+              <span
+                className="text-[10px] font-medium px-2 py-0.5 rounded-lg"
+                style={{
+                  background: "var(--bg-tertiary)",
+                  border: "1px solid var(--border-secondary)",
+                  color: "var(--text-muted)",
+                }}
+              >
+                {recordings.length} total
+              </span>
+            </div>
+
+            {recordingsLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : recordings.length === 0 ? (
+              <div className="text-center py-10">
+                <div
+                  className="h-14 w-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
+                  style={{
+                    background: "rgba(168,85,247,0.08)",
+                    border: "1px solid rgba(168,85,247,0.2)",
+                  }}
+                >
+                  {/* FIX: use an icon that definitely exists in your Phosphor set */}
+                  <SpeakerHigh size={24} weight="duotone" className="text-purple-400" />
+                </div>
+                <p className="text-[12px] font-medium" style={{ color: "var(--text-muted)" }}>
+                  No recordings yet
                 </p>
-                <div className="ns-vn-result-acts">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditing(!isEditing)}
-                    className={`ns-icon-btn-sm ${isEditing ? "is-on" : ""}`}
-                    title="Edit transcript"
-                    aria-label="Edit"
-                  >
-                    <FiEdit2 size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => copyText(editedTranscription, "current")}
-                    className="ns-icon-btn-sm"
-                    title="Copy"
-                    aria-label="Copy"
-                  >
-                    {copiedId === "current" ? <FiCheck size={13} /> : <FiCopy size={13} />}
-                  </button>
-                </div>
-              </header>
-
-              <hr className="ed-rule" style={{ margin: "16px 0 24px" }} />
-
-              {audioUrl && (
-                <div className="ns-vn-playback">
-                  <span className="ed-mono ns-vn-playback-l">PLAYBACK</span>
-                  <audio controls src={audioUrl} className="ns-vn-audio" />
-                </div>
-              )}
-
-              {isEditing ? (
-                <textarea
-                  value={editedTranscription}
-                  onChange={(e) => setEditedTranscription(e.target.value)}
-                  className="ns-vn-textarea"
-                  autoFocus
-                />
-              ) : (
-                <p className="ed-serif ed-dropcap ns-vn-transcript">
-                  {editedTranscription}
+                <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+                  Record your first voice note above
                 </p>
-              )}
-
-              {aiPayload?.summary && (
-                <div className="ns-vn-ai">
-                  <p className="ed-mono ns-vn-ai-eyebrow">
-                    <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>¹</span>
-                    THE MODEL'S NOTE
-                  </p>
-                  <p className="ed-serif ed-italic" style={{ fontSize: 18, color: ED.inkMute, marginTop: 8, lineHeight: 1.5 }}>
-                    {aiPayload.summary}
-                  </p>
-                </div>
-              )}
-
-              {!!(aiPayload?.actionItems?.length) && (
-                <div className="ns-vn-ai">
-                  <p className="ed-mono ns-vn-ai-eyebrow">
-                    <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>²</span>
-                    ACTION ITEMS
-                  </p>
-                  <ul className="ns-vn-actions">
-                    {aiPayload.actionItems.map((item, i) => (
-                      <li key={i}>
-                        <span className="ed-mono ord">{String(i + 1).padStart(2, "0")}</span>
-                        <span className="ed-serif">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <footer className="ns-vn-result-foot">
-                <button className="ed-btn ed-btn-ghost" onClick={discardResult}>Discard</button>
-                <button className="ed-btn ed-btn-primary" onClick={() => setShowSaveModal(true)}>
-                  Save to archive <FiArrowRight size={13} />
-                </button>
-              </footer>
-            </div>
-          )}
-        </section>
-
-        {/* ━━━━━━━━━━━━━━ ARCHIVE LIST ━━━━━━━━━━━━━━ */}
-        <section style={{ marginTop: 80 }}>
-          <header style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 18, flexWrap: "wrap", gap: 12 }}>
-            <div className="ed-chapter">
-              <span className="num">§ 02</span>
-              <span>— THE TAPE LIBRARY</span>
-            </div>
-            <p className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint }}>
-              {recordings.length} ON FILE
-            </p>
-          </header>
-
-          <hr className="ed-rule" />
-
-          {recordingsLoading ? (
-            <div style={{ padding: "80px 0", textAlign: "center" }}>
-              <div style={{ maxWidth: 320, margin: "0 auto", height: 1, background: `linear-gradient(90deg, transparent, ${ED.ink}, transparent)`, backgroundSize: "200% 100%", animation: "ed-shimmer 1.6s linear infinite" }} />
-              <p className="ed-mono" style={{ marginTop: 14, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint }}>
-                Loading the tape…
-              </p>
-              <style>{`@keyframes ed-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
-            </div>
-          ) : recordings.length === 0 ? (
-            <p className="ed-serif ed-italic" style={{ fontSize: 22, color: ED.inkMute, padding: "64px 0", textAlign: "center", maxWidth: 520, margin: "0 auto", lineHeight: 1.45 }}>
-              No memos yet. Press record above and speak.
-            </p>
-          ) : (
-            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-              {recordings.map((r, i) => {
-                const playing = playingId === r.id;
-                return (
-                  <li key={r.id}>
-                    <article className="ns-vn-row">
-                      <button
-                        type="button"
-                        onClick={() => togglePlayback(r)}
-                        className={`ns-vn-play ${playing ? "is-on" : ""} ${!r.audioUrl ? "is-mute" : ""}`}
-                        aria-label={playing ? "Pause" : "Play"}
-                        title={r.audioUrl ? (playing ? "Pause" : "Play") : "No audio"}
-                        disabled={!r.audioUrl}
-                      >
-                        {playing
-                          ? <FiPause size={12} />
-                          : r.audioUrl
-                          ? <FiPlay size={12} />
-                          : <FiVolume2 size={12} />}
-                      </button>
-
-                      <div className="ns-vn-row-body">
-                        <h3 className="ns-vn-row-title">{r.title}</h3>
-                        {r.transcription && (
-                          <p className="ns-vn-row-excerpt">"{truncate(r.transcription, 200)}"</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {recordings.map((r) => (
+                  <motion.div
+                    key={r.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-3 rounded-xl transition"
+                    style={{
+                      background: "var(--bg-input, var(--bg-tertiary))",
+                      border: "1px solid var(--border-secondary)",
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {r.audioUrl ? (
+                          <button
+                            onClick={() => togglePlayback(r)}
+                            className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 transition"
+                            style={{
+                              background: playingId === r.id ? "rgba(168,85,247,0.2)" : "rgba(168,85,247,0.08)",
+                              border: `1px solid rgba(168,85,247,${playingId === r.id ? "0.4" : "0.2"})`,
+                            }}
+                          >
+                            {playingId === r.id ? (
+                              <Pause size={16} weight="fill" className="text-purple-400" />
+                            ) : (
+                              <Play size={16} weight="fill" className="text-purple-400 ml-0.5" />
+                            )}
+                          </button>
+                        ) : (
+                          <div
+                            className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style={{
+                              background: "rgba(168,85,247,0.08)",
+                              border: "1px solid rgba(168,85,247,0.2)",
+                            }}
+                          >
+                            <SpeakerHigh size={16} className="text-purple-400" />
+                          </div>
                         )}
-                        <p className="ns-vn-row-meta">
-                          <span>{fmtRelative(r.createdAt).toUpperCase()}</span>
-                          <span>{formatTimer(r.duration || 0)}</span>
-                          {r.audioUrl && <span className="ed-chip">AUDIO ATTACHED</span>}
-                          {r.aiPayload?.summary && <span className="ed-chip ed-chip-accent">READ BY MODEL</span>}
-                        </p>
+
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>
+                            {r.title}
+                          </p>
+                          <div className="flex items-center gap-1.5 text-[10px]" style={{ color: "var(--text-muted)" }}>
+                            <span>{formatTimer(r.duration || 0)}</span>
+                            <span>·</span>
+                            <span>{fmtRelative(r.createdAt)}</span>
+                            {r.audioUrl && (
+                              <>
+                                <span>·</span>
+                                <span style={{ color: "#a855f7" }}>♪</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="ns-vn-row-aside">
+                      <div className="flex items-center gap-0.5 flex-shrink-0">
                         <button
-                          type="button"
                           onClick={() => copyText(r.transcription, r.id)}
-                          className="ns-icon-btn-sm"
-                          aria-label="Copy transcript"
-                          title="Copy"
+                          className="h-7 w-7 rounded-lg flex items-center justify-center"
+                          style={{ color: "var(--text-muted)" }}
                         >
-                          {copiedId === r.id ? <FiCheck size={12} /> : <FiCopy size={12} />}
+                          {copiedId === r.id ? (
+                            <FiCheck size={13} style={{ color: "#10b981" }} />
+                          ) : (
+                            <FiCopy size={13} />
+                          )}
                         </button>
                         <button
-                          type="button"
                           onClick={() => deleteRecording(r.id)}
-                          className="ns-icon-btn-sm is-danger"
-                          aria-label="Delete recording"
-                          title="Delete"
+                          className="h-7 w-7 rounded-lg flex items-center justify-center"
+                          style={{ color: "var(--text-muted)" }}
                         >
-                          <FiTrash2 size={12} />
+                          <FiTrash2 size={13} />
                         </button>
                       </div>
-                    </article>
-                    <hr className="ed-rule-soft" />
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+                    </div>
 
-        {/* ━━━━━━━━━━━━━━ SAVE MODAL ━━━━━━━━━━━━━━ */}
+                    {r.transcription && (
+                      <p className="text-[11px] line-clamp-2 mt-2 pl-12" style={{ color: "var(--text-muted)" }}>
+                        {r.transcription}
+                      </p>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ════ SAVE MODAL ════ */}
         <AnimatePresence>
           {showSaveModal && (
-            <EdModal
-              onClose={() => setShowSaveModal(false)}
-              title="Save to the archive"
-              subtitle="Title it, then file."
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+              style={{
+                backgroundColor: "var(--bg-overlay, rgba(0,0,0,0.6))",
+                backdropFilter: "blur(12px)",
+              }}
+              onMouseDown={(e) => {
+                if (e.target === e.currentTarget) setShowSaveModal(false);
+              }}
             >
-              <div style={{ display: "grid", gap: 18, marginTop: 4 }}>
-                <label className="ns-vn-field">
-                  <span className="ns-vn-field-label">
-                    <span className="ed-serif" style={{ fontSize: 17, color: ED.ink }}>Title</span>
-                  </span>
-                  <input
-                    className="ns-vn-input"
-                    placeholder="What is this memo about?"
-                    value={noteTitle}
-                    onChange={(e) => setNoteTitle(e.target.value)}
-                    autoFocus
-                  />
-                </label>
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="w-full max-w-md ns-vn-card mx-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="relative z-10 p-5">
+                  <div className="flex items-center justify-between mb-5">
+                    <h2 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>
+                      Save Voice Note
+                    </h2>
+                    <button
+                      onClick={() => setShowSaveModal(false)}
+                      className="h-7 w-7 rounded-lg flex items-center justify-center"
+                      style={{
+                        background: "var(--bg-tertiary)",
+                        border: "1px solid var(--border-secondary)",
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      <FiX size={14} />
+                    </button>
+                  </div>
 
-                <div className="ns-vn-field">
-                  <span className="ns-vn-field-label">
-                    <span className="ed-serif" style={{ fontSize: 17, color: ED.ink }}>Preview</span>
-                  </span>
-                  <p className="ed-serif ed-italic" style={{ background: ED.paper50, border: `1px solid ${ED.rule}`, borderRadius: 8, padding: "14px 16px", margin: 0, color: ED.inkMute, fontSize: 16, lineHeight: 1.5, maxHeight: 200, overflowY: "auto" }}>
-                    "{editedTranscription}"
-                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <label
+                        className="text-[10px] font-bold uppercase tracking-widest mb-1.5 block"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        Title
+                      </label>
+                      <input
+                        type="text"
+                        value={noteTitle}
+                        onChange={(e) => setNoteTitle(e.target.value)}
+                        placeholder="Enter a title…"
+                        className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none"
+                        style={{
+                          background: "var(--bg-input)",
+                          color: "var(--text-primary)",
+                          border: "1px solid var(--border-secondary)",
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        className="text-[10px] font-bold uppercase tracking-widest mb-1.5 block"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        Preview
+                      </label>
+                      <div
+                        className="p-3 rounded-xl text-[12px] max-h-28 overflow-y-auto"
+                        style={{
+                          background: "var(--bg-input)",
+                          color: "var(--text-secondary)",
+                          border: "1px solid var(--border-secondary)",
+                        }}
+                      >
+                        {editedTranscription}
+                      </div>
+                    </div>
+
+                    {audioBlob && (
+                      <div className="flex items-center gap-2 text-[11px]" style={{ color: "#a855f7" }}>
+                        <SpeakerHigh size={13} />
+                        <span>Audio attached ({(audioBlob.size / 1024).toFixed(0)} KB)</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                      <Clock size={13} />
+                      <span>{formatTimer(recordingTime)}</span>
+                      {aiPayload?.category && (
+                        <>
+                          <span>·</span>
+                          <span className="capitalize">{aiPayload.category}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-5">
+                    <button
+                      onClick={() => setShowSaveModal(false)}
+                      disabled={isUploading}
+                      className="flex-1 py-2.5 rounded-xl text-[12px] font-semibold transition disabled:opacity-50"
+                      style={{
+                        background: "var(--bg-tertiary)",
+                        border: "1px solid var(--border-secondary)",
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      onClick={saveAsNote}
+                      disabled={isUploading}
+                      className="flex-1 py-2.5 rounded-xl text-[12px] font-semibold text-white flex items-center justify-center gap-2 transition disabled:opacity-60"
+                      style={{
+                        background: "linear-gradient(135deg, #a855f7, #ec4899)",
+                        boxShadow: "0 4px 16px rgba(168,85,247,0.25)",
+                      }}
+                    >
+                      {isUploading ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />{" "}
+                          Saving…
+                        </>
+                      ) : (
+                        <>
+                          <FloppyDisk size={14} /> Save Note
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
-
-                <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint, margin: 0, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-                  <FiClock size={11} />
-                  {formatTimer(recordingTime)}
-                  {audioBlob && <><span>·</span><span>{(audioBlob.size / 1024).toFixed(0)} KB</span></>}
-                  {aiPayload?.category && <><span>·</span><span>{aiPayload.category.toUpperCase()}</span></>}
-                </p>
-              </div>
-
-              <div style={{ display: "flex", gap: 12, marginTop: 28, justifyContent: "flex-end" }}>
-                <button className="ed-btn ed-btn-ghost" disabled={isUploading} onClick={() => setShowSaveModal(false)}>Cancel</button>
-                <button
-                  className="ed-btn ed-btn-primary"
-                  disabled={isUploading}
-                  onClick={saveAsNote}
-                >
-                  {isUploading ? "Filing…" : <>Save to archive <FiArrowRight size={13} /></>}
-                </button>
-              </div>
-            </EdModal>
+              </motion.div>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
-    </div>
+    </>
   );
 }
-
-
-/* ═══════════════════════════════════════════════════════
-   HELPERS / SUB-COMPONENTS
-═══════════════════════════════════════════════════════ */
-
-const truncate = (s, n = 220) => {
-  const t = String(s || "").trim();
-  return t.length > n ? t.slice(0, n).trim() + "…" : t;
-};
-
-const fmtMetaTimer = (secs) => {
-  const s = formatTimer(secs);
-  return s.toUpperCase();
-};
-
-const EdModal = ({ children, onClose, title, subtitle }) => {
-  if (typeof document === "undefined") return null;
-  return createPortal(
-    <>
-      <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="ns-modal-bg"
-        onClick={onClose}
-      />
-      <div className="ns-modal-wrap">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 12 }}
-          transition={{ duration: 0.2 }}
-          className="ed-card ns-modal"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
-            <div>
-              <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, margin: 0 }}>
-                <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>№</span>
-                DISPATCH
-              </p>
-              <h2 className="ed-serif" style={{ fontSize: 28, margin: "6px 0 0", color: ED.ink, paddingBottom: "0.04em" }}>{title}</h2>
-              {subtitle && <p className="ed-serif ed-italic" style={{ fontSize: 16, color: ED.inkMute, marginTop: 4, lineHeight: 1.4 }}>{subtitle}</p>}
-            </div>
-            <button onClick={onClose} className="ns-modal-close" aria-label="Close">
-              <FiX size={13} />
-            </button>
-          </header>
-          <hr className="ed-rule" />
-          <div style={{ marginTop: 20 }}>{children}</div>
-        </motion.div>
-      </div>
-    </>,
-    document.body
-  );
-};
-
-/* ═══════════════════════════════════════════════════════
-   SCOPED CSS
-═══════════════════════════════════════════════════════ */
-const VNScopedStyles = () => (
-  <style>{`
-    .ns-ed .ns-dotsep { padding: 0 8px; color: ${ED.rule}; }
-
-    /* ── mic error ── */
-    .ns-ed .ns-vn-err {
-      display: flex; align-items: center; gap: 14px;
-      padding: 16px 20px; background: ${ED.paper50};
-      border: 1px solid ${ED.accent}; border-radius: 12px;
-      margin-top: 24px;
-    }
-    .ns-ed .ns-vn-err-eyebrow {
-      font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
-      color: ${ED.inkFaint}; margin: 0;
-    }
-    .ns-ed .ns-icon-btn-sm {
-      width: 28px; height: 28px; border-radius: 999px;
-      display: inline-flex; align-items: center; justify-content: center;
-      border: 1px solid transparent; color: ${ED.inkFaint};
-      background: transparent; cursor: pointer;
-      transition: all .15s ease;
-    }
-    .ns-ed .ns-icon-btn-sm:hover { border-color: ${ED.rule}; color: ${ED.ink}; background: ${ED.paper50}; }
-    .ns-ed .ns-icon-btn-sm.is-on { background: ${ED.ink}; color: ${ED.paper50}; border-color: ${ED.ink}; }
-    .ns-ed .ns-icon-btn-sm.is-danger:hover { color: #a8201f; border-color: #a8201f; }
-    .ns-ed .ns-icon-btn-sm:disabled { opacity: 0.35; cursor: not-allowed; }
-
-    /* ── recorder card ── */
-    .ns-ed .ns-vn-card { padding: 0; overflow: hidden; }
-    .ns-ed .ns-vn-body { padding: 48px 36px 40px; text-align: center; }
-
-    .ns-ed .ns-vn-wave {
-      display: flex; align-items: center; justify-content: center;
-      gap: 3px; height: 80px; max-width: 640px; margin: 0 auto 24px;
-    }
-    .ns-ed .ns-vn-wave span {
-      flex: 1; max-width: 4px; min-height: 8px;
-      border-radius: 1px;
-      transition: height .08s ease, background-color .15s ease, opacity .15s ease;
-    }
-
-    .ns-ed .ns-vn-timer {
-      font-family: ${ED.serif}; font-style: italic;
-      font-size: clamp(56px, 7vw, 88px); line-height: 1;
-      color: ${ED.accent};
-      letter-spacing: -0.01em;
-      font-variant-numeric: tabular-nums;
-      margin: 8px 0 12px;
-      padding-bottom: 0.06em;
-    }
-
-    .ns-ed .ns-vn-status {
-      font-family: ${ED.mono}; font-size: 11px;
-      letter-spacing: 0.16em; text-transform: uppercase;
-      color: ${ED.inkFaint}; margin: 0 0 32px;
-      display: inline-flex; align-items: center; gap: 8px;
-    }
-    @keyframes ns-vn-dot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.5); } }
-    .ns-ed .ns-vn-dot {
-      display: inline-block; width: 6px; height: 6px; border-radius: 999px;
-      background: ${ED.accent};
-      animation: ns-vn-dot 1.6s ease-in-out infinite;
-    }
-    .ns-ed .ns-vn-dot.is-still { animation: none; opacity: 0.5; }
-
-    .ns-ed .ns-vn-live {
-      background: ${ED.paper100};
-      border: 1px solid ${ED.rule};
-      border-radius: 10px;
-      padding: 14px 18px;
-      max-width: 640px;
-      margin: 0 auto 24px;
-      text-align: left;
-    }
-
-    .ns-ed .ns-vn-controls {
-      display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
-    }
-
-    /* ── result ── */
-    .ns-ed .ns-vn-result { padding: 28px 36px 32px; }
-    .ns-ed .ns-vn-result-head {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 12px; flex-wrap: wrap;
-    }
-    .ns-ed .ns-vn-result-acts { display: flex; gap: 6px; }
-
-    .ns-ed .ns-vn-playback {
-      display: flex; align-items: center; gap: 12px;
-      padding: 12px 16px; background: ${ED.paper100};
-      border: 1px solid ${ED.rule}; border-radius: 10px;
-      margin-bottom: 20px;
-    }
-    .ns-ed .ns-vn-playback-l {
-      font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
-      color: ${ED.inkFaint};
-    }
-    .ns-ed .ns-vn-audio { flex: 1; height: 32px; }
-
-    .ns-ed .ns-vn-transcript {
-      font-family: ${ED.serif};
-      font-size: clamp(18px, 1.6vw, 22px);
-      line-height: 1.55;
-      color: ${ED.inkSoft};
-      margin: 0;
-    }
-
-    .ns-ed .ns-vn-textarea {
-      width: 100%; min-height: 200px;
-      padding: 16px;
-      background: ${ED.paper100};
-      border: 1px solid ${ED.ink};
-      border-radius: 10px;
-      font-family: ${ED.serif}; font-size: 19px; line-height: 1.55;
-      color: ${ED.ink}; outline: 0;
-      resize: vertical;
-    }
-
-    .ns-ed .ns-vn-ai {
-      margin-top: 28px; padding-top: 24px;
-      border-top: 1px solid ${ED.ruleSoft};
-    }
-    .ns-ed .ns-vn-ai-eyebrow {
-      font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
-      color: ${ED.inkFaint}; margin: 0;
-    }
-    .ns-ed .ns-vn-actions {
-      list-style: none; padding: 0; margin: 12px 0 0;
-    }
-    .ns-ed .ns-vn-actions li {
-      display: grid; grid-template-columns: 32px 1fr; gap: 14px;
-      padding: 8px 0; align-items: baseline;
-    }
-    .ns-ed .ns-vn-actions .ord {
-      font-family: ${ED.serif}; font-style: italic; font-size: 17px;
-      color: ${ED.accent};
-    }
-    .ns-ed .ns-vn-actions .ed-serif { font-size: 17px; line-height: 1.5; color: ${ED.ink}; }
-
-    .ns-ed .ns-vn-result-foot {
-      display: flex; gap: 12px; justify-content: flex-end;
-      margin-top: 32px; padding-top: 24px;
-      border-top: 1px solid ${ED.ruleSoft};
-    }
-
-    /* ── archive row ── */
-    .ns-ed .ns-vn-row {
-      display: grid;
-      grid-template-columns: 56px minmax(0, 1fr) auto;
-      gap: 18px;
-      padding: 22px 14px;
-      align-items: start;
-      transition: background-color .12s ease, padding .12s ease;
-    }
-    .ns-ed .ns-vn-row:hover { background: ${ED.paper150}; padding-left: 18px; }
-    .ns-ed .ns-vn-play {
-      width: 32px; height: 32px; border-radius: 999px;
-      display: inline-flex; align-items: center; justify-content: center;
-      border: 1px solid ${ED.rule}; color: ${ED.inkSoft};
-      background: ${ED.paper50}; cursor: pointer;
-      margin-top: 4px; transition: all .15s ease;
-    }
-    .ns-ed .ns-vn-play:hover { border-color: ${ED.ink}; color: ${ED.ink}; }
-    .ns-ed .ns-vn-play.is-on { background: ${ED.ink}; color: ${ED.paper50}; border-color: ${ED.ink}; }
-    .ns-ed .ns-vn-play.is-mute { opacity: 0.5; cursor: not-allowed; }
-
-    .ns-ed .ns-vn-row-body { min-width: 0; max-width: 760px; }
-    .ns-ed .ns-vn-row-title {
-      font-family: ${ED.serif}; font-size: clamp(20px, 1.8vw, 26px);
-      line-height: 1.22; color: ${ED.ink}; margin: 0; padding-bottom: 0.04em;
-      transition: color .15s ease;
-    }
-    .ns-ed .ns-vn-row:hover .ns-vn-row-title { color: ${ED.accent}; }
-    .ns-ed .ns-vn-row-excerpt {
-      font-family: ${ED.serif}; font-style: italic; font-size: 16px;
-      line-height: 1.5; color: ${ED.inkMute}; margin: 8px 0 0;
-      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-      overflow: hidden;
-    }
-    .ns-ed .ns-vn-row-meta {
-      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.14em;
-      text-transform: uppercase; color: ${ED.inkFaint};
-      margin: 12px 0 0; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
-    }
-    .ns-ed .ns-vn-row-aside {
-      display: flex; gap: 6px; align-items: center; padding-top: 6px;
-    }
-
-    /* ── modal ── */
-    .ns-ed .ns-modal-bg {
-      position: fixed; inset: 0; z-index: 9999;
-      background: rgba(19,16,8,0.36);
-    }
-    .ns-ed .ns-modal-wrap {
-      position: fixed; inset: 0; z-index: 10000;
-      display: flex; align-items: center; justify-content: center;
-      padding: 20px; pointer-events: none;
-      overflow-y: auto;
-    }
-    .ns-ed .ns-modal {
-      width: 100%; max-width: 560px; padding: 28px;
-      max-height: calc(100dvh - 40px); overflow-y: auto;
-      pointer-events: auto;
-      background: ${ED.paper50};
-    }
-    .ns-ed .ns-modal-close {
-      width: 32px; height: 32px; border-radius: 999px;
-      display: inline-flex; align-items: center; justify-content: center;
-      border: 1px solid ${ED.rule}; color: ${ED.inkSoft};
-      background: transparent; cursor: pointer;
-      transition: all .15s ease;
-    }
-    .ns-ed .ns-modal-close:hover { border-color: ${ED.ink}; color: ${ED.ink}; }
-
-    /* ── save modal fields ── */
-    .ns-ed .ns-vn-field { display: block; }
-    .ns-ed .ns-vn-field-label {
-      display: flex; align-items: baseline; gap: 8px;
-      margin-bottom: 8px;
-    }
-    .ns-ed .ns-vn-input {
-      width: 100%;
-      padding: 11px 14px;
-      background: ${ED.paper50};
-      border: 1px solid ${ED.rule};
-      border-radius: 8px;
-      font-family: ${ED.sans}; font-size: 14px; color: ${ED.ink};
-      transition: border-color .15s ease;
-    }
-    .ns-ed .ns-vn-input:focus { outline: 0; border-color: ${ED.ink}; }
-    .ns-ed .ns-vn-input::placeholder { color: ${ED.inkFaint}; }
-
-    @media (max-width: 720px) {
-      .ns-ed .ns-vn-body { padding: 32px 20px; }
-      .ns-ed .ns-vn-result { padding: 24px 20px; }
-      .ns-ed .ns-vn-row { grid-template-columns: 40px 1fr; padding: 16px 6px; }
-      .ns-ed .ns-vn-row-aside { grid-column: 1 / -1; padding-top: 8px; justify-content: flex-end; }
-      .ns-ed .ns-vn-controls .ed-btn { flex: 1; min-width: 0; justify-content: center; }
-    }
-  `}</style>
-);
