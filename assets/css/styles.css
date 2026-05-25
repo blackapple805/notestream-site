@@ -313,3 +313,22 @@ button { font-family: inherit; cursor: pointer; }
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); /* 2 columns */
   }
 }
+
+.weekly-streak-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 767px) {
+  .weekly-streak-grid {
+    grid-template-columns: repeat(4, 1fr); /* 4 columns on mobile */
+  }
+}
+
+@media (max-width: 480px) {
+  .weekly-streak-grid {
+    grid-template-columns: repeat(3, 1fr); /* 3 columns on very small phones */
+  }
+}
+

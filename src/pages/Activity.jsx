@@ -758,36 +758,33 @@ export default function Activity() {
             </div>
           </div>
 
-          {/* Weekly streak — paper card with day cells */}
-          <div>
-            <SectionHeader
-              chapter="§ B"
-              kicker="— THE WEEK"
-              title="Days on the desk."
-            />
-            <div className="ns-act-card" style={{ padding: 20, marginTop: 18 }}>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(7, 1fr)",
-                gap: 8,
-              }}>
-                {streakDays.map((d, i) => (
-                  <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <div
-                      className="ns-act-streak-cell"
-                      style={d.active
-                        ? { background: ED.accent, color: ED.paper50, border: `1px solid ${ED.accent}` }
-                        : { background: ED.paper100, color: ED.inkFaint, border: `1px dashed ${ED.rule}` }
-                      }
-                    >
-                      {d.active ? "●" : "·"}
-                    </div>
-                    <span style={{
-                      fontFamily: ED.mono, fontSize: 9.5, letterSpacing: "0.14em",
-                      textTransform: "uppercase", color: ED.inkFaint,
-                      textAlign: "center",
-                    }}>
-                      {d.day}
+        {/* Weekly streak — paper card with day cells */}
+        <div>
+          <SectionHeader
+            chapter="§ B"
+            kicker="— THE WEEK"
+            title="Days on the desk."
+          />
+          <div className="ns-act-card" style={{ padding: 20, marginTop: 18 }}>
+            {/* Changed: Added className, removed inline style */}
+            <div className="weekly-streak-grid">
+              {streakDays.map((d, i) => (
+                <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div
+                    className="ns-act-streak-cell"
+                    style={d.active
+                      ? { background: ED.accent, color: ED.paper50, border: `1px solid ${ED.accent}` }
+                      : { background: ED.paper100, color: ED.inkFaint, border: `1px dashed ${ED.rule}` }
+                    }
+                  >
+                    {d.active ? "●" : "·"}
+                  </div>
+                  <span style={{
+                    fontFamily: ED.mono, fontSize: 9.5, letterSpacing: "0.14em",
+                    textTransform: "uppercase", color: ED.inkFaint,
+                    textAlign: "center",
+                  }}>
+                    {d.day}
                     </span>
                   </div>
                 ))}
