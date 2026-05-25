@@ -222,7 +222,7 @@ export default function Settings() {
         {/* ── HEADER ── */}
         <header style={{ paddingTop: 32 }}>
           <div className="ed-chapter" style={{ marginBottom: 18 }}>
-            <span className="num">№ 08</span>
+            <span className="num">№ 09</span>
             <span>— THE COMPOSING ROOM</span>
           </div>
           <h1 className="ed-display" style={{ fontSize: "clamp(40px, 5vw, 64px)", margin: 0, paddingBottom: "0.06em" }}>

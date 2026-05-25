@@ -550,7 +550,7 @@ export default function Activity() {
                 fontFamily: ED.serif, fontStyle: "italic", fontSize: 22,
                 letterSpacing: 0, color: ED.accent,
               }}>
-                № 06
+                № 08
               </span>
               <span>— THE RECORD</span>
             </div>
