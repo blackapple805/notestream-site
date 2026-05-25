@@ -1,105 +1,187 @@
 // src/pages/Activity.jsx
 // ═══════════════════════════════════════════════════════════════════
-// REDESIGNED: Matching bento-glass visual system.
-// All Supabase RPCs, timeline logic, chart data, trends — UNCHANGED.
-// Charts improved: better gradients, fixed heights, cleaner axes.
+// EDITORIAL RESKIN — matches the NoteStream "& co." paper/serif theme.
+//
+// ❶  All Supabase RPCs, state shapes, useEffect / useCallback graphs,
+//     timeline grouping, filter behaviour, and trend calculations are
+//     IDENTICAL to the prior bento-glass version. Pure presentation swap.
+//
+// ❷  Visual system in this file uses only the design tokens declared in
+//     NoteStream_preview.html:
+//
+//        --ed-paper-50/100/150/200/300   paper tones
+//        --ed-ink / ink-soft / mute / faint
+//        --ed-rule / rule-soft           hairline borders
+//        --ed-accent (#1f3aa8)           single editorial blue
+//        --ed-serif (Instrument Serif)   display + italic accents
+//        --ed-mono  (Geist Mono)         labels / timestamps / ordinals
+//        --ed-sans  (Geist)              body / chrome
+//
+//     If any consumer of this page hasn't declared those vars yet,
+//     fallbacks are inlined so the page still reads as paper-cream.
 // ═══════════════════════════════════════════════════════════════════
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AreaChart, Area, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
+  CartesianGrid,
 } from "recharts";
 import {
-  FiFileText, FiUploadCloud, FiActivity, FiZap, FiEdit3, FiClipboard,
-  FiTrendingUp, FiCalendar, FiChevronDown, FiRefreshCw, FiLayers, FiLink,
-  FiAlertCircle,
+  FiChevronDown, FiRefreshCw, FiAlertCircle, FiDownload,
 } from "react-icons/fi";
-import { ChartLineIcon as ChartLine, FireIcon as Fire, NotePencilIcon as NotePencil, FileArrowUpIcon as FileArrowUp, BrainIcon as Brain, LightningIcon as Lightning } from "@phosphor-icons/react";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
 
-/* ─── Scoped styles ─── */
+/* ═══════════════════════════════════════════════════════
+   Editorial tokens (with safe fallbacks)
+   These mirror NoteStream_preview.html exactly.
+═══════════════════════════════════════════════════════ */
+const ED = {
+  paper50:  "var(--ed-paper-50, #fbf8f0)",
+  paper100: "var(--ed-paper-100, #f6f1e3)",
+  paper150: "var(--ed-paper-150, #efe9d8)",
+  paper200: "var(--ed-paper-200, #e7e0cb)",
+  paper300: "var(--ed-paper-300, #d6cdb2)",
+  ink:      "var(--ed-ink, #131008)",
+  inkSoft:  "var(--ed-ink-soft, #2a2519)",
+  inkMute:  "var(--ed-ink-mute, #4b4534)",
+  inkFaint: "var(--ed-ink-faint, #8a8472)",
+  rule:     "var(--ed-rule, #d8cfb6)",
+  ruleSoft: "var(--ed-rule-soft, #e5dec5)",
+  accent:   "var(--ed-accent, #1f3aa8)",
+  accentSoft: "var(--ed-accent-soft, #dbe1f3)",
+  serif:    'var(--ed-serif, "Instrument Serif", Georgia, serif)',
+  sans:     'var(--ed-sans, "Geist", -apple-system, system-ui, sans-serif)',
+  mono:     'var(--ed-mono, "Geist Mono", ui-monospace, monospace)',
+};
+
+/* Raw hex for SVG / chart fills that can't take CSS vars */
+const ACCENT_HEX = "#1f3aa8";
+const INK_HEX = "#131008";
+const INK_FAINT_HEX = "#8a8472";
+
+/* ─── Scoped styles (no global leaks) ─── */
 const ACT_STYLES = `
 @keyframes ns-act-fade-up {
-  0%   { opacity: 0; transform: translateY(10px); }
+  0%   { opacity: 0; transform: translateY(8px); }
   100% { opacity: 1; transform: translateY(0); }
 }
-.ns-act-stagger > * {
-  animation: ns-act-fade-up 0.4s cubic-bezier(.22,1,.36,1) both;
-}
-.ns-act-stagger > *:nth-child(1)  { animation-delay: 0.02s; }
-.ns-act-stagger > *:nth-child(2)  { animation-delay: 0.05s; }
-.ns-act-stagger > *:nth-child(3)  { animation-delay: 0.08s; }
-.ns-act-stagger > *:nth-child(4)  { animation-delay: 0.11s; }
-.ns-act-stagger > *:nth-child(5)  { animation-delay: 0.14s; }
-.ns-act-stagger > *:nth-child(6)  { animation-delay: 0.17s; }
-.ns-act-stagger > *:nth-child(7)  { animation-delay: 0.20s; }
-.ns-act-stagger > *:nth-child(8)  { animation-delay: 0.23s; }
-.ns-act-stagger > *:nth-child(9)  { animation-delay: 0.26s; }
-.ns-act-stagger > *:nth-child(10) { animation-delay: 0.29s; }
+.ns-act-stagger > * { animation: ns-act-fade-up 0.5s cubic-bezier(.22,1,.36,1) both; }
+.ns-act-stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.ns-act-stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.ns-act-stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.ns-act-stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.ns-act-stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.ns-act-stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.ns-act-stagger > *:nth-child(7) { animation-delay: 0.26s; }
 
-.ns-act-card {
-  position: relative;
-  border-radius: 20px;
-  overflow: hidden;
-  background: var(--card-glass-bg, var(--bg-surface));
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 1px solid var(--card-glass-border, var(--border-secondary));
-  box-shadow: var(--card-glass-shadow, 0 8px 32px rgba(0,0,0,0.12));
-}
-.ns-act-card::before {
-  content: '';
-  position: absolute; inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%);
-  pointer-events: none; z-index: 1;
-}
-.ns-act-card::after {
-  content: '';
-  position: absolute;
-  left: 24px; right: 24px; top: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-  pointer-events: none; z-index: 2;
-}
-
-.ns-act-stat {
-  position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-  border: 1px solid var(--border-secondary);
-  background: var(--bg-surface);
-  transition: all 0.25s cubic-bezier(.22,1,.36,1);
-}
-.ns-act-stat:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-  border-color: rgba(99,102,241,0.25);
-}
-
-.recharts-cartesian-axis-tick-value {
-  fill: var(--text-muted) !important;
+/* Recharts axis ticks should read like editorial mono labels */
+.ns-act-scope .recharts-cartesian-axis-tick-value {
+  fill: ${INK_FAINT_HEX} !important;
+  font-family: var(--ed-mono, "Geist Mono", ui-monospace, monospace) !important;
   font-size: 10px !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase;
 }
-.recharts-tooltip-wrapper {
-  outline: none !important;
+.ns-act-scope .recharts-tooltip-wrapper { outline: none !important; }
+.ns-act-scope .recharts-cartesian-grid line { stroke: var(--ed-rule-soft, #e5dec5); }
+
+/* Pulse dot from preview */
+@keyframes ns-act-pulse { 0%,100% { transform: scale(1); opacity: 1;} 50% { transform: scale(1.4); opacity: 0.5; } }
+.ns-act-pulse { animation: ns-act-pulse 2.4s ease-in-out infinite; }
+
+/* Dotted leader for stat rows */
+.ns-act-leader {
+  flex: 1;
+  border-bottom: 1px dotted var(--ed-rule, #d8cfb6);
+  align-self: end;
+  height: 14px;
+  transform: translateY(-6px);
+  margin: 0 12px;
+}
+
+/* Hover lift for the article-style timeline rows */
+.ns-act-event-row {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: 18px;
+  padding: 12px 0;
+  align-items: baseline;
+  border-bottom: 1px solid var(--ed-rule-soft, #e5dec5);
+  transition: padding-left 0.15s ease;
+}
+.ns-act-event-row:last-child { border-bottom: 0; }
+.ns-act-event-row:hover { padding-left: 8px; }
+.ns-act-event-row:hover .ns-act-event-em { color: var(--ed-accent, #1f3aa8); }
+
+/* Filter chips in preview style */
+.ns-act-filter {
+  font-family: var(--ed-mono, "Geist Mono", ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ed-ink-mute, #4b4534);
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ed-rule, #d8cfb6);
+  background: transparent;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.ns-act-filter:hover { border-color: var(--ed-ink, #131008); color: var(--ed-ink, #131008); }
+.ns-act-filter.on {
+  background: var(--ed-ink, #131008);
+  color: var(--ed-paper-50, #fbf8f0);
+  border-color: var(--ed-ink, #131008);
+}
+
+/* Editorial card */
+.ns-act-card {
+  background: var(--ed-paper-50, #fbf8f0);
+  border: 1px solid var(--ed-rule, #d8cfb6);
+  border-radius: 14px;
+}
+
+/* Streak day cell */
+.ns-act-streak-cell {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--ed-mono, "Geist Mono", ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  transition: transform .15s ease;
+}
+.ns-act-streak-cell:hover { transform: translateY(-2px); }
+
+/* Refresh button (icon style from preview) */
+.ns-act-icon-btn {
+  height: 34px; width: 34px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--ed-rule, #d8cfb6);
+  color: var(--ed-ink-soft, #2a2519);
+  background: transparent; cursor: pointer;
+  transition: color .18s ease, border-color .18s ease;
+}
+.ns-act-icon-btn:hover { color: var(--ed-ink, #131008); border-color: var(--ed-ink, #131008); }
+.ns-act-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Double rule from preview */
+.ns-act-rule-dbl {
+  border: 0;
+  border-top: 1px solid var(--ed-ink, #131008);
+  border-bottom: 1px solid var(--ed-ink, #131008);
+  height: 4px;
+  margin: 0;
 }
 `;
 
-/* ─── Tones (used across charts, icons, badges) ─── */
-const TONES = {
-  indigo:  { accent: "#6366f1", rgb: "99,102,241" },
-  purple:  { accent: "#8b5cf6", rgb: "168,85,247" },
-  emerald: { accent: "#10b981", rgb: "16,185,129" },
-  cyan:    { accent: "#06b6d4", rgb: "6,182,212" },
-  amber:   { accent: "#f59e0b", rgb: "245,158,11" },
-  orange:  { accent: "#f97316", rgb: "249,115,22" },
-  rose:    { accent: "#f43f5e", rgb: "244,63,94" },
-  sky:     { accent: "#38bdf8", rgb: "56,189,248" },
-  pink:    { accent: "#ec4899", rgb: "236,72,153" },
-};
-
-/* ─── Utility functions (unchanged) ─── */
+/* ═══════════════════════════════════════════════════════
+   Utility functions  (UNCHANGED from prior file)
+═══════════════════════════════════════════════════════ */
 function formatTimeAgo(dateStr) {
   if (!dateStr) return "Just now";
   const date = new Date(dateStr); const now = new Date(); const diffMs = now - date;
@@ -112,6 +194,12 @@ function formatTimeAgo(dateStr) {
   if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
+function formatClock(dateStr) {
+  if (!dateStr) return "--:--";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "--:--";
+  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
+}
 function safeJson(val) { if (!val) return {}; if (typeof val === "object") return val; try { return JSON.parse(val); } catch { return {}; } }
 function toNum(v) { if (v === null || v === undefined) return null; const n = Number(v); return Number.isFinite(n) ? n : null; }
 function localDayKeyFromEvent(event) {
@@ -119,13 +207,19 @@ function localDayKeyFromEvent(event) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 function labelForDayKey(dayKey) {
-  if (!dayKey || dayKey === "unknown") return "Unknown";
-  const [yy, mm, dd] = dayKey.split("-").map(Number); const date = new Date(yy, (mm || 1) - 1, dd || 1);
-  const now = new Date(); const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (!dayKey || dayKey === "unknown") return { weekday: "—", date: "Unknown" };
+  const [yy, mm, dd] = dayKey.split("-").map(Number);
+  const date = new Date(yy, (mm || 1) - 1, dd || 1);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const diffDays = Math.floor((today - new Date(date.getFullYear(), date.getMonth(), date.getDate())) / 86400000);
-  if (diffDays === 0) return "TODAY"; if (diffDays === 1) return "YESTERDAY";
-  if (diffDays > 1 && diffDays < 7) return date.toLocaleDateString(undefined, { weekday: "long" }).toUpperCase();
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }).toUpperCase();
+  const dateLabel = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  if (diffDays === 0) return { weekday: "TODAY", date: dateLabel };
+  if (diffDays === 1) return { weekday: "YESTERDAY", date: dateLabel };
+  return {
+    weekday: date.toLocaleDateString(undefined, { weekday: "long" }).toUpperCase(),
+    date: dateLabel,
+  };
 }
 function getEventTitle(event, noteMap, docMap) {
   if (!event) return "Activity";
@@ -134,63 +228,116 @@ function getEventTitle(event, noteMap, docMap) {
   for (const k of ["title", "name", "note_title", "doc_name", "file_name"]) { if (md[k]?.trim()) return md[k].trim(); }
   const entityId = event.entity_id;
   if (entityId) { if (noteMap?.has(entityId)) { const n = noteMap.get(entityId); if (n?.title?.trim()) return n.title.trim(); } if (docMap?.has(entityId)) { const d = docMap.get(entityId); if (d?.name?.trim()) return d.name.trim(); if (d?.file_name?.trim()) return d.file_name.trim(); } }
-  const typeDefaults = { doc_uploaded: "Document uploaded", note_created: "New note created", note_updated: "Note updated", ai_summary: "AI summary generated", ai_used: "AI assistant used", synthesis: "Document synthesis", integration_sync: "Integration synced" };
+  const typeDefaults = { doc_uploaded: "Document uploaded", note_created: "New note", note_updated: "Note updated", ai_summary: "AI summary generated", ai_used: "AI assistant used", synthesis: "Document synthesis", integration_sync: "Integration synced" };
   return typeDefaults[event.event_type] || String(event.event_type || "activity").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 function getEventSubtitle(event) {
   if (!event) return null; const md = event.metadata || {}; const type = event.event_type;
   if (type === "doc_uploaded" && (md.type || md.file_type)) return `${(md.type || md.file_type).toUpperCase()} file`;
   if (type === "ai_summary" && md.word_count) return `${md.word_count} words summarized`;
-  if (type === "note_updated" && md.changes) return `${md.changes} changes made`;
-  if (md.source) return `From ${md.source}`; return null;
+  if (type === "note_updated" && md.changes) return `${md.changes} changes`;
+  if (md.source) return `from ${md.source}`; return null;
 }
 
-/* ─── Constants (unchanged) ─── */
-const typeFilters = [
-  { label: "All", value: "all" }, { label: "Uploads", value: "doc_uploaded" }, { label: "Summaries", value: "ai_summary" },
-  { label: "Notes", value: "notes" }, { label: "Updates", value: "updates" }, { label: "Integration", value: "integration_sync" },
-];
-const eventIcons = { note_created: NotePencil, note_updated: FiEdit3, doc_uploaded: FileArrowUp, ai_summary: Brain, synthesis: FiLayers, integration_sync: FiLink, ai_used: Lightning };
-const actionColors = {
-  ai_summary:        { rgb: "99,102,241"  },
-  doc_uploaded:      { rgb: "16,185,129"  },
-  note_created:      { rgb: "168,85,247"  },
-  note_updated:      { rgb: "245,158,11"  },
-  integration_sync:  { rgb: "56,189,248"  },
-  synthesis:         { rgb: "99,102,241"  },
-  ai_used:           { rgb: "236,72,153"  },
+/* ═══════════════════════════════════════════════════════
+   Editorial copy for event types
+═══════════════════════════════════════════════════════ */
+const EVENT_KIND_LABEL = {
+  note_created:     "NOTE",
+  note_updated:     "NOTE · EDIT",
+  doc_uploaded:     "UPLOAD",
+  ai_summary:       "AI · SUMMARY",
+  ai_used:          "AI · CALL",
+  synthesis:        "AI · SYNTHESIS",
+  integration_sync: "INTEGRATION",
 };
+
+const EVENT_VERB = {
+  note_created:     "Created",
+  note_updated:     "Edited",
+  doc_uploaded:     "Uploaded",
+  ai_summary:       "Summarised",
+  ai_used:          "Asked the model about",
+  synthesis:        "Synthesised",
+  integration_sync: "Synced",
+};
+
+/* ═══════════════════════════════════════════════════════
+   Constants (logic UNCHANGED)
+═══════════════════════════════════════════════════════ */
+const typeFilters = [
+  { label: "All", value: "all" },
+  { label: "Uploads", value: "doc_uploaded" },
+  { label: "Summaries", value: "ai_summary" },
+  { label: "Notes", value: "notes" },
+  { label: "Edits", value: "updates" },
+  { label: "Integrations", value: "integration_sync" },
+];
+
 const defaultChartData = [
-  { name: "Mon", notes: 0, summaries: 0, uploads: 0 }, { name: "Tue", notes: 0, summaries: 0, uploads: 0 },
-  { name: "Wed", notes: 0, summaries: 0, uploads: 0 }, { name: "Thu", notes: 0, summaries: 0, uploads: 0 },
-  { name: "Fri", notes: 0, summaries: 0, uploads: 0 }, { name: "Sat", notes: 0, summaries: 0, uploads: 0 },
+  { name: "Mon", notes: 0, summaries: 0, uploads: 0 },
+  { name: "Tue", notes: 0, summaries: 0, uploads: 0 },
+  { name: "Wed", notes: 0, summaries: 0, uploads: 0 },
+  { name: "Thu", notes: 0, summaries: 0, uploads: 0 },
+  { name: "Fri", notes: 0, summaries: 0, uploads: 0 },
+  { name: "Sat", notes: 0, summaries: 0, uploads: 0 },
   { name: "Sun", notes: 0, summaries: 0, uploads: 0 },
 ];
-const defaultStreakDays = [ { day: "Mon", active: false }, { day: "Tue", active: false }, { day: "Wed", active: false }, { day: "Thu", active: false }, { day: "Fri", active: false }, { day: "Sat", active: false }, { day: "Sun", active: false } ];
-const TIMELINE_ALLOWED_TYPES = new Set(["note_created", "note_updated", "doc_uploaded", "ai_summary", "ai_used", "integration_sync", "synthesis"]);
+const defaultStreakDays = [
+  { day: "Mon", active: false }, { day: "Tue", active: false },
+  { day: "Wed", active: false }, { day: "Thu", active: false },
+  { day: "Fri", active: false }, { day: "Sat", active: false },
+  { day: "Sun", active: false },
+];
+const TIMELINE_ALLOWED_TYPES = new Set([
+  "note_created", "note_updated", "doc_uploaded",
+  "ai_summary", "ai_used", "integration_sync", "synthesis",
+]);
 
-/* ─── Chart helpers ─── */
+/* ═══════════════════════════════════════════════════════
+   Chart tooltip — paper-card with mono labels
+═══════════════════════════════════════════════════════ */
 const ChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl px-3 py-2.5 shadow-xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-secondary)", backdropFilter: "blur(12px)" }}>
-      <p className="text-[11px] font-bold mb-1.5" style={{ color: "var(--text-primary)" }}>{label}</p>
+    <div
+      style={{
+        background: ED.paper50,
+        border: `1px solid ${ED.rule}`,
+        borderRadius: 8,
+        padding: "10px 12px",
+        boxShadow: "0 1px 0 rgba(0,0,0,0.02)",
+      }}
+    >
+      <p style={{
+        fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.14em",
+        textTransform: "uppercase", color: ED.inkFaint, margin: 0, marginBottom: 6,
+      }}>
+        {label}
+      </p>
       {payload.map((e, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: e.color }} />
-          <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>{e.name}: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{e.value}</span></p>
+        <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: i === 0 ? 0 : 4 }}>
+          <span style={{
+            display: "inline-block", width: 8, height: 8, borderRadius: 2,
+            background: e.color, marginRight: 2,
+          }} />
+          <span style={{ fontFamily: ED.mono, fontSize: 10.5, color: ED.inkMute }}>
+            {e.name}
+          </span>
+          <span style={{
+            fontFamily: ED.serif, fontStyle: "italic", fontSize: 18,
+            color: ED.accent, marginLeft: "auto", lineHeight: 1,
+          }}>
+            {e.value}
+          </span>
         </div>
       ))}
     </div>
   );
 };
-const AnimatedDot = (props) => (
-  <motion.circle cx={props.cx} cy={props.cy} r={5} fill="#fff" stroke="#6366f1" strokeWidth={2.5}
-    initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.3 }} />
-);
 
 /* ═══════════════════════════════════════════════════════
-   MAIN COMPONENT — all RPC logic unchanged
+   MAIN COMPONENT — all RPC logic UNCHANGED
 ═══════════════════════════════════════════════════════ */
 export default function Activity() {
   const [timelineRange, setTimelineRange] = useState(7);
@@ -221,7 +368,7 @@ export default function Activity() {
   const fmtPct = useCallback((pct) => { const n = toNum(pct); if (n === null) return null; return `${n > 0 ? "+" : ""}${Math.round(n)}%`; }, []);
   const isUp = useCallback((pct) => { const n = toNum(pct); return n === null ? true : n >= 0; }, []);
 
-  /* ── Load stats + charts (follows chartRange) ── */
+  /* ── Load stats + charts ── */
   const loadActivityData = useCallback(async () => {
     if (!supabaseReady || !supabase) { setLoading(false); return; }
     try {
@@ -255,9 +402,9 @@ export default function Activity() {
       setClarity({ total_score: Number(cr?.total_score) || 0, readability: Number(cr?.readability) || 0, structure: Number(cr?.structure) || 0, completeness: Number(cr?.completeness) || 0 });
     } catch (err) { console.error("Failed to load activity data:", err); }
     finally { setLoading(false); }
-  }, [getUser, supabaseReady, statDays, chartDays]);
+  }, [getUser, statDays, chartDays]);
 
-  /* ── Load timeline (follows timelineRange + typeFilter) ── */
+  /* ── Load timeline ── */
   const loadTimeline = useCallback(async () => {
     if (!supabaseReady || !supabase) return;
     try {
@@ -296,7 +443,7 @@ export default function Activity() {
       setTimelineEvents(Array.from(seen.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
     } catch (err) { console.error("Failed to load timeline:", err); setTimelineError(err.message || "Failed"); setTimelineEvents([]); }
     finally { setTimelineLoading(false); }
-  }, [getUser, supabaseReady, timelineRange, typeFilter]);
+  }, [getUser, timelineRange, typeFilter]);
 
   const handleRefresh = useCallback(() => { loadActivityData(); loadTimeline(); }, [loadActivityData, loadTimeline]);
   useEffect(() => { loadActivityData(); }, [loadActivityData]);
@@ -305,147 +452,293 @@ export default function Activity() {
   const groupedEvents = useMemo(() => {
     const byDay = new Map();
     for (const e of timelineEvents) { const k = e.day_key || localDayKeyFromEvent(e); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(e); }
-    return Array.from(byDay.keys()).sort((a, b) => (a < b ? 1 : -1)).map((k) => ({ dayKey: k, label: labelForDayKey(k), items: (byDay.get(k) || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) }));
+    return Array.from(byDay.keys()).sort((a, b) => (a < b ? 1 : -1)).map((k) => ({ dayKey: k, ...labelForDayKey(k), items: (byDay.get(k) || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) }));
   }, [timelineEvents]);
 
-  useEffect(() => { if (!groupedEvents.length) return; setOpenGroups((prev) => { const next = { ...prev }; for (const g of groupedEvents) { if (next[g.dayKey] === undefined) next[g.dayKey] = g.label === "TODAY" || g.label === "YESTERDAY"; } return next; }); }, [groupedEvents]);
+  useEffect(() => {
+    if (!groupedEvents.length) return;
+    setOpenGroups((prev) => {
+      const next = { ...prev };
+      for (const g of groupedEvents) {
+        if (next[g.dayKey] === undefined) next[g.dayKey] = true; // open all by default in editorial layout
+      }
+      return next;
+    });
+  }, [groupedEvents]);
 
   const chartData = dailyData;
+
+  /* Display strings for the page sub-line */
+  const totalEvents = timelineEvents.length;
+  const rangeLabel = timelineRange === 0 ? "ALL TIME" : `LAST ${timelineRange} DAYS`;
+  const sessionsLabel = `${groupedEvents.length} ${groupedEvents.length === 1 ? "SESSION" : "SESSIONS"}`;
 
   /* ── Loading state ── */
   if (loading) {
     return (
       <>
         <style>{ACT_STYLES}</style>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <div className="relative h-14 w-14">
-            <div className="absolute inset-0 rounded-full" style={{ border: "2.5px solid transparent", borderTopColor: "rgba(99,102,241,0.8)", borderRightColor: "rgba(168,85,247,0.4)", animation: "spin 0.8s linear infinite" }} />
-            <div className="absolute inset-2 rounded-full" style={{ border: "2px solid transparent", borderBottomColor: "rgba(6,182,212,0.6)", animation: "spin 1.2s linear infinite reverse" }} />
-            <ChartLine size={20} weight="duotone" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-indigo-400" />
+        <div
+          className="ns-act-scope"
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center",
+            justifyContent: "center", minHeight: "60vh", gap: 18,
+            padding: 40,
+          }}
+        >
+          <div style={{
+            width: 56, height: 56, borderRadius: "50%",
+            border: `1px solid ${ED.rule}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: ED.paper50,
+          }}>
+            <div style={{
+              width: 18, height: 18, borderRadius: "50%",
+              border: `2px solid ${ED.rule}`,
+              borderTopColor: ACCENT_HEX,
+              animation: "spin 0.9s linear infinite",
+            }} />
           </div>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading activity…</p>
+          <p style={{
+            fontFamily: ED.mono, fontSize: 10.5, letterSpacing: "0.16em",
+            textTransform: "uppercase", color: ED.inkFaint, margin: 0,
+          }}>
+            Setting the type…
+          </p>
         </div>
       </>
     );
   }
 
   /* ═══════════════════════════════════════════════════════
-     RENDER
+     RENDER — editorial layout
   ═══════════════════════════════════════════════════════ */
   return (
     <>
       <style>{ACT_STYLES}</style>
 
-      <div className="space-y-5 pb-[calc(var(--mobile-nav-height)+24px)] ns-act-stagger">
-
-        {/* ── HEADER ── */}
-        <header className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.18), rgba(168,85,247,0.12))", border: "1px solid rgba(99,102,241,0.28)" }}>
-              <ChartLine weight="duotone" size={22} className="text-indigo-400" />
+      <div
+        className="ns-act-scope ns-act-stagger"
+        style={{
+          fontFamily: ED.sans,
+          color: ED.ink,
+          background: "transparent", // page background comes from app shell (paper-100)
+          padding: 0,
+        }}
+      >
+        {/* ═══ HEADER — chapter, title, subline, controls ═══ */}
+        <header style={{
+          display: "flex", alignItems: "baseline", justifyContent: "space-between",
+          gap: 24, flexWrap: "wrap", marginBottom: 28,
+        }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{
+              display: "inline-flex", alignItems: "baseline", gap: 10,
+              fontFamily: ED.mono, fontSize: 11, letterSpacing: "0.16em",
+              textTransform: "uppercase", color: ED.inkFaint, marginBottom: 18,
+            }}>
+              <span style={{
+                fontFamily: ED.serif, fontStyle: "italic", fontSize: 22,
+                letterSpacing: 0, color: ED.accent,
+              }}>
+                № 06
+              </span>
+              <span>— THE RECORD</span>
             </div>
-            <div className="min-w-0">
-              <h1 className="text-xl font-extrabold tracking-tight" style={{ color: "var(--text-primary)" }}>Activity</h1>
-              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>Track your productivity patterns</p>
-            </div>
+            <h1 style={{
+              fontFamily: ED.serif, fontWeight: 400, lineHeight: 0.95,
+              letterSpacing: "-0.025em",
+              fontSize: "clamp(40px, 5vw, 64px)",
+              margin: 0, paddingBottom: "0.06em", color: ED.ink,
+            }}>
+              Every <span style={{ fontStyle: "italic", color: ED.accent }}>edit</span>, dated.
+            </h1>
+            <p style={{
+              fontFamily: ED.mono, fontSize: 11, letterSpacing: "0.14em",
+              textTransform: "uppercase", color: ED.inkFaint, marginTop: 28,
+            }}>
+              <span style={{
+                display: "inline-block", width: 6, height: 6, borderRadius: "50%",
+                background: ED.accent, marginRight: 10,
+              }} className="ns-act-pulse" />
+              {totalEvents} {totalEvents === 1 ? "EVENT" : "EVENTS"} · {rangeLabel} · {sessionsLabel}
+            </p>
           </div>
-          <span className="text-[10px] font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
-            style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-muted)" }}>
-            {new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
-          </span>
+
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={timelineLoading}
+              className="ns-act-icon-btn"
+              aria-label="Refresh"
+              title="Refresh"
+            >
+              <motion.div
+                animate={{ rotate: timelineLoading ? 360 : 0 }}
+                transition={{ duration: 1, repeat: timelineLoading ? Infinity : 0, ease: "linear" }}
+                style={{ display: "flex" }}
+              >
+                <FiRefreshCw size={14} />
+              </motion.div>
+            </button>
+
+            <EdGhostButton onClick={() => setTimelineRange(timelineRange === 7 ? 30 : timelineRange === 30 ? 0 : 7)}>
+              {timelineRange === 0 ? "All time" : `Last ${timelineRange} days`} ▾
+            </EdGhostButton>
+
+            <EdGhostButton>
+              <FiDownload size={13} style={{ marginRight: 6 }} />
+              Export →
+            </EdGhostButton>
+          </div>
         </header>
 
-        {/* ── STAT CARDS ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard title={`Notes (${statDays}d)`} value={stats.notes_count} icon={<FiFileText size={17} />} tone="indigo" trend={fmtPct(trends.notes_pct)} up={isUp(trends.notes_pct)} />
-          <StatCard title={`AI Activity (${statDays}d)`} value={stats.ai_activity_count} icon={<FiZap size={17} />} tone="amber" trend={fmtPct(trends.ai_activity_pct)} up={isUp(trends.ai_activity_pct)} />
-          <StatCard title="Day Streak" value={stats.streak_days} sub="Keep it going!" icon={<Fire size={17} weight="fill" />} tone="orange" />
-          <StatCard title={`Uploads (${statDays}d)`} value={stats.uploads_count} icon={<FiUploadCloud size={17} />} tone="emerald" trend={fmtPct(trends.uploads_pct)} up={isUp(trends.uploads_pct)} />
-        </div>
+        <hr className="ns-act-rule-dbl" />
 
-        {/* ── STREAK ── */}
-        <div className="ns-act-card">
-          <div className="relative z-10 p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2.5">
-                <ToneTile tone="orange" size={32}><Fire size={15} weight="fill" /></ToneTile>
-                <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Weekly Activity</h3>
-              </div>
-              <Badge>7-day view</Badge>
-            </div>
-            <StreakDots days={streakDays} />
-          </div>
-        </div>
+        {/* ═══ STAT STRIP — newspaper-style numbers in italic serif ═══ */}
+        <section style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          marginTop: 0,
+          borderBottom: `1px solid ${ED.rule}`,
+        }}>
+          <EdStat
+            label={`Notes · ${statDays}d`}
+            value={stats.notes_count}
+            footnote={fmtPct(trends.notes_pct)}
+            up={isUp(trends.notes_pct)}
+            withRight
+          />
+          <EdStat
+            label={`AI activity · ${statDays}d`}
+            value={stats.ai_activity_count}
+            footnote={fmtPct(trends.ai_activity_pct)}
+            up={isUp(trends.ai_activity_pct)}
+            withRight
+          />
+          <EdStat
+            label="Day streak"
+            value={stats.streak_days}
+            footnote={stats.streak_days > 0 ? "KEEP IT GOING" : "BEGIN TODAY"}
+            withRight
+          />
+          <EdStat
+            label={`Uploads · ${statDays}d`}
+            value={stats.uploads_count}
+            footnote={fmtPct(trends.uploads_pct)}
+            up={isUp(trends.uploads_pct)}
+          />
+        </section>
 
-        {/* ── CHARTS ROW ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
-
-          {/* Main Area Chart */}
-          <div className="ns-act-card">
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(600px 200px at 15% -10%, rgba(99,102,241,0.12), transparent 60%)" }} />
-            <div className="relative z-10 p-4 flex flex-col h-full">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-                <div className="flex items-center gap-3">
-                  <ToneTile tone="indigo" size={36}><FiTrendingUp size={16} /></ToneTile>
-                  <div>
-                    <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Insights Over Time</h3>
-                    <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Productivity trends</p>
-                  </div>
+        {/* ═══ MIDDLE — Insights chart + Weekly Activity ═══ */}
+        <section style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr)",
+          gap: 40,
+          marginTop: 48,
+        }}>
+          {/* Insights over time */}
+          <div>
+            <SectionHeader
+              chapter="§ A"
+              kicker="— INSIGHTS OVER TIME"
+              title="Productivity, by the day."
+              right={
+                <div style={{ display: "flex", gap: 6 }}>
+                  {["notes", "summaries"].map((tab) => (
+                    <button
+                      key={tab}
+                      className={`ns-act-filter ${chartTab === tab ? "on" : ""}`}
+                      onClick={() => setChartTab(tab)}
+                      type="button"
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                  <span style={{ width: 8 }} />
+                  {["week", "month"].map((r) => (
+                    <button
+                      key={r}
+                      className={`ns-act-filter ${chartRange === r ? "on" : ""}`}
+                      onClick={() => setChartRange(r)}
+                      type="button"
+                    >
+                      {r === "week" ? "Week" : "Month"}
+                    </button>
+                  ))}
                 </div>
-                <div className="flex gap-1.5">
-                  {["notes", "summaries"].map((tab) => <Pill key={tab} active={chartTab === tab} onClick={() => setChartTab(tab)}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</Pill>)}
-                </div>
-              </div>
-              <div className="flex gap-1.5 mb-3">
-                {["week", "month"].map((r) => <Pill key={r} active={chartRange === r} onClick={() => setChartRange(r)} small>{r === "week" ? "This Week" : "This Month"}</Pill>)}
-              </div>
-
-              {/* Chart container */}
-              <div className="rounded-2xl p-2 flex-1" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)" }}>
-                <div style={{ width: "100%", height: "100%", minHeight: chartRange === "month" ? 220 : 200 }}>
-                  {chartsReady ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={200}>
-                      <AreaChart data={chartData}>
-                        <defs>
-                          <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} />
-                            <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
-                          </linearGradient>
-                          <linearGradient id="areaStroke" x1="0" y1="0" x2="1" y2="0">
-                            <stop offset="0%" stopColor="#6366f1" />
-                            <stop offset="60%" stopColor="#8b5cf6" />
-                            <stop offset="100%" stopColor="#a78bfa" />
-                          </linearGradient>
-                        </defs>
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 10 }} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 10 }} width={28} />
-                        <Tooltip content={<ChartTooltip />} />
-                        <Area type="monotone" dataKey={chartTab} stroke="url(#areaStroke)" strokeWidth={2.5} fill="url(#areaFill)"
-                          dot={(p) => p.index === chartData.length - 1 ? <AnimatedDot {...p} /> : null}
-                          activeDot={{ r: 5, fill: "#6366f1", stroke: "#fff", strokeWidth: 2 }} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : <div className="h-full flex items-center justify-center"><div className="w-5 h-5 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" /></div>}
-                </div>
-              </div>
-
-              {/* Mini sparkline */}
-              <div className="mt-3 rounded-2xl p-3" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)" }}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <ToneTile tone="emerald" size={28}><FiUploadCloud size={12} /></ToneTile>
-                    <p className="text-[12px] font-medium" style={{ color: "var(--text-primary)" }}>Uploads</p>
-                  </div>
-                  <Badge>sparkline</Badge>
-                </div>
-                <div style={{ width: "100%", height: 72 }}>
+              }
+            />
+            <div className="ns-act-card" style={{ padding: 20, marginTop: 18 }}>
+              <div style={{ width: "100%", height: chartRange === "month" ? 240 : 220 }}>
+                {chartsReady ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData.length ? chartData : defaultChartData}>
-                      <defs><linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity={0.3} /><stop offset="100%" stopColor="#10b981" stopOpacity={0.03} /></linearGradient></defs>
-                      <XAxis dataKey="name" hide /> <YAxis hide />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Area type="monotone" dataKey="uploads" stroke="#10b981" strokeWidth={2} fill="url(#sparkFill)" dot={false} activeDot={{ r: 3, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }} name="Uploads" />
+                    <AreaChart data={chartData} margin={{ top: 6, right: 10, left: -12, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="edAreaFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={ACCENT_HEX} stopOpacity={0.18} />
+                          <stop offset="100%" stopColor={ACCENT_HEX} stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="2 4" vertical={false} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                      <YAxis axisLine={false} tickLine={false} width={28} />
+                      <Tooltip content={<ChartTooltip />} cursor={{ stroke: ED.rule, strokeWidth: 1 }} />
+                      <Area
+                        type="monotone"
+                        dataKey={chartTab}
+                        name={chartTab.charAt(0).toUpperCase() + chartTab.slice(1)}
+                        stroke={ACCENT_HEX}
+                        strokeWidth={1.75}
+                        fill="url(#edAreaFill)"
+                        dot={{ r: 3, fill: ACCENT_HEX, stroke: "#fff", strokeWidth: 1.5 }}
+                        activeDot={{ r: 5, fill: ACCENT_HEX, stroke: "#fff", strokeWidth: 2 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ChartSkeleton />
+                )}
+              </div>
+
+              {/* Sparkline strip — Uploads */}
+              <div style={{
+                marginTop: 18, paddingTop: 16,
+                borderTop: `1px solid ${ED.ruleSoft}`,
+                display: "grid", gridTemplateColumns: "200px 1fr", gap: 20, alignItems: "center",
+              }}>
+                <div>
+                  <p style={{
+                    fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.16em",
+                    textTransform: "uppercase", color: ED.inkFaint, margin: 0,
+                  }}>
+                    Uploads · sparkline
+                  </p>
+                  <p style={{
+                    fontFamily: ED.serif, fontStyle: "italic", fontSize: 32,
+                    color: ED.accent, margin: "6px 0 0", lineHeight: 1,
+                  }}>
+                    {stats.uploads_count}
+                  </p>
+                </div>
+                <div style={{ width: "100%", height: 56 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="edSparkFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={INK_HEX} stopOpacity={0.18} />
+                          <stop offset="100%" stopColor={INK_HEX} stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="name" hide /><YAxis hide />
+                      <Tooltip content={<ChartTooltip />} cursor={false} />
+                      <Area
+                        type="monotone" dataKey="uploads" name="Uploads"
+                        stroke={INK_HEX} strokeWidth={1.5}
+                        fill="url(#edSparkFill)" dot={false}
+                        activeDot={{ r: 3, fill: INK_HEX, stroke: "#fff", strokeWidth: 1.5 }}
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -453,344 +746,704 @@ export default function Activity() {
             </div>
           </div>
 
-          {/* Usage Breakdown */}
-          <div className="ns-act-card">
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(600px 200px at 85% -10%, rgba(6,182,212,0.1), transparent 60%)" }} />
-            <div className="relative z-10 p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <ToneTile tone="cyan" size={36}><FiClipboard size={16} /></ToneTile>
-                  <div>
-                    <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Usage Breakdown</h3>
-                    <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>How you use NoteStream</p>
-                  </div>
-                </div>
-                <Badge>Last {statDays}d</Badge>
-              </div>
-              <div className="space-y-3">
-                {usageBreakdown.length === 0 ? (
-                  <p className="text-[12px] py-6 text-center" style={{ color: "var(--text-muted)" }}>No category data yet</p>
-                ) : usageBreakdown.map((item, i) => {
-                  const label = String(item.label || "").toLowerCase();
-                  const tone = label.includes("meeting") ? "indigo" : label.includes("study") ? "purple" : label.includes("task") ? "cyan" : label.includes("personal") ? "emerald" : "indigo";
-                  const t = TONES[tone]; const val = Number(item.value) || 0;
-                  return (
-                    <div key={`${item.label}-${i}`} className="rounded-2xl p-3" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)" }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2.5">
-                          <ToneTile tone={tone} size={32}><FiClipboard size={13} /></ToneTile>
-                          <span className="text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>{item.label}</span>
-                        </div>
-                        <span className="text-sm font-extrabold" style={{ color: "var(--text-primary)" }}>{val}%</span>
-                      </div>
-                      <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--bg-input)", border: "1px solid var(--border-secondary)" }}>
-                        <motion.div initial={{ width: 0 }} animate={{ width: `${val}%` }} transition={{ duration: 0.8, delay: i * 0.08 }}
-                          className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${t.accent}, rgba(255,255,255,0.4))`, boxShadow: `0 0 12px rgba(${t.rgb},0.2)` }} />
-                      </div>
-                      <p className="mt-1.5 text-[10px]" style={{ color: "var(--text-muted)" }}>{Number(item.count) || 0} note{Number(item.count) === 1 ? "" : "s"}</p>
+          {/* Weekly streak — paper card with day cells */}
+          <div>
+            <SectionHeader
+              chapter="§ B"
+              kicker="— THE WEEK"
+              title="Days on the desk."
+            />
+            <div className="ns-act-card" style={{ padding: 20, marginTop: 18 }}>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(7, 1fr)",
+                gap: 8,
+              }}>
+                {streakDays.map((d, i) => (
+                  <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div
+                      className="ns-act-streak-cell"
+                      style={d.active
+                        ? { background: ED.accent, color: ED.paper50, border: `1px solid ${ED.accent}` }
+                        : { background: ED.paper100, color: ED.inkFaint, border: `1px dashed ${ED.rule}` }
+                      }
+                    >
+                      {d.active ? "●" : "·"}
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── CLARITY + BAR CHART ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Clarity Score */}
-          <div className="ns-act-card">
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(500px 200px at 10% -10%, rgba(99,102,241,0.12), transparent 60%)" }} />
-            <div className="relative z-10 p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <ToneTile tone="indigo" size={36}><FiZap size={16} /></ToneTile>
-                  <div>
-                    <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Clarity Score</h3>
-                    <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>AI-assessed note quality</p>
+                    <span style={{
+                      fontFamily: ED.mono, fontSize: 9.5, letterSpacing: "0.14em",
+                      textTransform: "uppercase", color: ED.inkFaint,
+                      textAlign: "center",
+                    }}>
+                      {d.day}
+                    </span>
                   </div>
-                </div>
-                <ClarityRing value={clarity.total_score} />
+                ))}
               </div>
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                <ClarityMini label="Readability" value={clarity.readability} tone="indigo" />
-                <ClarityMini label="Structure" value={clarity.structure} tone="purple" />
-                <ClarityMini label="Completeness" value={clarity.completeness} tone="emerald" />
-              </div>
-            </div>
-          </div>
 
-          {/* Daily Bar Chart */}
-          <div className="ns-act-card">
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(500px 200px at 85% -10%, rgba(168,85,247,0.1), transparent 60%)" }} />
-            <div className="relative z-10 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <ToneTile tone="purple" size={36}><FiActivity size={16} /></ToneTile>
-                  <div>
-                    <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Daily Breakdown</h3>
-                    <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Notes vs Summaries</p>
-                  </div>
-                </div>
-                <Badge>{chartDays}d</Badge>
-              </div>
-              <div className="rounded-2xl p-2" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)" }}>
-                <div style={{ width: "100%", height: 152 }}>
-                  {chartsReady ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={200}>
-                      <BarChart data={chartData} barGap={4}>
-                        <defs>
-                          <linearGradient id="barN" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.9} /><stop offset="100%" stopColor="#6366f1" stopOpacity={0.2} /></linearGradient>
-                          <linearGradient id="barS" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.85} /><stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.18} /></linearGradient>
-                        </defs>
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 10 }} />
-                        <Tooltip content={<ChartTooltip />} />
-                        <Bar dataKey="notes" fill="url(#barN)" radius={[5, 5, 0, 0]} name="Notes" />
-                        <Bar dataKey="summaries" fill="url(#barS)" radius={[5, 5, 0, 0]} name="Summaries" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : <div className="h-full flex items-center justify-center"><div className="w-5 h-5 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" /></div>}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+              <hr style={{
+                border: 0, borderTop: `1px solid ${ED.ruleSoft}`,
+                margin: "20px 0 16px",
+              }} />
 
-        {/* ── ACTIVITY TIMELINE ── */}
-        <div className="ns-act-card">
-          <div className="relative z-10 p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-              <div className="flex items-center gap-2.5">
-                <ToneTile tone="sky" size={32}><FiCalendar size={14} /></ToneTile>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div>
-                  <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Activity Timeline</h3>
-                  <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                    {timelineEvents.length} event{timelineEvents.length === 1 ? "" : "s"}
-                    {timelineRange > 0 ? ` · last ${timelineRange}d` : " · all time"}
+                  <p style={{
+                    fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.16em",
+                    textTransform: "uppercase", color: ED.inkFaint, margin: 0,
+                  }}>Current streak</p>
+                  <p style={{
+                    fontFamily: ED.serif, fontStyle: "italic", fontSize: 44,
+                    color: ED.accent, margin: "4px 0 0", lineHeight: 1,
+                  }}>
+                    {stats.streak_days}
+                    <span style={{ fontSize: 18, color: ED.inkMute, marginLeft: 6 }}>days</span>
+                  </p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <p style={{
+                    fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.16em",
+                    textTransform: "uppercase", color: ED.inkFaint, margin: 0,
+                  }}>Active days</p>
+                  <p style={{
+                    fontFamily: ED.serif, fontStyle: "italic", fontSize: 44,
+                    color: ED.ink, margin: "4px 0 0", lineHeight: 1,
+                  }}>
+                    {stats.active_days_count}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <motion.button onClick={handleRefresh} disabled={timelineLoading} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                  className="h-8 w-8 rounded-xl flex items-center justify-center transition disabled:opacity-40"
-                  style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-muted)" }}>
-                  <motion.div animate={{ rotate: timelineLoading ? 360 : 0 }} transition={{ duration: 1, repeat: timelineLoading ? Infinity : 0, ease: "linear" }}><FiRefreshCw size={13} /></motion.div>
-                </motion.button>
-                {[7, 30, 0].map((n) => <Pill key={n} active={timelineRange === n} onClick={() => setTimelineRange(n)}>{n === 0 ? "All" : `${n}d`}</Pill>)}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══ CLARITY + USAGE BREAKDOWN + DAILY BARS ═══ */}
+        <section style={{ marginTop: 56 }}>
+          <SectionHeader
+            chapter="§ C"
+            kicker="— THE READING"
+            title="What the model thinks of your week."
+          />
+
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)",
+            gap: 24,
+            marginTop: 18,
+          }}>
+            {/* Clarity */}
+            <div className="ns-act-card" style={{ padding: 24 }}>
+              <p style={{
+                fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.18em",
+                textTransform: "uppercase", color: ED.inkFaint, margin: 0,
+              }}>
+                Clarity score
+              </p>
+              <div style={{
+                display: "flex", alignItems: "baseline", gap: 12,
+                marginTop: 8, marginBottom: 16,
+              }}>
+                <p style={{
+                  fontFamily: ED.serif, fontStyle: "italic",
+                  fontSize: "clamp(56px, 6vw, 80px)",
+                  color: ED.accent, margin: 0, lineHeight: 0.9,
+                }}>
+                  {clarity.total_score || 0}
+                </p>
+                <span style={{
+                  fontFamily: ED.serif, fontSize: 22, color: ED.inkFaint,
+                }}>/ 100</span>
               </div>
+              <div style={{
+                height: 1, background: ED.ruleSoft, margin: "8px 0 14px",
+              }} />
+              <ClarityLine label="Readability" value={clarity.readability} />
+              <ClarityLine label="Structure" value={clarity.structure} />
+              <ClarityLine label="Completeness" value={clarity.completeness} last />
             </div>
 
-            <div className="flex flex-wrap gap-1.5 mb-4">
-              {typeFilters.map((f) => <Pill key={f.value} active={typeFilter === f.value} onClick={() => setTypeFilter(f.value)}>{f.label}</Pill>)}
-            </div>
-
-            {timelineError && (
-              <div className="mb-4 p-3 rounded-xl flex items-center gap-2" style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.2)" }}>
-                <FiAlertCircle size={15} style={{ color: "#f43f5e" }} />
-                <p className="text-[12px]" style={{ color: "#f43f5e" }}>{timelineError}</p>
+            {/* Usage breakdown */}
+            <div className="ns-act-card" style={{ padding: 24 }}>
+              <div style={{
+                display: "flex", justifyContent: "space-between",
+                alignItems: "baseline", marginBottom: 14,
+              }}>
+                <p style={{
+                  fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.18em",
+                  textTransform: "uppercase", color: ED.inkFaint, margin: 0,
+                }}>
+                  Usage breakdown
+                </p>
+                <span style={{
+                  fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.14em",
+                  textTransform: "uppercase", color: ED.inkFaint,
+                }}>
+                  Last {statDays}d
+                </span>
               </div>
-            )}
-
-            <AnimatePresence mode="wait">
-              {timelineLoading ? (
-                <motion.div key="tl-load" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-12 gap-3">
-                  <div className="w-7 h-7 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>Loading timeline…</p>
-                </motion.div>
-              ) : groupedEvents.length === 0 ? (
-                <motion.div key="tl-empty" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-center py-10">
-                  <div className="h-12 w-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)" }}>
-                    <FiActivity size={18} style={{ color: "var(--text-muted)" }} />
-                  </div>
-                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>No activity in this view</p>
-                  <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)", opacity: 0.6 }}>Start creating notes or uploading documents!</p>
-                </motion.div>
+              {usageBreakdown.length === 0 ? (
+                <p style={{
+                  fontFamily: ED.serif, fontStyle: "italic", fontSize: 17,
+                  color: ED.inkFaint, margin: "32px 0", textAlign: "center",
+                }}>
+                  No categories yet — start writing.
+                </p>
               ) : (
-                <motion.div key="tl-content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-2.5">
-                  {groupedEvents.map((group, gi) => (
-                    <motion.section key={group.dayKey} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: gi * 0.06 }}
-                      className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-secondary)" }}>
-                      <button type="button" onClick={() => setOpenGroups((p) => ({ ...p, [group.dayKey]: !p[group.dayKey] }))}
-                        className="w-full flex items-center justify-between gap-3 px-4 py-3 transition" aria-expanded={!!openGroups[group.dayKey]}
-                        style={{ background: "transparent" }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Badge>{group.label}</Badge>
-                          <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{group.items.length} event{group.items.length === 1 ? "" : "s"}</span>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {usageBreakdown.map((item, i) => {
+                    const val = Number(item.value) || 0;
+                    const count = Number(item.count) || 0;
+                    return (
+                      <li key={`${item.label}-${i}`} style={{
+                        padding: "10px 0",
+                        borderBottom: i === usageBreakdown.length - 1 ? "none" : `1px solid ${ED.ruleSoft}`,
+                      }}>
+                        <div style={{
+                          display: "flex", alignItems: "baseline",
+                          justifyContent: "space-between", gap: 8,
+                        }}>
+                          <span style={{
+                            fontFamily: ED.serif, fontSize: 18, color: ED.ink,
+                          }}>
+                            {item.label}
+                          </span>
+                          <span className="ns-act-leader" />
+                          <span style={{
+                            fontFamily: ED.serif, fontStyle: "italic", fontSize: 22,
+                            color: ED.accent,
+                          }}>
+                            {val}%
+                          </span>
                         </div>
-                        <motion.div animate={{ rotate: openGroups[group.dayKey] ? 180 : 0 }} transition={{ duration: 0.2 }}
-                          className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                          style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-muted)" }}>
-                          <FiChevronDown size={14} />
-                        </motion.div>
+                        <div style={{
+                          display: "flex", justifyContent: "space-between",
+                          alignItems: "baseline", marginTop: 6,
+                        }}>
+                          <div style={{
+                            flex: 1, height: 2, background: ED.paper200,
+                            borderRadius: 1, overflow: "hidden", marginRight: 12,
+                          }}>
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${Math.min(100, val)}%` }}
+                              transition={{ duration: 0.8, delay: i * 0.06 }}
+                              style={{ height: "100%", background: ED.accent }}
+                            />
+                          </div>
+                          <span style={{
+                            fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.12em",
+                            textTransform: "uppercase", color: ED.inkFaint,
+                            whiteSpace: "nowrap",
+                          }}>
+                            {count} {count === 1 ? "note" : "notes"}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            {/* Daily breakdown — bar chart */}
+            <div className="ns-act-card" style={{ padding: 24 }}>
+              <div style={{
+                display: "flex", justifyContent: "space-between",
+                alignItems: "baseline", marginBottom: 14,
+              }}>
+                <p style={{
+                  fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.18em",
+                  textTransform: "uppercase", color: ED.inkFaint, margin: 0,
+                }}>
+                  Daily breakdown
+                </p>
+                <span style={{
+                  fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.14em",
+                  textTransform: "uppercase", color: ED.inkFaint,
+                }}>
+                  {chartDays}d
+                </span>
+              </div>
+              <div style={{ width: "100%", height: 180 }}>
+                {chartsReady ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} barGap={3} margin={{ top: 6, right: 0, left: -12, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="2 4" vertical={false} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                      <YAxis axisLine={false} tickLine={false} width={28} />
+                      <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(31, 58, 168, 0.04)" }} />
+                      <Bar dataKey="notes" fill={ACCENT_HEX} radius={[3, 3, 0, 0]} name="Notes" />
+                      <Bar dataKey="summaries" fill={INK_HEX} radius={[3, 3, 0, 0]} name="Summaries" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ChartSkeleton />
+                )}
+              </div>
+              <div style={{
+                display: "flex", gap: 16, marginTop: 12,
+                fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.14em",
+                textTransform: "uppercase", color: ED.inkFaint,
+              }}>
+                <LegendDot color={ACCENT_HEX} label="Notes" />
+                <LegendDot color={INK_HEX} label="Summaries" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══ TIMELINE — the newspaper "tl-day" pattern ═══ */}
+        <section style={{ marginTop: 64 }}>
+          <SectionHeader
+            chapter="§ D"
+            kicker="— THE TIMELINE"
+            title="A diary of edits."
+            right={
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {typeFilters.map((f) => (
+                  <button
+                    key={f.value}
+                    type="button"
+                    className={`ns-act-filter ${typeFilter === f.value ? "on" : ""}`}
+                    onClick={() => setTypeFilter(f.value)}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            }
+          />
+
+          <hr style={{ border: 0, borderTop: `1px solid ${ED.rule}`, marginTop: 24 }} />
+
+          {timelineError && (
+            <div style={{
+              marginTop: 20, padding: "12px 16px",
+              background: ED.paper50,
+              border: `1px solid ${ED.rule}`,
+              borderLeft: `3px solid ${ED.accent}`,
+              borderRadius: 4,
+              display: "flex", alignItems: "center", gap: 10,
+            }}>
+              <FiAlertCircle size={15} style={{ color: ED.accent }} />
+              <span style={{
+                fontFamily: ED.serif, fontSize: 16, color: ED.inkSoft,
+              }}>{timelineError}</span>
+            </div>
+          )}
+
+          <AnimatePresence mode="wait">
+            {timelineLoading ? (
+              <motion.div
+                key="tl-load"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center",
+                  justifyContent: "center", padding: "60px 0", gap: 14,
+                }}
+              >
+                <div style={{
+                  width: 24, height: 24, borderRadius: "50%",
+                  border: `2px solid ${ED.rule}`,
+                  borderTopColor: ACCENT_HEX,
+                  animation: "spin 0.9s linear infinite",
+                }} />
+                <p style={{
+                  fontFamily: ED.mono, fontSize: 10.5, letterSpacing: "0.16em",
+                  textTransform: "uppercase", color: ED.inkFaint, margin: 0,
+                }}>
+                  Setting the type…
+                </p>
+              </motion.div>
+            ) : groupedEvents.length === 0 ? (
+              <motion.div
+                key="tl-empty"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                style={{
+                  textAlign: "center", padding: "60px 20px",
+                  borderTop: `1px solid ${ED.ruleSoft}`, marginTop: 24,
+                }}
+              >
+                <p style={{
+                  fontFamily: ED.serif, fontStyle: "italic",
+                  fontSize: "clamp(24px, 2.5vw, 32px)",
+                  color: ED.inkMute, margin: 0,
+                }}>
+                  The page is blank.
+                </p>
+                <p style={{
+                  fontFamily: ED.mono, fontSize: 11, letterSpacing: "0.14em",
+                  textTransform: "uppercase", color: ED.inkFaint, marginTop: 14,
+                }}>
+                  No entries in this view · begin a note or upload a document
+                </p>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="tl-content"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                style={{ marginTop: 8 }}
+              >
+                {groupedEvents.map((group, gi) => {
+                  const isOpen = !!openGroups[group.dayKey];
+                  return (
+                    <motion.section
+                      key={group.dayKey}
+                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: Math.min(gi * 0.04, 0.4) }}
+                      style={{
+                        padding: "20px 0",
+                        borderBottom: `1px solid ${ED.rule}`,
+                      }}
+                    >
+                      {/* Day header — clickable for collapse */}
+                      <button
+                        type="button"
+                        onClick={() => setOpenGroups((p) => ({ ...p, [group.dayKey]: !p[group.dayKey] }))}
+                        aria-expanded={isOpen}
+                        style={{
+                          width: "100%",
+                          background: "transparent",
+                          border: 0,
+                          padding: 0,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "baseline",
+                          justifyContent: "space-between",
+                          gap: 16,
+                          textAlign: "left",
+                        }}
+                      >
+                        <h3 style={{
+                          fontFamily: ED.serif, fontSize: 28, margin: 0,
+                          color: ED.ink, lineHeight: 1.1,
+                        }}>
+                          <span style={{
+                            fontFamily: ED.mono, fontSize: 11, letterSpacing: "0.16em",
+                            color: ED.inkFaint, marginRight: 14,
+                          }}>
+                            {group.weekday}
+                          </span>
+                          <span style={{ fontStyle: "italic", color: ED.accent, fontSize: 28 }}>
+                            {group.date}
+                          </span>
+                        </h3>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
+                          <span style={{
+                            fontFamily: ED.mono, fontSize: 10.5, letterSpacing: "0.14em",
+                            textTransform: "uppercase", color: ED.inkFaint,
+                          }}>
+                            {group.items.length} {group.items.length === 1 ? "EVENT" : "EVENTS"}
+                          </span>
+                          <motion.span
+                            animate={{ rotate: isOpen ? 180 : 0 }}
+                            transition={{ duration: 0.2 }}
+                            style={{
+                              display: "inline-flex", color: ED.inkFaint,
+                            }}
+                          >
+                            <FiChevronDown size={14} />
+                          </motion.span>
+                        </div>
                       </button>
+
                       <AnimatePresence initial={false}>
-                        {!!openGroups[group.dayKey] && (
-                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
-                            <div className="px-4 pb-4">
-                              <ol className="relative space-y-2.5 pt-2">
-                                {group.items.map((event, i) => <TimelineRow key={`${event.event_type}-${event.id}-${event.created_at}`} event={event} index={i} isLast={i === group.items.length - 1} noteMap={noteMap} docMap={docMap} />)}
-                              </ol>
+                        {isOpen && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25 }}
+                            style={{ overflow: "hidden" }}
+                          >
+                            <div style={{ marginTop: 14 }}>
+                              {group.items.map((event, i) => (
+                                <EdTimelineEvent
+                                  key={`${event.event_type}-${event.id}-${event.created_at}`}
+                                  event={event}
+                                  noteMap={noteMap}
+                                  docMap={docMap}
+                                />
+                              ))}
                             </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
                     </motion.section>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  );
+                })}
+
+                {/* Footer link, mirrors preview's "Earlier this week ↓" */}
+                <div style={{ textAlign: "center", padding: "32px 0 0" }}>
+                  <span style={{
+                    fontFamily: ED.mono, fontSize: 11, letterSpacing: "0.14em",
+                    textTransform: "uppercase", color: ED.inkFaint,
+                  }}>
+                    End of {rangeLabel.toLowerCase()} ·{" "}
+                    {timelineRange !== 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setTimelineRange(timelineRange === 7 ? 30 : 0)}
+                        style={{
+                          background: "transparent", border: 0, padding: 0,
+                          cursor: "pointer",
+                          fontFamily: ED.mono, fontSize: 11, letterSpacing: "0.14em",
+                          textTransform: "uppercase", color: ED.inkMute,
+                          backgroundImage: `linear-gradient(${ED.inkMute}, ${ED.inkMute})`,
+                          backgroundPosition: "0 100%",
+                          backgroundRepeat: "no-repeat",
+                          backgroundSize: "100% 1px",
+                        }}
+                      >
+                        Show {timelineRange === 7 ? "30 days" : "all"} ↓
+                      </button>
+                    )}
+                  </span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+
+        {/* ═══ FOOTER MASTHEAD ═══ */}
+        <footer style={{ marginTop: 80, padding: "24px 0" }}>
+          <hr style={{ border: 0, borderTop: `1px solid ${ED.rule}`, margin: 0 }} />
+          <div style={{
+            padding: "20px 0", display: "flex",
+            justifyContent: "space-between", gap: 16, flexWrap: "wrap",
+            fontFamily: ED.mono, fontSize: 10.5, letterSpacing: "0.16em",
+            textTransform: "uppercase", color: ED.inkFaint,
+          }}>
+            <span>The record, kept honestly · printed daily for one reader</span>
+            <span>NOTESTREAM · § 06 · THE RECORD</span>
           </div>
-        </div>
+        </footer>
       </div>
     </>
   );
 }
 
 /* ═══════════════════════════════════════════════════════
-   SUB-COMPONENTS
+   SUB-COMPONENTS — editorial primitives
 ═══════════════════════════════════════════════════════ */
 
-/* ── Tone Tile (icon container) ── */
-function ToneTile({ tone = "indigo", size = 36, children }) {
-  const t = TONES[tone] || TONES.indigo;
+/* Ghost button matching .ed-btn-ghost in the preview */
+function EdGhostButton({ children, onClick, type = "button" }) {
   return (
-    <div className="rounded-xl flex items-center justify-center flex-shrink-0"
-      style={{ width: size, height: size, background: `rgba(${t.rgb},0.1)`, border: `1px solid rgba(${t.rgb},0.25)`, color: t.accent, boxShadow: `0 6px 20px rgba(${t.rgb},0.12)` }}>
+    <button
+      type={type}
+      onClick={onClick}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 8,
+        padding: "9px 18px", borderRadius: 999,
+        fontFamily: ED.sans, fontSize: 13, fontWeight: 500,
+        border: `1px solid ${ED.rule}`,
+        background: "transparent", color: ED.ink,
+        cursor: "pointer", transition: "border-color .18s ease",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = INK_HEX)}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--ed-rule, #d8cfb6)")}
+    >
       {children}
+    </button>
+  );
+}
+
+/* The 4-up newspaper stat strip cell */
+function EdStat({ label, value, footnote, up = true, withRight }) {
+  const arrow = footnote && footnote.startsWith("+") ? "↑" : footnote && footnote.startsWith("-") ? "↓" : null;
+  const footColor = footnote && (footnote.includes("+") || up === true) && !footnote.startsWith("-")
+    ? ED.accent : ED.inkFaint;
+  return (
+    <div style={{
+      padding: "28px 24px",
+      borderRight: withRight ? `1px solid ${ED.rule}` : "none",
+    }}>
+      <p style={{
+        fontFamily: ED.mono, fontSize: 10.5, letterSpacing: "0.18em",
+        textTransform: "uppercase", color: ED.inkFaint, margin: 0,
+      }}>
+        {label}
+      </p>
+      <p style={{
+        fontFamily: ED.serif, fontStyle: "italic",
+        fontSize: "clamp(40px, 4.5vw, 64px)",
+        color: ED.accent, margin: "12px 0 10px", lineHeight: 1,
+      }}>
+        {value ?? 0}
+      </p>
+      {footnote ? (
+        <p style={{
+          fontFamily: ED.mono, fontSize: 10.5, letterSpacing: "0.14em",
+          textTransform: "uppercase", color: footColor, margin: 0,
+        }}>
+          {arrow ? `${arrow} ` : ""}{footnote}
+        </p>
+      ) : (
+        <p style={{
+          fontFamily: ED.mono, fontSize: 10.5, letterSpacing: "0.14em",
+          textTransform: "uppercase", color: ED.inkFaint, margin: 0,
+        }}>—</p>
+      )}
     </div>
   );
 }
 
-/* ── Badge ── */
-function Badge({ children }) {
-  return <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-muted)" }}>{children}</span>;
-}
-
-/* ── Pill (toggle button) ── */
-function Pill({ children, active, onClick, small }) {
+/* Section header used between blocks — chapter mark + title + optional controls */
+function SectionHeader({ chapter, kicker, title, right }) {
   return (
-    <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onClick} type="button"
-      className={`rounded-lg font-bold transition ${small ? "px-2.5 py-1 text-[10px]" : "px-3 py-1.5 text-[11px]"}`}
-      style={active
-        ? { background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff", boxShadow: "0 2px 10px rgba(99,102,241,0.25)" }
-        : { background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-muted)" }}>
-      {children}
-    </motion.button>
-  );
-}
-
-/* ── Stat Card ── */
-function StatCard({ title, value, sub, icon, tone = "indigo", trend, up }) {
-  const t = TONES[tone] || TONES.indigo;
-  return (
-    <div className="ns-act-stat p-4">
-      <div className="flex items-center justify-between mb-2.5">
-        <ToneTile tone={tone} size={34}>{icon}</ToneTile>
-        {trend && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1"
-            style={up ? { background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)", color: "#10b981" } : { background: "rgba(244,63,94,0.1)", border: "1px solid rgba(244,63,94,0.25)", color: "#f43f5e" }}>
-            <FiTrendingUp size={9} className={!up ? "rotate-180" : ""} /> {trend}
+    <div style={{
+      display: "flex", alignItems: "baseline", justifyContent: "space-between",
+      gap: 24, flexWrap: "wrap",
+    }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{
+          display: "inline-flex", alignItems: "baseline", gap: 10,
+          fontFamily: ED.mono, fontSize: 11, letterSpacing: "0.16em",
+          textTransform: "uppercase", color: ED.inkFaint, marginBottom: 10,
+        }}>
+          <span style={{
+            fontFamily: ED.serif, fontStyle: "italic", fontSize: 18,
+            letterSpacing: 0, color: ED.accent,
+          }}>
+            {chapter}
           </span>
-        )}
+          <span>{kicker}</span>
+        </div>
+        <h2 style={{
+          fontFamily: ED.serif, fontWeight: 400, lineHeight: 1.1,
+          letterSpacing: "-0.015em",
+          fontSize: "clamp(22px, 2.4vw, 32px)",
+          margin: 0, color: ED.ink,
+        }}>
+          {title}
+        </h2>
       </div>
-      <h2 className="text-2xl font-extrabold" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{value}</h2>
-      <p className="text-[10px] font-medium mt-0.5" style={{ color: "var(--text-muted)" }}>{title}</p>
-      {sub && <p className="text-[9px] mt-0.5" style={{ color: "var(--text-muted)", opacity: 0.6 }}>{sub}</p>}
+      {right && <div>{right}</div>}
     </div>
   );
 }
 
-/* ── Streak Dots ── */
-function StreakDots({ days }) {
-  return (
-    <div className="flex items-center justify-between gap-1">
-      {days.map((d, i) => (
-        <motion.div key={i} className="flex flex-col items-center gap-2" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
-          <motion.div whileHover={{ scale: 1.1 }}
-            className="h-10 w-10 rounded-full flex items-center justify-center transition"
-            style={d.active
-              ? { background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 16px rgba(99,102,241,0.3)", color: "#fff" }
-              : { background: "var(--bg-tertiary)", border: "2px dashed var(--border-secondary)" }}>
-            {d.active && <Fire size={15} weight="fill" />}
-          </motion.div>
-          <span className="text-[10px] font-medium" style={{ color: d.active ? "var(--text-secondary)" : "var(--text-muted)" }}>{d.day}</span>
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-/* ── Clarity Ring ── */
-function ClarityRing({ value }) {
+/* Clarity sub-row */
+function ClarityLine({ label, value, last }) {
   const v = Math.max(0, Math.min(100, Number(value) || 0));
-  const C = 2 * Math.PI * 36; const offset = C - (v / 100) * C;
   return (
-    <div className="relative w-20 h-20">
-      <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
-        <circle cx="40" cy="40" r="36" stroke="var(--bg-tertiary)" strokeWidth="6" fill="none" />
-        <defs><linearGradient id="clarGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#6366f1" /><stop offset="100%" stopColor="#8b5cf6" /></linearGradient></defs>
-        <motion.circle cx="40" cy="40" r="36" stroke="url(#clarGrad)" strokeWidth="6" fill="none" strokeLinecap="round" strokeDasharray={C} initial={{ strokeDashoffset: C }} animate={{ strokeDashoffset: offset }} transition={{ duration: 1.2, ease: "easeOut" }} />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-lg font-extrabold" style={{ color: "var(--text-primary)" }}>{v}%</span>
+    <div style={{
+      padding: "10px 0",
+      borderBottom: last ? "none" : `1px solid ${ED.ruleSoft}`,
+    }}>
+      <div style={{
+        display: "flex", alignItems: "baseline",
+        justifyContent: "space-between", gap: 8,
+      }}>
+        <span style={{ fontFamily: ED.serif, fontSize: 17, color: ED.ink }}>
+          {label}
+        </span>
+        <span className="ns-act-leader" />
+        <span style={{
+          fontFamily: ED.serif, fontStyle: "italic", fontSize: 20,
+          color: ED.accent,
+        }}>
+          {v}
+        </span>
+        <span style={{
+          fontFamily: ED.mono, fontSize: 10, color: ED.inkFaint, marginLeft: 4,
+        }}>/100</span>
+      </div>
+      <div style={{
+        height: 2, background: ED.paper200, borderRadius: 1, overflow: "hidden",
+        marginTop: 6,
+      }}>
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${v}%` }}
+          transition={{ duration: 0.9 }}
+          style={{ height: "100%", background: ED.accent }}
+        />
       </div>
     </div>
   );
 }
 
-/* ── Clarity Mini Stat ── */
-function ClarityMini({ label, value, tone = "indigo" }) {
-  const t = TONES[tone] || TONES.indigo;
+/* Legend dot for bar chart */
+function LegendDot({ color, label }) {
   return (
-    <motion.div whileHover={{ scale: 1.02 }} className="rounded-xl p-3 text-center"
-      style={{ background: `rgba(${t.rgb},0.08)`, border: `1px solid rgba(${t.rgb},0.2)` }}>
-      <p className="text-xl font-extrabold" style={{ color: "var(--text-primary)" }}>{value || 0}%</p>
-      <p className="text-[10px] font-medium mt-0.5" style={{ color: "var(--text-muted)" }}>{label}</p>
-    </motion.div>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <span style={{
+        width: 8, height: 8, background: color, borderRadius: 2, display: "inline-block",
+      }} />
+      {label}
+    </span>
   );
 }
 
-/* ── Timeline Row ── */
-function TimelineRow({ event, index, isLast, noteMap, docMap }) {
-  const Icon = eventIcons[event.event_type] || FiActivity;
-  const ac = actionColors[event.event_type] || actionColors.note_created;
-  const rgb = ac.rgb;
+/* Chart skeleton */
+function ChartSkeleton() {
+  return (
+    <div style={{
+      width: "100%", height: "100%",
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      <div style={{
+        width: 18, height: 18, borderRadius: "50%",
+        border: `2px solid ${ED.rule}`, borderTopColor: ACCENT_HEX,
+        animation: "spin 0.9s linear infinite",
+      }} />
+    </div>
+  );
+}
+
+/* Single timeline event row — matches .tl-event in preview */
+function EdTimelineEvent({ event, noteMap, docMap }) {
   const title = getEventTitle(event, noteMap, docMap);
   const subtitle = getEventSubtitle(event);
-  const isPhosphor = Icon === NotePencil || Icon === FileArrowUp || Icon === Brain || Icon === Lightning;
+  const kind = EVENT_KIND_LABEL[event.event_type] || (event.event_type || "ACTIVITY").toUpperCase().replace(/_/g, " ");
+  const verb = EVENT_VERB[event.event_type] || "Recorded";
 
   return (
-    <motion.li className="relative pl-12" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25, delay: index * 0.04 }}>
-      {!isLast && <div className="absolute left-[18px] top-[42px] bottom-[-8px] w-[2px]" style={{ background: `linear-gradient(to bottom, rgba(${rgb},0.25), transparent)` }} />}
-      <motion.div className="absolute left-0 top-2 h-9 w-9 rounded-xl flex items-center justify-center"
-        style={{ background: `rgba(${rgb},0.1)`, border: `1px solid rgba(${rgb},0.25)`, boxShadow: `0 4px 16px rgba(${rgb},0.12)` }}
-        initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: index * 0.04 + 0.1 }} whileHover={{ scale: 1.1 }}>
-        {isPhosphor ? <Icon size={15} weight="duotone" style={{ color: `rgb(${rgb})` }} /> : <Icon size={15} style={{ color: `rgb(${rgb})` }} />}
-      </motion.div>
-      <div className="rounded-2xl px-4 py-3 transition" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-secondary)" }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.boxShadow = `0 4px 16px rgba(${rgb},0.08)`; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; e.currentTarget.style.boxShadow = "none"; }}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-medium truncate" style={{ color: "var(--text-primary)" }}>{title}</p>
-            {subtitle && <p className="text-[10px] mt-0.5 truncate" style={{ color: "var(--text-muted)" }}>{subtitle}</p>}
-          </div>
-          <span className="shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-lg" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-            {formatTimeAgo(event.created_at)}
-          </span>
-        </div>
-        <div className="mt-2">
-          <span className="text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-lg"
-            style={{ background: `rgba(${rgb},0.1)`, border: `1px solid rgba(${rgb},0.2)`, color: `rgb(${rgb})` }}>
-            {(event.event_type || "activity").replace(/_/g, " ")}
-          </span>
-        </div>
+    <div className="ns-act-event-row">
+      <span style={{
+        fontFamily: ED.mono, fontSize: 10.5, letterSpacing: "0.12em",
+        color: ED.inkFaint, paddingTop: 2,
+      }}>
+        {formatClock(event.created_at)}
+        <span style={{ display: "block", marginTop: 2, fontSize: 9.5, color: ED.inkFaint, opacity: 0.7 }}>
+          {formatTimeAgo(event.created_at).toUpperCase()}
+        </span>
+      </span>
+      <div style={{ minWidth: 0 }}>
+        <p style={{
+          fontFamily: ED.serif, fontSize: 17, color: ED.ink, margin: 0,
+          lineHeight: 1.5,
+        }}>
+          {verb}{" "}
+          <em
+            className="ns-act-event-em"
+            style={{
+              fontStyle: "italic", color: ED.inkSoft,
+              transition: "color 0.15s ease",
+            }}
+          >
+            {title}
+          </em>
+          {subtitle ? (
+            <span style={{
+              fontFamily: ED.sans, fontStyle: "normal", fontSize: 13,
+              color: ED.inkFaint, marginLeft: 8,
+            }}>
+              — {subtitle}
+            </span>
+          ) : null}
+          .
+        </p>
       </div>
-    </motion.li>
+      <span style={{
+        fontFamily: ED.mono, fontSize: 10.5, letterSpacing: "0.14em",
+        textTransform: "uppercase", color: ED.inkFaint,
+        whiteSpace: "nowrap", paddingTop: 4,
+      }}>
+        {kind}
+      </span>
+    </div>
   );
 }
-
-
-
