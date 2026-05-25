@@ -432,8 +432,6 @@ export default function VoiceNotes() {
     if (audioUrl) { URL.revokeObjectURL(audioUrl); setAudioUrl(null); }
   };
 
-  if (!isPro || !isUnlocked) return null;
-
   const isActive = recState === "recording" || recState === "paused";
   const totalDuration = recordings.reduce((a, r) => a + (r.duration || 0), 0);
   const totalWords    = recordings.reduce((a, r) => a + (r.transcription || "").split(" ").filter(Boolean).length, 0);
