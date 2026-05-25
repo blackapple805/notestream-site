@@ -143,11 +143,6 @@ export default function SignupPage() {
     try {
       const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName }, emailRedirectTo: `${window.location.origin}/login` } });
       if (error) throw error;
-      const userId = data?.user?.id;
-      if (userId) {
-        const { error: insertError } = await supabase.from("NoteStreams Table").insert([{ user_id: userId }]);
-        if (insertError) console.warn("Table insert failed:", insertError.message);
-      }
       navigate("/login");
     } catch (err) { setErrorMsg(err?.message || "Signup failed."); }
     finally { setSubmitting(false); }
