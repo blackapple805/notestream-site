@@ -316,19 +316,20 @@ button { font-family: inherit; cursor: pointer; }
 
 .weekly-streak-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, 1fr);  /* Fixed: kebab-case */
   gap: 8px;
 }
 
 @media (max-width: 767px) {
   .weekly-streak-grid {
-    grid-template-columns: repeat(4, 1fr); /* 4 columns on mobile */
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
 @media (max-width: 480px) {
   .weekly-streak-grid {
-    grid-template-columns: repeat(3, 1fr); /* 3 columns on very small phones */
+    grid-template-columns: repeat(3, 1fr);
   }
 }
+
 
