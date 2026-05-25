@@ -1201,11 +1201,70 @@ const EdToast = ({ toast }) => (
 ═══════════════════════════════════════════════════════ */
 const NotesScopedStyles = () => (
   <style>{`
+
+  /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      NOTES HEADER CTA BUTTONS
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+    .ns-notes-headcta{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+
+    /* base */
+    .ns-notes-headcta .ed-btn{
+      height:48px;
+      padding:0 26px;
+
+      border-radius:999px;
+
+      font-size:13px;
+      letter-spacing:-0.02em;
+      font-weight:500;
+
+      transition:
+        background .2s ease,
+        color .2s ease,
+        border-color .2s ease,
+        transform .2s ease;
+    }
+
+    /* upload button */
+    .ns-notes-headcta .ed-btn-ghost{
+      background:#ece6d8;
+      border:1px solid #d8cfbc;
+      color:#2a241d;
+    }
+
+    .ns-notes-headcta .ed-btn-ghost:hover{
+      background:#e4ddce;
+      transform:translateY(-1px);
+    }
+
+    /* primary button */
+    .ns-notes-headcta .ed-btn-primary{
+      background:#16120f;
+      border:1px solid #16120f;
+      color:#f6f1e8;
+
+      box-shadow:none;
+    }
+
+    .ns-notes-headcta .ed-btn-primary:hover{
+      background:#000;
+      transform:translateY(-1px);
+    }
     .ns-ed .ns-notes-headrow {
       display: flex; justify-content: space-between; align-items: flex-end;
       gap: 24px; flex-wrap: wrap;
     }
     .ns-ed .ns-notes-headcta { display: flex; gap: 10px; }
+    .ns-notes-headcta .ed-btn
+    .ns-notes-headrow
+    .ns-search
+    .ns-filter
     .ns-ed .ns-dotsep { padding: 0 8px; color: ${ED.rule}; }
 
     /* ── controls ── */
@@ -1274,6 +1333,7 @@ const NotesScopedStyles = () => (
       -webkit-column-break-inside: avoid;
     }
 
+    
     .ns-ed .ns-article {
       display: grid;
       grid-template-columns: 56px minmax(0, 1fr) minmax(0, 140px);
@@ -1370,12 +1430,28 @@ const NotesScopedStyles = () => (
       position: fixed; inset: 0; z-index: 200;
       background: rgba(19,16,8,0.32);
     }
+
     .ns-ed .ns-modal-wrap {
-      position: fixed; inset: 0; z-index: 201;
-      display: flex; align-items: center; justify-content: center;
-      padding: 20px; pointer-events: none;
+      position: fixed;
+
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+
+      z-index: 9999;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      padding: 24px;
+
       overflow-y: auto;
+
+      pointer-events: auto;
     }
+
     .ns-ed .ns-modal {
       width: 100%; max-width: 560px; padding: 28px;
       max-height: calc(100dvh - 40px); overflow-y: auto;
