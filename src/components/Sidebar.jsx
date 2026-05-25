@@ -1,31 +1,32 @@
 // src/components/Sidebar.jsx
 // ═══════════════════════════════════════════════════════════════════
-// EDITORIAL RESKIN — what changed and why
+// EDITORIAL RESKIN v2 — left column + top strip
 // ─────────────────────────────────────────────────────────────────
-// The dark glass top bar, gradient brand pill, neon search field,
-// and frosted icon rail are gone. The top bar is now an editorial
-// masthead: paper-100 background, hairline `var(--ed-rule)` bottom,
-// serif "NoteStream &co." wordmark on the left, a paper-50 search
-// pill in the centre with mono "Search the archive…" placeholder
-// and a ⌘K kbd, and three hairline-circle icon buttons on the
-// right. The QuickCreate dropdown and search autocomplete became
-// paper-50 cards with hairline borders, serif row titles, and mono
-// metadata. The mobile drawer became a paper-100 panel with mono
-// section headings (§ 01 — MAIN), serif row labels, italic accent-
-// blue active state, and a hairline divider above the logout row.
-// The hidden desktop right-rail (slides out from the right when
-// the menu hamburger is pressed) became a paper rail with
-// hairline borders and a single serif label per row. NO JS logic
-// changes: every useState, useEffect, useCallback, every event
-// listener (desktopSidebar:open / :close, outside-click closers,
-// escape handler), the keyboard search behaviour, the route-change
-// reset, the showMobileNav() call, the CSS-var setup, and the
-// Supabase signOut flow are all byte-identical to the previous
-// file. Only the JSX shell and a couple of icon names changed.
+// Restructured to match the preview exactly:
+//   DESKTOP — a fixed-width LEFT COLUMN (260px) holds the serif
+//   wordmark, three nav sections (§01 The desk · §02 The model ·
+//   §03 Records) with serif row labels, mono ordinals, italic
+//   accent-blue active state, and a sign-out at the bottom. A
+//   thin TOP STRIP sits to the right of the column (from left:
+//   260px to right: 0, height 64px) carrying the live dateline,
+//   a paper-50 "Search the archive…" pill (full search dropdown
+//   with keyboard nav preserved), a Quick Create button, and a
+//   notifications icon.
+//
+//   MOBILE — collapses to a thin top masthead (wordmark + menu
+//   hamburger) plus the same slide-out drawer as before.
+//
+// All JS preserved: every useState, useEffect, useCallback, every
+// keyboard handler (Arrow ↑↓, Tab, Enter, Esc, ⌘K), the
+// desktopSidebar:open/:close listeners (kept as no-ops since the
+// old right rail is retired but Notes.jsx still emits them), the
+// outside-click closers, the Supabase signOut, and the body+layout
+// paper paint. `--ns-layout-sidebar-w` is exposed so
+// DashboardLayout's content area offsets correctly.
 // ═══════════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import { showMobileNav } from "../hooks/useMobileNav";
@@ -35,35 +36,49 @@ import {
   FiHome, FiEdit3, FiFolder, FiZap, FiActivity, FiCpu, FiMic,
   FiCloud, FiUsers, FiSettings, FiLink, FiHelpCircle,
   FiMessageCircle, FiBookOpen, FiGrid, FiFileText, FiX, FiMenu,
-  FiPlus, FiUploadCloud, FiLogOut, FiCommand, FiMoreHorizontal,
+  FiPlus, FiUploadCloud, FiLogOut, FiBell,
 } from "react-icons/fi";
 
-const DESKTOP_HEADER_H = 64;
-const MOBILE_HEADER_H = 56;
-const SIDEBAR_W_COLLAPSED = 80;
+const DESKTOP_HEADER_H  = 64;
+const MOBILE_HEADER_H   = 56;
+const LEFT_COL_W        = 260;
+
+/* ─── live dateline helpers ─── */
+const volAndNo = (d = new Date()) => {
+  const start = new Date(d.getFullYear(), 0, 0);
+  const diff  = (d - start) + ((start.getTimezoneOffset() - d.getTimezoneOffset()) * 60000);
+  const day   = Math.floor(diff / 86400000);
+  const week  = Math.ceil(day / 7);
+  return { vol: "II", no: String(week).padStart(2, "0") };
+};
+const issueLine = (d = new Date()) => {
+  const day  = d.toLocaleDateString(undefined, { weekday: "long" }).toUpperCase();
+  const mo   = d.toLocaleDateString(undefined, { month: "long"   }).toUpperCase();
+  return `${day}, ${mo} ${d.getDate()}, ${d.getFullYear()}`;
+};
 
 /* ─────────────────────────────────────────────
-   Searchable index (UNCHANGED)
+   Search index (UNCHANGED)
    ───────────────────────────────────────────── */
 const SEARCH_INDEX = [
-  { id: "dashboard", title: "Dashboard", description: "Workspace overview", path: "/dashboard", category: "Pages", icon: <FiGrid size={14} />, keywords: ["home", "overview", "main", "dashboard", "start", "hub"] },
-  { id: "notes", title: "Notes", description: "Create & manage notes", path: "/dashboard/notes", category: "Pages", icon: <FiEdit3 size={14} />, keywords: ["notes", "write", "create", "edit", "text", "draft", "memo", "new note"] },
-  { id: "documents", title: "Research Synthesizer", description: "Upload docs & generate briefs", path: "/dashboard/documents", category: "Pages", icon: <FiFolder size={14} />, keywords: ["documents", "files", "upload", "pdf", "docx", "research", "synthesize", "brief", "doc"] },
-  { id: "summaries", title: "Insight Explorer", description: "AI-powered workspace search", path: "/dashboard/summaries", category: "Pages", icon: <FiZap size={14} />, keywords: ["summaries", "insights", "explore", "ai search", "ask", "query", "find"] },
-  { id: "activity", title: "Activity", description: "Recent activity & usage", path: "/dashboard/activity", category: "Pages", icon: <FiActivity size={14} />, keywords: ["activity", "history", "timeline", "recent", "log", "usage"] },
-  { id: "ai-lab", title: "AI Lab", description: "Advanced AI tools", path: "/dashboard/ai-lab", category: "AI Tools", icon: <FiCpu size={14} />, keywords: ["ai", "lab", "tools", "experiments", "advanced"] },
-  { id: "custom-training", title: "Custom AI Training", description: "Train AI on your style", path: "/dashboard/ai-lab/training", category: "AI Tools", icon: <FiCpu size={14} />, keywords: ["training", "custom", "style", "writing", "personalize", "pro"] },
-  { id: "voice-notes", title: "Voice Notes", description: "Record & transcribe", path: "/dashboard/ai-lab/voice-notes", category: "AI Tools", icon: <FiMic size={14} />, keywords: ["voice", "record", "audio", "transcribe", "speech", "dictate"] },
-  { id: "cloud-sync", title: "Cloud Sync", description: "Sync across devices", path: "/dashboard/ai-lab/cloud-sync", category: "AI Tools", icon: <FiCloud size={14} />, keywords: ["cloud", "sync", "backup", "devices"] },
-  { id: "team-collaboration", title: "Team Collaboration", description: "Collaborate in real time", path: "/dashboard/ai-lab/team-collaboration", category: "AI Tools", icon: <FiUsers size={14} />, keywords: ["team", "collaboration", "share", "invite"] },
-  { id: "settings", title: "Settings", description: "Account, theme & preferences", path: "/dashboard/settings", category: "Settings", icon: <FiSettings size={14} />, keywords: ["settings", "preferences", "account", "theme", "dark mode", "light mode", "profile", "plan", "billing"] },
-  { id: "integrations", title: "Integrations", description: "Connect third-party services", path: "/dashboard/integrations", category: "Settings", icon: <FiLink size={14} />, keywords: ["integrations", "connect", "apps", "google", "slack", "notion", "api"] },
-  { id: "help-center", title: "Help Center", description: "Guides & FAQs", path: "/dashboard/help-center", category: "Support", icon: <FiHelpCircle size={14} />, keywords: ["help", "support", "faq", "guide", "tutorial", "how to"] },
-  { id: "contact-support", title: "Contact Support", description: "Get help from our team", path: "/dashboard/contact-support", category: "Support", icon: <FiMessageCircle size={14} />, keywords: ["contact", "support", "email", "bug", "report", "feedback"] },
-  { id: "integration-docs", title: "Integration Docs", description: "API docs & guides", path: "/dashboard/integration-docs", category: "Support", icon: <FiBookOpen size={14} />, keywords: ["api", "docs", "documentation", "developer"] },
-  { id: "action-new-note", title: "Create New Note", description: "Start writing now", path: "/dashboard/notes", category: "Quick Actions", icon: <FiEdit3 size={14} />, keywords: ["new", "create", "write", "start", "blank", "note"] },
-  { id: "action-upload", title: "Upload a Document", description: "PDF, DOCX, or spreadsheet", path: "/dashboard/documents", category: "Quick Actions", icon: <FiFolder size={14} />, keywords: ["upload", "import", "add", "file"] },
-  { id: "action-record", title: "Record Voice Note", description: "Start a voice recording", path: "/dashboard/ai-lab/voice-notes", category: "Quick Actions", icon: <FiMic size={14} />, keywords: ["record", "voice", "audio"] },
+  { id: "dashboard",          title: "Dashboard",            description: "Workspace overview",            path: "/dashboard",                              category: "Pages",         icon: <FiGrid size={14} />,        keywords: ["home", "overview", "main", "dashboard", "start", "hub"] },
+  { id: "notes",              title: "Notes",                description: "Create & manage notes",         path: "/dashboard/notes",                        category: "Pages",         icon: <FiEdit3 size={14} />,       keywords: ["notes", "write", "create", "edit", "text", "draft", "memo", "new note"] },
+  { id: "documents",          title: "Research Synthesizer", description: "Upload docs & generate briefs", path: "/dashboard/documents",                    category: "Pages",         icon: <FiFolder size={14} />,      keywords: ["documents", "files", "upload", "pdf", "docx", "research", "synthesize", "brief", "doc"] },
+  { id: "summaries",          title: "Insight Explorer",     description: "AI-powered workspace search",    path: "/dashboard/summaries",                    category: "Pages",         icon: <FiZap size={14} />,         keywords: ["summaries", "insights", "explore", "ai search", "ask", "query", "find"] },
+  { id: "activity",           title: "Activity",             description: "Recent activity & usage",        path: "/dashboard/activity",                     category: "Pages",         icon: <FiActivity size={14} />,    keywords: ["activity", "history", "timeline", "recent", "log", "usage"] },
+  { id: "ai-lab",             title: "AI Lab",               description: "Advanced AI tools",              path: "/dashboard/ai-lab",                       category: "AI Tools",      icon: <FiCpu size={14} />,         keywords: ["ai", "lab", "tools", "experiments", "advanced"] },
+  { id: "custom-training",    title: "Custom AI Training",   description: "Train AI on your style",         path: "/dashboard/ai-lab/training",              category: "AI Tools",      icon: <FiCpu size={14} />,         keywords: ["training", "custom", "style", "writing", "personalize", "pro"] },
+  { id: "voice-notes",        title: "Voice Notes",          description: "Record & transcribe",            path: "/dashboard/ai-lab/voice-notes",           category: "AI Tools",      icon: <FiMic size={14} />,         keywords: ["voice", "record", "audio", "transcribe", "speech", "dictate"] },
+  { id: "cloud-sync",         title: "Cloud Sync",           description: "Sync across devices",            path: "/dashboard/ai-lab/cloud-sync",            category: "AI Tools",      icon: <FiCloud size={14} />,       keywords: ["cloud", "sync", "backup", "devices"] },
+  { id: "team-collaboration", title: "Team Collaboration",   description: "Collaborate in real time",       path: "/dashboard/ai-lab/team-collaboration",    category: "AI Tools",      icon: <FiUsers size={14} />,       keywords: ["team", "collaboration", "share", "invite"] },
+  { id: "settings",           title: "Settings",             description: "Account, theme & preferences",   path: "/dashboard/settings",                     category: "Settings",      icon: <FiSettings size={14} />,    keywords: ["settings", "preferences", "account", "theme", "dark mode", "light mode", "profile", "plan", "billing"] },
+  { id: "integrations",       title: "Integrations",         description: "Connect third-party services",   path: "/dashboard/integrations",                 category: "Settings",      icon: <FiLink size={14} />,        keywords: ["integrations", "connect", "apps", "google", "slack", "notion", "api"] },
+  { id: "help-center",        title: "Help Center",          description: "Guides & FAQs",                  path: "/dashboard/help-center",                  category: "Support",       icon: <FiHelpCircle size={14} />,  keywords: ["help", "support", "faq", "guide", "tutorial", "how to"] },
+  { id: "contact-support",    title: "Contact Support",      description: "Get help from our team",         path: "/dashboard/contact-support",              category: "Support",       icon: <FiMessageCircle size={14} />, keywords: ["contact", "support", "email", "bug", "report", "feedback"] },
+  { id: "integration-docs",   title: "Integration Docs",     description: "API docs & guides",              path: "/dashboard/integration-docs",             category: "Support",       icon: <FiBookOpen size={14} />,    keywords: ["api", "docs", "documentation", "developer"] },
+  { id: "action-new-note",    title: "Create New Note",      description: "Start writing now",              path: "/dashboard/notes",                        category: "Quick Actions", icon: <FiEdit3 size={14} />,       keywords: ["new", "create", "write", "start", "blank", "note"] },
+  { id: "action-upload",      title: "Upload a Document",    description: "PDF, DOCX, or spreadsheet",      path: "/dashboard/documents",                    category: "Quick Actions", icon: <FiFolder size={14} />,      keywords: ["upload", "import", "add", "file"] },
+  { id: "action-record",      title: "Record Voice Note",    description: "Start a voice recording",        path: "/dashboard/ai-lab/voice-notes",           category: "Quick Actions", icon: <FiMic size={14} />,         keywords: ["record", "voice", "audio"] },
 ];
 
 const CATEGORY_LABEL = {
@@ -82,8 +97,8 @@ function scoreSearch(query) {
     .map((item) => {
       let score = 0;
       const titleLower = item.title.toLowerCase();
-      const descLower = item.description.toLowerCase();
-      const kwStr = item.keywords.join(" ").toLowerCase();
+      const descLower  = item.description.toLowerCase();
+      const kwStr      = item.keywords.join(" ").toLowerCase();
       for (const term of terms) {
         if (titleLower === term) score += 100;
         else if (titleLower.startsWith(term)) score += 60;
@@ -98,44 +113,32 @@ function scoreSearch(query) {
     .sort((a, b) => b.score - a.score);
 }
 
-/* ─────────────────────────────────────────────
-   Mobile nav config (UNCHANGED — only icons swapped)
-   ───────────────────────────────────────────── */
-const MOBILE_NAV_SECTIONS = [
+/* ─── Nav sections (editorial, three groups) ─── */
+const NAV_SECTIONS = [
   {
-    label: "Main",
+    label: "The desk",
     items: [
       { label: "Dashboard",  icon: FiHome,     to: "/dashboard" },
       { label: "Notes",      icon: FiEdit3,    to: "/dashboard/notes" },
-      { label: "Insights",   icon: FiZap,      to: "/dashboard/summaries" },
+      { label: "Voice notes",icon: FiMic,      to: "/dashboard/ai-lab/voice-notes" },
       { label: "Documents",  icon: FiFolder,   to: "/dashboard/documents" },
-      { label: "Activity",   icon: FiActivity, to: "/dashboard/activity" },
     ],
   },
   {
     label: "The model",
     items: [
       { label: "AI Lab",       icon: FiCpu,  to: "/dashboard/ai-lab", pro: true },
+      { label: "Summaries",    icon: FiZap,  to: "/dashboard/summaries" },
       { label: "Integrations", icon: FiLink, to: "/dashboard/integrations" },
     ],
   },
   {
     label: "Records",
     items: [
+      { label: "Activity", icon: FiActivity, to: "/dashboard/activity" },
       { label: "Settings", icon: FiSettings, to: "/dashboard/settings" },
     ],
   },
-];
-
-const DESKTOP_RAIL_NAV = [
-  { label: "Dashboard",  icon: FiHome,     to: "/dashboard" },
-  { label: "Notes",      icon: FiEdit3,    to: "/dashboard/notes" },
-  { label: "Insights",   icon: FiZap,      to: "/dashboard/summaries" },
-  { label: "Documents",  icon: FiFolder,   to: "/dashboard/documents" },
-  { label: "Activity",   icon: FiActivity, to: "/dashboard/activity" },
-  { label: "Integrations", icon: FiLink,   to: "/dashboard/integrations" },
-  { label: "AI Lab",     icon: FiCpu,      to: "/dashboard/ai-lab", pro: true },
-  { label: "Settings",   icon: FiSettings, to: "/dashboard/settings" },
 ];
 
 export default function Sidebar() {
@@ -146,13 +149,9 @@ export default function Sidebar() {
 
   const [loggingOut, setLoggingOut] = useState(false);
 
-  /* Desktop sidebar state */
-  const [desktopOpen, setDesktopOpen] = useState(false);
-  const [desktopOverlayOpen, setDesktopOverlayOpen] = useState(false);
-
-  /* Mobile drawer state */
+  /* Mobile drawer */
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const mobileDrawerRef = useRef(null);
+  const mobileDrawerRef    = useRef(null);
   const mobileHamburgerRef = useRef(null);
 
   /* Quick Create */
@@ -160,71 +159,45 @@ export default function Sidebar() {
 
   /* Search */
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchOpen, setSearchOpen]   = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
-  const searchInputRef = useRef(null);
-  const searchDropdownRef = useRef(null);
-  const searchWrapperRef = useRef(null);
+  const searchInputRef    = useRef(null);
+  const searchWrapperRef  = useRef(null);
 
   const searchResults = useMemo(() => scoreSearch(searchQuery).slice(0, 7), [searchQuery]);
 
   const isDesktop = () =>
     typeof window !== "undefined" && window.matchMedia && window.matchMedia("(min-width: 768px)").matches;
 
-  const isNotesListRoute = location.pathname === "/dashboard/notes";
-
-  const closeDesktopSidebar = useCallback(() => {
-    setDesktopOpen(false);
-    setDesktopOverlayOpen(false);
-    document.body.style.overflow = "";
-  }, []);
-
-  const openDesktopSidebarFromHamburger = useCallback(() => {
-    setDesktopOpen(true);
-    setDesktopOverlayOpen(true);
-  }, []);
-
-  const closeQuickCreate = useCallback(() => setShowQuickCreate(false), []);
-
-  const goQuickCreate = useCallback(
-    (type) => {
-      setShowQuickCreate(false);
-      closeDesktopSidebar();
-      navigate("/dashboard/notes", { state: { quickCreate: type, ts: Date.now() } });
-    },
-    [navigate, closeDesktopSidebar]
-  );
-
   /* Mobile drawer helpers (UNCHANGED) */
   const closeMobileDrawer = useCallback(() => {
     setMobileDrawerOpen(false);
     document.body.style.overflow = "";
   }, []);
-
   const openMobileDrawer = useCallback(() => {
     setMobileDrawerOpen(true);
     document.body.style.overflow = "hidden";
   }, []);
-
   const handleMobileNavigate = useCallback((to) => {
     closeMobileDrawer();
     navigate(to);
   }, [navigate, closeMobileDrawer]);
 
-  /* Search helpers (UNCHANGED) */
-  const closeSearch = useCallback(() => {
-    setSearchOpen(false);
-    setHighlightIdx(-1);
-  }, []);
-
-  const handleSearchNavigate = useCallback(
-    (item) => {
-      closeSearch();
-      setSearchQuery("");
-      navigate(item.path);
+  /* Quick Create */
+  const closeQuickCreate = useCallback(() => setShowQuickCreate(false), []);
+  const goQuickCreate = useCallback(
+    (type) => {
+      setShowQuickCreate(false);
+      navigate("/dashboard/notes", { state: { quickCreate: type, ts: Date.now() } });
     },
-    [navigate, closeSearch]
+    [navigate]
   );
+
+  /* Search helpers (UNCHANGED) */
+  const closeSearch = useCallback(() => { setSearchOpen(false); setHighlightIdx(-1); }, []);
+  const handleSearchNavigate = useCallback((item) => {
+    closeSearch(); setSearchQuery(""); navigate(item.path);
+  }, [navigate, closeSearch]);
 
   useEffect(() => {
     setHighlightIdx(-1);
@@ -240,16 +213,13 @@ export default function Sidebar() {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [closeSearch]);
 
-  useEffect(() => {
-    closeSearch();
-    setSearchQuery("");
-  }, [location.pathname, closeSearch]);
+  useEffect(() => { closeSearch(); setSearchQuery(""); }, [location.pathname, closeSearch]);
 
   const handleSearchKeyDown = (e) => {
     if (searchOpen && searchResults.length > 0) {
-      if (e.key === "ArrowDown") { e.preventDefault(); setHighlightIdx((prev) => prev < searchResults.length - 1 ? prev + 1 : 0); return; }
-      if (e.key === "ArrowUp") { e.preventDefault(); setHighlightIdx((prev) => prev > 0 ? prev - 1 : searchResults.length - 1); return; }
-      if (e.key === "Tab") { e.preventDefault(); const target = highlightIdx >= 0 ? searchResults[highlightIdx] : searchResults[0]; if (target) setSearchQuery(target.title); return; }
+      if (e.key === "ArrowDown") { e.preventDefault(); setHighlightIdx((p) => p < searchResults.length - 1 ? p + 1 : 0); return; }
+      if (e.key === "ArrowUp")   { e.preventDefault(); setHighlightIdx((p) => p > 0 ? p - 1 : searchResults.length - 1); return; }
+      if (e.key === "Tab")       { e.preventDefault(); const t = highlightIdx >= 0 ? searchResults[highlightIdx] : searchResults[0]; if (t) setSearchQuery(t.title); return; }
     }
     if (e.key === "Enter") {
       e.preventDefault();
@@ -279,29 +249,22 @@ export default function Sidebar() {
     return () => { clearTimeout(t); document.removeEventListener("mousedown", handler); document.removeEventListener("touchstart", handler); };
   }, [mobileDrawerOpen, closeMobileDrawer]);
 
-  /* Escape closes everything (UNCHANGED) */
+  /* Escape closes everything */
   useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape") { setShowQuickCreate(false); closeMobileDrawer(); }
-    };
+    const onKey = (e) => { if (e.key === "Escape") { setShowQuickCreate(false); closeMobileDrawer(); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [closeMobileDrawer]);
 
-  /* Desktop sidebar close on route change (UNCHANGED) */
+  /* desktopSidebar:open/:close listeners — no-ops now (the old right
+     rail was removed) but kept so Notes.jsx's dispatches don't error. */
   useEffect(() => {
-    if (!isDesktop()) return;
-    closeDesktopSidebar();
-    setShowQuickCreate(false);
-  }, [location.pathname, closeDesktopSidebar]);
-
-  useEffect(() => {
-    const onOpen = () => { if (!isDesktop()) return; if (!isNotesListRoute) return; setDesktopOpen(true); setDesktopOverlayOpen(false); };
-    const onClose = () => { if (!isDesktop()) return; closeDesktopSidebar(); };
+    const onOpen = () => {};
+    const onClose = () => {};
     window.addEventListener("desktopSidebar:open", onOpen);
     window.addEventListener("desktopSidebar:close", onClose);
     return () => { window.removeEventListener("desktopSidebar:open", onOpen); window.removeEventListener("desktopSidebar:close", onClose); };
-  }, [isNotesListRoute, closeDesktopSidebar]);
+  }, []);
 
   /* Cmd/Ctrl-K focuses search */
   useEffect(() => {
@@ -322,12 +285,6 @@ export default function Sidebar() {
     return p === to || p.startsWith(to + "/");
   }, [location.pathname]);
 
-  const onNavClick = useCallback(() => {
-    if (!isDesktop()) showMobileNav();
-    setShowQuickCreate(false);
-    closeDesktopSidebar();
-  }, [closeDesktopSidebar]);
-
   /* LOGOUT (UNCHANGED) */
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -336,7 +293,6 @@ export default function Sidebar() {
       closeMobileDrawer();
       if (!isDesktop()) showMobileNav();
       setShowQuickCreate(false);
-      closeDesktopSidebar();
       if (isSupabaseConfigured && supabase) {
         const { error } = await supabase.auth.signOut();
         if (error) console.warn("Supabase signOut error:", error.message);
@@ -347,24 +303,17 @@ export default function Sidebar() {
     }
   };
 
-  /* CSS vars + body paint — preserves old `--ns-*` vars, sets
-     `--app-content-top` so DashboardLayout's content padding tracks
-     the masthead height, and paints <html>/<body> paper-100 while
-     the Sidebar is mounted so the dark `bg-theme-primary` from
-     DashboardLayout doesn't bleed into the side margins (the layout
-     centres content at max-width 1500px, so anything wider than
-     that previously showed the dark theme background through). */
+  /* CSS vars + body paint (UNCHANGED behaviour, exposes left-col width) */
   useEffect(() => {
     const root = document.documentElement;
     const body = document.body;
-
     const applyVars = () => {
       const desk = window.matchMedia("(min-width: 768px)").matches;
-      const top = desk ? DESKTOP_HEADER_H : MOBILE_HEADER_H;
       root.style.setProperty("--ns-desktop-header-h", `${DESKTOP_HEADER_H}px`);
-      root.style.setProperty("--mobile-nav-height", `${MOBILE_HEADER_H}px`);
-      root.style.setProperty("--ns-mobile-header-h", `${MOBILE_HEADER_H}px`);
-      root.style.setProperty("--app-content-top", `${top}px`);
+      root.style.setProperty("--mobile-nav-height",   `${MOBILE_HEADER_H}px`);
+      root.style.setProperty("--ns-mobile-header-h",  `${MOBILE_HEADER_H}px`);
+      root.style.setProperty("--app-content-top",     `${desk ? DESKTOP_HEADER_H : MOBILE_HEADER_H}px`);
+      root.style.setProperty("--ns-layout-sidebar-w", desk ? `${LEFT_COL_W}px` : "0px");
     };
     applyVars();
     const mq = window.matchMedia("(min-width: 768px)");
@@ -372,16 +321,14 @@ export default function Sidebar() {
     if (mq.addEventListener) mq.addEventListener("change", onChange);
     else mq.addListener(onChange);
 
-    // Stash previous bg colors so we can restore on unmount
     const prev = {
       htmlBg: root.style.backgroundColor,
       bodyBg: body.style.backgroundColor,
       bodyColor: body.style.color,
     };
-    // Editorial paper across the whole viewport
-    root.style.backgroundColor = "#f6f1e3";       // paper-100
+    root.style.backgroundColor = "#f6f1e3";
     body.style.backgroundColor = "#f6f1e3";
-    body.style.color = "#131008";                 // ink
+    body.style.color = "#131008";
 
     return () => {
       if (mq.removeEventListener) mq.removeEventListener("change", onChange);
@@ -390,25 +337,85 @@ export default function Sidebar() {
       root.style.removeProperty("--mobile-nav-height");
       root.style.removeProperty("--ns-mobile-header-h");
       root.style.removeProperty("--app-content-top");
+      root.style.removeProperty("--ns-layout-sidebar-w");
       root.style.backgroundColor = prev.htmlBg;
       body.style.backgroundColor = prev.bodyBg;
       body.style.color = prev.bodyColor;
     };
   }, []);
 
+  const { vol, no } = volAndNo();
+
   return (
     <div className="ns-ed ns-ed-sidebar">
-      <SidebarScopedStyles desktopH={DESKTOP_HEADER_H} mobileH={MOBILE_HEADER_H} railW={SIDEBAR_W_COLLAPSED} />
+      <SidebarScopedStyles
+        desktopH={DESKTOP_HEADER_H}
+        mobileH={MOBILE_HEADER_H}
+        leftW={LEFT_COL_W}
+      />
 
-      {/* ═══ DESKTOP MASTHEAD (TOP BAR) ═══ */}
-      <header className="ns-mh ns-mh--desktop">
-        {/* Left: serif wordmark */}
-        <Link to="/dashboard" className="ns-wordmark" onClick={onNavClick}>
+      {/* ═══ DESKTOP LEFT COLUMN ═══ */}
+      <aside className="ns-left" aria-label="Primary navigation">
+        <Link to="/dashboard" className="ns-wordmark">
           <span className="ns-wordmark-name">NoteStream</span>
           <span className="ns-wordmark-co">&amp; co.</span>
         </Link>
 
-        {/* Center: dateline + search */}
+        <nav className="ns-left-nav">
+          {NAV_SECTIONS.map((section, si) => (
+            <section key={section.label} className="ns-left-sec">
+              <p className="ns-left-sec-h">
+                <span className="num">§ {String(si + 1).padStart(2, "0")}</span>
+                — {section.label.toUpperCase()}
+              </p>
+              <ul>
+                {section.items.map((item, ii) => {
+                  const active = isActive(item.to);
+                  const Icon = item.icon;
+                  const ord = String(ii + 1).padStart(2, "0");
+                  return (
+                    <li key={item.to}>
+                      <NavLink
+                        to={item.to}
+                        end={item.to === "/dashboard"}
+                        className={`ns-left-row ${active ? "is-on" : ""}`}
+                      >
+                        <span className="ord">{ord}</span>
+                        <Icon size={14} className="ic" />
+                        <span className="lb">{item.label}</span>
+                        {item.pro && <span className="ed-chip ed-chip-ink ns-pro">PRO</span>}
+                      </NavLink>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </nav>
+
+        <footer className="ns-left-foot">
+          <hr className="ed-rule-soft" />
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="ns-left-logout"
+          >
+            <FiLogOut size={13} />
+            <span>{loggingOut ? "Signing out…" : "Sign out"}</span>
+          </button>
+        </footer>
+      </aside>
+
+      {/* ═══ DESKTOP TOP STRIP ═══ */}
+      <header className="ns-mh ns-mh--desktop">
+        <div className="ns-mh-left">
+          <span className="ed-mono ns-dateline">
+            <span className="ns-dot" />
+            VOL. {vol} · NO. {no} · {issueLine()}
+          </span>
+        </div>
+
         <div className="ns-mh-center">
           <div className="ns-search-wrap" ref={searchWrapperRef}>
             <div className={`ns-search ${searchOpen ? "is-open" : ""}`}>
@@ -440,7 +447,6 @@ export default function Sidebar() {
             <AnimatePresence>
               {searchOpen && searchResults.length > 0 && (
                 <motion.div
-                  ref={searchDropdownRef}
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
@@ -463,17 +469,16 @@ export default function Sidebar() {
                             className={`ns-search-row ${on ? "is-on" : ""}`}
                           >
                             <span className="ns-search-row-ord">
-                              {on ? <span style={{ fontFamily: ED.serif, fontStyle: "italic", color: ED.accent, fontSize: 15 }}>{String(idx + 1).padStart(2, "0")}</span>
-                                  : String(idx + 1).padStart(2, "0")}
+                              {on
+                                ? <span style={{ fontFamily: ED.serif, fontStyle: "italic", color: ED.accent, fontSize: 15 }}>{String(idx + 1).padStart(2, "0")}</span>
+                                : String(idx + 1).padStart(2, "0")}
                             </span>
                             <span className="ns-search-row-icon">{item.icon}</span>
                             <span className="ns-search-row-body">
                               <span className="ns-search-row-title">{item.title}</span>
                               <span className="ns-search-row-desc">{item.description}</span>
                             </span>
-                            <span className="ns-search-row-cat">
-                              {CATEGORY_LABEL[item.category] || item.category.toUpperCase()}
-                            </span>
+                            <span className="ns-search-row-cat">{CATEGORY_LABEL[item.category] || item.category.toUpperCase()}</span>
                             <FiArrowRight size={12} style={{ color: on ? ED.accent : "transparent", transition: "color .15s ease" }} />
                           </button>
                         </li>
@@ -481,7 +486,7 @@ export default function Sidebar() {
                     })}
                   </ul>
                   <div className="ns-search-pop-foot">
-                    <span className="ed-mono">PRESS ENTER TO GO · ESC TO CLOSE</span>
+                    <span className="ed-mono">ENTER TO GO · ESC TO CLOSE</span>
                   </div>
                 </motion.div>
               )}
@@ -489,8 +494,11 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Right: Quick Create + Hamburger */}
         <div className="ns-mh-right">
+          <button className="ns-icon-btn" aria-label="Notifications" title="Notifications">
+            <FiBell size={14} />
+          </button>
+
           <div style={{ position: "relative" }}>
             <button
               type="button"
@@ -525,23 +533,16 @@ export default function Sidebar() {
                     <hr className="ed-rule-soft" style={{ margin: "8px 0 4px" }} />
                     <QuickCreateItem icon={<FiEdit3 size={14} />}      label="New note"        sub="Write a text note"     ord="01" onClick={() => goQuickCreate("note")} />
                     <QuickCreateItem icon={<FiMic size={14} />}        label="Voice memo"      sub="Record & transcribe"   ord="02" onClick={() => goQuickCreate("voice")} />
-                    <QuickCreateItem icon={<FiUploadCloud size={14}/>} label="Upload document" sub="PDF · image · markdown"ord="03" onClick={() => goQuickCreate("upload")} />
+                    <QuickCreateItem icon={<FiUploadCloud size={14}/>} label="Upload document" sub="PDF · image · markdown" ord="03" onClick={() => goQuickCreate("upload")} />
                   </motion.div>
                 </>
               )}
             </AnimatePresence>
           </div>
 
-          <button
-            type="button"
-            aria-label="Menu"
-            aria-expanded={desktopOpen}
-            onClick={() => { setShowQuickCreate(false); if (desktopOpen) closeDesktopSidebar(); else openDesktopSidebarFromHamburger(); }}
-            className={`ns-icon-btn ${desktopOpen ? "is-on" : ""}`}
-            title="Menu"
-          >
-            <FiMenu size={14} />
-          </button>
+          <Link to="/dashboard/notes" className="ed-btn ed-btn-primary ns-cta">
+            Begin a new note →
+          </Link>
         </div>
       </header>
 
@@ -551,7 +552,6 @@ export default function Sidebar() {
           <span className="ns-wordmark-name">NoteStream</span>
           <span className="ns-wordmark-co">&amp; co.</span>
         </Link>
-
         <button
           ref={mobileHamburgerRef}
           type="button"
@@ -586,17 +586,14 @@ export default function Sidebar() {
                   <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>§</span>
                   MENU
                 </p>
-                <button
-                  type="button" onClick={closeMobileDrawer}
-                  className="ns-icon-btn" aria-label="Close menu"
-                >
+                <button type="button" onClick={closeMobileDrawer} className="ns-icon-btn" aria-label="Close menu">
                   <FiX size={14} />
                 </button>
               </header>
               <hr className="ed-rule" />
 
               <nav className="ns-md-body">
-                {MOBILE_NAV_SECTIONS.map((section, si) => (
+                {NAV_SECTIONS.map((section, si) => (
                   <section key={section.label} className="ns-md-section">
                     <p className="ed-mono ns-md-section-h">
                       <span className="num">§ {String(si + 1).padStart(2, "0")}</span>
@@ -629,10 +626,7 @@ export default function Sidebar() {
 
               <footer className="ns-md-foot">
                 <hr className="ed-rule" />
-                <button
-                  type="button" onClick={handleLogout} disabled={loggingOut}
-                  className="ns-md-logout"
-                >
+                <button type="button" onClick={handleLogout} disabled={loggingOut} className="ns-md-logout">
                   <FiLogOut size={14} />
                   <span>{loggingOut ? "Signing out…" : "Sign out"}</span>
                 </button>
@@ -641,66 +635,6 @@ export default function Sidebar() {
           </>
         )}
       </AnimatePresence>
-
-      {/* ═══ DESKTOP OVERLAY (UNCHANGED) ═══ */}
-      <AnimatePresence>
-        {desktopOverlayOpen && desktopOpen && (
-          <motion.div
-            className="ns-overlay"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          >
-            <div className="ns-overlay-bg" onClick={closeDesktopSidebar} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ═══ DESKTOP RIGHT RAIL (slides in from right when menu open) ═══ */}
-      <motion.aside
-        className="ns-rail"
-        style={{
-          top: `${DESKTOP_HEADER_H}px`,
-          height: `calc(100vh - ${DESKTOP_HEADER_H}px)`,
-          width: `${SIDEBAR_W_COLLAPSED}px`,
-          transform: desktopOpen ? "translate3d(0,0,0)" : "translate3d(110%,0,0)",
-          transition: "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)",
-        }}
-      >
-        <nav className="ns-rail-nav">
-          {DESKTOP_RAIL_NAV.map((item, i) => {
-            const active = isActive(item.to);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                onClick={onNavClick}
-                className={`ns-rail-link ${active ? "is-on" : ""}`}
-                aria-label={item.label}
-                title={item.label}
-              >
-                <span className="ord">{String(i + 1).padStart(2, "0")}</span>
-                <Icon size={16} />
-                <span className="tip">
-                  {item.label}
-                  {item.pro && <span className="ed-chip ed-chip-ink ns-pro">PRO</span>}
-                </span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        <footer className="ns-rail-foot">
-          <hr className="ed-rule-soft" />
-          <button
-            type="button" onClick={handleLogout} disabled={loggingOut}
-            className="ns-rail-link" aria-label="Sign out" title={loggingOut ? "Signing out…" : "Sign out"}
-          >
-            <span className="ord">—</span>
-            <FiLogOut size={16} />
-            <span className="tip">{loggingOut ? "Signing out…" : "Sign out"}</span>
-          </button>
-        </footer>
-      </motion.aside>
     </div>
   );
 }
@@ -723,45 +657,141 @@ const QuickCreateItem = ({ icon, label, sub, onClick, ord }) => (
 /* ═══════════════════════════════════════════════════════
    Scoped CSS
 ═══════════════════════════════════════════════════════ */
-const SidebarScopedStyles = ({ desktopH, mobileH, railW }) => (
+const SidebarScopedStyles = ({ desktopH, mobileH, leftW }) => (
   <style>{`
-    /* The root wrapper carries .ns-ed so editorial vars resolve.
-       But it must NOT take layout space — children are fixed. */
+    /* ── GLOBAL paper paint (unscoped) ── */
+    html, body {
+      background-color: #f6f1e3 !important;
+      color: #131008;
+    }
+    .bg-theme-primary, .bg-theme-secondary, .bg-theme-tertiary {
+      background-color: #f6f1e3 !important;
+    }
+    .text-theme-primary { color: #131008 !important; }
+    .text-theme-secondary { color: #2a2519 !important; }
+    .text-theme-muted { color: #8a8472 !important; }
+
     .ns-ed-sidebar { display: contents; }
 
-    /* ── masthead shared ── */
+    /* ── DESKTOP LEFT COLUMN ── */
+    .ns-ed .ns-left {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: ${leftW}px; z-index: 96;
+      background: ${ED.paper100};
+      border-right: 1px solid ${ED.rule};
+      display: none; flex-direction: column;
+      padding: 24px 0 16px;
+    }
+    @media (min-width: 768px) { .ns-ed .ns-left { display: flex; } }
+
+    .ns-ed .ns-left .ns-wordmark { padding: 0 22px 24px; }
+    .ns-ed .ns-left-nav { flex: 1; overflow-y: auto; padding: 4px 12px 16px; }
+    .ns-ed .ns-left-sec + .ns-left-sec { margin-top: 18px; }
+    .ns-ed .ns-left-sec-h {
+      display: inline-flex; align-items: baseline; gap: 8px;
+      font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase;
+      color: ${ED.inkFaint}; padding: 0 12px 8px;
+      margin: 0;
+    }
+    .ns-ed .ns-left-sec-h .num {
+      font-family: ${ED.serif}; font-style: italic; font-size: 16px;
+      letter-spacing: 0; color: ${ED.accent};
+    }
+    .ns-ed .ns-left-sec ul { list-style: none; padding: 0; margin: 0; }
+    .ns-ed .ns-left-row {
+      display: grid; grid-template-columns: 28px 18px 1fr auto;
+      align-items: center; gap: 12px;
+      padding: 9px 12px; border-radius: 6px;
+      text-decoration: none; color: ${ED.ink};
+      transition: background-color .12s ease;
+    }
+    .ns-ed .ns-left-row:hover { background: ${ED.paper150}; }
+    .ns-ed .ns-left-row.is-on { background: ${ED.paper150}; }
+    .ns-ed .ns-left-row .ord {
+      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.12em;
+      color: ${ED.inkFaint};
+    }
+    .ns-ed .ns-left-row.is-on .ord {
+      color: ${ED.accent}; font-family: ${ED.serif}; font-style: italic; font-size: 14px;
+    }
+    .ns-ed .ns-left-row .ic { color: ${ED.inkFaint}; display: inline-flex; }
+    .ns-ed .ns-left-row.is-on .ic { color: ${ED.ink}; }
+    .ns-ed .ns-left-row .lb { font-family: ${ED.serif}; font-size: 17px; }
+    .ns-ed .ns-left-row.is-on .lb { color: ${ED.accent}; font-style: italic; }
+    .ns-ed .ns-left-row .ns-pro { font-size: 9px; padding: 2px 6px; }
+
+    .ns-ed .ns-left-foot { padding: 0 12px; }
+    .ns-ed .ns-left-logout {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 9px 14px; border-radius: 999px;
+      border: 1px solid ${ED.rule}; background: transparent; cursor: pointer;
+      color: ${ED.ink}; font-family: ${ED.sans}; font-size: 13px;
+      transition: border-color .15s ease;
+      margin: 12px 0 0;
+    }
+    .ns-ed .ns-left-logout:hover { border-color: ${ED.ink}; }
+    .ns-ed .ns-left-logout:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── MASTHEAD (TOP STRIP) ── */
     .ns-ed .ns-mh {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 95;
+      position: fixed; top: 0; right: 0; z-index: 95;
       background: ${ED.paper100};
       border-bottom: 1px solid ${ED.rule};
       display: flex; align-items: center; gap: 16px;
-      padding: 0 20px;
+      padding: 0 24px;
     }
-    .ns-ed .ns-mh--desktop { display: none; height: ${desktopH}px; }
-    .ns-ed .ns-mh--mobile  { display: flex; height: ${mobileH}px; padding-top: env(safe-area-inset-top, 0px); justify-content: space-between; }
+    .ns-ed .ns-mh--desktop {
+      left: ${leftW}px;
+      height: ${desktopH}px;
+      display: none;
+      grid-template-columns: 1fr minmax(320px, 520px) 1fr;
+      align-items: center;
+    }
     @media (min-width: 768px) {
-      .ns-ed .ns-mh--desktop { display: grid; grid-template-columns: 1fr minmax(280px, 560px) 1fr; }
-      .ns-ed .ns-mh--mobile  { display: none; }
+      .ns-ed .ns-mh--desktop { display: grid; }
     }
+
+    .ns-ed .ns-mh--mobile {
+      left: 0;
+      height: ${mobileH}px;
+      padding-top: env(safe-area-inset-top, 0px);
+      justify-content: space-between;
+      display: flex;
+    }
+    @media (min-width: 768px) {
+      .ns-ed .ns-mh--mobile { display: none; }
+    }
+
+    /* dateline */
+    .ns-ed .ns-mh-left { display: flex; align-items: center; min-width: 0; }
+    .ns-ed .ns-dateline {
+      font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase;
+      color: ${ED.inkFaint}; display: inline-flex; align-items: center;
+      white-space: nowrap;
+    }
+    .ns-ed .ns-dot {
+      display: inline-block; width: 6px; height: 6px; border-radius: 999px;
+      background: ${ED.accent}; margin-right: 10px;
+      animation: ns-dot-pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes ns-dot-pulse { 0%,100% { transform: scale(1); opacity: 1;} 50% { transform: scale(1.4); opacity: 0.5; } }
 
     /* ── wordmark ── */
     .ns-ed .ns-wordmark {
       display: inline-flex; align-items: baseline;
-      color: ${ED.ink}; text-decoration: none;
-      min-width: 0;
+      color: ${ED.ink}; text-decoration: none; min-width: 0;
     }
     .ns-ed .ns-wordmark-name {
-      font-family: ${ED.serif}; font-size: 22px; letter-spacing: -0.01em;
-      color: ${ED.ink};
+      font-family: ${ED.serif}; font-size: 24px; letter-spacing: -0.01em; color: ${ED.ink};
     }
     .ns-ed .ns-wordmark-co {
-      font-family: ${ED.serif}; font-style: italic; font-size: 14px;
+      font-family: ${ED.serif}; font-style: italic; font-size: 15px;
       color: ${ED.inkFaint}; margin-left: 5px;
     }
 
     /* ── search ── */
     .ns-ed .ns-mh-center { display: flex; justify-content: center; }
-    .ns-ed .ns-search-wrap { position: relative; width: 100%; max-width: 560px; }
+    .ns-ed .ns-search-wrap { position: relative; width: 100%; max-width: 520px; }
     .ns-ed .ns-search {
       display: flex; align-items: center; gap: 10px;
       background: ${ED.paper50}; border: 1px solid ${ED.rule};
@@ -788,8 +818,8 @@ const SidebarScopedStyles = ({ desktopH, mobileH, railW }) => (
     }
     .ns-ed .ns-search-clear:hover { color: ${ED.ink}; }
 
-    /* ── icon buttons (top-right) ── */
-    .ns-ed .ns-mh-right { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+    /* ── icon buttons / CTA ── */
+    .ns-ed .ns-mh-right { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
     .ns-ed .ns-icon-btn {
       position: relative;
       height: 34px; width: 34px; border-radius: 999px;
@@ -801,7 +831,12 @@ const SidebarScopedStyles = ({ desktopH, mobileH, railW }) => (
     .ns-ed .ns-icon-btn:hover { color: ${ED.ink}; border-color: ${ED.ink}; }
     .ns-ed .ns-icon-btn.is-on { background: ${ED.ink}; color: ${ED.paper50}; border-color: ${ED.ink}; }
 
-    /* ── Quick create dropdown ── */
+    .ns-ed .ns-cta {
+      padding: 8px 16px; font-size: 13px;
+      text-decoration: none;
+    }
+
+    /* ── quick-create dropdown ── */
     .ns-ed .ns-qc-scrim { position: fixed; inset: 0; z-index: 110; background: transparent; }
     .ns-ed .ns-qc {
       position: absolute; top: 44px; right: 0; z-index: 120;
@@ -819,21 +854,13 @@ const SidebarScopedStyles = ({ desktopH, mobileH, railW }) => (
       transition: background-color .12s ease;
     }
     .ns-ed .ns-qc-row:hover { background: ${ED.paper150}; }
-    .ns-ed .ns-qc-row .ord {
-      font-family: ${ED.mono}; font-size: 11px; letter-spacing: 0.14em;
-      color: ${ED.inkFaint};
-    }
-    .ns-ed .ns-qc-row:hover .ord {
-      color: ${ED.accent}; font-family: ${ED.serif}; font-style: italic; font-size: 14px;
-    }
+    .ns-ed .ns-qc-row .ord { font-family: ${ED.mono}; font-size: 11px; letter-spacing: 0.14em; color: ${ED.inkFaint}; }
+    .ns-ed .ns-qc-row:hover .ord { color: ${ED.accent}; font-family: ${ED.serif}; font-style: italic; font-size: 14px; }
     .ns-ed .ns-qc-row .ic { color: ${ED.inkFaint}; display: inline-flex; }
     .ns-ed .ns-qc-row:hover .ic { color: ${ED.ink}; }
     .ns-ed .ns-qc-row .body { display: flex; flex-direction: column; min-width: 0; }
     .ns-ed .ns-qc-row .title { font-family: ${ED.serif}; font-size: 17px; color: ${ED.ink}; }
-    .ns-ed .ns-qc-row .sub {
-      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.12em;
-      text-transform: uppercase; color: ${ED.inkFaint};
-    }
+    .ns-ed .ns-qc-row .sub { font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: ${ED.inkFaint}; }
     .ns-ed .ns-qc-row .go { color: ${ED.inkFaint}; }
     .ns-ed .ns-qc-row:hover .go { color: ${ED.accent}; }
 
@@ -857,8 +884,7 @@ const SidebarScopedStyles = ({ desktopH, mobileH, railW }) => (
       max-height: 360px; overflow-y: auto;
     }
     .ns-ed .ns-search-row {
-      display: grid;
-      grid-template-columns: 36px 22px 1fr auto 14px;
+      display: grid; grid-template-columns: 36px 22px 1fr auto 14px;
       align-items: center; gap: 10px;
       padding: 9px 16px; width: 100%; text-align: left;
       border: 0; background: transparent; cursor: pointer;
@@ -867,8 +893,7 @@ const SidebarScopedStyles = ({ desktopH, mobileH, railW }) => (
     .ns-ed .ns-search-row:hover,
     .ns-ed .ns-search-row.is-on { background: ${ED.paper150}; }
     .ns-ed .ns-search-row-ord {
-      font-family: ${ED.mono}; font-size: 11px; letter-spacing: 0.14em;
-      color: ${ED.inkFaint};
+      font-family: ${ED.mono}; font-size: 11px; letter-spacing: 0.14em; color: ${ED.inkFaint};
     }
     .ns-ed .ns-search-row-icon { color: ${ED.inkFaint}; display: inline-flex; }
     .ns-ed .ns-search-row.is-on .ns-search-row-icon { color: ${ED.ink}; }
@@ -934,20 +959,16 @@ const SidebarScopedStyles = ({ desktopH, mobileH, railW }) => (
       background: transparent; border: 0; cursor: pointer; color: ${ED.ink};
       transition: background-color .12s ease;
     }
-    .ns-ed .ns-md-row:hover { background: ${ED.paper150}; }
-    .ns-ed .ns-md-row.is-on { background: ${ED.paper150}; }
+    .ns-ed .ns-md-row:hover, .ns-ed .ns-md-row.is-on { background: ${ED.paper150}; }
     .ns-ed .ns-md-row .ord {
-      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.14em;
-      color: ${ED.inkFaint};
+      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.14em; color: ${ED.inkFaint};
     }
     .ns-ed .ns-md-row.is-on .ord {
       color: ${ED.accent}; font-family: ${ED.serif}; font-style: italic; font-size: 14px;
     }
     .ns-ed .ns-md-row .ic { color: ${ED.inkFaint}; display: inline-flex; }
     .ns-ed .ns-md-row.is-on .ic { color: ${ED.ink}; }
-    .ns-ed .ns-md-row .lb {
-      font-family: ${ED.serif}; font-size: 17px;
-    }
+    .ns-ed .ns-md-row .lb { font-family: ${ED.serif}; font-size: 17px; }
     .ns-ed .ns-md-row.is-on .lb { color: ${ED.accent}; font-style: italic; }
     .ns-ed .ns-md-row .ns-pro { font-size: 9px; padding: 2px 6px; }
 
@@ -960,57 +981,16 @@ const SidebarScopedStyles = ({ desktopH, mobileH, railW }) => (
       padding: 10px 14px; border: 1px solid ${ED.rule};
       border-radius: 999px; background: transparent; cursor: pointer;
       color: ${ED.ink}; font-family: ${ED.sans}; font-size: 14px;
-      transition: all .15s ease;
+      transition: border-color .15s ease;
       margin: 12px 12px 0;
     }
     .ns-ed .ns-md-logout:hover { border-color: ${ED.ink}; }
     .ns-ed .ns-md-logout:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    /* ── desktop overlay scrim ── */
-    .ns-ed .ns-overlay { position: fixed; inset: 0; z-index: 89; display: none; }
-    @media (min-width: 768px) { .ns-ed .ns-overlay { display: block; } }
-    .ns-ed .ns-overlay-bg { position: absolute; inset: 0; background: rgba(19,16,8,0.18); }
-
-    /* ── desktop right rail ── */
-    .ns-ed .ns-rail {
-      position: fixed; right: 0; z-index: 90;
-      display: none;
-      background: ${ED.paper50};
-      border-left: 1px solid ${ED.rule};
-      flex-direction: column;
-      padding: 12px 0;
+    /* ── narrow desktop: collapse dateline ── */
+    @media (max-width: 1100px) {
+      .ns-ed .ns-mh--desktop { grid-template-columns: auto 1fr auto; gap: 16px; }
+      .ns-ed .ns-dateline { display: none; }
     }
-    @media (min-width: 768px) { .ns-ed .ns-rail { display: flex; } }
-    .ns-ed .ns-rail-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 4px 8px; }
-    .ns-ed .ns-rail-foot { padding: 4px 8px; }
-    .ns-ed .ns-rail-link {
-      position: relative;
-      display: flex; align-items: center; justify-content: center; gap: 6px;
-      height: 44px; padding: 0 8px;
-      border-radius: 6px; text-decoration: none;
-      background: transparent; border: 0; cursor: pointer;
-      color: ${ED.inkSoft};
-      transition: background-color .12s ease, color .12s ease;
-    }
-    .ns-ed .ns-rail-link:hover { background: ${ED.paper150}; color: ${ED.ink}; }
-    .ns-ed .ns-rail-link.is-on { background: ${ED.paper150}; color: ${ED.accent}; }
-    .ns-ed .ns-rail-link .ord {
-      font-family: ${ED.mono}; font-size: 10px; letter-spacing: 0.12em;
-      color: ${ED.inkFaint}; display: none;
-    }
-    .ns-ed .ns-rail-link .tip {
-      position: absolute; right: calc(100% + 8px); top: 50%; transform: translateY(-50%);
-      background: ${ED.paper50}; border: 1px solid ${ED.rule};
-      border-radius: 6px; padding: 6px 10px;
-      font-family: ${ED.serif}; font-size: 14px; color: ${ED.ink};
-      white-space: nowrap;
-      opacity: 0; pointer-events: none; transition: opacity .15s ease;
-    }
-    .ns-ed .ns-rail-link:hover .tip,
-    .ns-ed .ns-rail-link:focus-visible .tip { opacity: 1; }
-    .ns-ed .ns-rail-link .ns-pro { margin-left: 8px; font-size: 9px; padding: 1px 6px; }
-
-    /* ── content offset ── */
-    /* Layout already pads via --app-content-top; we leave that to the layout file. */
   `}</style>
 );
