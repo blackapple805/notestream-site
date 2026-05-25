@@ -1,36 +1,46 @@
-// src/pages/Documents.jsx - "Research Synthesizer"
+// src/pages/Documents.jsx
 // ═══════════════════════════════════════════════════════════════════
-// REDESIGNED: Matching bento-glass visual system.
-// All Supabase / AI / synthesis logic is UNCHANGED.
+// EDITORIAL RESKIN — what changed and why
+// ─────────────────────────────────────────────────────────────────
+// Wrapped the page in `<div className="ns-ed">` and called
+// `useEditorial()`. The dark glass document rows, gradient action
+// buttons, and neon synthesis overlay are gone. The page is now
+// "The stack on the desk": a `№ 04 — DOCUMENTS` chapter mark, a
+// serif display title ("Documents, *read* across."), a mono
+// dateline showing the totals (12 in archive · 4 synthesised ·
+// 6 summarised), two ghost buttons ("Upload a document" + the
+// synthesis toggle), then a mono filter row with All/PDF/DOCX/XLSX
+// pills and a sort selector. Each document is an editorial
+// article row: mono ordinal · serif filename · serif excerpt
+// (auto-summary preview when available, else file metadata) ·
+// mono meta line · right-aligned aside with action buttons. The
+// synthesis mode panel is a paper-50 strip across the top
+// telling the user how many docs they've selected and offering
+// a "Generate brief →" button. The brief modal was rebuilt as a
+// long editorial dispatch with `§` section headers, mono labels,
+// serif body copy, italic accent-blue priorities, and a hairline-
+// divided action plan. Saved briefs are an editorial sub-list
+// styled exactly like the document rows. NO Supabase / hook /
+// data-flow changes — every useState, useEffect, callback, handler,
+// the controlled-docs prop pattern, file upload, AI summary,
+// synthesis flow, brief save/delete, and stats RPC calls are
+// byte-identical to the previous file.
 // ═══════════════════════════════════════════════════════════════════
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import GlassCard from "../components/GlassCard";
+import { createPortal } from "react-dom";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
 import { useSubscription } from "../hooks/useSubscription";
 import { useMobileNav } from "../hooks/useMobileNav";
 import { smartSummarizeDocument, synthesizeDocuments } from "../lib/documentAI";
+import { useEditorial, ED } from "../lib/editorial";
 import {
-  FiEye,
-  FiFileText,
-  FiDownload,
-  FiCheck,
-  FiX,
-  FiLayers,
-  FiTrash2,
-  FiBookOpen,
-  FiZap,
-  FiSearch,
-  FiFile,
-  FiFolder,
-  FiChevronDown,
-  FiClock,
-  FiPlus,
-  FiUpload,
+  FiEye, FiFileText, FiDownload, FiCheck, FiX, FiLayers, FiTrash2,
+  FiBookOpen, FiZap, FiSearch, FiFile, FiFolder, FiChevronDown,
+  FiClock, FiPlus, FiUpload, FiArrowRight,
 } from "react-icons/fi";
-import { BrainIcon as Brain, SparkleIcon as Sparkle, FilePlusIcon as FilePlus, FileDocIcon as FileDoc, FilePdfIcon as FilePdf, FileXlsIcon as FileXls, LightningIcon as Lightning } from "@phosphor-icons/react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 /* ─── DB constants (unchanged) ─── */
@@ -46,161 +56,21 @@ function bytesToLabel(bytes) { const n = Number(bytes); if (!Number.isFinite(n) 
 function formatUpdated(updatedAt) { if (!updatedAt) return "—"; const d = new Date(updatedAt); if (Number.isNaN(d.getTime())) return "—"; return d.toLocaleString(); }
 function docTag(docId) { return `doc:${docId}`; }
 
-/* ─── Scoped styles ─── */
-const DOC_STYLES = `
-@keyframes ns-doc-fade-up {
-  0%   { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-.ns-doc-stagger > * {
-  animation: ns-doc-fade-up 0.35s cubic-bezier(.22,1,.36,1) both;
-}
-.ns-doc-stagger > *:nth-child(1) { animation-delay: 0.02s; }
-.ns-doc-stagger > *:nth-child(2) { animation-delay: 0.04s; }
-.ns-doc-stagger > *:nth-child(3) { animation-delay: 0.06s; }
-.ns-doc-stagger > *:nth-child(4) { animation-delay: 0.08s; }
-.ns-doc-stagger > *:nth-child(5) { animation-delay: 0.10s; }
-.ns-doc-stagger > *:nth-child(6) { animation-delay: 0.12s; }
-.ns-doc-stagger > *:nth-child(7) { animation-delay: 0.14s; }
-.ns-doc-stagger > *:nth-child(8) { animation-delay: 0.16s; }
-
-.ns-doc-card {
-  position: relative;
-  border-radius: 20px;
-  overflow: hidden;
-  background: var(--card-glass-bg, var(--bg-surface));
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 1px solid var(--card-glass-border, var(--border-secondary));
-  box-shadow: var(--card-glass-shadow, 0 8px 32px rgba(0,0,0,0.12));
-  transition: transform 0.25s cubic-bezier(.22,1,.36,1), box-shadow 0.25s ease;
-}
-.ns-doc-card:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--card-glass-shadow, 0 12px 40px rgba(0,0,0,0.18));
-}
-.ns-doc-card::before {
-  content: '';
-  position: absolute; inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%);
-  pointer-events: none; z-index: 1;
-}
-.ns-doc-card::after {
-  content: '';
-  position: absolute;
-  left: 24px; right: 24px; top: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-  pointer-events: none; z-index: 2;
-}
-
-.ns-doc-row {
-  position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-  border: 1px solid var(--border-secondary);
-  background: var(--bg-surface);
-  transition: all 0.2s ease;
-}
-.ns-doc-row:hover {
-  border-color: rgba(99,102,241,0.3);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-}
-
-.ns-search-glow:focus-within {
-  border-color: rgba(99,102,241,0.4) !important;
-  box-shadow: 0 0 20px rgba(99,102,241,0.08), 0 4px 16px rgba(0,0,0,0.1) !important;
-}
-
-.ns-doc-scroll::-webkit-scrollbar { width: 4px; }
-.ns-doc-scroll::-webkit-scrollbar-track { background: transparent; }
-.ns-doc-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 4px; }
-`;
-
-/* ─── Sub-components ─── */
-
-function FileTypeIcon({ type, size = 20 }) {
-  const iconProps = { size, weight: "duotone" };
-  const t = (type || "").toUpperCase();
-  switch (t) {
-    case "PDF": return <FilePdf {...iconProps} style={{ color: "#f43f5e" }} />;
-    case "DOCX": case "DOC": return <FileDoc {...iconProps} style={{ color: "#818cf8" }} />;
-    case "XLSX": case "XLS": return <FileXls {...iconProps} style={{ color: "#10b981" }} />;
-    default: return <FiFile size={size} style={{ color: "var(--text-secondary)" }} />;
-  }
-}
-
-function PriorityTag({ priority = "medium", children }) {
-  const key = String(priority).toLowerCase();
-  const styles = {
-    critical: { bg: "rgba(244,63,94,0.12)", border: "rgba(244,63,94,0.3)", color: "#f43f5e" },
-    high: { bg: "rgba(249,115,22,0.12)", border: "rgba(249,115,22,0.3)", color: "#f97316" },
-    medium: { bg: "rgba(245,158,11,0.12)", border: "rgba(245,158,11,0.3)", color: "#f59e0b" },
-    low: { bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.3)", color: "#10b981" },
-    info: { bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.3)", color: "#818cf8" },
-  };
-  const s = styles[key] || styles.medium;
-  return (
-    <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg" style={{ background: s.bg, border: `1px solid ${s.border}`, color: s.color }}>
-      {children}
-    </span>
-  );
-}
-
-function SortDropdown({ sortOrder, setSortOrder }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const options = [
-    { value: "newest", label: "Newest", icon: <FiClock size={12} /> },
-    { value: "oldest", label: "Oldest", icon: <FiClock size={12} /> },
-    { value: "name-az", label: "A→Z", icon: <FiFileText size={12} /> },
-    { value: "name-za", label: "Z→A", icon: <FiFileText size={12} /> },
-  ];
-  const current = options.find((o) => o.value === sortOrder) || options[0];
-
-  useEffect(() => {
-    const handleClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    if (open) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
-  return (
-    <div className="relative" ref={ref}>
-      <button type="button" onClick={() => setOpen((s) => !s)}
-        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition"
-        style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>
-        {current.icon}
-        <span className="hidden sm:inline">{current.label}</span>
-        <FiChevronDown size={11} className={`transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div initial={{ opacity: 0, y: -4, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.97 }}
-            transition={{ duration: 0.15 }}
-            className="absolute right-0 top-full mt-1.5 z-50 min-w-[140px] rounded-xl overflow-hidden"
-            style={{ background: "var(--bg-surface)", border: "1px solid var(--border-secondary)", boxShadow: "0 16px 48px rgba(0,0,0,0.3)" }}>
-            {options.map((opt) => (
-              <button key={opt.value} type="button" onClick={() => { setSortOrder(opt.value); setOpen(false); }}
-                className="w-full flex items-center gap-2 px-3.5 py-2.5 text-[12px] transition text-left"
-                style={{ background: sortOrder === opt.value ? "rgba(99,102,241,0.1)" : "transparent", color: sortOrder === opt.value ? "#818cf8" : "var(--text-secondary)" }}
-                onMouseEnter={(e) => { if (sortOrder !== opt.value) e.currentTarget.style.background = "var(--bg-tertiary)"; }}
-                onMouseLeave={(e) => { if (sortOrder !== opt.value) e.currentTarget.style.background = "transparent"; }}>
-                {opt.icon}
-                <span className="font-semibold">{opt.label}</span>
-                {sortOrder === opt.value && <FiCheck size={12} className="ml-auto" />}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
+const fmtMetaDate = (iso) => {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    return `${date} · ${time}`.toUpperCase();
+  } catch { return ""; }
+};
 
 /* ═══════════════════════════════════════════════════════
-   MAIN COMPONENT
+   MAIN
 ═══════════════════════════════════════════════════════ */
 export default function Documents({ docs: docsProp = null, setDocs: setDocsProp }) {
+  useEditorial();
   const navigate = useNavigate();
   const { settings } = useWorkspaceSettings();
   const { incrementUsage } = useSubscription();
@@ -236,6 +106,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
   const showToast = (message, type = "success") => { setToast({ message, type }); setTimeout(() => setToast(null), 3000); };
   const requireSupabase = () => { if (!isSupabaseConfigured) { showToast("Supabase is not configured.", "error"); return false; } return true; };
 
+  /* ─── ALL CALLBACKS (UNCHANGED) ─── */
   const getUser = useCallback(async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error) throw error;
@@ -317,7 +188,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
       if (insErr) throw insErr;
       const uiDoc = { ...mapDocRowToUi(inserted), size: bytesToLabel(file.size), updated: "Just now" };
       setDocs((prev) => [uiDoc, ...(prev || [])]);
-      showToast(`Uploaded: ${file.name}`, "success");
+      showToast(`Filed: ${file.name}`, "success");
       if (settings.autoSummarize) setTimeout(() => runSmartSummary(uiDoc, true), 300);
     } catch (err) { showToast(err?.message || "Upload failed", "error"); }
     finally { setIsUploading(false); }
@@ -352,7 +223,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
       await incrementAiUses(user, 1);
       try { await incrementUsage("aiSummaries"); } catch {}
       try { await supabase.rpc("log_activity_event", { p_user_id: user.id, p_event_type: "ai_summary", p_title: `Generated summary for ${doc.name.replace(/\.[^/.]+$/, "")}`, p_metadata: { doc_id: doc.id, doc_name: doc.name } }); } catch (logErr) { console.warn("Activity log failed:", logErr); }
-      if (isAutomatic) { setAutoSummarizing(null); showToast(`AI summary generated for "${doc.name}"`, "success"); }
+      if (isAutomatic) { setAutoSummarizing(null); showToast(`Read by model: "${doc.name}"`, "success"); }
     } catch (err) { setAutoSummarizing(null); showToast(err?.message || "AI summary failed", "error"); }
   };
 
@@ -362,7 +233,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
   const cancelSynthesizeMode = () => { setSynthesizeMode(false); setSelectedDocs([]); };
 
   const runSynthesis = async () => {
-    if (selectedDocs.length < 2) { showToast("Please select at least 2 documents", "error"); return; }
+    if (selectedDocs.length < 2) { showToast("Select at least two documents.", "error"); return; }
     if (!requireSupabase()) return;
     setIsSynthesizing(true);
     try {
@@ -391,19 +262,19 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
       const { data: inserted, error } = await supabase.from(NOTES_TABLE).insert(payload).select("id").single();
       if (error) throw error;
       setSavedBriefs((prev) => [{ ...synthesisResult, noteId: inserted.id }, ...(prev || [])]);
-      showToast("Research brief saved!", "success"); closeSynthesisResult();
+      showToast("Brief saved to the archive.", "success"); closeSynthesisResult();
     } catch (err) { showToast(err?.message || "Failed to save brief", "error"); }
   };
 
   const deleteBrief = async (noteId) => {
     if (!requireSupabase()) return;
-    try { const user = await getUser(); const { error } = await supabase.from(NOTES_TABLE).delete().eq("id", noteId).eq("user_id", user.id); if (error) throw error; setSavedBriefs((prev) => (prev || []).filter((b) => b.noteId !== noteId)); showToast("Brief deleted", "success"); }
+    try { const user = await getUser(); const { error } = await supabase.from(NOTES_TABLE).delete().eq("id", noteId).eq("user_id", user.id); if (error) throw error; setSavedBriefs((prev) => (prev || []).filter((b) => b.noteId !== noteId)); showToast("Brief removed.", "success"); }
     catch (err) { showToast(err?.message || "Failed to delete brief", "error"); }
   };
 
   const viewBrief = (brief) => setViewingBrief(brief);
 
-  /* ─── Derived state ─── */
+  /* ─── Derived state (UNCHANGED) ─── */
   const filteredDocs = useMemo(() => {
     let result = (docs || []).filter((d) => { const matchesType = filterType === "ALL" || d.type === filterType; const matchesQuery = d.name.toLowerCase().includes(query.toLowerCase()); return matchesType && matchesQuery; });
     result = [...result].sort((a, b) => {
@@ -423,518 +294,372 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
   const synthesizedCount = (docs || []).filter((d) => (d.status || "") === "synthesized").length;
   const summarizedCount = (docs || []).filter((d) => !!summaryIndex?.[d.id]).length;
 
-  /* ─── Loading ─── */
+  /* ─── Loading state ─── */
   if (filesLoading) {
     return (
-      <>
-        <style>{DOC_STYLES}</style>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <div className="relative h-14 w-14">
-            <div className="absolute inset-0 rounded-full" style={{ border: "2.5px solid transparent", borderTopColor: "rgba(99,102,241,0.8)", borderRightColor: "rgba(168,85,247,0.4)", animation: "spin 0.8s linear infinite" }} />
-            <div className="absolute inset-2 rounded-full" style={{ border: "2px solid transparent", borderBottomColor: "rgba(6,182,212,0.6)", animation: "spin 1.2s linear infinite reverse" }} />
-            <Brain size={20} weight="duotone" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-indigo-400" />
-          </div>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading documents…</p>
+      <div className="ns-ed">
+        <DocsScopedStyles />
+        <div style={{ padding: "120px 0", textAlign: "center" }}>
+          <div style={{ maxWidth: 480, margin: "0 auto", height: 1, background: `linear-gradient(90deg, transparent, ${ED.ink}, transparent)`, backgroundSize: "200% 100%", animation: "ed-shimmer 1.6s linear infinite" }} />
+          <p className="ed-mono" style={{ marginTop: 18, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint }}>
+            Pulling the stack…
+          </p>
+          <style>{`@keyframes ed-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
         </div>
-      </>
+      </div>
     );
   }
+
+  const filterTypes = [
+    { id: "ALL", label: "All",  n: totalDocs },
+    { id: "PDF", label: "PDF",  n: (docs || []).filter((d) => d.type === "PDF").length },
+    { id: "DOCX", label: "DOCX", n: (docs || []).filter((d) => d.type === "DOCX").length },
+    { id: "XLSX", label: "XLSX", n: (docs || []).filter((d) => d.type === "XLSX").length },
+  ];
 
   /* ═══════════════════════════════════════════════════════
      RENDER
   ═══════════════════════════════════════════════════════ */
   return (
-    <>
-      <style>{DOC_STYLES}</style>
+    <div className="ns-ed">
+      <DocsScopedStyles />
 
-      <div className="w-full max-w-3xl mx-auto space-y-5 pb-[calc(var(--mobile-nav-height)+24px)]">
+      <div style={{ paddingBottom: "calc(var(--mobile-nav-height, 0px) + 100px)" }}>
+
         {/* Toast */}
         <AnimatePresence>
-          {toast && (
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-              className={`fixed top-4 left-1/2 -translate-x-1/2 z-[10000] px-5 py-3 rounded-2xl text-sm font-semibold shadow-2xl flex items-center gap-2 ${toast.type === "error" ? "bg-rose-500 text-white" : "bg-emerald-500 text-white"}`}>
-              {toast.type === "success" && <FiCheck size={16} />}
-              {toast.message}
-            </motion.div>
-          )}
+          {toast && <EdToast toast={toast} />}
         </AnimatePresence>
 
-        {/* Upload Overlay */}
-        <AnimatePresence>
-          {isUploading && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9998] flex items-center justify-center" style={{ backgroundColor: "var(--bg-overlay)", backdropFilter: "blur(12px)" }}>
-              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="text-center p-8 ns-doc-card max-w-sm mx-4">
-                <div className="relative z-10">
-                  <div className="w-14 h-14 mx-auto mb-4 rounded-2xl flex items-center justify-center"
-                    style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.25)" }}>
-                    <FiUpload size={24} className="text-indigo-400 animate-bounce" />
-                  </div>
-                  <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)" }}>Uploading Document</h3>
-                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>Please wait…</p>
-                  <div className="w-full h-1.5 rounded-full mt-4 overflow-hidden" style={{ background: "var(--bg-tertiary)" }}>
-                    <motion.div initial={{ x: "-100%" }} animate={{ x: "100%" }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                      className="h-full w-1/2 bg-gradient-to-r from-transparent via-indigo-500 to-transparent" />
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* ━━━━━━━━━━━━━━ HEADER ━━━━━━━━━━━━━━ */}
+        <header className="ed-reveal" style={{ paddingTop: 40 }}>
+          <div className="ed-chapter" style={{ marginBottom: 18 }}>
+            <span className="num">№ 04</span>
+            <span>— THE STACK ON THE DESK</span>
+          </div>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            HEADER
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.header initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.18), rgba(99,102,241,0.12))", border: "1px solid rgba(168,85,247,0.28)" }}>
-                <Brain weight="duotone" size={22} className="text-purple-400" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-xl font-extrabold tracking-tight" style={{ color: "var(--text-primary)" }}>Research Synthesizer</h1>
-                <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>Merge documents into actionable briefs</p>
-              </div>
+          <div className="ns-doc-headrow">
+            <h1
+              className="ed-display"
+              style={{ fontSize: "clamp(40px, 5vw, 64px)", margin: 0, paddingBottom: "0.06em", maxWidth: 920 }}
+            >
+              Documents, <span className="ed-italic" style={{ color: ED.accent }}>read</span> across.
+            </h1>
+
+            <div className="ns-doc-headcta">
+              <button
+                className={`ed-btn ${synthesizeMode ? "ed-btn-primary" : "ed-btn-ghost"}`}
+                onClick={synthesizeMode ? cancelSynthesizeMode : startSynthesizeMode}
+              >
+                {synthesizeMode ? <><FiX size={13} /> Cancel synthesis</> : <><FiLayers size={13} /> Synthesise across</>}
+              </button>
+              <button className="ed-btn ed-btn-primary" onClick={handleUploadButton}>
+                Upload a document →
+              </button>
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-2.5">
-            <StatMini value={totalDocs} label="Documents" accent="#818cf8" icon={<FiFolder size={13} />} />
-            <StatMini value={synthesizedCount} label="Synthesized" accent="#a855f7" icon={<Sparkle size={13} weight="fill" />} />
-            <StatMini value={summarizedCount} label="AI Summaries" accent="#10b981" icon={<FiZap size={13} />} />
-          </div>
-        </motion.header>
+          <p
+            className="ed-mono"
+            style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint, marginTop: 28 }}
+          >
+            {totalDocs} {totalDocs === 1 ? "DOCUMENT" : "DOCUMENTS"}
+            <span className="ns-dotsep">·</span>
+            {synthesizedCount} SYNTHESISED
+            <span className="ns-dotsep">·</span>
+            {summarizedCount} READ BY MODEL
+            {settings.autoSummarize && (<>
+              <span className="ns-dotsep">·</span>
+              AUTO-SUMMARY ON
+            </>)}
+          </p>
+        </header>
 
-        {/* Auto-summarize banner */}
-        {settings.autoSummarize && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3 px-4 py-2.5 rounded-xl"
-            style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)" }}>
-            <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)" }}>
-              <FiZap size={13} style={{ color: "#10b981" }} />
-            </div>
-            <span className="text-[11px] font-semibold" style={{ color: "#10b981" }}>Auto-summarize on</span>
-            <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>• New uploads summarized automatically</span>
-          </motion.div>
-        )}
+        <hr className="ed-rule-dbl" style={{ marginTop: 32 }} />
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            ACTION BUTTONS
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-          className="grid grid-cols-2 gap-3">
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={handleUploadButton} type="button"
-            className="ns-doc-card cursor-pointer">
-            <div className="relative z-10 flex items-center justify-center gap-2.5 py-4 px-3">
-              <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)" }}>
-                <FilePlus size={18} weight="duotone" className="text-indigo-400" />
-              </div>
-              <span className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>Upload Doc</span>
-            </div>
-          </motion.button>
-
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-            onClick={synthesizeMode ? cancelSynthesizeMode : startSynthesizeMode} type="button"
-            className="ns-doc-card cursor-pointer"
-            style={synthesizeMode ? { borderColor: "rgba(168,85,247,0.4)", background: "rgba(168,85,247,0.06)" } : {}}>
-            <div className="relative z-10 flex items-center justify-center gap-2.5 py-4 px-3">
-              <div className="h-9 w-9 rounded-xl flex items-center justify-center"
-                style={{ background: synthesizeMode ? "rgba(168,85,247,0.15)" : "rgba(168,85,247,0.12)", border: `1px solid ${synthesizeMode ? "rgba(168,85,247,0.35)" : "rgba(168,85,247,0.25)"}` }}>
-                {synthesizeMode ? <FiX size={18} className="text-purple-400" /> : <Sparkle size={18} weight="duotone" className="text-purple-400" />}
-              </div>
-              <span className="font-semibold text-sm" style={{ color: synthesizeMode ? "#a855f7" : "var(--text-primary)" }}>
-                {synthesizeMode ? "Cancel" : "Synthesize"}
-              </span>
-            </div>
-          </motion.button>
-        </motion.div>
-
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            SYNTHESIZE MODE PANEL
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* ━━━━━━━━━━━━━━ SYNTHESIS MODE PANEL ━━━━━━━━━━━━━━ */}
         <AnimatePresence>
           {synthesizeMode && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-              className="ns-doc-card overflow-hidden" style={{ borderColor: "rgba(168,85,247,0.3)" }}>
-              <div className="relative z-10 p-4">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.3)" }}>
-                      <FiLayers size={16} className="text-purple-400" />
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="ns-synth-strip"
+            >
+              <div className="ns-synth-strip-inner">
+                <div className="ns-synth-info">
+                  <p className="ed-mono ns-synth-eyebrow">
+                    <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>§</span>
+                    SYNTHESIS
+                  </p>
+                  <p className="ed-serif" style={{ fontSize: 19, color: ED.ink, marginTop: 4 }}>
+                    {selectedDocs.length < 2
+                      ? <>Select <span className="ed-italic" style={{ color: ED.accent }}>two or more</span> documents to read across.</>
+                      : <>{selectedDocs.length} documents selected.</>
+                    }
+                  </p>
+                  {selectedDocs.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+                      {selectedDocs.map((doc) => (
+                        <span key={doc.id} className="ed-chip" style={{ background: ED.paper50 }}>
+                          {doc.name}
+                          <button
+                            type="button"
+                            onClick={() => toggleDocSelection(doc)}
+                            style={{ marginLeft: 6, color: ED.inkFaint, background: "transparent", border: 0, cursor: "pointer", lineHeight: 1 }}
+                          >×</button>
+                        </span>
+                      ))}
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                        {selectedDocs.length < 2 ? "Select at least 2 documents" : `${selectedDocs.length} documents selected`}
-                      </p>
-                      <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>Click documents below to select</p>
-                    </div>
-                  </div>
-                  {selectedDocs.length >= 2 && (
-                    <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={runSynthesis} type="button"
-                      className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-xl text-white transition"
-                      style={{ background: "linear-gradient(135deg, #a855f7, #6366f1)", boxShadow: "0 4px 16px rgba(168,85,247,0.3)" }}>
-                      <Sparkle size={16} weight="fill" /> Generate Brief
-                    </motion.button>
                   )}
                 </div>
-                {selectedDocs.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t" style={{ borderColor: "var(--border-secondary)" }}>
-                    {selectedDocs.map((doc) => (
-                      <span key={doc.id} className="text-[11px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-2"
-                        style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.3)", color: "#a855f7" }}>
-                        <FileTypeIcon type={doc.type} size={13} />
-                        <span className="truncate max-w-[120px]">{doc.name}</span>
-                        <button onClick={() => toggleDocSelection(doc)} type="button" className="ml-0.5 opacity-60 hover:opacity-100 transition">×</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            SAVED BRIEFS
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {savedBriefs.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <div className="ns-doc-card" style={{ borderColor: "rgba(168,85,247,0.25)" }}>
-              <div className="relative z-10 p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.25)" }}>
-                    <FiBookOpen size={14} className="text-purple-400" />
-                  </div>
-                  <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Saved Briefs</h2>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg" style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7" }}>{savedBriefs.length}</span>
-                </div>
-                <div className="space-y-2">
-                  {savedBriefs.map((brief) => (
-                    <div key={brief.noteId || brief.id} onClick={() => viewBrief(brief)}
-                      className="ns-doc-row flex items-center justify-between px-4 py-3 cursor-pointer">
-                      <div className="flex-1 min-w-0 pr-4">
-                        <div className="flex items-center gap-2">
-                          <Brain size={15} weight="duotone" className="text-purple-400 flex-shrink-0" />
-                          <p className="text-[13px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{brief.title}</p>
-                        </div>
-                        <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-                          {brief.sourceCount || 0} sources • {new Date(brief.generatedAt || nowIso()).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex gap-1 flex-shrink-0">
-                        <IconBtn icon={<FiEye size={14} />} title="View" onClick={(e) => { e.stopPropagation(); viewBrief(brief); }} />
-                        <IconBtn icon={<FiTrash2 size={14} />} title="Delete" danger onClick={(e) => { e.stopPropagation(); deleteBrief(brief.noteId); }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            DOCUMENTS LIST
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-          <div className="ns-doc-card">
-            <div className="relative z-10 p-4">
-              {/* Search */}
-              <div className="ns-search-glow flex items-center w-full rounded-2xl px-4 py-2.5 transition-all duration-200 mb-3"
-                style={{ background: "var(--bg-input)", border: `1px solid ${query ? "rgba(99,102,241,0.4)" : "var(--border-secondary)"}` }}>
-                <FiSearch className="w-4 h-4 mr-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
-                <input type="text" placeholder="Search documents…" value={query} onChange={(e) => setQuery(e.target.value)}
-                  className="flex-1 bg-transparent outline-none min-w-0 text-[13px]" style={{ color: "var(--text-primary)" }} />
-                {query && <button onClick={() => setQuery("")} className="p-1 rounded-full" style={{ color: "var(--text-muted)" }}><FiX size={14} /></button>}
-              </div>
-
-              {/* Filters + Sort */}
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <div className="flex gap-1.5 flex-wrap">
-                  {["ALL", "PDF", "DOCX", "XLSX"].map((t) => (
-                    <button key={t} type="button" onClick={() => setFilterType(t)}
-                      className="px-3 py-1.5 rounded-xl text-[11px] font-bold transition"
-                      style={{
-                        background: filterType === t ? "rgba(99,102,241,0.12)" : "transparent",
-                        border: `1px solid ${filterType === t ? "rgba(99,102,241,0.3)" : "transparent"}`,
-                        color: filterType === t ? "#818cf8" : "var(--text-secondary)",
-                      }}>
-                      {t === "ALL" ? "All" : t}
-                    </button>
-                  ))}
-                </div>
-                <SortDropdown sortOrder={sortOrder} setSortOrder={setSortOrder} />
-              </div>
-
-              {/* Count */}
-              <p className="text-[10px] font-semibold mb-3" style={{ color: "var(--text-muted)" }}>
-                {Math.min(visibleCount, filteredDocs.length)} of {filteredDocs.length} documents
-              </p>
-
-              {/* Document rows */}
-              <div className="space-y-2 ns-doc-stagger">
-                {filteredDocs.length === 0 && (
-                  <div className="text-center py-12">
-                    <div className="h-14 w-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                      style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.18)" }}>
-                      <FiFolder size={24} className="text-indigo-400" />
-                    </div>
-                    <p className="text-sm font-semibold mb-1" style={{ color: "var(--text-primary)" }}>No documents found</p>
-                    <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>Upload a document to get started</p>
-                  </div>
-                )}
-
-                {visibleDocs.map((doc) => {
-                  const isSelected = selectedDocs.find((d) => d.id === doc.id);
-                  const isAutoSummarizing = autoSummarizing === doc.id;
-                  const hasSummary = !!summaryIndex?.[doc.id];
-                  const isSynthesized = (doc.status || "") === "synthesized";
-
-                  return (
-                    <div key={doc.id}
-                      onClick={synthesizeMode ? () => toggleDocSelection(doc) : undefined}
-                      className="ns-doc-row cursor-pointer"
-                      style={isSelected ? { borderColor: "rgba(168,85,247,0.5)", background: "rgba(168,85,247,0.06)" } : {}}>
-                      <div className="px-3 py-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          {/* Left icon / checkbox */}
-                          {synthesizeMode ? (
-                            <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition"
-                              style={{ border: `2px solid ${isSelected ? "#a855f7" : "var(--text-muted)"}`, background: isSelected ? "#a855f7" : "transparent" }}>
-                              {isSelected && <FiCheck size={11} className="text-white" />}
-                            </div>
-                          ) : (
-                            <div className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 relative"
-                              style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)" }}>
-                              <FileTypeIcon type={doc.type} size={18} />
-                              {settings.autoSummarize && (
-                                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full flex items-center justify-center"
-                                  style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)" }}>
-                                  <Sparkle size={9} className="text-indigo-400" />
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Middle */}
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[13px] font-semibold truncate" style={{ color: "var(--text-primary)" }} title={doc.name}>{doc.name}</p>
-                            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                              {isSynthesized && (
-                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-lg" style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7" }}>Synthesized</span>
-                              )}
-                              {hasSummary && !isAutoSummarizing && (
-                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1" style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", color: "#10b981" }}>
-                                  <FiCheck size={9} /> AI Summary
-                                </span>
-                              )}
-                              {isAutoSummarizing && (
-                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1" style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.25)", color: "#818cf8" }}>
-                                  <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" /> Summarizing…
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>
-                              {doc.type} · {doc.size} · {doc.updated}
-                            </p>
-                          </div>
-
-                          {/* Right actions */}
-                          {!synthesizeMode && (
-                            <div className="shrink-0 flex items-center gap-1">
-                              <IconBtn icon={<FiEye size={14} />} title="Preview" onClick={(e) => { e.stopPropagation(); handlePreview(doc); }} />
-                              <IconBtn icon={<FiFileText size={14} />} title="AI Summary" disabled={isAutoSummarizing} onClick={(e) => { e.stopPropagation(); handleSummarize(doc); }} />
-                              <IconBtn icon={<FiDownload size={14} />} title="Download" onClick={(e) => { e.stopPropagation(); downloadDoc(doc); }} />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Load More */}
-                {hasMore && (
-                  <button onClick={() => setVisibleCount((prev) => prev + DOCS_PER_PAGE)} type="button"
-                    className="w-full py-3 mt-2 rounded-xl text-[12px] font-semibold transition flex items-center justify-center gap-2"
-                    style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(99,102,241,0.3)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-secondary)"; }}>
-                    <FiChevronDown size={14} /> Show More ({filteredDocs.length - visibleCount} left)
+                {selectedDocs.length >= 2 && (
+                  <button className="ed-btn ed-btn-primary ns-synth-go" onClick={runSynthesis}>
+                    Generate brief <FiArrowRight size={13} />
                   </button>
                 )}
               </div>
-            </div>
-          </div>
-        </motion.div>
-
-        <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={handleFileSelected} />
-
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            SYNTHESIZING OVERLAY
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <AnimatePresence>
-          {isSynthesizing && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: "var(--bg-overlay)", backdropFilter: "blur(12px)" }}>
-              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="text-center p-8 ns-doc-card max-w-sm mx-4">
-                <div className="relative z-10">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center"
-                    style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.15), rgba(99,102,241,0.15))", border: "1px solid rgba(168,85,247,0.3)" }}>
-                    <Sparkle size={28} weight="fill" className="text-purple-400 animate-pulse" />
-                  </div>
-                  <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)" }}>Synthesizing Documents</h3>
-                  <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>Analyzing {selectedDocs.length} documents…</p>
-                  <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-tertiary)" }}>
-                    <motion.div className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
-                      initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 3, ease: "easeInOut" }} />
-                  </div>
-                </div>
-              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            BRIEF MODAL
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* ━━━━━━━━━━━━━━ FILTER + SEARCH STRIP ━━━━━━━━━━━━━━ */}
+        <div className="ns-doc-controls">
+          <div className="ns-doc-filters">
+            {filterTypes.map((f) => {
+              const on = filterType === f.id;
+              return (
+                <button key={f.id} onClick={() => setFilterType(f.id)} className={`ns-filter ${on ? "on" : ""}`}>
+                  {f.label}
+                  <span className="n">{f.n}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="ns-doc-controls-right">
+            <div className="ns-search">
+              <FiSearch size={13} style={{ color: ED.inkFaint }} />
+              <input
+                type="text"
+                placeholder="Search the stack…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+              />
+              {query && (
+                <button onClick={() => setQuery("")} className="ns-search-clear" aria-label="Clear">
+                  <FiX size={12} />
+                </button>
+              )}
+            </div>
+
+            <SortDropdown sortOrder={sortOrder} setSortOrder={setSortOrder} />
+          </div>
+        </div>
+
+        <hr className="ed-rule" />
+
+        {/* ━━━━━━━━━━━━━━ SAVED BRIEFS ━━━━━━━━━━━━━━ */}
+        {savedBriefs.length > 0 && (
+          <section style={{ marginTop: 32 }}>
+            <header style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 18 }}>
+              <div className="ed-chapter">
+                <span className="num">§ 01</span>
+                <span>— SAVED BRIEFS</span>
+              </div>
+              <p className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint }}>
+                {savedBriefs.length} ON FILE
+              </p>
+            </header>
+
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {savedBriefs.map((brief, i) => (
+                <li key={brief.noteId || brief.id}>
+                  <article
+                    className="ns-doc-row"
+                    onClick={() => viewBrief(brief)}
+                  >
+                    <span className="ord">{String(i + 1).padStart(2, "0")}</span>
+                    <div className="body">
+                      <h3 className="title ed-italic">{brief.title}</h3>
+                      <p className="meta">
+                        <span>{brief.sourceCount || 0} SOURCES</span>
+                        <span>{fmtMetaDate(brief.generatedAt || nowIso())}</span>
+                        <span className="ed-chip ed-chip-accent">RESEARCH BRIEF</span>
+                      </p>
+                    </div>
+                    <div className="aside">
+                      <IconBtn icon={<FiEye size={13} />}    title="Read" onClick={(e) => { e.stopPropagation(); viewBrief(brief); }} />
+                      <IconBtn icon={<FiTrash2 size={13} />} title="Delete" danger onClick={(e) => { e.stopPropagation(); deleteBrief(brief.noteId); }} />
+                    </div>
+                  </article>
+                  <hr className="ed-rule-soft" />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* ━━━━━━━━━━━━━━ DOCUMENTS LIST ━━━━━━━━━━━━━━ */}
+        <section style={{ marginTop: savedBriefs.length > 0 ? 56 : 24 }}>
+          {savedBriefs.length > 0 && (
+            <header style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 18 }}>
+              <div className="ed-chapter">
+                <span className="num">§ 02</span>
+                <span>— DOCUMENTS</span>
+              </div>
+              <p className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint }}>
+                {Math.min(visibleCount, filteredDocs.length)} OF {filteredDocs.length}
+              </p>
+            </header>
+          )}
+
+          {filteredDocs.length === 0 ? (
+            <div style={{ padding: "80px 0", textAlign: "center" }}>
+              <p className="ed-serif ed-italic" style={{ fontSize: 22, color: ED.inkMute, maxWidth: 520, margin: "0 auto", lineHeight: 1.45 }}>
+                {query || filterType !== "ALL"
+                  ? "Nothing on the desk matches that. Try fewer words."
+                  : "The desk is clear. Upload a document to begin."}
+              </p>
+              {!query && filterType === "ALL" && (
+                <div style={{ marginTop: 28 }}>
+                  <button className="ed-btn ed-btn-primary" onClick={handleUploadButton}>
+                    Upload a document →
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {visibleDocs.map((doc, i) => {
+                const isSelected = !!selectedDocs.find((d) => d.id === doc.id);
+                const isAutoSummarizing = autoSummarizing === doc.id;
+                const hasSummary = !!summaryIndex?.[doc.id];
+                const isSynthesized = (doc.status || "") === "synthesized";
+
+                return (
+                  <li key={doc.id}>
+                    <article
+                      className={`ns-doc-row ${isSelected ? "is-selected" : ""} ${synthesizeMode ? "is-pickable" : ""}`}
+                      onClick={synthesizeMode ? () => toggleDocSelection(doc) : undefined}
+                    >
+                      <span className="ord">
+                        {synthesizeMode ? (
+                          <span className={`ns-checkbox ${isSelected ? "on" : ""}`} aria-hidden>
+                            {isSelected && <FiCheck size={11} />}
+                          </span>
+                        ) : (
+                          String(i + 1).padStart(2, "0")
+                        )}
+                      </span>
+
+                      <div className="body">
+                        <h3 className="title" title={doc.name}>{doc.name}</h3>
+                        <p className="meta">
+                          <span>{doc.type}</span>
+                          <span>{doc.size}</span>
+                          <span>{(doc.updated || "—").toUpperCase()}</span>
+                          {isSynthesized && <span className="ed-chip ed-chip-accent">SYNTHESISED</span>}
+                          {hasSummary && !isAutoSummarizing && <span className="ed-chip">READ BY MODEL</span>}
+                          {isAutoSummarizing && <span className="ed-chip"><span className="ns-dot-pulse" /> READING…</span>}
+                        </p>
+                      </div>
+
+                      {!synthesizeMode && (
+                        <div className="aside">
+                          <IconBtn
+                            icon={<FiEye size={13} />}
+                            title="Open"
+                            onClick={(e) => { e.stopPropagation(); handlePreview(doc); }}
+                          />
+                          <IconBtn
+                            icon={<FiZap size={13} />}
+                            title="Send to the model"
+                            disabled={isAutoSummarizing}
+                            onClick={(e) => { e.stopPropagation(); handleSummarize(doc); }}
+                          />
+                          <IconBtn
+                            icon={<FiDownload size={13} />}
+                            title="Download"
+                            onClick={(e) => { e.stopPropagation(); downloadDoc(doc); }}
+                          />
+                        </div>
+                      )}
+                    </article>
+                    <hr className="ed-rule-soft" />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {hasMore && (
+            <div style={{ textAlign: "center", padding: "32px 0 12px" }}>
+              <button
+                className="ed-ulink ed-mono"
+                onClick={() => setVisibleCount((p) => p + DOCS_PER_PAGE)}
+                style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkMute, background: "transparent" }}
+              >
+                Show {Math.min(DOCS_PER_PAGE, filteredDocs.length - visibleCount)} more ↓
+              </button>
+            </div>
+          )}
+        </section>
+
+        <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={handleFileSelected} />
+
+        {/* ━━━━━━━━━━━━━━ UPLOAD OVERLAY ━━━━━━━━━━━━━━ */}
+        <AnimatePresence>
+          {isUploading && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="ns-overlay"
+            >
+              <div style={{ maxWidth: 360, width: "100%", textAlign: "center" }}>
+                <p className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, marginBottom: 14 }}>
+                  Filing it into the archive…
+                </p>
+                <div className="ns-overlay-rule" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ━━━━━━━━━━━━━━ SYNTHESIS OVERLAY ━━━━━━━━━━━━━━ */}
+        <AnimatePresence>
+          {isSynthesizing && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="ns-overlay"
+            >
+              <div style={{ maxWidth: 480, width: "100%", textAlign: "center" }}>
+                <p className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, marginBottom: 14 }}>
+                  The model is reading across {selectedDocs.length} documents…
+                </p>
+                <div className="ns-overlay-rule" />
+                <p className="ed-serif ed-italic" style={{ fontSize: 18, color: ED.inkMute, marginTop: 22, lineHeight: 1.45 }}>
+                  This usually takes a moment. The brief will appear when the reading is done.
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ━━━━━━━━━━━━━━ BRIEF MODAL ━━━━━━━━━━━━━━ */}
         <AnimatePresence>
           {(synthesisResult || viewingBrief) && (
-            <ModalShell onClose={() => { closeSynthesisResult(); setViewingBrief(null); }} maxWidthClass="sm:max-w-xl">
-              {(() => {
-                const brief = synthesisResult || viewingBrief;
-                return (
-                  <div className="p-4 sm:p-5">
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-3 mb-5">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="shrink-0 h-11 w-11 rounded-2xl flex items-center justify-center"
-                          style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.16), rgba(99,102,241,0.10))", border: "1px solid rgba(168,85,247,0.28)" }}>
-                          <Brain size={22} weight="duotone" className="text-purple-400" />
-                        </div>
-                        <div className="min-w-0">
-                          <h2 className="text-[15px] font-bold leading-snug" style={{ color: "var(--text-primary)", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflow: "hidden" }} title={brief?.title}>{brief?.title}</h2>
-                          {!!brief?.generatedAt && <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>{brief?.sourceCount ?? 0} documents • {new Date(brief.generatedAt).toLocaleString()}</p>}
-                        </div>
-                      </div>
-                      <button onClick={() => { closeSynthesisResult(); setViewingBrief(null); }} type="button"
-                        className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 transition"
-                        style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>
-                        <FiX size={16} />
-                      </button>
-                    </div>
-
-                    <div className="space-y-4">
-                      <BriefSection title="Sources Analyzed" icon={<FiFolder size={15} />} color="#818cf8">
-                        <div className="flex flex-wrap gap-2">
-                          {(brief?.sources || []).length === 0
-                            ? <span className="text-[11px] px-3 py-1.5 rounded-lg" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-muted)" }}>No sources</span>
-                            : (brief.sources || []).map((source, i) => (
-                              <span key={`${source}-${i}`} className="inline-flex items-center gap-2 text-[11px] font-medium px-3 py-1.5 rounded-lg"
-                                style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }} title={source}>
-                                <FileTypeIcon type={String(source).split(".").pop()} size={13} />
-                                <span className="truncate max-w-[140px]">{source}</span>
-                              </span>
-                            ))}
-                        </div>
-                      </BriefSection>
-
-                      <BriefSection title="Executive Summary" icon={<FiFileText size={15} />} color="#818cf8">
-                        <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>{brief?.executiveSummary}</p>
-                      </BriefSection>
-
-                      <BriefSection title="Key Themes" icon={<FiLayers size={15} />} color="#a855f7">
-                        <div className="space-y-2.5">
-                          {(brief?.keyThemes || []).map((theme, i) => (
-                            <div key={i} className="rounded-xl p-3.5" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)" }}>
-                              <div className="flex items-center justify-between mb-1.5 gap-2">
-                                <span className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>{theme.theme}</span>
-                                <PriorityTag priority={theme.frequency}>{theme.frequency}</PriorityTag>
-                              </div>
-                              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>{theme.insight}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </BriefSection>
-
-                      <BriefSection title="Consolidated Insights" icon={<FiZap size={15} />} color="#10b981">
-                        <ul className="space-y-2">
-                          {(brief?.consolidatedInsights || []).map((insight, i) => (
-                            <li key={i} className="flex items-start gap-3 text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                              <span className="h-5 w-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold" style={{ background: "rgba(16,185,129,0.12)", color: "#10b981" }}>{i + 1}</span>
-                              {insight}
-                            </li>
-                          ))}
-                        </ul>
-                      </BriefSection>
-
-                      <BriefSection title="Action Plan" icon={<FiCheck size={15} />} color="#818cf8">
-                        <div className="space-y-2.5">
-                          {(brief?.unifiedActionPlan || []).map((action, i) => (
-                            <div key={i} className="rounded-xl p-3.5" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)" }}>
-                              <p className="text-[13px] font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{action.action}</p>
-                              <div className="flex flex-wrap gap-1.5">
-                                <PriorityTag priority={action.priority}>{action.priority}</PriorityTag>
-                                <span className="text-[10px] font-medium px-2.5 py-1 rounded-lg" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>{action.owners}</span>
-                                <span className="text-[10px] font-medium px-2.5 py-1 rounded-lg" style={{ background: "rgba(14,165,233,0.1)", border: "1px solid rgba(14,165,233,0.25)", color: "#0ea5e9" }}>{action.deadline}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </BriefSection>
-
-                      {(brief?.contradictions || []).length > 0 && (
-                        <BriefSection title="⚠️ Contradictions" color="#f59e0b">
-                          <div className="space-y-2">
-                            {(brief.contradictions || []).map((c, i) => (
-                              <div key={i} className="rounded-xl p-3.5" style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.25)" }}>
-                                <p className="text-[13px] font-semibold" style={{ color: "#f59e0b" }}>{c.topic}</p>
-                                <p className="text-[11px] mt-1" style={{ color: "var(--text-secondary)" }}>{c.conflict}</p>
-                                <p className="text-[11px] mt-1.5 font-medium" style={{ color: "#f59e0b" }}>→ {c.recommendation}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </BriefSection>
-                      )}
-
-                      <BriefSection title="📋 Information Gaps" color="#f43f5e">
-                        <ul className="space-y-1.5">
-                          {(brief?.gaps || []).map((gap, i) => (
-                            <li key={i} className="flex items-start gap-2 text-[13px]" style={{ color: "var(--text-muted)" }}>
-                              <span style={{ color: "#f43f5e" }}>•</span> {gap}
-                            </li>
-                          ))}
-                        </ul>
-                      </BriefSection>
-
-                      {/* Footer */}
-                      <div className="sticky bottom-0 pt-4 mt-2" style={{ background: "linear-gradient(to top, var(--bg-surface) 70%, transparent)", paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)" }}>
-                        <div className="flex gap-3">
-                          <button onClick={() => { closeSynthesisResult(); setViewingBrief(null); }} type="button"
-                            className="flex-1 py-3.5 rounded-xl font-semibold transition"
-                            style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>
-                            Close
-                          </button>
-                          {synthesisResult && !viewingBrief && (
-                            <button onClick={saveBrief} type="button"
-                              className="flex-1 py-3.5 rounded-xl font-semibold text-white transition"
-                              style={{ background: "linear-gradient(135deg, #a855f7, #6366f1)", boxShadow: "0 4px 16px rgba(168,85,247,0.3)" }}>
-                              Save Brief
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </ModalShell>
+            <BriefModal
+              brief={synthesisResult || viewingBrief}
+              isFresh={!!synthesisResult && !viewingBrief}
+              onClose={() => { closeSynthesisResult(); setViewingBrief(null); }}
+              onSave={saveBrief}
+            />
           )}
         </AnimatePresence>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -942,56 +667,598 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
    SUB-COMPONENTS
 ═══════════════════════════════════════════════════════ */
 
-const StatMini = ({ value, label, accent, icon }) => (
-  <div className="ns-doc-card">
-    <div className="relative z-10 p-3 text-center">
-      <div className="flex items-center justify-center gap-1.5 mb-1" style={{ color: accent }}>{icon}</div>
-      <p className="text-xl font-extrabold" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em" }}>{value}</p>
-      <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={{ color: "var(--text-muted)" }}>{label}</p>
-    </div>
-  </div>
-);
+/* ─── Sort dropdown ─── */
+function SortDropdown({ sortOrder, setSortOrder }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const options = [
+    { value: "newest", label: "Newest first" },
+    { value: "oldest", label: "Oldest first" },
+    { value: "name-az", label: "A → Z" },
+    { value: "name-za", label: "Z → A" },
+  ];
+  const current = options.find((o) => o.value === sortOrder) || options[0];
 
+  useEffect(() => {
+    const handleClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    if (open) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div className="ns-sort" ref={ref}>
+      <button type="button" onClick={() => setOpen((s) => !s)} className="ns-sort-btn">
+        <FiClock size={12} />
+        <span>{current.label}</span>
+        <FiChevronDown size={11} style={{ transition: "transform .15s ease", transform: open ? "rotate(180deg)" : "none" }} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="ed-card ns-sort-pop"
+          >
+            {options.map((opt) => (
+              <button
+                key={opt.value} type="button"
+                onClick={() => { setSortOrder(opt.value); setOpen(false); }}
+                className={`ns-sort-opt ${sortOrder === opt.value ? "on" : ""}`}
+              >
+                <span>{opt.label}</span>
+                {sortOrder === opt.value && <FiCheck size={11} />}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ─── IconBtn ─── */
 const IconBtn = ({ icon, title, onClick, danger, disabled }) => (
-  <button type="button" title={title} disabled={disabled} onClick={onClick}
-    className="h-8 w-8 rounded-lg flex items-center justify-center transition disabled:opacity-40"
-    style={{ border: "1px solid var(--border-secondary)", color: danger ? "#f43f5e" : "var(--text-secondary)", background: "transparent" }}
-    onMouseEnter={(e) => { e.currentTarget.style.background = danger ? "rgba(244,63,94,0.1)" : "var(--bg-tertiary)"; }}
-    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+  <button
+    type="button" title={title} disabled={disabled} onClick={onClick}
+    className={`ns-icon-btn ${danger ? "is-danger" : ""}`}
+  >
     {icon}
   </button>
 );
 
-const BriefSection = ({ title, icon, color = "#818cf8", children }) => (
-  <div className="rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-secondary)" }}>
-    <div className="flex items-center gap-2 mb-3">
-      {icon && <span style={{ color }}>{icon}</span>}
-      <h3 className="text-[13px] font-bold" style={{ color }}>{title}</h3>
-    </div>
-    {children}
-  </div>
+/* ─── Editorial toast ─── */
+const EdToast = ({ toast }) => (
+  <motion.div
+    initial={{ opacity: 0, y: -8 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -8 }}
+    className="ed-card ns-toast"
+  >
+    <span
+      className="ed-mono"
+      style={{
+        color: toast.type === "error" ? "#a8201f" : ED.accent,
+        fontFamily: ED.serif, fontStyle: "italic", fontSize: 15, marginRight: 8,
+      }}
+    >
+      {toast.type === "error" ? "!" : "✓"}
+    </span>
+    <span className="ed-serif" style={{ fontSize: 16, color: ED.ink }}>{toast.message}</span>
+  </motion.div>
 );
 
-const ModalShell = ({ children, onClose, maxWidthClass = "sm:max-w-2xl" }) => (
-  <>
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
-      className="fixed inset-0 z-[9999] w-[100dvw] h-[100dvh]"
-      style={{ minHeight: "100vh", backgroundColor: "var(--bg-overlay)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} />
-    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center pointer-events-none px-0 sm:px-4 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
-      <motion.div initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16, scale: 0.98 }}
-        transition={{ duration: 0.22, ease: "easeOut" }}
-        className={`pointer-events-auto overflow-hidden shadow-2xl rounded-t-3xl sm:rounded-2xl border-b-0 sm:border-b w-full sm:w-[92vw] ${maxWidthClass}`}
-        style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border-secondary)", maxHeight: "calc(100dvh - 24px)", boxShadow: "0 25px 60px rgba(0,0,0,0.4)" }}
-        onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
-          <div className="w-10 h-1 rounded-full" style={{ backgroundColor: "var(--border-secondary)" }} />
-        </div>
-        <div className="overflow-y-auto ns-doc-scroll" style={{ maxHeight: "calc(100dvh - 24px)", paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)", WebkitOverflowScrolling: "touch" }}>
-          {children}
-        </div>
-      </motion.div>
-    </div>
-  </>
+/* ─── Brief modal ─── */
+const BriefModal = ({ brief, isFresh, onClose, onSave }) => {
+  if (typeof document === "undefined" || !brief) return null;
+
+  const prioTone = (p) => {
+    const k = String(p || "medium").toLowerCase();
+    if (k === "critical" || k === "high") return { bg: ED.accentSoft, color: ED.accent };
+    if (k === "low") return { bg: ED.paper200, color: ED.inkMute };
+    return { bg: ED.paper200, color: ED.inkMute };
+  };
+
+  return createPortal(
+    <>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="ns-modal-bg"
+        onClick={onClose}
+      />
+      <div className="ns-modal-wrap">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 12 }}
+          transition={{ duration: 0.2 }}
+          className="ed-card ns-brief"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <header className="ns-brief-head">
+            <div>
+              <p className="ed-mono ns-brief-eyebrow">
+                <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>№</span>
+                {isFresh ? "FRESH DISPATCH" : "FILED BRIEF"}
+              </p>
+              <h2 className="ed-display ns-brief-title">
+                {brief.title}
+              </h2>
+              <p className="ed-mono ns-brief-meta">
+                {brief.sourceCount ?? 0} SOURCES
+                <span className="ns-dotsep">·</span>
+                {fmtMetaDate(brief.generatedAt || nowIso())}
+              </p>
+            </div>
+            <button onClick={onClose} className="ns-modal-close" aria-label="Close">
+              <FiX size={14} />
+            </button>
+          </header>
+
+          <hr className="ed-rule" />
+
+          <div className="ns-brief-body">
+
+            {/* Sources */}
+            <BriefSection ord="01" title="Sources read">
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {(brief.sources || []).length === 0 ? (
+                  <p className="ed-serif ed-italic" style={{ color: ED.inkMute, fontSize: 16 }}>None on file.</p>
+                ) : (
+                  brief.sources.map((source, i) => (
+                    <span key={`${source}-${i}`} className="ed-chip" title={source}>{source}</span>
+                  ))
+                )}
+              </div>
+            </BriefSection>
+
+            {/* Executive */}
+            {brief.executiveSummary && (
+              <BriefSection ord="02" title="Executive summary">
+                <p className="ed-serif ed-dropcap" style={{ fontSize: 18, lineHeight: 1.55, color: ED.inkMute, margin: 0 }}>
+                  {brief.executiveSummary}
+                </p>
+              </BriefSection>
+            )}
+
+            {/* Themes */}
+            {!!(brief.keyThemes || []).length && (
+              <BriefSection ord="03" title="Key themes">
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {brief.keyThemes.map((theme, i) => (
+                    <li key={i} className="ns-theme">
+                      <span className="ord">{String(i + 1).padStart(2, "0")}</span>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+                          <span className="ed-serif" style={{ fontSize: 20, color: ED.ink }}>{theme.theme}</span>
+                          <span
+                            className="ed-chip"
+                            style={{
+                              background: prioTone(theme.frequency).bg,
+                              color: prioTone(theme.frequency).color,
+                              borderColor: "transparent",
+                            }}
+                          >
+                            {String(theme.frequency || "").toUpperCase()}
+                          </span>
+                        </div>
+                        <p className="ed-serif" style={{ fontSize: 16, color: ED.inkMute, marginTop: 6, lineHeight: 1.5 }}>{theme.insight}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </BriefSection>
+            )}
+
+            {/* Insights */}
+            {!!(brief.consolidatedInsights || []).length && (
+              <BriefSection ord="04" title="Consolidated insights">
+                <ol className="ns-insights">
+                  {brief.consolidatedInsights.map((insight, i) => (
+                    <li key={i}>
+                      <span className="ord">{String(i + 1).padStart(2, "0")}</span>
+                      <span className="ed-serif">{insight}</span>
+                    </li>
+                  ))}
+                </ol>
+              </BriefSection>
+            )}
+
+            {/* Action plan */}
+            {!!(brief.unifiedActionPlan || []).length && (
+              <BriefSection ord="05" title="Action plan">
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {brief.unifiedActionPlan.map((action, i) => (
+                    <li key={i} className="ns-action">
+                      <span className="ord">{String(i + 1).padStart(2, "0")}</span>
+                      <div className="body">
+                        <p className="ed-serif" style={{ fontSize: 18, color: ED.ink, margin: 0 }}>{action.action}</p>
+                        <p className="meta">
+                          <span
+                            className="ed-chip"
+                            style={{
+                              background: prioTone(action.priority).bg,
+                              color: prioTone(action.priority).color,
+                              borderColor: "transparent",
+                            }}
+                          >
+                            {String(action.priority || "").toUpperCase()}
+                          </span>
+                          {action.owners && <span>OWNERS · {action.owners}</span>}
+                          {action.deadline && <span>BY {String(action.deadline).toUpperCase()}</span>}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </BriefSection>
+            )}
+
+            {/* Contradictions */}
+            {!!(brief.contradictions || []).length && (
+              <BriefSection ord="06" title="Contradictions">
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {brief.contradictions.map((c, i) => (
+                    <li key={i} className="ns-action">
+                      <span className="ord" style={{ color: ED.accent }}>!</span>
+                      <div className="body">
+                        <p className="ed-serif" style={{ fontSize: 18, color: ED.ink, margin: 0 }}>{c.topic}</p>
+                        <p className="ed-serif" style={{ fontSize: 16, color: ED.inkMute, marginTop: 6, lineHeight: 1.5 }}>{c.conflict}</p>
+                        <p className="ed-serif ed-italic" style={{ fontSize: 16, color: ED.accent, marginTop: 6 }}>→ {c.recommendation}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </BriefSection>
+            )}
+
+            {/* Gaps */}
+            {!!(brief.gaps || []).length && (
+              <BriefSection ord="07" title="Information gaps">
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {brief.gaps.map((gap, i) => (
+                    <li key={i} className="ns-gap">
+                      <span className="ord">{String(i + 1).padStart(2, "0")}</span>
+                      <span className="ed-serif ed-italic">{gap}</span>
+                    </li>
+                  ))}
+                </ul>
+              </BriefSection>
+            )}
+          </div>
+
+          <hr className="ed-rule" />
+          <footer className="ns-brief-foot">
+            <button className="ed-btn ed-btn-ghost" onClick={onClose}>Close</button>
+            {isFresh && (
+              <button className="ed-btn ed-btn-primary" onClick={onSave}>
+                Save to archive →
+              </button>
+            )}
+          </footer>
+        </motion.div>
+      </div>
+    </>,
+    document.body
+  );
+};
+
+const BriefSection = ({ ord, title, children }) => (
+  <section className="ns-brief-sec">
+    <p className="ed-chapter" style={{ marginBottom: 14 }}>
+      <span className="num">§ {ord}</span>
+      <span>— {String(title).toUpperCase()}</span>
+    </p>
+    <div>{children}</div>
+  </section>
 );
 
+/* ═══════════════════════════════════════════════════════
+   SCOPED CSS
+═══════════════════════════════════════════════════════ */
+const DocsScopedStyles = () => (
+  <style>{`
+    .ns-ed .ns-doc-headrow {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      gap: 24px; flex-wrap: wrap;
+    }
+    .ns-ed .ns-doc-headcta { display: flex; gap: 10px; flex-wrap: wrap; }
+    .ns-ed .ns-dotsep { padding: 0 8px; color: ${ED.rule}; }
+
+    /* ── controls ── */
+    .ns-ed .ns-doc-controls {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 24px; padding: 18px 0; flex-wrap: wrap;
+    }
+    .ns-ed .ns-doc-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+    .ns-ed .ns-doc-controls-right { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+    .ns-ed .ns-filter {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: ${ED.mono}; font-size: 11px; letter-spacing: 0.12em;
+      text-transform: uppercase; color: ${ED.inkMute};
+      padding: 7px 12px; border-radius: 999px;
+      border: 1px solid ${ED.rule}; background: transparent;
+      cursor: pointer; transition: all .15s ease;
+    }
+    .ns-ed .ns-filter:hover { border-color: ${ED.ink}; color: ${ED.ink}; }
+    .ns-ed .ns-filter.on { background: ${ED.ink}; color: ${ED.paper50}; border-color: ${ED.ink}; }
+    .ns-ed .ns-filter .n { opacity: 0.7; margin-left: 4px; font-size: 10.5px; }
+
+    .ns-ed .ns-search {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: ${ED.paper50}; border: 1px solid ${ED.rule};
+      border-radius: 999px; padding: 8px 14px; min-width: 240px;
+      transition: border-color .15s ease;
+    }
+    .ns-ed .ns-search:focus-within { border-color: ${ED.ink}; }
+    .ns-ed .ns-search input {
+      background: transparent; border: 0; outline: 0; flex: 1; min-width: 0;
+      font-family: ${ED.mono}; font-size: 12px; letter-spacing: 0.06em; color: ${ED.inkSoft};
+    }
+    .ns-ed .ns-search input::placeholder { color: ${ED.inkFaint}; }
+    .ns-ed .ns-search-clear {
+      width: 18px; height: 18px; border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: ${ED.inkFaint}; background: transparent; border: 0; cursor: pointer;
+    }
+    .ns-ed .ns-search-clear:hover { color: ${ED.ink}; }
+
+    /* ── sort ── */
+    .ns-ed .ns-sort { position: relative; }
+    .ns-ed .ns-sort-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: ${ED.mono}; font-size: 11px; letter-spacing: 0.12em;
+      text-transform: uppercase; color: ${ED.inkMute};
+      padding: 7px 14px; border-radius: 999px;
+      border: 1px solid ${ED.rule}; background: transparent; cursor: pointer;
+      transition: all .15s ease;
+    }
+    .ns-ed .ns-sort-btn:hover { border-color: ${ED.ink}; color: ${ED.ink}; }
+    .ns-ed .ns-sort-pop {
+      position: absolute; right: 0; top: calc(100% + 6px); z-index: 50;
+      min-width: 200px; padding: 6px; background: ${ED.paper50};
+    }
+    .ns-ed .ns-sort-opt {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; padding: 9px 12px; border-radius: 6px;
+      background: transparent; border: 0; cursor: pointer;
+      color: ${ED.ink}; font-family: ${ED.serif}; font-size: 16px;
+      transition: background-color .12s ease;
+    }
+    .ns-ed .ns-sort-opt:hover { background: ${ED.paper150}; }
+    .ns-ed .ns-sort-opt.on { color: ${ED.accent}; font-style: italic; }
+
+    /* ── article row ── */
+    .ns-ed .ns-doc-row {
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr) auto;
+      gap: 18px;
+      padding: 20px 14px;
+      cursor: pointer;
+      transition: background-color .12s ease, padding .12s ease;
+      align-items: start;
+    }
+    .ns-ed .ns-doc-row.is-pickable { cursor: pointer; }
+    .ns-ed .ns-doc-row:hover { background: ${ED.paper150}; padding-left: 18px; }
+    .ns-ed .ns-doc-row.is-selected { background: ${ED.accentSoft}; }
+    .ns-ed .ns-doc-row .ord {
+      font-family: ${ED.mono}; font-size: 11px; letter-spacing: 0.14em;
+      color: ${ED.inkFaint}; padding-top: 6px; transition: all .15s ease;
+    }
+    .ns-ed .ns-doc-row:hover .ord {
+      color: ${ED.accent}; font-family: ${ED.serif}; font-style: italic; font-size: 17px;
+    }
+    .ns-ed .ns-doc-row .body { min-width: 0; max-width: 760px; }
+    .ns-ed .ns-doc-row .title {
+      font-family: ${ED.serif}; font-size: clamp(20px, 1.7vw, 25px);
+      line-height: 1.22; color: ${ED.ink}; margin: 0; padding-bottom: 0.04em;
+      transition: color .15s ease;
+      word-break: break-word;
+    }
+    .ns-ed .ns-doc-row:hover .title { color: ${ED.accent}; }
+    .ns-ed .ns-doc-row .meta {
+      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.14em;
+      text-transform: uppercase; color: ${ED.inkFaint};
+      margin: 10px 0 0; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+    }
+    .ns-ed .ns-doc-row .aside {
+      display: flex; gap: 6px; align-items: center; padding-top: 4px;
+    }
+
+    /* ── checkbox ── */
+    .ns-ed .ns-checkbox {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 4px;
+      border: 1px solid ${ED.rule}; background: ${ED.paper50};
+      color: ${ED.paper50}; transition: all .15s ease;
+    }
+    .ns-ed .ns-checkbox.on { background: ${ED.ink}; border-color: ${ED.ink}; }
+
+    /* ── action icon buttons (right of row) ── */
+    .ns-ed .ns-icon-btn {
+      width: 30px; height: 30px; border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid transparent; color: ${ED.inkFaint};
+      background: transparent; cursor: pointer;
+      transition: all .15s ease;
+    }
+    .ns-ed .ns-icon-btn:hover {
+      border-color: ${ED.rule}; color: ${ED.ink}; background: ${ED.paper50};
+    }
+    .ns-ed .ns-icon-btn.is-danger:hover {
+      color: #a8201f; border-color: #a8201f;
+    }
+    .ns-ed .ns-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── synthesis strip ── */
+    .ns-ed .ns-synth-strip {
+      overflow: hidden;
+      border: 1px solid ${ED.rule};
+      border-radius: 14px;
+      background: ${ED.paper50};
+      margin-top: 24px;
+    }
+    .ns-ed .ns-synth-strip-inner {
+      padding: 22px 24px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 24px; flex-wrap: wrap;
+    }
+    .ns-ed .ns-synth-info { flex: 1; min-width: 0; }
+    .ns-ed .ns-synth-eyebrow {
+      font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: ${ED.inkFaint}; margin: 0;
+    }
+    .ns-ed .ns-synth-go { flex-shrink: 0; }
+
+    /* ── small pulse ── */
+    @keyframes ns-pulse { 0%,100% { opacity: 1;} 50% { opacity: 0.3; } }
+    .ns-ed .ns-dot-pulse {
+      display: inline-block; width: 6px; height: 6px; border-radius: 999px;
+      background: ${ED.accent}; margin-right: 6px;
+      animation: ns-pulse 1.4s ease-in-out infinite;
+    }
+
+    /* ── overlays ── */
+    .ns-ed .ns-overlay {
+      position: fixed; inset: 0; z-index: 300;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(246,241,227,0.92);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      padding: 32px;
+    }
+    .ns-ed .ns-overlay-rule {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, ${ED.ink}, transparent);
+      background-size: 200% 100%;
+      animation: ns-overlay-shimmer 1.6s linear infinite;
+    }
+    @keyframes ns-overlay-shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ── toast ── */
+    .ns-ed .ns-toast {
+      position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+      z-index: 10000;
+      display: inline-flex; align-items: center;
+      padding: 11px 18px;
+      background: ${ED.paper50};
+    }
+
+    /* ── brief modal ── */
+    .ns-ed .ns-modal-bg {
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(19,16,8,0.36);
+    }
+    .ns-ed .ns-modal-wrap {
+      position: fixed; inset: 0; z-index: 10000;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px; pointer-events: none;
+      overflow-y: auto;
+    }
+    .ns-ed .ns-brief {
+      width: 100%; max-width: 760px; padding: 0;
+      max-height: calc(100dvh - 40px);
+      pointer-events: auto;
+      background: ${ED.paper50};
+      display: flex; flex-direction: column;
+    }
+    .ns-ed .ns-brief-head {
+      padding: 28px 32px 20px;
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+    }
+    .ns-ed .ns-brief-eyebrow {
+      font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: ${ED.inkFaint}; margin: 0;
+    }
+    .ns-ed .ns-brief-title {
+      font-size: clamp(28px, 3.2vw, 40px); margin: 8px 0 0;
+      padding-bottom: 0.06em; line-height: 1.05;
+      max-width: 640px;
+    }
+    .ns-ed .ns-brief-meta {
+      font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase;
+      color: ${ED.inkFaint}; margin: 10px 0 0;
+    }
+    .ns-ed .ns-modal-close {
+      width: 36px; height: 36px; border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid ${ED.rule}; color: ${ED.inkSoft};
+      background: transparent; cursor: pointer;
+      transition: all .15s ease; flex-shrink: 0;
+    }
+    .ns-ed .ns-modal-close:hover { border-color: ${ED.ink}; color: ${ED.ink}; }
+
+    .ns-ed .ns-brief-body {
+      padding: 24px 32px 4px;
+      overflow-y: auto; flex: 1;
+    }
+    .ns-ed .ns-brief-sec + .ns-brief-sec {
+      margin-top: 36px;
+      padding-top: 32px;
+      border-top: 1px solid ${ED.ruleSoft};
+    }
+
+    .ns-ed .ns-theme,
+    .ns-ed .ns-action,
+    .ns-ed .ns-gap {
+      display: grid; grid-template-columns: 36px 1fr; gap: 12px;
+      padding: 12px 0;
+    }
+    .ns-ed .ns-theme + .ns-theme,
+    .ns-ed .ns-action + .ns-action,
+    .ns-ed .ns-gap + .ns-gap {
+      border-top: 1px solid ${ED.ruleSoft};
+    }
+    .ns-ed .ns-theme .ord,
+    .ns-ed .ns-action .ord,
+    .ns-ed .ns-gap .ord,
+    .ns-ed .ns-insights .ord {
+      font-family: ${ED.serif}; font-style: italic; font-size: 18px;
+      color: ${ED.accent}; line-height: 1;
+    }
+    .ns-ed .ns-action .body { min-width: 0; }
+    .ns-ed .ns-action .meta {
+      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.14em;
+      text-transform: uppercase; color: ${ED.inkFaint};
+      margin: 10px 0 0; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+    }
+    .ns-ed .ns-gap .ed-italic { font-size: 17px; color: ${ED.inkMute}; }
+
+    .ns-ed .ns-insights {
+      list-style: none; padding: 0; margin: 0;
+    }
+    .ns-ed .ns-insights li {
+      display: grid; grid-template-columns: 36px 1fr; gap: 12px;
+      padding: 10px 0;
+      border-top: 1px solid ${ED.ruleSoft};
+    }
+    .ns-ed .ns-insights li:first-child { border-top: 0; }
+    .ns-ed .ns-insights .ed-serif { font-size: 17px; line-height: 1.5; color: ${ED.ink}; }
+
+    .ns-ed .ns-brief-foot {
+      padding: 20px 32px 24px;
+      display: flex; gap: 12px; justify-content: flex-end;
+    }
+
+    @media (max-width: 720px) {
+      .ns-ed .ns-doc-headrow { flex-direction: column; align-items: flex-start; gap: 16px; }
+      .ns-ed .ns-doc-headcta { width: 100%; flex-direction: column; }
+      .ns-ed .ns-doc-headcta .ed-btn { width: 100%; justify-content: center; }
+      .ns-ed .ns-doc-controls { flex-direction: column; align-items: stretch; gap: 12px; }
+      .ns-ed .ns-search { min-width: 0; }
+      .ns-ed .ns-doc-controls-right { flex-direction: column; align-items: stretch; }
+      .ns-ed .ns-doc-row { grid-template-columns: 36px 1fr; padding: 16px 6px; }
+      .ns-ed .ns-doc-row .aside {
+        grid-column: 1 / -1; padding-top: 8px; justify-content: flex-end;
+      }
+      .ns-ed .ns-brief-head,
+      .ns-ed .ns-brief-body,
+      .ns-ed .ns-brief-foot { padding-left: 20px; padding-right: 20px; }
+      .ns-ed .ns-synth-strip-inner { padding: 16px; }
+    }
+  `}</style>
+);

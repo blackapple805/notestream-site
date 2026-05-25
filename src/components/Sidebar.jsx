@@ -347,12 +347,17 @@ export default function Sidebar() {
     }
   };
 
-  /* CSS vars — preserves old `--ns-*` vars and also sets
+  /* CSS vars + body paint — preserves old `--ns-*` vars, sets
      `--app-content-top` so DashboardLayout's content padding tracks
-     the masthead height automatically (it was previously left to a
-     stylesheet to set; we set it here as a belt-and-suspenders fix). */
+     the masthead height, and paints <html>/<body> paper-100 while
+     the Sidebar is mounted so the dark `bg-theme-primary` from
+     DashboardLayout doesn't bleed into the side margins (the layout
+     centres content at max-width 1500px, so anything wider than
+     that previously showed the dark theme background through). */
   useEffect(() => {
     const root = document.documentElement;
+    const body = document.body;
+
     const applyVars = () => {
       const desk = window.matchMedia("(min-width: 768px)").matches;
       const top = desk ? DESKTOP_HEADER_H : MOBILE_HEADER_H;
@@ -366,6 +371,18 @@ export default function Sidebar() {
     const onChange = () => applyVars();
     if (mq.addEventListener) mq.addEventListener("change", onChange);
     else mq.addListener(onChange);
+
+    // Stash previous bg colors so we can restore on unmount
+    const prev = {
+      htmlBg: root.style.backgroundColor,
+      bodyBg: body.style.backgroundColor,
+      bodyColor: body.style.color,
+    };
+    // Editorial paper across the whole viewport
+    root.style.backgroundColor = "#f6f1e3";       // paper-100
+    body.style.backgroundColor = "#f6f1e3";
+    body.style.color = "#131008";                 // ink
+
     return () => {
       if (mq.removeEventListener) mq.removeEventListener("change", onChange);
       else mq.removeListener(onChange);
@@ -373,6 +390,9 @@ export default function Sidebar() {
       root.style.removeProperty("--mobile-nav-height");
       root.style.removeProperty("--ns-mobile-header-h");
       root.style.removeProperty("--app-content-top");
+      root.style.backgroundColor = prev.htmlBg;
+      body.style.backgroundColor = prev.bodyBg;
+      body.style.color = prev.bodyColor;
     };
   }, []);
 
