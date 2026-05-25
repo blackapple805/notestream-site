@@ -4,8 +4,7 @@ import { useMemo, useState, useCallback } from "react";
 import { FiArrowLeft } from "react-icons/fi";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { consumeAiUsage } from "../lib/usage";
-
-const EVENTS_TABLE = "activity_events";
+import { logActivityEvent } from "../lib/activityEvents";
 
 export default function RewriteDocument({ docs = [] }) {
   const { id } = useParams();
@@ -23,25 +22,7 @@ export default function RewriteDocument({ docs = [] }) {
     const { data, error } = await supabase.auth.getUser();
     if (error) return null;
     return data?.user ?? null;
-  }, [supabaseReady]);
-
-  const logActivity = useCallback(
-    async (userId, metadata = {}) => {
-      if (!supabaseReady || !supabase || !userId) return;
-      try {
-        await supabase.from(EVENTS_TABLE).insert({
-          user_id: userId,
-          event_type: "ai_used",
-          entity_id: doc?.id || null,
-          metadata,
-          title: "Rewrite document",
-        });
-      } catch {
-        // silent
-      }
-    },
-    [supabaseReady, doc?.id]
-  );
+  }, []);
 
   const handleRewrite = async (nextMode) => {
     if (!doc) return;
@@ -52,9 +33,22 @@ export default function RewriteDocument({ docs = [] }) {
     setOutput("");
 
     try {
-      // ✅ Consume BEFORE request (prevents bypass)
-      // If your lib/usage expects snake_case keys for the DB RPC:
-      await consumeAiUsage("insight_queries");
+      // Authenticate first — we need the userId for usage tracking + activity log.
+      const user = await getAuthedUser();
+
+      // Enforce daily limit BEFORE doing the work.
+      // "document_synth" is the right bucket for document rewrites;
+      // the previous code passed "insight_queries" AND omitted userId,
+      // which made the call a no-op (consumeAiUsage returns early on missing args).
+      if (user?.id) {
+        const usageRes = await consumeAiUsage(user.id, "document_synth", 1);
+        if (!usageRes?.success || usageRes?.limitReached) {
+          setError(
+            "Daily limit reached for AI actions. Upgrade your plan or try again tomorrow."
+          );
+          return;
+        }
+      }
 
       // Replace this mock with your real AI call later
       await new Promise((r) => setTimeout(r, 900));
@@ -67,17 +61,21 @@ export default function RewriteDocument({ docs = [] }) {
 
       setOutput(rewrites[nextMode] || "Rewritten content will appear here.");
 
-      const user = await getAuthedUser();
       if (user?.id) {
-        await logActivity(user.id, {
-          feature: "rewrite_document",
-          mode: nextMode,
-          doc_id: doc.id,
-          doc_name: doc.name,
+        await logActivityEvent({
+          userId: user.id,
+          eventType: "ai_used",
+          entityId: doc?.id || null,
+          metadata: {
+            feature: "rewrite_document",
+            mode: nextMode,
+            doc_id: doc.id,
+            doc_name: doc.name,
+          },
+          title: "Rewrite document",
         });
       }
     } catch (e) {
-      // If consumeAiUsage throws on limit reached, show a clean message
       const msg = String(e?.message || "");
       if (msg.toLowerCase().includes("limit")) {
         setError("Daily limit reached for AI actions. Upgrade your plan or try again tomorrow.");

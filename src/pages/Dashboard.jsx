@@ -43,6 +43,7 @@ import {
 } from "@phosphor-icons/react";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
+import { toLocalYMD, parseYMDToDate, diffDaysLocal } from "../lib/formatDate";
 
 /* ─── DB constants (unchanged) ─── */
 const TAG_RESEARCH_BRIEF = "ai:research_brief";
@@ -68,27 +69,6 @@ const getGreeting = () => {
   if (h < 12) return "Good morning";
   if (h < 18) return "Good afternoon";
   return "Good evening";
-};
-
-const toLocalYMD = (d = new Date()) => {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-};
-
-const parseYMDToDate = (ymd) => {
-  const [y, m, d] = String(ymd).split("-").map((n) => Number(n));
-  if (!y || !m || !d) return null;
-  return new Date(y, m - 1, d);
-};
-
-const diffDaysLocal = (aYmd, bYmd) => {
-  const a = parseYMDToDate(aYmd);
-  const b = parseYMDToDate(bYmd);
-  if (!a || !b) return null;
-  const ms = b.getTime() - a.getTime();
-  return Math.floor(ms / (24 * 60 * 60 * 1000));
 };
 
 const ensureUserStatsRow = async (userId, fallbackName = null) => {

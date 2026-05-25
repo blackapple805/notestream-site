@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { createSpeechRecognizer, processTranscription } from "../lib/voiceAI";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
+import { formatTimer } from "../lib/formatDate";
 import {
   MicrophoneIcon as Microphone,
   StopIcon as Stop,
@@ -141,9 +142,6 @@ export default function VoiceNotes() {
   const audioElRef = useRef(null);
 
   // ─── Helpers ────────────────────────────────────────────────
-  const fmt = (s) =>
-    `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
-
   const fmtRelative = (date) => {
     const d = date instanceof Date ? date : new Date(date);
     const diff = Math.floor((Date.now() - d) / 60000);
@@ -741,7 +739,7 @@ export default function VoiceNotes() {
                 className="text-4xl font-mono font-light mb-1 tabular-nums"
                 style={{ color: "var(--text-primary)" }}
               >
-                {fmt(recordingTime)}
+                {formatTimer(recordingTime)}
               </div>
 
               {/* Live text */}
@@ -1030,7 +1028,7 @@ export default function VoiceNotes() {
             { label: "Recordings", value: recordings.length },
             {
               label: "Total Time",
-              value: fmt(recordings.reduce((a, r) => a + (r.duration || 0), 0)),
+              value: formatTimer(recordings.reduce((a, r) => a + (r.duration || 0), 0)),
             },
             {
               label: "Words",
@@ -1142,7 +1140,7 @@ export default function VoiceNotes() {
                             {r.title}
                           </p>
                           <div className="flex items-center gap-1.5 text-[10px]" style={{ color: "var(--text-muted)" }}>
-                            <span>{fmt(r.duration || 0)}</span>
+                            <span>{formatTimer(r.duration || 0)}</span>
                             <span>·</span>
                             <span>{fmtRelative(r.createdAt)}</span>
                             {r.audioUrl && (
@@ -1280,7 +1278,7 @@ export default function VoiceNotes() {
 
                     <div className="flex items-center gap-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
                       <Clock size={13} />
-                      <span>{fmt(recordingTime)}</span>
+                      <span>{formatTimer(recordingTime)}</span>
                       {aiPayload?.category && (
                         <>
                           <span>·</span>

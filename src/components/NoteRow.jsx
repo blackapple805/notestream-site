@@ -13,29 +13,9 @@ import {
   FiMic,
   FiMoreVertical,
 } from "react-icons/fi";
+import { formatRelative } from "../lib/formatDate";
 
 /* -------------------- Utils -------------------- */
-
-const formatRelative = (date) => {
-  if (!date) return "";
-
-  const diffMs = Date.now() - new Date(date);
-  const diffMins = Math.floor(diffMs / (1000 * 60));
-  const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  const isFR = navigator.language?.startsWith("fr");
-
-  if (diffMins < 1) return isFR ? "À l'instant" : "Just now";
-  if (diffHrs < 1) return isFR ? `${diffMins} min` : `${diffMins}m ago`;
-  if (diffDays < 1) return isFR ? `${diffHrs} h` : `${diffHrs}h ago`;
-  if (diffDays < 7) return isFR ? `il y a ${diffDays} j` : `${diffDays}d ago`;
-
-  return new Date(date).toLocaleDateString(navigator.language || "en-US", {
-    month: "short",
-    day: "numeric",
-  });
-};
 
 const getNoteType = (note) => {
   if (note.fileType === "pdf")

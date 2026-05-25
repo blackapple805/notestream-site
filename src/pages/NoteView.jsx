@@ -22,6 +22,7 @@ import { useNavigate } from "react-router-dom";
 import { useSubscription } from "../hooks/useSubscription";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { logActivityEvent } from "../lib/activityEvents";
+import { toLocalYMD, parseYMDToDate, diffDaysLocal } from "../lib/formatDate";
 
 const USER_STATS_TABLE = "user_engagement_stats";
 
@@ -138,27 +139,6 @@ export default function NoteView({
   const isUuid = (v) =>
     typeof v === "string" &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-
-  const toLocalYMD = (d = new Date()) => {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-  };
-
-  const parseYMDToDate = (ymd) => {
-    const [y, m, d] = String(ymd || "").split("-").map((n) => Number(n));
-    if (!y || !m || !d) return null;
-    return new Date(y, m - 1, d);
-  };
-
-  const diffDaysLocal = (aYmd, bYmd) => {
-    const a = parseYMDToDate(aYmd);
-    const b = parseYMDToDate(bYmd);
-    if (!a || !b) return null;
-    const ms = b.getTime() - a.getTime();
-    return Math.floor(ms / (24 * 60 * 60 * 1000));
-  };
 
   const trackAiUseDb = async () => {
     if (!supabaseReady || !supabase) return;

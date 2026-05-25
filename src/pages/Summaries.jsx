@@ -28,10 +28,10 @@ import {
 import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { consumeAiUsage } from "../lib/usage";
 import { queryInsight } from "../lib/insightAI";
+import { logActivityEvent } from "../lib/activityEvents";
 
 const DOCS_TABLE = "documents";
 const NOTES_TABLE = "notes";
-const EVENTS_TABLE = "activity_events";
 
 const exampleQuestions = [
   "What were the key action items from last week's meeting?",
@@ -223,9 +223,14 @@ export default function Summaries() {
   }, [supabaseReady]);
 
   const logActivity = useCallback(async (userId, metadata = {}) => {
-    if (!supabaseReady || !supabase || !userId) return;
-    try { await supabase.from(EVENTS_TABLE).insert({ user_id: userId, event_type: "ai_used", entity_id: null, metadata, title: "Insight Explorer query" }); } catch {}
-  }, [supabaseReady]);
+    if (!userId) return;
+    await logActivityEvent({
+      userId,
+      eventType: "ai_used",
+      metadata,
+      title: "Insight Explorer query",
+    });
+  }, []);
 
   // Load workspace files
   useEffect(() => {

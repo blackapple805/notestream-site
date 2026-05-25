@@ -1,76 +1,8 @@
 // src/lib/insightAI.js
 // ✅ AI Insight Explorer — calls insight-query edge function
-// ✅ Uses plain fetch() to avoid CORS issues
 // ✅ Graceful fallback to local mock responses when AI is unavailable
 
-import { supabase } from "./supabaseClient";
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// ─── Auth helper ───────────────────────────────────────────────
-
-async function getAuthToken() {
-  let token = null;
-
-  if (supabase) {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.access_token) token = session.access_token;
-    } catch {
-      // ignore
-    }
-
-    if (!token) {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.refreshSession();
-        if (session?.access_token) token = session.access_token;
-      } catch {
-        // ignore
-      }
-    }
-  }
-
-  return token || SUPABASE_ANON_KEY;
-}
-
-// ─── Edge function caller ──────────────────────────────────────
-
-async function callEdgeFunction(payload) {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    throw new Error("Supabase not configured");
-  }
-
-  const authToken = await getAuthToken();
-
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/insight-query`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        "Content-Type": "application/json",
-        apikey: SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "Unknown error");
-    throw new Error(`Edge function failed (${response.status}): ${errText}`);
-  }
-
-  const data = await response.json();
-  if (!data) throw new Error("Empty response");
-  if (data.fallback) throw new Error(data.error || "AI unavailable");
-
-  return data;
-}
+import { callEdgeFunction } from "./edgeFunctions";
 
 // ─── Local fallback ────────────────────────────────────────────
 
@@ -170,7 +102,7 @@ export async function queryInsight(
         content: m.content || "",
       }));
 
-    const result = await callEdgeFunction({
+    const result = await callEdgeFunction("insight-query", {
       query,
       context: context.length > 0 ? context : undefined,
       conversationHistory: history.length > 0 ? history : undefined,

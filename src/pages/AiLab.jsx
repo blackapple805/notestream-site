@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { createSpeechRecognizer, processTranscription } from "../lib/voiceAI";
 import { loadStoredProfile, getProfileSummary } from "../lib/writingProfileAI";
+import { formatTimer } from "../lib/formatDate";
 import {
   CrownIcon as Crown,
   LightningIcon as Lightning,
@@ -964,7 +965,7 @@ function VoiceNotesDemo() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); if (waveformRef.current) clearInterval(waveformRef.current); };
   }, [isRecording]);
 
-  const formatTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+  const formatTime = formatTimer;
 
   const handleToggleRecording = () => {
     if (isRecording) {

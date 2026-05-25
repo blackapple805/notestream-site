@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { detectDevice } from "../lib/deviceDetect";
+import { formatTimer } from "../lib/formatDate";
 import {
   CloudArrowUpIcon as CloudArrowUp,
   CloudArrowDownIcon as CloudArrowDown,
@@ -367,8 +368,6 @@ export default function CloudSync() {
     return date.toLocaleDateString();
   };
 
-  const fmtExpiry = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
-
   const deviceIcon = (t) => t === "mobile" ? DeviceMobile : t === "tablet" ? DeviceTablet : Desktop;
 
   const statusStyle = (s) => {
@@ -682,7 +681,7 @@ export default function CloudSync() {
 
                     <div className="flex items-center justify-center gap-2 mt-3 text-[10px]" style={{ color: "var(--text-muted)" }}>
                       <Clock size={12} />
-                      <span>Expires in <span style={{ color: qrExpiry < 60 ? "#f59e0b" : "#38bdf8", fontWeight: 600 }}>{fmtExpiry(qrExpiry)}</span></span>
+                      <span>Expires in <span style={{ color: qrExpiry < 60 ? "#f59e0b" : "#38bdf8", fontWeight: 600 }}>{formatTimer(qrExpiry)}</span></span>
                     </div>
 
                     {qrExpiry < 60 && (

@@ -6,13 +6,11 @@
 
 import { supabase, supabaseReady } from "./supabaseClient";
 import { consumeAiUsage } from "./usage";
+import { callEdgeFunction } from "./edgeFunctions";
 
 const NOTES_TABLE = "notes";
 const MIN_CHARS_FOR_AUTO = 20;
 const COOLDOWN_MS = 30_000;
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // In-memory cooldown tracker (noteId -> timestamp)
 const lastAnalyzed = new Map();
@@ -49,7 +47,10 @@ export async function analyzeNote({ noteId, userId, title, body, isManual = fals
   // 2) Run analysis (Edge → fallback)
   let raw;
   try {
-    raw = await callEdgeFunction({ title, body });
+    raw = await callEdgeFunction("analyze-note", {
+      title: title || "Untitled",
+      body: body || "",
+    });
   } catch (err) {
     console.warn("Edge unavailable, using local analysis:", err);
     raw = generateLocalAnalysis({ title, body });
@@ -114,71 +115,7 @@ export async function analyzeNote({ noteId, userId, title, body, isManual = fals
   return aiPayload;
 }
 
-// ✅ Plain fetch() to bypass Supabase JS SDK adding x-supabase-client-platform header
-async function callEdgeFunction({ title, body }) {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    throw new Error("Supabase not configured");
-  }
-
-  // Get a valid auth token
-  let authToken = null;
-  if (supabase) {
-    try {
-      // Try getSession first
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        authToken = session.access_token;
-      }
-    } catch {
-      // ignore
-    }
-
-    // If no session, try refreshing
-    if (!authToken) {
-      try {
-        const { data: { session } } = await supabase.auth.refreshSession();
-        if (session?.access_token) {
-          authToken = session.access_token;
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }
-
-  // Fall back to anon key only if no user token available
-  if (!authToken) {
-    authToken = SUPABASE_ANON_KEY;
-  }
-
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/analyze-note`,
-    {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${authToken}`,
-        "Content-Type": "application/json",
-        "apikey": SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({
-        title: title || "Untitled",
-        body: body || "",
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "Unknown error");
-    throw new Error(`Edge function failed (${response.status}): ${errText}`);
-  }
-
-  const data = await response.json();
-
-  if (!data) throw new Error("Empty response from Edge Function");
-  if (data.fallback) throw new Error(data.error || "AI unavailable");
-
-  return data;
-}
+// ─── Result normalization ──────────────────────────────────────
 
 function normalizeAnalysis(data) {
   const smartHighlights = Array.isArray(data?.SmartHighlights) ? data.SmartHighlights : null;
