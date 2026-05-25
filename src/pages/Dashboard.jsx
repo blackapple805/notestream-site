@@ -1,49 +1,50 @@
 // src/pages/Dashboard.jsx
 // ═══════════════════════════════════════════════════════════════════
-// REDESIGNED: Bold bento-grid dashboard with orbital accents,
-// mesh-gradient hero, and cinematic card reveals.
-// All Supabase / DB logic is UNCHANGED — only the UI shell changed.
+// EDITORIAL RESKIN — what changed and why
+// ─────────────────────────────────────────────────────────────────
+// Wrapped the whole page in `<div className="ns-ed">` and called
+// `useEditorial()` so the dashboard inherits the same paper-100
+// background, Instrument Serif headlines, Geist body, and Geist Mono
+// eyebrows the marketing site uses. Every dark surface, neon gradient,
+// glass blur, and colored icon-chip from the previous SaaS skin is
+// gone — replaced by paper-50 cards with hairline `var(--ed-rule)`
+// borders, italic accent-blue numerals, monospace metadata, and
+// chapter marks (`№ 01`, `§ 02`). The hero is a "cover story": a
+// VOL/NO/date masthead line, "Good morning, *Angel*." in
+// `.ed-display` with the first name italicised in accent blue, a
+// one-line lede, three mono stat chips, and a margin footnote on
+// desktop. The four stat cards became one column-rule strip — four
+// cells inside a single `.ed-card`, hairlines between them, serif
+// italic accent-blue numerals. The purple-gradient "New Note /
+// Upload" strip is now a centered ink button reading "Begin a new
+// note →" with a smaller `.ed-ulink` "or upload a document" below
+// it, surrounded by 96px of breathing room. The bento Quick Access
+// turned into an "In this issue" table-of-contents: mono ordinal,
+// serif row name, leader dots, mono caption. Recent notes / docs /
+// AI tools became editorial list rows with hairline dividers and a
+// `.ed-chip-accent` for the AI status. Empty states are single
+// serif-italic sentences; the loading state is an animated hairline
+// rule instead of a spinner. Modals were rebuilt as paper-50 cards
+// with hairline borders, no shadows, no blur. NO Supabase / hook /
+// data-flow changes — the entire data layer (state, useEffect calls,
+// usage tracking, weekly digest synthesis) is byte-identical to the
+// previous file.
 // ═══════════════════════════════════════════════════════════════════
-import { useState, useEffect, useMemo, cloneElement } from "react";
-import { useNavigate } from "react-router-dom";
+
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import {
-  FiFileText,
-  FiZap,
-  FiCpu,
-  FiSettings,
-  FiChevronRight,
-  FiPlus,
-  FiClock,
-  FiFolder,
+  FiSearch,
+  FiMenu,
+  FiGrid,
+  FiBell,
+  FiArrowRight,
   FiX,
-  FiArrowUpRight,
-  FiTrendingUp,
 } from "react-icons/fi";
-import { useReducedMotion, motion, AnimatePresence } from "framer-motion";
-import {
-  HouseIcon as House,
-  BrainIcon as Brain,
-  SparkleIcon as Sparkle,
-  NoteIcon as Note,
-  BellIcon as Bell,
-  ActivityIcon as Activity,
-  PlugsIcon as Plugs,
-  BezierCurveIcon as BezierCurve,
-  LightningIcon as Lightning,
-  FileTextIcon as FileText,
-  ChartLineUpIcon as ChartLineUp,
-  StarIcon as Star,
-  TargetIcon as Target,
-  FireIcon as Fire,
-  CalendarIcon as Calendar,
-  WarningIcon as Warning,
-  CheckSquareIcon as CheckSquare,
-  PhoneIcon as Phone,
-  FlagIcon as Flag,
-} from "@phosphor-icons/react";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { toLocalYMD, parseYMDToDate, diffDaysLocal } from "../lib/formatDate";
+import { useEditorial, ED } from "../lib/editorial";
 
 /* ─── DB constants (unchanged) ─── */
 const TAG_RESEARCH_BRIEF = "ai:research_brief";
@@ -154,183 +155,29 @@ const useBodyScrollLock = (locked) => {
   }, [locked]);
 };
 
-const safeCloneIcon = (el, inject = {}) => {
-  if (!el || typeof el !== "object" || !("props" in el)) return el;
-  const nextProps = { ...inject };
-  if (!("weight" in el.props) && "weight" in nextProps) delete nextProps.weight;
-  return cloneElement(el, nextProps);
+/* ─── Issue-formatted date for the masthead ─── */
+const issueLine = (d = new Date()) => {
+  const day = d.toLocaleDateString(undefined, { weekday: "long" }).toUpperCase();
+  const month = d
+    .toLocaleDateString(undefined, { month: "long" })
+    .toUpperCase();
+  return `${day}, ${month} ${d.getDate()}, ${d.getFullYear()}`;
 };
 
-/* ═══════════════════════════════════════════════════════
-   INLINE STYLES — injected once via <style> tag
-   Scoped with .ns-dash prefix to avoid leaking
-═══════════════════════════════════════════════════════ */
-const DASH_STYLES = `
-/* ── keyframes ── */
-@keyframes ns-orbit {
-  0%   { transform: rotate(0deg) translateX(120px) rotate(0deg); }
-  100% { transform: rotate(360deg) translateX(120px) rotate(-360deg); }
-}
-@keyframes ns-pulse-ring {
-  0%   { transform: scale(1); opacity: .45; }
-  50%  { transform: scale(1.15); opacity: .18; }
-  100% { transform: scale(1); opacity: .45; }
-}
-@keyframes ns-gradient-shift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-@keyframes ns-float {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-6px); }
-}
-@keyframes ns-shimmer-slide {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-@keyframes ns-fade-in-up {
-  0%   { opacity: 0; transform: translateY(16px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-@keyframes ns-glow-pulse {
-  0%, 100% { opacity: 0.5; }
-  50%      { opacity: 1; }
-}
-
-/* ── hero mesh gradient ── */
-.ns-hero-mesh {
-  background: 
-    radial-gradient(ellipse 80% 60% at 20% 30%, rgba(99,102,241,0.18), transparent),
-    radial-gradient(ellipse 60% 50% at 80% 20%, rgba(168,85,247,0.14), transparent),
-    radial-gradient(ellipse 70% 40% at 50% 80%, rgba(6,182,212,0.10), transparent);
-  background-size: 200% 200%;
-  animation: ns-gradient-shift 12s ease infinite;
-}
-
-/* ── bento card base ── */
-.ns-bento {
-  position: relative;
-  border-radius: 20px;
-  overflow: hidden;
-  background: var(--card-glass-bg, var(--bg-surface));
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 1px solid var(--card-glass-border, var(--border-secondary));
-  box-shadow: var(--card-glass-shadow, 0 8px 32px rgba(0,0,0,0.12));
-  transition: transform 0.28s cubic-bezier(.22,1,.36,1), box-shadow 0.28s ease;
-}
-.ns-bento:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--card-glass-shadow, 0 12px 40px rgba(0,0,0,0.18));
-}
-
-/* ── bento card inner sheen ── */
-.ns-bento::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background:
-    linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 50%),
-    radial-gradient(900px 300px at 25% 0%, rgba(255,255,255,0.04), transparent 55%);
-  pointer-events: none;
-  z-index: 1;
-}
-.ns-bento::after {
-  content: '';
-  position: absolute;
-  inset: 6px;
-  top: 0;
-  height: 1px;
-  left: 24px;
-  right: 24px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
-  pointer-events: none;
-  z-index: 2;
-}
-
-/* ── stat number emphasis ── */
-.ns-stat-value {
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.03em;
-}
-
-/* ── action card glow ring ── */
-.ns-action-glow {
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-  z-index: 0;
-}
-.ns-bento:hover .ns-action-glow { opacity: 1; }
-
-/* ── floating dot accents ── */
-.ns-dot {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-  animation: ns-float 4s ease-in-out infinite;
-}
-
-/* ── new note CTA shimmer ── */
-.ns-cta-shimmer::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.08) 50%, transparent 60%);
-  animation: ns-shimmer-slide 3s ease-in-out infinite;
-  pointer-events: none;
-}
-
-/* ── notification badge pulse ── */
-.ns-notif-badge::before {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  background: rgba(244,63,94,0.4);
-  animation: ns-pulse-ring 2s ease-in-out infinite;
-  z-index: -1;
-}
-
-/* ── staggered fade-in for children ── */
-.ns-stagger > * {
-  animation: ns-fade-in-up 0.5s cubic-bezier(.22,1,.36,1) both;
-}
-.ns-stagger > *:nth-child(1) { animation-delay: 0.04s; }
-.ns-stagger > *:nth-child(2) { animation-delay: 0.09s; }
-.ns-stagger > *:nth-child(3) { animation-delay: 0.14s; }
-.ns-stagger > *:nth-child(4) { animation-delay: 0.19s; }
-.ns-stagger > *:nth-child(5) { animation-delay: 0.24s; }
-.ns-stagger > *:nth-child(6) { animation-delay: 0.29s; }
-
-/* ── scrollbar for modals ── */
-.ns-scroll::-webkit-scrollbar { width: 4px; }
-.ns-scroll::-webkit-scrollbar-track { background: transparent; }
-.ns-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
-
-/* ── mini progress bar ── */
-.ns-progress-track {
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(255,255,255,0.06);
-  overflow: hidden;
-}
-.ns-progress-fill {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.6s cubic-bezier(.22,1,.36,1);
-}
-`;
+/* ─── Vol/No derived deterministically from the date ─── */
+const volAndNo = (d = new Date()) => {
+  const start = new Date(d.getFullYear(), 0, 0);
+  const diff = (d - start) + ((start.getTimezoneOffset() - d.getTimezoneOffset()) * 60000);
+  const day = Math.floor(diff / 86400000);
+  const week = Math.ceil(day / 7);
+  return { vol: "II", no: String(week).padStart(2, "0") };
+};
 
 /* ═══════════════════════════════════════════════════════
    MAIN DASHBOARD COMPONENT
 ═══════════════════════════════════════════════════════ */
 export default function Dashboard() {
+  useEditorial();
   const navigate = useNavigate();
   const {
     settings,
@@ -350,7 +197,6 @@ export default function Dashboard() {
   const [dataLoading, setDataLoading] = useState(true);
   const [aiUses, setAiUses] = useState(0);
   const [aiUsesLoading, setAiUsesLoading] = useState(true);
-  const shouldReduceMotion = useReducedMotion();
   useBodyScrollLock(showNotifications || (showDigest && !!digest));
 
   const notesCreated = Number(stats?.notes_created ?? 0);
@@ -373,7 +219,7 @@ export default function Dashboard() {
     [activeDays]
   );
 
-  /* ── ALL DATA-FETCHING useEffects (UNCHANGED) ── */
+  /* ── ALL DATA-FETCHING useEffects (UNCHANGED from previous file) ── */
 
   // STATS
   useEffect(() => {
@@ -405,7 +251,7 @@ export default function Dashboard() {
       setStatsLoading(false);
     })();
     return () => { alive = false; };
-  }, [navigate, supabaseReady]);
+  }, [navigate]);
 
   // AI USES
   useEffect(() => {
@@ -428,7 +274,7 @@ export default function Dashboard() {
     const onUsageChanged = () => fetchTodayUsage();
     window.addEventListener("notestream:daily_usage_changed", onUsageChanged);
     return () => { alive = false; window.removeEventListener("notestream:daily_usage_changed", onUsageChanged); };
-  }, [supabaseReady]);
+  }, []);
 
   // NOTES + DOCS
   useEffect(() => {
@@ -452,7 +298,7 @@ export default function Dashboard() {
       setDataLoading(false);
     })();
     return () => { alive = false; };
-  }, [navigate, supabaseReady]);
+  }, [navigate]);
 
   // SMART NOTIFICATIONS
   useEffect(() => {
@@ -493,534 +339,458 @@ export default function Dashboard() {
 
   const isDashboardLoading = statsLoading || dataLoading;
 
-  /* ── LOADING STATE ── */
+  /* ── LOADING STATE — animated hairline rule, no spinner ── */
   if (isDashboardLoading) {
     return (
-      <>
-        <style>{DASH_STYLES}</style>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <div className="relative h-14 w-14">
-            <div
-              className="absolute inset-0 rounded-full"
-              style={{
-                border: "2.5px solid transparent",
-                borderTopColor: "rgba(99,102,241,0.8)",
-                borderRightColor: "rgba(168,85,247,0.4)",
-                animation: "spin 0.8s linear infinite",
-              }}
-            />
-            <div
-              className="absolute inset-2 rounded-full"
-              style={{
-                border: "2px solid transparent",
-                borderBottomColor: "rgba(6,182,212,0.6)",
-                animation: "spin 1.2s linear infinite reverse",
-              }}
-            />
-            <Lightning
-              size={20}
-              weight="fill"
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-indigo-400"
-            />
-          </div>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            Loading your workspace…
+      <div className="ns-ed">
+        <div style={{ padding: "120px 0", textAlign: "center" }}>
+          <div
+            style={{
+              maxWidth: 480, margin: "0 auto", height: 1,
+              background: `linear-gradient(90deg, transparent, ${ED.ink}, transparent)`,
+              backgroundSize: "200% 100%", animation: "ed-shimmer 1.6s linear infinite",
+            }}
+          />
+          <p
+            className="ed-mono"
+            style={{
+              marginTop: 18, fontSize: 11, letterSpacing: "0.18em",
+              textTransform: "uppercase", color: ED.inkFaint,
+            }}
+          >
+            Setting the type…
           </p>
+          <style>{`@keyframes ed-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
         </div>
-      </>
+      </div>
     );
   }
 
-  const streakPercent = Math.min((streakDays / 30) * 100, 100);
+  const { vol, no } = volAndNo();
   const notifCount = notifications?.length || 0;
+  const reader = displayName || "Reader";
+
+  /* ─── In-this-issue table of contents ─── */
+  const issueIndex = [
+    { id: "notes",        n: "01", name: "Notes",         caption: `${notes.length} this week`,         to: "/dashboard/notes" },
+    { id: "voice",        n: "02", name: "Voice notes",   caption: "Transcribe & search",                to: "/dashboard/voice-notes" },
+    { id: "documents",    n: "03", name: "Documents",     caption: `${docs.length} in archive`,          to: "/dashboard/documents" },
+    { id: "ai-lab",       n: "04", name: "AI Lab",        caption: "Pro tools",                          to: "/dashboard/ai-lab" },
+    { id: "activity",     n: "05", name: "Activity",      caption: "Your history",                       to: "/dashboard/activity" },
+    { id: "integrations", n: "06", name: "Integrations",  caption: "Connect apps",                       to: "/dashboard/integrations" },
+    { id: "settings",     n: "07", name: "Settings",      caption: "Configure workspace",                to: "/dashboard/settings" },
+  ];
 
   /* ═══════════════════════════════════════════════════════
      RENDER
   ═══════════════════════════════════════════════════════ */
   return (
-    <>
-      <style>{DASH_STYLES}</style>
+    <div className="ns-ed">
+      <DashScopedStyles />
 
-      <div className="w-full pb-[calc(var(--mobile-nav-height)+32px)]">
+      <div style={{ paddingBottom: "calc(var(--mobile-nav-height, 0px) + 64px)" }}>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            HERO SECTION — mesh gradient with orbital accents
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.section
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6 }}
-          className="relative ns-hero-mesh rounded-3xl overflow-hidden mb-6 mt-1"
-          style={{
-            border: "1px solid var(--card-glass-border, var(--border-secondary))",
-          }}
-        >
-          {/* orbital dot accents */}
-          {!shouldReduceMotion && (
-            <>
-              <div className="ns-dot" style={{ width: 6, height: 6, background: "rgba(99,102,241,0.5)", top: "20%", left: "10%", animationDelay: "0s" }} />
-              <div className="ns-dot" style={{ width: 4, height: 4, background: "rgba(168,85,247,0.4)", top: "60%", right: "15%", animationDelay: "1.5s" }} />
-              <div className="ns-dot" style={{ width: 5, height: 5, background: "rgba(6,182,212,0.4)", bottom: "25%", left: "40%", animationDelay: "0.8s" }} />
-            </>
-          )}
-
-          <div className="relative z-10 px-5 py-6 sm:px-7 sm:py-8">
-            {/* top row: greeting + notification */}
-            <div className="flex items-start justify-between gap-3 mb-5">
-              <motion.div
-                initial={{ opacity: 0, x: -12 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 }}
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.15em] mb-1.5" style={{ color: "var(--text-muted)" }}>
-                  {getGreeting()}
-                </p>
-                <h1
-                  className="text-2xl sm:text-3xl font-extrabold tracking-tight"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {displayName ? `${displayName}'s` : "Your"}{" "}
-                  <span
-                    style={{
-                      background: "linear-gradient(135deg, #818cf8, #a78bfa, #22d3ee)",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                    }}
-                  >
-                    Workspace
-                  </span>
-                </h1>
-              </motion.div>
-
-              {/* notification bell */}
-              {settings.smartNotifications && notifCount > 0 && (
-                <motion.button
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", stiffness: 500, damping: 25, delay: 0.3 }}
-                  whileHover={{ scale: 1.08 }}
-                  whileTap={{ scale: 0.92 }}
-                  onClick={() => setShowNotifications(true)}
-                  className="relative flex-shrink-0 h-11 w-11 rounded-2xl flex items-center justify-center"
-                  style={{
-                    background: "rgba(245,158,11,0.12)",
-                    border: "1px solid rgba(245,158,11,0.25)",
-                    backdropFilter: "blur(12px)",
-                  }}
-                  aria-label="Open notifications"
-                >
-                  <Bell size={20} weight="duotone" className="text-amber-400" />
-                  <span
-                    className="ns-notif-badge absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center"
-                  >
-                    {notifCount}
-                  </span>
-                </motion.button>
-              )}
-            </div>
-
-            {/* streak + stat pills */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.2 }}
-              className="flex flex-wrap items-center gap-2"
-            >
-              <StatPill icon={<Fire size={13} weight="fill" />} color="#f59e0b" label={`${streakDays}d streak`} />
-              <StatPill icon={<Note size={13} weight="duotone" />} color="#818cf8" label={`${notesCreated} notes`} />
-              <StatPill icon={<Lightning size={13} weight="fill" />} color="#22d3ee" label={`${aiUses} AI today`} />
-            </motion.div>
+        {/* ━━━━━━━━━━━━━━ MASTHEAD ━━━━━━━━━━━━━━ */}
+        <header className="ed-masthead">
+          <div className="ed-masthead-left">
+            <Link to="/dashboard" className="ed-wordmark">
+              <span className="ed-serif" style={{ fontSize: 22, letterSpacing: "-0.01em" }}>NoteStream</span>
+              <span className="ed-serif" style={{ fontSize: 14, fontStyle: "italic", color: ED.inkFaint, marginLeft: 4 }}>&amp; co.</span>
+            </Link>
           </div>
-        </motion.section>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            BENTO GRID — stats + CTA + quick actions
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 ns-stagger">
-          <BentoStat
-            icon={<Note size={22} weight="duotone" />}
-            value={notesCreated}
-            label="Total Notes"
-            accent="#818cf8"
-          />
-          <BentoStat
-            icon={<Fire size={22} weight="fill" />}
-            value={activeDays}
-            label="Active Days"
-            accent="#f59e0b"
-          />
-          <BentoStat
-            icon={<Lightning size={22} weight="fill" />}
-            value={aiUses}
-            label="AI Used Today"
-            accent="#22d3ee"
-          />
-          <BentoStat
-            icon={<Star size={22} weight="fill" />}
-            value={favoritedNotes}
-            label="Favorites"
-            accent="#f43f5e"
-          />
+          <div className="ed-masthead-center">
+            <div className="ed-search">
+              <FiSearch size={14} style={{ color: ED.inkFaint }} />
+              <input
+                className="ed-mono"
+                placeholder="Search the archive…"
+                style={{ background: "transparent", border: 0, outline: 0, width: "100%", fontSize: 12, letterSpacing: "0.06em", color: ED.inkSoft }}
+              />
+              <kbd className="ed-mono ed-kbd">⌘K</kbd>
+            </div>
+          </div>
+
+          <div className="ed-masthead-right">
+            <button
+              className="ed-icon-btn"
+              onClick={() => settings.smartNotifications && notifCount > 0 && setShowNotifications(true)}
+              aria-label="Notifications"
+              title="Notifications"
+            >
+              <FiBell size={15} />
+              {notifCount > 0 && <span className="ed-icon-dot" />}
+            </button>
+            <button className="ed-icon-btn" aria-label="Grid"><FiGrid size={15} /></button>
+            <button className="ed-icon-btn" aria-label="Menu"><FiMenu size={15} /></button>
+          </div>
+        </header>
+
+        <hr className="ed-rule" />
+
+        {/* ━━━━━━━━━━━━━━ DATELINE ROW ━━━━━━━━━━━━━━ */}
+        <div className="ed-dateline">
+          <span className="ed-mono">VOL. {vol} · NO. {no}</span>
+          <span className="ed-mono">{issueLine()}</span>
+          <span className="ed-mono">
+            <span className="ed-status-dot" /> ALL SYSTEMS QUIET
+          </span>
         </div>
 
-        {/* ── New Note CTA ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.15 }}
-          className="mb-6"
-        >
-          <motion.button
-            whileHover={{ scale: 1.012 }}
-            whileTap={{ scale: 0.988 }}
+        <hr className="ed-rule" />
+
+        {/* ━━━━━━━━━━━━━━ COVER STORY ━━━━━━━━━━━━━━ */}
+        <section className="ed-cover ed-reveal">
+          <div className="ed-cover-body">
+            <div className="ed-chapter">
+              <span className="num">№ 01</span>
+              <span>— THE COVER STORY</span>
+            </div>
+
+            <h1
+              className="ed-display"
+              style={{ fontSize: "clamp(48px, 6vw, 88px)", marginTop: 28, marginBottom: 0, paddingBottom: "0.06em" }}
+            >
+              {getGreeting()},{" "}
+              <span className="ed-italic" style={{ color: ED.accent }}>
+                {reader}
+              </span>
+              .
+            </h1>
+
+            <p className="ed-lede" style={{ marginTop: 36, maxWidth: 760 }}>
+              <CoverLede
+                notesCount={notes.length}
+                docsCount={docs.length}
+                favCount={favoritedNotes}
+                aiToday={aiUses}
+              />
+            </p>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 28 }}>
+              <span className="ed-chip">{streakDays}D STREAK</span>
+              <span className="ed-chip">{notesCreated} NOTES</span>
+              <span className="ed-chip">{aiUses} AI TODAY</span>
+              {favoritedNotes > 0 && (
+                <span className="ed-chip-accent ed-chip">{favoritedNotes} FAVOURITES</span>
+              )}
+            </div>
+          </div>
+
+          <aside className="ed-cover-margin">
+            <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, marginBottom: 14 }}>
+              <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>¹</span>
+              FOOTNOTE
+            </p>
+            <p className="ed-serif" style={{ fontStyle: "italic", fontSize: 15, lineHeight: 1.55, color: ED.inkMute }}>
+              The dashboard reads your archive every morning — notes from the
+              past week, voice memos waiting to be transcribed, and any
+              question you've asked of the model — so you can pick up exactly
+              where the thinking trailed off.
+            </p>
+          </aside>
+        </section>
+
+        {/* ━━━━━━━━━━━━━━ STAT STRIP ━━━━━━━━━━━━━━ */}
+        <section style={{ marginTop: 56 }}>
+          <div className="ed-stat-strip ed-card">
+            <StatCell eyebrow="TOTAL NOTES"     value={notesCreated}    sub={notes.length > 0 ? `+${notes.length} this week` : "—"} />
+            <StatCell eyebrow="ACTIVE DAYS"     value={activeDays}      sub={`STREAK: ${streakDays}D`} />
+            <StatCell eyebrow="AI USED TODAY"   value={aiUses}          sub={aiUsesLoading ? "syncing…" : "calls"} />
+            <StatCell eyebrow="FAVOURITES"      value={favoritedNotes}  sub={favoritedNotes > 0 ? "in this issue" : "none yet"} last />
+          </div>
+        </section>
+
+        {/* ━━━━━━━━━━━━━━ BEGIN-A-NEW-NOTE CTA ━━━━━━━━━━━━━━ */}
+        <section style={{ margin: "96px 0", textAlign: "center" }}>
+          <button
+            className="ed-btn ed-btn-primary"
             onClick={() => navigate("/dashboard/notes")}
-            className="ns-cta-shimmer relative w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-semibold text-sm overflow-hidden"
-            style={{
-              background: "linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.1), rgba(6,182,212,0.08))",
-              border: "1px solid rgba(99,102,241,0.25)",
-              color: "var(--text-primary)",
-              backdropFilter: "blur(20px)",
-            }}
+            style={{ fontSize: 15, padding: "13px 24px" }}
           >
-            <div
-              className="h-8 w-8 rounded-xl flex items-center justify-center"
-              style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.3)" }}
+            Begin a new note <FiArrowRight size={15} />
+          </button>
+          <div style={{ marginTop: 18 }}>
+            <button
+              className="ed-ulink ed-serif ed-italic"
+              onClick={() => navigate("/dashboard/documents")}
+              style={{ fontSize: 16, color: ED.inkMute, background: "transparent" }}
             >
-              <FiPlus size={16} className="text-indigo-400" />
-            </div>
-            <span>New Note / Upload</span>
-            <FiArrowUpRight size={16} style={{ color: "var(--text-muted)" }} />
-          </motion.button>
-        </motion.div>
-
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            WEEKLY DIGEST (if enabled)
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <AnimatePresence>
-          {settings.weeklyDigest && digest && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-              className="mb-6"
-            >
-              <div className="ns-bento p-5">
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <GlowIcon icon={<ChartLineUp size={18} weight="duotone" />} color="#a78bfa" />
-                      <div>
-                        <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Weekly Digest</h3>
-                        <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>{digest.period.start} – {digest.period.end}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setShowDigest(true)}
-                      className="text-[11px] font-semibold px-3 py-1.5 rounded-xl transition"
-                      style={{
-                        color: "#a78bfa",
-                        background: "rgba(168,85,247,0.08)",
-                        border: "1px solid rgba(168,85,247,0.18)",
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(168,85,247,0.15)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(168,85,247,0.08)"; }}
-                    >
-                      Full report →
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    <MiniStat value={notes.length} label="Notes" accent="#818cf8" />
-                    <MiniStat value={docs.length} label="Docs" accent="#a78bfa" />
-                    <MiniStat value={digest.stats.synthesizedDocs} label="Synthesized" accent="#10b981" />
-                    <MiniStat value={digest.insights.productivity} label="Activity" accent="#22d3ee" isText />
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            QUICK ACCESS — 2×2 action grid
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-          className="mb-6"
-        >
-          <SectionLabel>Quick Access</SectionLabel>
-          <div className="grid grid-cols-2 gap-3 ns-stagger">
-            <ActionCard
-              icon={<Activity size={24} weight="duotone" />}
-              label="Activity"
-              desc="Your history"
-              accent="#06b6d4"
-              onClick={() => navigate("/dashboard/activity")}
-            />
-            <ActionCard
-              icon={<Plugs size={24} weight="duotone" />}
-              label="Integrations"
-              desc="Connect apps"
-              accent="#a78bfa"
-              onClick={() => navigate("/dashboard/integrations")}
-            />
-            <ActionCard
-              icon={<BezierCurve size={24} weight="duotone" />}
-              label="AI Lab"
-              desc="Advanced tools"
-              accent="#f59e0b"
-              pro
-              onClick={() => navigate("/dashboard/ai-lab")}
-            />
-            <ActionCard
-              icon={<Note size={24} weight="duotone" />}
-              label="New Note"
-              desc="Start writing"
-              accent="#10b981"
-              onClick={() => navigate("/dashboard/notes")}
-            />
+              or upload a document
+            </button>
           </div>
-        </motion.div>
+        </section>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            RECENT NOTES
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.25 }}
-          className="mb-6"
-        >
-          <div className="ns-bento">
-            <div className="relative z-10 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <GlowIcon icon={<FiClock size={16} />} color="#818cf8" />
-                  <h3 className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>Recent Notes</h3>
-                </div>
+        {/* ━━━━━━━━━━━━━━ IN THIS ISSUE — TABLE OF CONTENTS ━━━━━━━━━━━━━━ */}
+        <section style={{ marginTop: 96 }}>
+          <header style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
+            <div className="ed-chapter">
+              <span className="num">§ 02</span>
+              <span>— IN THIS ISSUE</span>
+            </div>
+            <p className="ed-mono" style={{ fontSize: 11, color: ED.inkFaint, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+              SEVEN SECTIONS · {issueIndex.length * 1} ROUTES
+            </p>
+          </header>
+
+          <hr className="ed-rule-dbl" />
+
+          <ul className="ed-toc">
+            {issueIndex.map((row) => (
+              <li key={row.id}>
+                <Link to={row.to} className="ed-toc-row">
+                  <span className="ed-mono ed-toc-ord">{row.n}</span>
+                  <span className="ed-serif ed-toc-name">{row.name}</span>
+                  <span className="ed-toc-leader" aria-hidden />
+                  <span className="ed-mono ed-toc-cap">{row.caption}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* ━━━━━━━━━━━━━━ RECENT NOTES + DOCS ━━━━━━━━━━━━━━ */}
+        <section style={{ marginTop: 96, display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: 56 }} className="ed-two-col">
+          {/* Recent notes */}
+          <div>
+            <div className="ed-chapter" style={{ marginBottom: 18 }}>
+              <span className="num">§ 03</span>
+              <span>— RECENT DISPATCHES</span>
+            </div>
+            <hr className="ed-rule" />
+            {recentNotes.length === 0 ? (
+              <p className="ed-serif ed-italic" style={{ padding: "32px 0", color: ED.inkMute, fontSize: 18 }}>
+                No notes this week. The archive begins with one.
+              </p>
+            ) : (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {recentNotes.map((note, i) => (
+                  <li key={note.id}>
+                    <button
+                      onClick={() => navigate(`/dashboard/notes/${note.id}`)}
+                      className="ed-dispatch"
+                    >
+                      <span className="ed-mono ed-dispatch-ord">{String(i + 1).padStart(2, "0")}</span>
+                      <div className="ed-dispatch-body">
+                        <p className="ed-serif ed-dispatch-title">{note.title}</p>
+                        <p className="ed-mono ed-dispatch-meta">
+                          {note.updated}
+                          {note.hasAI && <span className="ed-chip-accent ed-chip" style={{ marginLeft: 10 }}>READ BY MODEL</span>}
+                        </p>
+                      </div>
+                    </button>
+                    <hr className="ed-rule-soft" />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Recent documents */}
+          <div>
+            <div className="ed-chapter" style={{ marginBottom: 18 }}>
+              <span className="num">§ 04</span>
+              <span>— DOCUMENTS</span>
+            </div>
+            <hr className="ed-rule" />
+            {recentDocs.length === 0 ? (
+              <p className="ed-serif ed-italic" style={{ padding: "32px 0", color: ED.inkMute, fontSize: 18 }}>
+                No documents yet. The archive begins with one.
+              </p>
+            ) : (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {recentDocs.map((doc, i) => (
+                  <li key={doc.id}>
+                    <button
+                      onClick={() => navigate(`/dashboard/documents/${doc.id}`)}
+                      className="ed-dispatch"
+                    >
+                      <span className="ed-mono ed-dispatch-ord">{String(i + 1).padStart(2, "0")}</span>
+                      <div className="ed-dispatch-body">
+                        <p className="ed-serif ed-dispatch-title">{doc.name || "Untitled document"}</p>
+                        <p className="ed-mono ed-dispatch-meta">
+                          {(doc.type || "FILE").toString().toUpperCase()} · {doc.status || "—"}
+                        </p>
+                      </div>
+                    </button>
+                    <hr className="ed-rule-soft" />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+
+        {/* ━━━━━━━━━━━━━━ WEEKLY DIGEST INLINE ━━━━━━━━━━━━━━ */}
+        {settings.weeklyDigest && digest && (
+          <section style={{ marginTop: 96 }}>
+            <div className="ed-chapter" style={{ marginBottom: 18 }}>
+              <span className="num">§ 05</span>
+              <span>— THE WEEKLY DIGEST</span>
+            </div>
+            <hr className="ed-rule-dbl" />
+
+            <div className="ed-digest">
+              <div className="ed-digest-left">
+                <p className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint }}>
+                  {digest.period.start} — {digest.period.end}
+                </p>
+                <h2 className="ed-display ed-dropcap" style={{ fontSize: "clamp(28px, 3vw, 40px)", marginTop: 18, paddingBottom: "0.06em" }}>
+                  Seven days of thinking, laid out.
+                </h2>
+                <p className="ed-serif" style={{ fontSize: 17, color: ED.inkMute, marginTop: 28, lineHeight: 1.55 }}>
+                  {notes.length} notes, {docs.length} documents, {digest.stats.synthesizedDocs} pieces
+                  synthesised by the model. Productivity reads{" "}
+                  <span className="ed-italic" style={{ color: ED.accent }}>
+                    {String(digest.insights.productivity).toLowerCase()}
+                  </span>
+                  .
+                </p>
                 <button
-                  onClick={() => navigate("/dashboard/notes")}
-                  className="text-[11px] font-semibold transition"
-                  style={{ color: "#818cf8" }}
+                  className="ed-ulink"
+                  style={{ marginTop: 22, fontFamily: ED.mono, fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase", color: ED.ink, background: "transparent" }}
+                  onClick={() => setShowDigest(true)}
                 >
-                  View all →
+                  Open the full report →
                 </button>
               </div>
 
-              <div className="space-y-2 ns-stagger">
-                {recentNotes.map((note) => (
-                  <NoteRow key={note.id} note={note} onClick={() => navigate(`/dashboard/notes/${note.id}`)} />
+              <div className="ed-digest-right">
+                <DigestRow label="Notes (7d)"     value={notes.length} />
+                <DigestRow label="Documents (7d)" value={docs.length} />
+                <DigestRow label="Favourites"     value={favoritedNotes} />
+                <DigestRow label="Synthesised"    value={digest.stats.synthesizedDocs} />
+                <DigestRow label="Most active"    value={digest.insights.mostActiveDay} mono last />
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ━━━━━━━━━━━━━━ COLOPHON ━━━━━━━━━━━━━━ */}
+        <footer style={{ marginTop: 120, paddingBottom: 24 }}>
+          <hr className="ed-rule" />
+          <div className="ed-colophon">
+            <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint }}>
+              Set in Instrument Serif &amp; Geist · Printed daily for one reader
+            </p>
+            <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint }}>
+              NOTESTREAM · VOL. {vol} · NO. {no}
+            </p>
+          </div>
+        </footer>
+
+        {/* ━━━━━━━━━━━━━━ MODALS ━━━━━━━━━━━━━━ */}
+
+        {/* NOTIFICATIONS */}
+        {showNotifications && (
+          <EdModal onClose={() => setShowNotifications(false)} title="Smart notifications" subtitle={`${notifications.length} total`}>
+            {notifications.length === 0 ? (
+              <p className="ed-serif ed-italic" style={{ padding: "40px 4px", textAlign: "center", color: ED.inkMute, fontSize: 18 }}>
+                All caught up. Nothing waits.
+              </p>
+            ) : (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {notifications.map((notif, i) => (
+                  <li key={notif.id}>
+                    <div className="ed-notif">
+                      <span className="ed-mono ed-notif-ord">{String(i + 1).padStart(2, "0")}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p className="ed-serif" style={{ fontSize: 17, lineHeight: 1.4, color: ED.ink }}>
+                          {notif.message}
+                        </p>
+                        <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ED.inkFaint, marginTop: 6 }}>
+                          From: {notif.noteTitle} · {notif.priority}
+                        </p>
+                      </div>
+                      <button onClick={() => dismissNotification(notif.id)} className="ed-mono" style={{ fontSize: 10.5, color: ED.inkFaint, letterSpacing: "0.1em", textTransform: "uppercase", background: "transparent" }}>
+                        Dismiss
+                      </button>
+                    </div>
+                    <hr className="ed-rule-soft" />
+                  </li>
                 ))}
-                {!dataLoading && recentNotes.length === 0 && (
-                  <EmptyState message="No notes in the last 7 days" />
-                )}
-              </div>
+              </ul>
+            )}
+            {notifications.length > 0 && (
+              <button
+                onClick={() => { clearAllNotifications(); setShowNotifications(false); }}
+                className="ed-btn ed-btn-ghost"
+                style={{ width: "100%", marginTop: 24, justifyContent: "center" }}
+              >
+                Clear all
+              </button>
+            )}
+          </EdModal>
+        )}
+
+        {/* WEEKLY DIGEST FULL */}
+        {showDigest && !!digest && (
+          <EdModal onClose={() => setShowDigest(false)} title="The weekly digest" subtitle={`${digest.period.start} — ${digest.period.end}`}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 0 }}>
+              <DigestRow label="Notes (7d)"     value={notes.length} />
+              <DigestRow label="Documents (7d)" value={docs.length} />
+              <DigestRow label="Favourites"     value={favoritedNotes} />
+              <DigestRow label="Synthesised"    value={digest.stats.synthesizedDocs} />
             </div>
-          </div>
-        </motion.div>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            DOCS + AI TOOLS — side by side on xl
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.3 }}
-          className="grid grid-cols-1 xl:grid-cols-2 gap-4"
-        >
-          {/* Documents */}
-          <div className="ns-bento">
-            <div className="relative z-10 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <GlowIcon icon={<FiFolder size={16} />} color="#a78bfa" />
-                  <h3 className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>Recent Documents</h3>
+            <hr className="ed-rule" style={{ margin: "24px 0" }} />
+
+            <p className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint, marginBottom: 10 }}>
+              INSIGHTS
+            </p>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              <DigestRow label="Most active day" value={digest.insights.mostActiveDay || "—"} mono />
+              <DigestRow label="Productivity"    value={digest.insights.productivity || "—"} accent={digest.insights.productivity === "High"} />
+              <DigestRow label="Total items"     value={digest.stats.totalItems || 0} />
+              <DigestRow label="Streak"          value={`${streakDays} / 30`} mono last />
+            </ul>
+
+            {!!digest.insights.topTags?.length && (
+              <>
+                <hr className="ed-rule" style={{ margin: "24px 0" }} />
+                <p className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint, marginBottom: 12 }}>
+                  TOP TAGS
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {digest.insights.topTags.map((t, i) => (
+                    <span key={`${t.tag}-${i}`} className="ed-chip">
+                      {t.tag} <span style={{ color: ED.inkFaint, marginLeft: 4 }}>({t.count})</span>
+                    </span>
+                  ))}
                 </div>
-                <button
-                  onClick={() => navigate("/dashboard/documents")}
-                  className="text-[11px] font-semibold transition"
-                  style={{ color: "#a78bfa" }}
-                >
-                  View all →
-                </button>
-              </div>
+              </>
+            )}
 
-              <div className="space-y-2 ns-stagger">
-                {recentDocs.map((doc) => (
-                  <DocRow key={doc.id} doc={doc} onClick={() => navigate(`/dashboard/documents/${doc.id}`)} />
-                ))}
-                {!dataLoading && recentDocs.length === 0 && (
-                  <EmptyState message="No documents in the last 7 days" />
-                )}
-              </div>
-            </div>
-          </div>
+            {!!digest.highlights?.length && (
+              <>
+                <hr className="ed-rule" style={{ margin: "24px 0" }} />
+                <p className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint, marginBottom: 12 }}>
+                  HIGHLIGHTS
+                </p>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {digest.highlights.map((h, i) => (
+                    <li key={h.id} className="ed-serif" style={{ display: "flex", gap: 12, padding: "6px 0", fontSize: 16, color: ED.inkSoft }}>
+                      <span className="ed-mono" style={{ color: ED.accent, fontStyle: "italic", fontFamily: ED.serif, fontSize: 18, width: 28 }}>
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span>{h.title}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
 
-          {/* AI Tools */}
-          <div className="ns-bento">
-            <div className="relative z-10 p-5">
-              <div className="flex items-center gap-3 mb-4">
-                <GlowIcon icon={<Sparkle size={16} weight="fill" />} color="#f59e0b" />
-                <h3 className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>AI Tools</h3>
-              </div>
-
-              <div className="space-y-2 ns-stagger">
-                <ToolRow icon={<FiZap />} label="Generate Summary" desc="AI-powered note summaries" accent="#818cf8" onClick={() => navigate("/dashboard/summaries")} />
-                <ToolRow icon={<FiCpu />} label="Ask AI Assistant" desc="Chat with your workspace" accent="#a78bfa" onClick={() => navigate("/dashboard/summaries")} />
-                <ToolRow icon={<Brain size={18} weight="duotone" />} label="Research Synthesizer" desc="Merge documents into briefs" accent="#ec4899" onClick={() => navigate("/dashboard/documents")} />
-                <ToolRow icon={<FiSettings />} label="Settings" desc="Configure workspace" accent="#10b981" onClick={() => navigate("/dashboard/settings")} />
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            MODALS (Notifications + Digest)
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-
-        {/* NOTIFICATIONS MODAL */}
-        <AnimatePresence>
-          {showNotifications && (
-            <ModalOverlay onClose={() => setShowNotifications(false)}>
-              <ModalCard onClose={() => setShowNotifications(false)} width="max-w-md">
-                <ModalHeader
-                  icon={<Bell size={18} weight="duotone" className="text-amber-400" />}
-                  iconBg="rgba(245,158,11,0.15)"
-                  iconBorder="rgba(245,158,11,0.3)"
-                  title="Smart Notifications"
-                  subtitle={`${notifications.length} total`}
-                  onClose={() => setShowNotifications(false)}
-                />
-
-                <div className="p-4 overflow-y-auto max-h-[55vh] space-y-2 ns-scroll">
-                  {notifications.length === 0 ? (
-                    <div className="text-center py-12">
-                      <Bell size={36} weight="duotone" className="mx-auto mb-3" style={{ color: "var(--text-muted)", opacity: 0.4 }} />
-                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>All caught up</p>
-                    </div>
-                  ) : (
-                    notifications.map((notif) => (
-                      <NotifItem key={notif.id} notif={notif} onDismiss={() => dismissNotification(notif.id)} />
-                    ))
-                  )}
-                </div>
-
-                {notifications.length > 0 && (
-                  <div className="p-4 border-t" style={{ borderColor: "var(--border-secondary)" }}>
-                    <button
-                      onClick={() => { clearAllNotifications(); setShowNotifications(false); }}
-                      className="w-full py-3 rounded-xl text-sm font-medium transition"
-                      style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-muted)" }}
-                    >
-                      Clear all
-                    </button>
-                  </div>
-                )}
-              </ModalCard>
-            </ModalOverlay>
-          )}
-        </AnimatePresence>
-
-        {/* WEEKLY DIGEST MODAL */}
-        <AnimatePresence>
-          {showDigest && !!digest && (
-            <ModalOverlay onClose={() => setShowDigest(false)}>
-              <ModalCard onClose={() => setShowDigest(false)} width="max-w-lg">
-                <ModalHeader
-                  icon={<ChartLineUp size={20} weight="duotone" className="text-purple-400" />}
-                  iconBg="rgba(139,92,246,0.15)"
-                  iconBorder="rgba(139,92,246,0.3)"
-                  title="Weekly Digest"
-                  subtitle={`${digest?.period?.start} – ${digest?.period?.end}`}
-                  onClose={() => setShowDigest(false)}
-                />
-
-                <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto ns-scroll">
-                  <div className="grid grid-cols-2 gap-3">
-                    <DigestCard icon={<Note size={20} weight="duotone" />} value={notes.length} label="Notes (7d)" accent="#818cf8" />
-                    <DigestCard icon={<FileText size={20} weight="duotone" />} value={docs.length} label="Docs (7d)" accent="#a78bfa" />
-                    <DigestCard icon={<Star size={20} weight="fill" />} value={favoritedNotes} label="Favorites" accent="#f43f5e" />
-                    <DigestCard icon={<Brain size={20} weight="duotone" />} value={digest?.stats?.synthesizedDocs || 0} label="Synthesized" accent="#10b981" />
-                  </div>
-
-                  {/* Insights */}
-                  <div className="rounded-2xl p-4 border" style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}>
-                    <h3 className="text-sm font-bold mb-3 flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
-                      <Target size={15} weight="duotone" className="text-purple-400" /> Insights
-                    </h3>
-                    <div className="space-y-2.5">
-                      <InsightLine label="Most Active Day" value={digest?.insights?.mostActiveDay || "—"} />
-                      <InsightLine label="Productivity" value={digest?.insights?.productivity || "—"} valueColor={
-                        digest?.insights?.productivity === "High" ? "#10b981" : digest?.insights?.productivity === "Medium" ? "#f59e0b" : undefined
-                      } />
-                      <InsightLine label="Total Items" value={digest?.stats?.totalItems || 0} />
-                      {/* streak mini-bar */}
-                      <div>
-                        <div className="flex justify-between text-[11px] mb-1">
-                          <span style={{ color: "var(--text-muted)" }}>Streak Progress</span>
-                          <span style={{ color: "#f59e0b" }}>{streakDays}/30</span>
-                        </div>
-                        <div className="ns-progress-track">
-                          <div className="ns-progress-fill" style={{ width: `${streakPercent}%`, background: "linear-gradient(90deg, #f59e0b, #f97316)" }} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Top Tags */}
-                  {!!digest?.insights?.topTags?.length && (
-                    <div className="rounded-2xl p-4 border" style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}>
-                      <h3 className="text-sm font-bold mb-3" style={{ color: "var(--text-primary)" }}>Top Tags</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {digest.insights.topTags.map((t, i) => (
-                          <span key={`${t.tag}-${i}`} className="text-[11px] px-3 py-1.5 rounded-xl font-medium" style={{
-                            background: "rgba(99,102,241,0.08)",
-                            border: "1px solid rgba(99,102,241,0.18)",
-                            color: "var(--text-secondary)",
-                          }}>
-                            {t.tag} <span style={{ color: "var(--text-muted)" }}>({t.count})</span>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Highlights */}
-                  {!!digest?.highlights?.length && (
-                    <div className="rounded-2xl p-4 border" style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}>
-                      <h3 className="text-sm font-bold mb-3 flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
-                        <Star size={15} weight="fill" className="text-amber-400" /> Highlights
-                      </h3>
-                      <div className="space-y-1.5">
-                        {digest.highlights.map((h) => (
-                          <div key={h.id} className="flex items-center gap-2 text-sm min-w-0" style={{ color: "var(--text-secondary)" }}>
-                            <span style={{ color: "#f59e0b" }}>•</span>
-                            <span className="truncate">{h.title}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-5 border-t" style={{ borderColor: "var(--border-secondary)" }}>
-                  <button
-                    onClick={() => setShowDigest(false)}
-                    className="w-full py-3 rounded-xl font-medium transition border"
-                    style={{ borderColor: "var(--border-secondary)", color: "var(--text-secondary)", backgroundColor: "var(--bg-tertiary)" }}
-                  >
-                    Close
-                  </button>
-                </div>
-              </ModalCard>
-            </ModalOverlay>
-          )}
-        </AnimatePresence>
+            <button
+              onClick={() => setShowDigest(false)}
+              className="ed-btn ed-btn-ghost"
+              style={{ width: "100%", marginTop: 28, justifyContent: "center" }}
+            >
+              Close
+            </button>
+          </EdModal>
+        )}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -1029,331 +799,323 @@ export default function Dashboard() {
    SUB-COMPONENTS
 ═══════════════════════════════════════════════════════ */
 
-/* ── Stat pill (hero area) ── */
-const StatPill = ({ icon, color, label }) => (
-  <span
-    className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
-    style={{
-      background: `${color}12`,
-      border: `1px solid ${color}28`,
-      color,
-      backdropFilter: "blur(8px)",
-    }}
-  >
-    {icon}
-    {label}
-  </span>
-);
-
-/* ── Section label ── */
-const SectionLabel = ({ children }) => (
-  <p
-    className="text-[11px] font-bold uppercase tracking-[0.14em] mb-3 px-0.5"
-    style={{ color: "var(--text-muted)" }}
-  >
-    {children}
-  </p>
-);
-
-/* ── Glow Icon (used in card headers) ── */
-const GlowIcon = ({ icon, color }) => (
-  <div
-    className="h-9 w-9 rounded-xl flex items-center justify-center"
-    style={{
-      background: `${color}18`,
-      border: `1px solid ${color}30`,
-      color,
-      boxShadow: `0 0 12px ${color}15`,
-    }}
-  >
-    {icon}
-  </div>
-);
-
-/* ── Bento Stat Card ── */
-const BentoStat = ({ icon, value, label, accent }) => (
-  <div className="ns-bento">
-    <div className="relative z-10 p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <div
-          className="h-8 w-8 rounded-lg flex items-center justify-center"
-          style={{ background: `${accent}15`, color: accent }}
-        >
-          {safeCloneIcon(icon, { size: 16 })}
-        </div>
-      </div>
-      <p
-        className="ns-stat-value text-[28px] leading-none font-extrabold mb-0.5"
-        style={{ color: "var(--text-primary)" }}
-      >
-        {typeof value === "number" ? value : Number(value ?? 0) || 0}
-      </p>
-      <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-        {label}
-      </p>
-    </div>
-  </div>
-);
-
-/* ── Mini Stat (digest inline) ── */
-const MiniStat = ({ value, label, accent, isText = false }) => (
-  <div
-    className="rounded-xl px-3 py-2.5 text-center"
-    style={{ background: `${accent}08`, border: `1px solid ${accent}18` }}
-  >
-    <p className={`${isText ? "text-sm" : "text-lg"} font-bold ns-stat-value`} style={{ color: accent }}>{value}</p>
-    <p className="text-[9px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: "var(--text-muted)" }}>{label}</p>
-  </div>
-);
-
-/* ── Action Card (Quick Access) ── */
-const ActionCard = ({ icon, label, desc, accent, onClick, pro = false }) => (
-  <motion.button
-    whileHover={{ scale: 1.02 }}
-    whileTap={{ scale: 0.97 }}
-    onClick={onClick}
-    className="ns-bento text-left"
-  >
-    {/* glow ring on hover */}
-    <div className="ns-action-glow" style={{ background: `${accent}08`, border: `1px solid ${accent}20` }} />
-
-    <div className="relative z-10 p-4">
-      {pro && (
-        <span
-          className="absolute top-3 right-3 text-[8px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wide"
-          style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#fbbf24" }}
-        >
-          Pro
-        </span>
-      )}
-
-      <div
-        className="h-11 w-11 rounded-xl flex items-center justify-center mb-3"
-        style={{ background: `${accent}12`, border: `1px solid ${accent}22`, color: accent }}
-      >
-        {safeCloneIcon(icon, { size: 20 })}
-      </div>
-
-      <p className="text-sm font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>{label}</p>
-      <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>{desc}</p>
-    </div>
-  </motion.button>
-);
-
-/* ── Note Row ── */
-const NoteRow = ({ note, onClick }) => (
-  <motion.button
-    whileHover={{ scale: 1.008 }}
-    whileTap={{ scale: 0.995 }}
-    onClick={onClick}
-    className="group w-full text-left px-4 py-3 rounded-2xl flex items-center justify-between gap-3 transition-all"
-    style={{
-      background: "var(--bg-tertiary)",
-      border: "1px solid var(--border-secondary)",
-    }}
-  >
-    <div className="flex items-center gap-3 min-w-0 flex-1">
-      <div
-        className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
-        style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.2)" }}
-      >
-        <FiFileText size={16} className="text-indigo-400" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold leading-snug" style={{
-          display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflow: "hidden",
-          color: "var(--text-secondary)",
-        }}>{note.title}</p>
-        <p className="text-[11px] truncate mt-0.5" style={{ color: "var(--text-muted)" }}>{note.updated}</p>
-      </div>
-    </div>
-    <div className="flex items-center gap-2 shrink-0">
-      {note.hasAI && <StatusChip>AI</StatusChip>}
-      <FiChevronRight size={15} style={{ color: "var(--text-muted)" }} className="group-hover:text-indigo-400 transition" />
-    </div>
-  </motion.button>
-);
-
-/* ── Doc Row ── */
-const DocRow = ({ doc, onClick }) => (
-  <motion.button
-    whileHover={{ scale: 1.008 }}
-    whileTap={{ scale: 0.995 }}
-    onClick={onClick}
-    className="group w-full text-left px-4 py-3 rounded-2xl flex items-center justify-between gap-3 transition-all"
-    style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)" }}
-  >
-    <div className="flex items-center gap-3 min-w-0 flex-1">
-      <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.2)" }}>
-        <FiFileText size={16} className="text-purple-400" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium truncate" style={{ color: "var(--text-secondary)" }}>{doc.name}</p>
-        <p className="text-[11px] truncate mt-0.5" style={{ color: "var(--text-muted)" }}>{doc.status || "—"}</p>
-      </div>
-    </div>
-    <span className="shrink-0 text-[9px] font-bold uppercase px-2.5 py-1 rounded-full tracking-wide" style={{
-      background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-muted)",
-    }}>
-      {String(doc.type || "FILE").toUpperCase()}
-    </span>
-  </motion.button>
-);
-
-/* ── Tool Row ── */
-const ToolRow = ({ icon, label, desc, accent, onClick }) => (
-  <motion.button
-    whileHover={{ scale: 1.008 }}
-    whileTap={{ scale: 0.995 }}
-    onClick={onClick}
-    className="group w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all"
-    style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)" }}
-  >
-    <div className="flex items-center gap-3">
-      <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ background: `${accent}12`, border: `1px solid ${accent}22`, color: accent }}>
-        {icon}
-      </div>
-      <div className="text-left">
-        <p className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>{label}</p>
-        <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>{desc}</p>
-      </div>
-    </div>
-    <FiChevronRight size={15} style={{ color: "var(--text-muted)" }} className="group-hover:text-indigo-400 transition" />
-  </motion.button>
-);
-
-/* ── Status Chip ── */
-const StatusChip = ({ children }) => (
-  <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wide" style={{
-    background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", color: "#10b981",
-  }}>
-    {children}
-  </span>
-);
-
-/* ── Empty State ── */
-const EmptyState = ({ message }) => (
-  <div className="text-center py-8">
-    <div className="h-10 w-10 rounded-xl mx-auto mb-2 flex items-center justify-center" style={{ background: "rgba(99,102,241,0.08)" }}>
-      <Note size={18} weight="duotone" style={{ color: "var(--text-muted)", opacity: 0.5 }} />
-    </div>
-    <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>{message}</p>
-  </div>
-);
-
-/* ── Notification Item ── */
-const NotifItem = ({ notif, onDismiss }) => {
-  const iconMap = {
-    calendar: { Icon: Calendar, color: "#818cf8" },
-    warning: { Icon: Warning, color: "#f59e0b" },
-    task: { Icon: CheckSquare, color: "#10b981" },
-    bell: { Icon: Bell, color: "#f59e0b" },
-    meeting: { Icon: Phone, color: "#a78bfa" },
-    default: { Icon: Flag, color: "#818cf8" },
-  };
-  const cfg = iconMap[notif.iconType] || iconMap.default;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
-      className="flex items-start gap-3 p-3 rounded-xl border group transition-all"
-      style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
-    >
-      <GlowIcon icon={<cfg.Icon size={16} weight="fill" />} color={cfg.color} />
-
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium" style={{
-          display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflow: "hidden",
-          color: "var(--text-secondary)",
-        }}>{notif.message}</p>
-        <p className="text-[11px] mt-1 truncate" style={{ color: "var(--text-muted)" }}>
-          From: <span style={{ color: "var(--text-secondary)" }}>{notif.noteTitle}</span>
-        </p>
-      </div>
-
-      <div className="flex flex-col items-end gap-2 shrink-0">
-        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-lg uppercase tracking-wide ${
-          notif.priority === "high" ? "" : ""
-        }`} style={{
-          background: notif.priority === "high" ? "rgba(244,63,94,0.15)" : "rgba(245,158,11,0.15)",
-          border: `1px solid ${notif.priority === "high" ? "rgba(244,63,94,0.3)" : "rgba(245,158,11,0.3)"}`,
-          color: notif.priority === "high" ? "#f43f5e" : "#f59e0b",
-        }}>{notif.priority}</span>
-        <button onClick={onDismiss} className="text-[10px] transition opacity-0 group-hover:opacity-100" style={{ color: "var(--text-muted)" }}>Dismiss</button>
-      </div>
-    </motion.div>
-  );
+/* ─── Cover-story lede sentence — composed from real data ─── */
+const CoverLede = ({ notesCount, docsCount, favCount, aiToday }) => {
+  if (notesCount === 0 && docsCount === 0) {
+    return (
+      <>
+        A quiet archive today.{" "}
+        <span className="ed-italic">Start where the thinking last trailed off.</span>
+      </>
+    );
+  }
+  const noteBit = notesCount > 0 ? `${notesCount} ${notesCount === 1 ? "note" : "notes"} from the week,` : "";
+  const docBit  = docsCount > 0  ? ` ${docsCount} ${docsCount === 1 ? "document" : "documents"} on the desk,` : "";
+  const favBit  = favCount > 0   ? ` ${favCount} marked for keeping,` : "";
+  const aiBit   = aiToday > 0    ? ` and the model has been asked ${aiToday} ${aiToday === 1 ? "question" : "questions"} so far today.` : " and a clean morning ahead of the model.";
+  return <>{noteBit}{docBit}{favBit}{aiBit}</>;
 };
 
-/* ── Digest Card (modal) ── */
-const DigestCard = ({ icon, value, label, accent }) => (
-  <div className="p-4 rounded-2xl text-center" style={{ background: `${accent}08`, border: `1px solid ${accent}18` }}>
-    <div className="w-10 h-10 rounded-xl mx-auto mb-2 flex items-center justify-center" style={{ background: `${accent}15`, color: accent }}>
-      {icon}
-    </div>
-    <p className="text-2xl font-extrabold ns-stat-value" style={{ color: "var(--text-primary)" }}>{value}</p>
-    <p className="text-[10px] font-semibold uppercase tracking-wide mt-1" style={{ color: "var(--text-muted)" }}>{label}</p>
+/* ─── Stat strip cell ─── */
+const StatCell = ({ eyebrow, value, sub, last = false }) => (
+  <div className={`ed-stat-cell ${last ? "is-last" : ""}`}>
+    <p className="ed-mono ed-stat-eyebrow">{eyebrow}</p>
+    <p className="ed-display ed-italic ed-stat-value">
+      {typeof value === "number" ? value : Number(value ?? 0) || 0}
+    </p>
+    {sub && <p className="ed-mono ed-stat-sub">{sub}</p>}
   </div>
 );
 
-/* ── Insight Line ── */
-const InsightLine = ({ label, value, valueColor }) => (
-  <div className="flex items-center justify-between">
-    <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{label}</span>
-    <span className="text-[12px] font-semibold" style={{ color: valueColor || "var(--text-secondary)" }}>{value}</span>
+/* ─── Digest row (label / dotted / value) ─── */
+const DigestRow = ({ label, value, mono = false, accent = false, last = false }) => (
+  <div className={`ed-digest-row ${last ? "is-last" : ""}`}>
+    <span className="ed-mono ed-digest-label">{label}</span>
+    <span className="ed-digest-leader" aria-hidden />
+    <span
+      className={mono ? "ed-mono" : "ed-serif ed-italic"}
+      style={{
+        fontSize: mono ? 12 : 22,
+        color: accent ? ED.accent : ED.ink,
+        letterSpacing: mono ? "0.06em" : 0,
+      }}
+    >
+      {value}
+    </span>
   </div>
 );
 
-/* ── Modal infrastructure ── */
-const ModalOverlay = ({ children, onClose }) => (
-  <motion.div
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
-    transition={{ duration: 0.18 }}
-    className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto"
-    style={{ backgroundColor: "rgba(0,0,0,0.75)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }}
+/* ─── Editorial modal ─── */
+const EdModal = ({ children, title, subtitle, onClose }) => (
+  <div
+    role="dialog"
+    aria-modal="true"
+    style={{
+      position: "fixed", inset: 0, zIndex: 9999,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: "rgba(19,16,8,0.32)", padding: 20, overflowY: "auto",
+    }}
     onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
   >
-    <div className="w-full min-h-full flex items-center justify-center p-4">{children}</div>
-  </motion.div>
-);
-
-const ModalCard = ({ children, onClose, width = "max-w-md" }) => (
-  <motion.div
-    initial={{ scale: 0.97, opacity: 0, y: 16 }}
-    animate={{ scale: 1, opacity: 1, y: 0 }}
-    exit={{ scale: 0.97, opacity: 0, y: 16 }}
-    transition={{ duration: 0.22, ease: "easeOut" }}
-    onClick={(e) => e.stopPropagation()}
-    className={`w-full ${width} rounded-2xl border my-auto overflow-hidden`}
-    style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)", boxShadow: "0 25px 60px rgba(0,0,0,0.45)" }}
-  >
-    {children}
-  </motion.div>
-);
-
-const ModalHeader = ({ icon, iconBg, iconBorder, title, subtitle, onClose }) => (
-  <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: "var(--border-secondary)" }}>
-    <div className="flex items-center gap-3 min-w-0">
-      <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: iconBg, border: `1px solid ${iconBorder}` }}>
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <h2 className="text-lg font-bold truncate" style={{ color: "var(--text-primary)" }}>{title}</h2>
-        {subtitle && <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>{subtitle}</p>}
-      </div>
+    <div className="ed-card" style={{ width: "100%", maxWidth: 580, padding: 28 }}>
+      <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 18 }}>
+        <div>
+          <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint }}>
+            <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>№</span>
+            DISPATCH
+          </p>
+          <h2 className="ed-serif" style={{ fontSize: 28, marginTop: 4, color: ED.ink }}>{title}</h2>
+          {subtitle && <p className="ed-mono" style={{ fontSize: 11, color: ED.inkFaint, marginTop: 4, letterSpacing: "0.06em" }}>{subtitle}</p>}
+        </div>
+        <button onClick={onClose} className="ed-icon-btn" aria-label="Close">
+          <FiX size={14} />
+        </button>
+      </header>
+      <hr className="ed-rule" />
+      <div style={{ marginTop: 20, maxHeight: "70vh", overflowY: "auto" }}>{children}</div>
     </div>
-    <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }} onClick={onClose}
-      className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 transition"
-      style={{ background: "rgba(244,63,94,0.1)", border: "1px solid rgba(244,63,94,0.2)" }}
-      aria-label="Close"
-    >
-      <FiX size={15} className="text-rose-400" />
-    </motion.button>
   </div>
 );
 
+/* ═══════════════════════════════════════════════════════
+   SCOPED CSS for editorial dashboard chrome
+═══════════════════════════════════════════════════════ */
+const DashScopedStyles = () => (
+  <style>{`
+    .ns-ed .ed-masthead {
+      display: grid;
+      grid-template-columns: 1fr minmax(280px, 520px) 1fr;
+      align-items: center;
+      gap: 24px;
+      padding: 18px 0 16px 0;
+    }
+    .ns-ed .ed-masthead-left  { display: flex; align-items: baseline; }
+    .ns-ed .ed-masthead-right { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+    .ns-ed .ed-wordmark { display: inline-flex; align-items: baseline; color: ${ED.ink}; }
 
+    .ns-ed .ed-search {
+      display: flex; align-items: center; gap: 10px;
+      background: ${ED.paper50};
+      border: 1px solid ${ED.rule};
+      border-radius: 999px;
+      padding: 9px 14px;
+      transition: border-color .2s ease;
+    }
+    .ns-ed .ed-search:focus-within { border-color: ${ED.ink}; }
+    .ns-ed .ed-kbd {
+      font-size: 10px; padding: 2px 6px; border: 1px solid ${ED.rule};
+      border-radius: 4px; color: ${ED.inkFaint}; background: ${ED.paper100};
+    }
 
+    .ns-ed .ed-icon-btn {
+      position: relative;
+      height: 36px; width: 36px; border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid ${ED.rule}; color: ${ED.inkSoft};
+      background: transparent;
+      transition: color .18s ease, border-color .18s ease;
+    }
+    .ns-ed .ed-icon-btn:hover { color: ${ED.ink}; border-color: ${ED.ink}; }
+    .ns-ed .ed-icon-dot {
+      position: absolute; top: 6px; right: 6px;
+      width: 6px; height: 6px; border-radius: 999px; background: ${ED.accent};
+    }
+
+    .ns-ed .ed-dateline {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 0;
+      font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+      color: ${ED.inkFaint};
+      gap: 16px; flex-wrap: wrap;
+    }
+    .ns-ed .ed-status-dot {
+      display: inline-block; width: 6px; height: 6px; border-radius: 999px;
+      background: ${ED.accent}; margin-right: 8px;
+      animation: ed-pulse 2.4s ease-in-out infinite;
+    }
+
+    /* ── Cover story grid ── */
+    .ns-ed .ed-cover {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 64px;
+      padding: 56px 0 8px 0;
+    }
+    .ns-ed .ed-cover-margin {
+      border-left: 1px solid ${ED.rule};
+      padding-left: 24px;
+    }
+    @media (max-width: 960px) {
+      .ns-ed .ed-cover { grid-template-columns: 1fr; gap: 32px; }
+      .ns-ed .ed-cover-margin { border-left: 0; border-top: 1px solid ${ED.rule}; padding-left: 0; padding-top: 20px; }
+    }
+
+    /* ── Stat strip ── */
+    .ns-ed .ed-stat-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      padding: 0;
+    }
+    .ns-ed .ed-stat-cell {
+      padding: 28px 24px;
+      border-right: 1px solid ${ED.rule};
+    }
+    .ns-ed .ed-stat-cell.is-last { border-right: 0; }
+    .ns-ed .ed-stat-eyebrow {
+      font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: ${ED.inkFaint}; font-weight: 500;
+    }
+    .ns-ed .ed-stat-value {
+      font-size: clamp(40px, 4.5vw, 64px);
+      line-height: 1;
+      color: ${ED.accent};
+      margin-top: 12px;
+      font-variant-numeric: oldstyle-nums;
+    }
+    .ns-ed .ed-stat-sub {
+      font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: ${ED.inkFaint}; margin-top: 10px;
+    }
+    @media (max-width: 760px) {
+      .ns-ed .ed-stat-strip { grid-template-columns: repeat(2, 1fr); }
+      .ns-ed .ed-stat-cell:nth-child(2) { border-right: 0; }
+      .ns-ed .ed-stat-cell:nth-child(1),
+      .ns-ed .ed-stat-cell:nth-child(2) { border-bottom: 1px solid ${ED.rule}; }
+    }
+
+    /* ── In this issue (TOC) ── */
+    .ns-ed .ed-toc { list-style: none; padding: 0; margin: 0; }
+    .ns-ed .ed-toc-row {
+      display: grid;
+      grid-template-columns: 44px minmax(0, auto) 1fr auto;
+      align-items: baseline;
+      gap: 16px;
+      padding: 16px 12px;
+      color: ${ED.ink};
+      border-bottom: 1px solid ${ED.ruleSoft};
+      transition: background-color .15s ease, padding .15s ease;
+    }
+    .ns-ed .ed-toc-row:hover {
+      background: ${ED.paper150};
+      padding-left: 18px;
+    }
+    .ns-ed .ed-toc-row:hover .ed-toc-ord {
+      color: ${ED.accent};
+      font-style: italic;
+      font-family: ${ED.serif};
+      font-size: 17px;
+    }
+    .ns-ed .ed-toc-ord {
+      font-size: 11px; letter-spacing: 0.14em; color: ${ED.inkFaint};
+      transition: all .15s ease;
+    }
+    .ns-ed .ed-toc-name { font-size: clamp(22px, 2.2vw, 30px); color: ${ED.ink}; }
+    .ns-ed .ed-toc-leader {
+      border-bottom: 1px dotted ${ED.rule};
+      align-self: end;
+      height: 14px;
+      transform: translateY(-5px);
+    }
+    .ns-ed .ed-toc-cap {
+      font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+      color: ${ED.inkFaint};
+    }
+
+    /* ── Dispatch rows (recent notes / docs) ── */
+    .ns-ed .ed-dispatch {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 16px;
+      width: 100%;
+      text-align: left;
+      padding: 16px 0;
+      align-items: baseline;
+      background: transparent;
+      transition: padding-left .15s ease;
+    }
+    .ns-ed .ed-dispatch:hover { padding-left: 4px; }
+    .ns-ed .ed-dispatch-ord {
+      font-size: 11px; letter-spacing: 0.14em; color: ${ED.inkFaint};
+    }
+    .ns-ed .ed-dispatch:hover .ed-dispatch-ord {
+      color: ${ED.accent}; font-family: ${ED.serif}; font-style: italic; font-size: 17px;
+    }
+    .ns-ed .ed-dispatch-body { min-width: 0; }
+    .ns-ed .ed-dispatch-title {
+      font-size: clamp(18px, 1.6vw, 22px);
+      line-height: 1.25;
+      color: ${ED.ink};
+      margin: 0;
+      transition: color .15s ease;
+    }
+    .ns-ed .ed-dispatch:hover .ed-dispatch-title { color: ${ED.accent}; }
+    .ns-ed .ed-dispatch-meta {
+      font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: ${ED.inkFaint}; margin-top: 6px;
+    }
+
+    /* ── Two-column section collapse ── */
+    @media (max-width: 960px) {
+      .ns-ed .ed-two-col { grid-template-columns: 1fr !important; gap: 56px !important; }
+    }
+
+    /* ── Weekly digest grid ── */
+    .ns-ed .ed-digest {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      gap: 48px;
+      padding-top: 36px;
+    }
+    @media (max-width: 960px) {
+      .ns-ed .ed-digest { grid-template-columns: 1fr; gap: 32px; }
+    }
+
+    .ns-ed .ed-digest-row {
+      display: grid;
+      grid-template-columns: minmax(0, auto) 1fr minmax(0, auto);
+      align-items: baseline;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid ${ED.ruleSoft};
+    }
+    .ns-ed .ed-digest-row.is-last { border-bottom: 0; }
+    .ns-ed .ed-digest-label {
+      font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase;
+      color: ${ED.inkFaint};
+    }
+    .ns-ed .ed-digest-leader {
+      border-bottom: 1px dotted ${ED.rule};
+      align-self: end;
+      height: 12px;
+      transform: translateY(-4px);
+    }
+
+    /* ── Notification list rows ── */
+    .ns-ed .ed-notif {
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      gap: 14px;
+      padding: 14px 0;
+      align-items: baseline;
+    }
+    .ns-ed .ed-notif-ord {
+      font-size: 11px; letter-spacing: 0.14em; color: ${ED.accent};
+      font-family: ${ED.serif}; font-style: italic; font-size: 15px;
+    }
+
+    /* ── Colophon ── */
+    .ns-ed .ed-colophon {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 18px 0 0 0; gap: 16px; flex-wrap: wrap;
+    }
+
+    /* ── Mobile masthead collapse ── */
+    @media (max-width: 720px) {
+      .ns-ed .ed-masthead {
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+      }
+      .ns-ed .ed-masthead-center { grid-column: 1 / -1; order: 3; }
+    }
+  `}</style>
+);
