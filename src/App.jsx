@@ -7,7 +7,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 
 // Theme Provider
 import { ThemeProvider } from "./context/ThemeContext";
@@ -25,67 +25,63 @@ import { WorkspaceProvider } from "./hooks/useWorkspaceSettings";
 import { logActivityEvent } from "./lib/activityEvents";
 import { supabase } from "./lib/supabaseClient";
 
-// Global Components
+// Global Components — eager: needed on every public page render
 import Navbar from "./components/Navbar";
 import ScrollToTop from "./components/ScrollToTop";
 import PageLoader from "./components/PageLoader";
 import Footer from "./components/Footer";
 
-// Home Sections
+// Home Sections — eager: this IS the landing page, first paint
 import Hero from "./components/Hero";
 import DemoSection from "./components/Demo";
 import ProblemSection from "./components/ProblemSection";
 
-// Feature Pages
-import HowItWorks from "./pages/HowItWorks";
-import Updates from "./pages/Updates";
-import SmartNotes from "./pages/SmartNotes";
-import AISummary from "./pages/AISummary";
-
-// PUBLIC Integrations Landing Page (for Navbar/marketing site)
-import IntegrationsLanding from "./pages/IntegrationsLanding";
-
-// Support Pages
-import Support from "./pages/Support";
-import FAQ from "./pages/FAQ";
-import ResetPassword from "./pages/ResetPassword";
-import UpdatePassword from "./pages/UpdatePassword";
-import Pricing from "./pages/Pricing";
-import Privacy from "./pages/Privacy";
-
-// Support sub-pages (Dashboard)
-import HelpCenter from "./pages/HelpCenter";
-import ContactSupport from "./pages/ContactSupport";
-
-// Integration Docs (Dashboard)
-import IntegrationDocs from "./pages/IntegrationDocs";
-
-// Auth Pages
+// Auth pages — eager: high-traffic entry points where loading flicker is bad
 import SignupPage from "./pages/Signup";
 import LoginPage from "./pages/Login";
-import SearchPage from "./pages/Search";
-import TermsPage from "./pages/Terms";
-import StatusPage from "./pages/Status";
 
-// Dashboard Layout & Pages
-import DashboardLayout from "./layouts/DashboardLayout";
-import Dashboard from "./pages/Dashboard";
-import Notes from "./pages/Notes";
-import Summaries from "./pages/Summaries";
-import Documents from "./pages/Documents";
-import Activity from "./pages/Activity";
-import AiLab from "./pages/AiLab";
-import CustomTraining from "./pages/CustomTraining";
-import CloudSync from "./pages/CloudSync";
-import VoiceNotes from "./pages/VoiceNotes";
-import TeamCollaboration from "./pages/TeamCollaboration";
-import Settings from "./pages/Settings";
-import DocumentViewer from "./pages/DocumentViewer";
-import RewriteDocument from "./pages/RewriteDocument";
+// Everything below is lazy-loaded so the initial JS bundle doesn't include code
+// for pages a given visitor probably won't visit. React.lazy returns a wrapped
+// component that triggers a separate HTTP request the first time it's rendered.
+// Suspense (further down) shows PageLoader while each chunk downloads.
 
-// DASHBOARD Integrations Page (for logged-in users)
-import DashboardIntegrations from "./pages/dashboard/Integrations";
-import IntegrationConnect from "./pages/dashboard/IntegrationConnect";
+// Secondary public pages
+const HowItWorks = lazy(() => import("./pages/HowItWorks"));
+const Updates = lazy(() => import("./pages/Updates"));
+const SmartNotes = lazy(() => import("./pages/SmartNotes"));
+const AISummary = lazy(() => import("./pages/AISummary"));
+const IntegrationsLanding = lazy(() => import("./pages/IntegrationsLanding"));
+const Support = lazy(() => import("./pages/Support"));
+const FAQ = lazy(() => import("./pages/FAQ"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const UpdatePassword = lazy(() => import("./pages/UpdatePassword"));
+const Pricing = lazy(() => import("./pages/Pricing"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const HelpCenter = lazy(() => import("./pages/HelpCenter"));
+const ContactSupport = lazy(() => import("./pages/ContactSupport"));
+const IntegrationDocs = lazy(() => import("./pages/IntegrationDocs"));
+const SearchPage = lazy(() => import("./pages/Search"));
+const TermsPage = lazy(() => import("./pages/Terms"));
+const StatusPage = lazy(() => import("./pages/Status"));
+
+// Dashboard — entire tree is gated behind auth so most public visitors
+// will never download any of this.
+const DashboardLayout = lazy(() => import("./layouts/DashboardLayout"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Notes = lazy(() => import("./pages/Notes"));
+const Summaries = lazy(() => import("./pages/Summaries"));
+const Documents = lazy(() => import("./pages/Documents"));
+const Activity = lazy(() => import("./pages/Activity"));
+const AiLab = lazy(() => import("./pages/AiLab"));
+const CustomTraining = lazy(() => import("./pages/CustomTraining"));
+const CloudSync = lazy(() => import("./pages/CloudSync"));
+const VoiceNotes = lazy(() => import("./pages/VoiceNotes"));
+const TeamCollaboration = lazy(() => import("./pages/TeamCollaboration"));
+const Settings = lazy(() => import("./pages/Settings"));
+const DocumentViewer = lazy(() => import("./pages/DocumentViewer"));
+const RewriteDocument = lazy(() => import("./pages/RewriteDocument"));
+const DashboardIntegrations = lazy(() => import("./pages/dashboard/Integrations"));
+const IntegrationConnect = lazy(() => import("./pages/dashboard/IntegrationConnect"));
 
 // ----------------------------------------------------------------
 // ROUTE TITLE (updates browser tab title)
@@ -215,39 +211,41 @@ function PublicRoutesFadeWrapper() {
           exit="exit"
           className="min-h-screen"
         >
-          <Routes>
-            <Route path="/" element={<HomeLanding />} />
+          <Suspense fallback={<PageLoader isVisible />}>
+            <Routes>
+              <Route path="/" element={<HomeLanding />} />
 
-            <Route path="/smart-notes" element={<SmartNotes />} />
-            <Route path="/ai-summary" element={<AISummary />} />
+              <Route path="/smart-notes" element={<SmartNotes />} />
+              <Route path="/ai-summary" element={<AISummary />} />
 
-            <Route
-              path="/integrations-landing"
-              element={<IntegrationsLanding />}
-            />
-            <Route
-              path="/integrations"
-              element={<Navigate to="/integrations-landing" replace />}
-            />
+              <Route
+                path="/integrations-landing"
+                element={<IntegrationsLanding />}
+              />
+              <Route
+                path="/integrations"
+                element={<Navigate to="/integrations-landing" replace />}
+              />
 
-            <Route path="/how-it-works" element={<HowItWorks />} />
-            <Route path="/updates" element={<Updates />} />
+              <Route path="/how-it-works" element={<HowItWorks />} />
+              <Route path="/updates" element={<Updates />} />
 
-            <Route path="/support" element={<Support />} />
-            <Route path="/faq" element={<FAQ />} />
+              <Route path="/support" element={<Support />} />
+              <Route path="/faq" element={<FAQ />} />
 
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/update-password" element={<UpdatePassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/update-password" element={<UpdatePassword />} />
 
-            <Route path="/pricing" element={<Pricing />} />
-            <Route path="/privacy" element={<Privacy />} />
+              <Route path="/pricing" element={<Pricing />} />
+              <Route path="/privacy" element={<Privacy />} />
 
-            <Route path="/signup" element={<SignupPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/terms" element={<TermsPage />} />
-            <Route path="/status" element={<StatusPage />} />
-          </Routes>
+              <Route path="/signup" element={<SignupPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/status" element={<StatusPage />} />
+            </Routes>
+          </Suspense>
         </motion.div>
       </AnimatePresence>
     </>
@@ -323,80 +321,82 @@ export default function App() {
               {/* ✅ matches what I provided: logs page_view events */}
               <RouteActivityLogger />
 
-              <Routes>
-                {/* PUBLIC SITE */}
-                <Route path="/*" element={<PublicSiteWrapper />} />
+              <Suspense fallback={<PageLoader isVisible />}>
+                <Routes>
+                  {/* PUBLIC SITE */}
+                  <Route path="/*" element={<PublicSiteWrapper />} />
 
-                {/* DASHBOARD PAGES */}
-                <Route path="/dashboard" element={<DashboardLayout />}>
-                  <Route index element={<Dashboard />} />
+                  {/* DASHBOARD PAGES */}
+                  <Route path="/dashboard" element={<DashboardLayout />}>
+                    <Route index element={<Dashboard />} />
 
-                  {/* NOTES */}
-                  <Route
-                    path="notes"
-                    element={<Notes notes={notes} setNotes={setNotes} />}
-                  />
-                  <Route
-                    path="notes/:noteId"
-                    element={<Notes notes={notes} setNotes={setNotes} />}
-                  />
+                    {/* NOTES */}
+                    <Route
+                      path="notes"
+                      element={<Notes notes={notes} setNotes={setNotes} />}
+                    />
+                    <Route
+                      path="notes/:noteId"
+                      element={<Notes notes={notes} setNotes={setNotes} />}
+                    />
 
-                  {/* DOCUMENTS */}
-                  <Route
-                    path="documents"
-                    element={<Documents docs={docs} setDocs={setDocs} />}
-                  />
-                  <Route
-                    path="documents/:id"
-                    element={<DocumentViewer docs={docs} />}
-                  />
-                  <Route
-                    path="documents/view/:id"
-                    element={<DocumentViewer docs={docs} />}
-                  />
-                  <Route
-                    path="documents/rewrite/:id"
-                    element={<RewriteDocument docs={docs} setDocs={setDocs} />}
-                  />
+                    {/* DOCUMENTS */}
+                    <Route
+                      path="documents"
+                      element={<Documents docs={docs} setDocs={setDocs} />}
+                    />
+                    <Route
+                      path="documents/:id"
+                      element={<DocumentViewer docs={docs} />}
+                    />
+                    <Route
+                      path="documents/view/:id"
+                      element={<DocumentViewer docs={docs} />}
+                    />
+                    <Route
+                      path="documents/rewrite/:id"
+                      element={<RewriteDocument docs={docs} setDocs={setDocs} />}
+                    />
 
-                  {/* INTEGRATIONS */}
-                  <Route
-                    path="integrations"
-                    element={<DashboardIntegrations />}
-                  />
-                  <Route
-                    path="integrations/connect/:integrationId"
-                    element={<IntegrationConnect />}
-                  />
+                    {/* INTEGRATIONS */}
+                    <Route
+                      path="integrations"
+                      element={<DashboardIntegrations />}
+                    />
+                    <Route
+                      path="integrations/connect/:integrationId"
+                      element={<IntegrationConnect />}
+                    />
 
-                  {/* OTHER SECTIONS */}
-                  <Route path="summaries" element={<Summaries />} />
-                  <Route path="activity" element={<Activity />} />
+                    {/* OTHER SECTIONS */}
+                    <Route path="summaries" element={<Summaries />} />
+                    <Route path="activity" element={<Activity />} />
 
-                  {/* SUPPORT */}
-                  <Route path="help-center" element={<HelpCenter />} />
-                  <Route path="contact-support" element={<ContactSupport />} />
+                    {/* SUPPORT */}
+                    <Route path="help-center" element={<HelpCenter />} />
+                    <Route path="contact-support" element={<ContactSupport />} />
 
-                  {/* Integration Docs */}
-                  <Route
-                    path="integration-docs"
-                    element={<IntegrationDocs />}
-                  />
+                    {/* Integration Docs */}
+                    <Route
+                      path="integration-docs"
+                      element={<IntegrationDocs />}
+                    />
 
-                  {/* AI LAB */}
-                  <Route path="ai-lab" element={<AiLab />} />
-                  <Route path="ai-lab/training" element={<CustomTraining />} />
-                  <Route path="ai-lab/cloud-sync" element={<CloudSync />} />
-                  <Route path="ai-lab/voice-notes" element={<VoiceNotes />} />
-                  <Route
-                    path="ai-lab/team-collaboration"
-                    element={<TeamCollaboration />}
-                  />
+                    {/* AI LAB */}
+                    <Route path="ai-lab" element={<AiLab />} />
+                    <Route path="ai-lab/training" element={<CustomTraining />} />
+                    <Route path="ai-lab/cloud-sync" element={<CloudSync />} />
+                    <Route path="ai-lab/voice-notes" element={<VoiceNotes />} />
+                    <Route
+                      path="ai-lab/team-collaboration"
+                      element={<TeamCollaboration />}
+                    />
 
-                  {/* SETTINGS */}
-                  <Route path="settings" element={<Settings />} />
-                </Route>
-              </Routes>
+                    {/* SETTINGS */}
+                    <Route path="settings" element={<Settings />} />
+                  </Route>
+                </Routes>
+              </Suspense>
             </Router>
           </WorkspaceProvider>
         </SubscriptionProvider>

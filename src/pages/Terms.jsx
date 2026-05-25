@@ -2,14 +2,14 @@
 import { useEffect, useMemo, useState } from "react";
 import GlassCard from "../components/GlassCard";
 import {
-  ShieldCheck,
-  FileText,
-  UserCircle,
-  Database,
-  Wrench,
-  WarningCircle,
-  EnvelopeSimple,
-} from "phosphor-react";
+  ShieldCheckIcon as ShieldCheck,
+  FileTextIcon as FileText,
+  UserCircleIcon as UserCircle,
+  DatabaseIcon as Database,
+  WrenchIcon as Wrench,
+  WarningCircleIcon as WarningCircle,
+  EnvelopeSimpleIcon as EnvelopeSimple,
+} from "@phosphor-icons/react";
 
 export default function TermsPage() {
   const updated = new Date().toLocaleDateString();

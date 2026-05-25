@@ -6,7 +6,7 @@ import {
   FiFileText, FiCheck, FiTrendingUp, FiBell, FiUser,
   FiClock, FiArrowRight
 } from "react-icons/fi";
-import { Sparkle, Play } from "phosphor-react";
+import { SparkleIcon as Sparkle, PlayIcon as Play } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Hero() {

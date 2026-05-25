@@ -18,20 +18,20 @@ import {
   FiChevronDown,
 } from "react-icons/fi";
 import {
-  ChatCircleDots,
-  Envelope,
-  PaperPlaneTilt,
-  Robot,
-  User,
-  X,
-  Bug,
-  CreditCard,
-  Question,
-  Lightbulb,
-  Crown,
-  CheckCircle,
-  Clock,
-} from "phosphor-react";
+  ChatCircleDotsIcon as ChatCircleDots,
+  EnvelopeIcon as Envelope,
+  PaperPlaneTiltIcon as PaperPlaneTilt,
+  RobotIcon as Robot,
+  UserIcon as User,
+  XIcon as X,
+  BugIcon as Bug,
+  CreditCardIcon as CreditCard,
+  QuestionIcon as Question,
+  LightbulbIcon as Lightbulb,
+  CrownIcon as Crown,
+  CheckCircleIcon as CheckCircle,
+  ClockIcon as Clock,
+} from "@phosphor-icons/react";
 
 // Tables
 const USER_STATS_TABLE = "user_engagement_stats";

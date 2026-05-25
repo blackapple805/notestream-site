@@ -18,13 +18,13 @@ import {
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Lightning,
-  MagnifyingGlass,
-  Sparkle,
-  FileText,
-  Note,
-  Brain,
-} from "phosphor-react";
+  LightningIcon as Lightning,
+  MagnifyingGlassIcon as MagnifyingGlass,
+  SparkleIcon as Sparkle,
+  FileTextIcon as FileText,
+  NoteIcon as Note,
+  BrainIcon as Brain,
+} from "@phosphor-icons/react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import { consumeAiUsage } from "../lib/usage";
 import { queryInsight } from "../lib/insightAI";

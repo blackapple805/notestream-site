@@ -2,7 +2,7 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { FiArrowLeft, FiCheck } from "react-icons/fi";
-import { Crown, Sparkle, Receipt, Users } from "phosphor-react";
+import { CrownIcon as Crown, SparkleIcon as Sparkle, ReceiptIcon as Receipt, UsersIcon as Users } from "@phosphor-icons/react";
 
 export default function Pricing() {
   const navigate = useNavigate();

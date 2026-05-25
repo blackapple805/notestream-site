@@ -17,14 +17,14 @@ import {
   FiGithub,
 } from "react-icons/fi";
 import {
-  Lightning,
-  CheckCircle,
-  Clock,
-  Bell,
-  Plugs,
-  BookOpen,
-  Gear,
-} from "phosphor-react";
+  LightningIcon as Lightning,
+  CheckCircleIcon as CheckCircle,
+  ClockIcon as Clock,
+  BellIcon as Bell,
+  PlugsIcon as Plugs,
+  BookOpenIcon as BookOpen,
+  GearIcon as Gear,
+} from "@phosphor-icons/react";
 
 // Dashboard-style palette (matches your IntegrationConnect colorMap)
 const colorMap = {

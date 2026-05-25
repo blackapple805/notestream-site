@@ -1,21 +1,22 @@
 // src/components/Sidebar.jsx
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
-  House,
-  Note,
-  MagnifyingGlass,
-  Brain,
-  Activity,
-  BezierCurve,
-  Gear,
-  Plugs,
-  SignOut,
-  List as MenuIcon,
-  DotsNine,
-  Microphone,
-  UploadSimple,
-  Plus,
-} from "phosphor-react";
+  HouseIcon as House,
+  NoteIcon as Note,
+  MagnifyingGlassIcon as MagnifyingGlass,
+  BrainIcon as Brain,
+  ActivityIcon as Activity,
+  BezierCurveIcon as BezierCurve,
+  GearIcon as Gear,
+  PlugsIcon as Plugs,
+  SignOutIcon as SignOut,
+  ListIcon as MenuIcon,
+  DotsNineIcon as DotsNine,
+  MicrophoneIcon as Microphone,
+  UploadSimpleIcon as UploadSimple,
+  PlusIcon as Plus,
+  SparkleIcon as Sparkle,
+} from "@phosphor-icons/react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
@@ -42,7 +43,6 @@ import {
   FiMenu,
   FiChevronRight,
 } from "react-icons/fi";
-import { Sparkle } from "phosphor-react";
 
 const DESKTOP_HEADER_H = 64;
 const MOBILE_HEADER_H = 56;

@@ -30,7 +30,7 @@ import {
   FiPlus,
   FiUpload,
 } from "react-icons/fi";
-import { Brain, Sparkle, FilePlus, FileDoc, FilePdf, FileXls, Lightning } from "phosphor-react";
+import { BrainIcon as Brain, SparkleIcon as Sparkle, FilePlusIcon as FilePlus, FileDocIcon as FileDoc, FilePdfIcon as FilePdf, FileXlsIcon as FileXls, LightningIcon as Lightning } from "@phosphor-icons/react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 /* ─── DB constants (unchanged) ─── */

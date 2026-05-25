@@ -2,15 +2,15 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Microphone,
-  Stop,
-  Play,
-  Pause,
-  Trash,
-  FloppyDisk,
-  Waveform,
-  Crown,
-} from "phosphor-react";
+  MicrophoneIcon as Microphone,
+  StopIcon as Stop,
+  PlayIcon as Play,
+  PauseIcon as Pause,
+  TrashIcon as Trash,
+  FloppyDiskIcon as FloppyDisk,
+  WaveformIcon as Waveform,
+  CrownIcon as Crown,
+} from "@phosphor-icons/react";
 import { FiX, FiCheck } from "react-icons/fi";
 import { useSubscription } from "../hooks/useSubscription";
 

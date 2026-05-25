@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import GlassCard from "../../components/GlassCard";
 import { useSubscription } from "../../hooks/useSubscription";
 
-import {Plugs} from "phosphor-react";
+import { PlugsIcon as Plugs } from "@phosphor-icons/react";
 import {
   FiX,
   FiCheck,

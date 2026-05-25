@@ -15,7 +15,7 @@ import {
   FiTrendingUp, FiCalendar, FiChevronDown, FiRefreshCw, FiLayers, FiLink,
   FiAlertCircle,
 } from "react-icons/fi";
-import { ChartLine, Fire, NotePencil, FileArrowUp, Brain, Lightning } from "phosphor-react";
+import { ChartLineIcon as ChartLine, FireIcon as Fire, NotePencilIcon as NotePencil, FileArrowUpIcon as FileArrowUp, BrainIcon as Brain, LightningIcon as Lightning } from "@phosphor-icons/react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 /* ─── Scoped styles ─── */

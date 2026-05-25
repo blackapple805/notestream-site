@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import ScrollReveal from "../components/ScrollReveal";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
-import { Sparkle, Lightning, Brain } from "phosphor-react";
+import { SparkleIcon as Sparkle, LightningIcon as Lightning, BrainIcon as Brain } from "@phosphor-icons/react";
 
 export default function AISummary() {
   const navigate = useNavigate();

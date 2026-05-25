@@ -4,7 +4,7 @@ import {
   FiPlay, FiFileText, FiZap, FiCheck, FiArrowRight,
   FiMic, FiImage, FiUpload, FiClock, FiStar
 } from "react-icons/fi";
-import { Sparkle, Lightning, Brain } from "phosphor-react";
+import { SparkleIcon as Sparkle, LightningIcon as Lightning, BrainIcon as Brain } from "@phosphor-icons/react";
 import { motion, AnimatePresence, useInView } from "framer-motion";
 
 export default function Demo() {

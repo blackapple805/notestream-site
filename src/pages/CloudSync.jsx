@@ -11,10 +11,25 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import { detectDevice } from "../lib/deviceDetect";
 import {
-  CloudArrowUp, CloudArrowDown, CloudCheck, Desktop, DeviceMobile,
-  DeviceTablet, ArrowsClockwise, CheckCircle, Warning, Pause, Play,
-  Plus, Gear, Clock, HardDrives, ArrowLeft, WifiHigh, WifiSlash,
-} from "phosphor-react";
+  CloudArrowUpIcon as CloudArrowUp,
+  CloudArrowDownIcon as CloudArrowDown,
+  CloudCheckIcon as CloudCheck,
+  DesktopIcon as Desktop,
+  DeviceMobileIcon as DeviceMobile,
+  DeviceTabletIcon as DeviceTablet,
+  ArrowsClockwiseIcon as ArrowsClockwise,
+  CheckCircleIcon as CheckCircle,
+  WarningIcon as Warning,
+  PauseIcon as Pause,
+  PlayIcon as Play,
+  PlusIcon as Plus,
+  GearIcon as Gear,
+  ClockIcon as Clock,
+  HardDrivesIcon as HardDrives,
+  ArrowLeftIcon as ArrowLeft,
+  WifiHighIcon as WifiHigh,
+  WifiSlashIcon as WifiSlash,
+} from "@phosphor-icons/react";
 import { FiX, FiTrash2, FiCheck } from "react-icons/fi";
 import { useSubscription } from "../hooks/useSubscription";
 

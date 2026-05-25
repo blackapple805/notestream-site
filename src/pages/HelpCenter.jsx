@@ -11,20 +11,20 @@ import {
   FiArrowLeft,
 } from "react-icons/fi";
 import {
-  Question,
-  Robot,
-  Lightbulb,
-  BookOpen,
-  ShieldCheck,
-  Lightning,
-  CloudArrowUp,
-  Microphone,
-  CreditCard,
-  ChatCircleDots,
-  PaperPlaneTilt,
-  X,
-  User,
-} from "phosphor-react";
+  QuestionIcon as Question,
+  RobotIcon as Robot,
+  LightbulbIcon as Lightbulb,
+  BookOpenIcon as BookOpen,
+  ShieldCheckIcon as ShieldCheck,
+  LightningIcon as Lightning,
+  CloudArrowUpIcon as CloudArrowUp,
+  MicrophoneIcon as Microphone,
+  CreditCardIcon as CreditCard,
+  ChatCircleDotsIcon as ChatCircleDots,
+  PaperPlaneTiltIcon as PaperPlaneTilt,
+  XIcon as X,
+  UserIcon as User,
+} from "@phosphor-icons/react";
 
 // FAQ Categories and Questions
 const faqCategories = [

@@ -24,14 +24,14 @@ import {
   FiFile,
 } from "react-icons/fi";
 import {
-  Sparkle,
-  PencilSimple,
-  Lightning,
-  FileDoc,
-  FilePdf,
-  FileXls,
-  Image as ImageIcon,
-} from "phosphor-react";
+  SparkleIcon as Sparkle,
+  PencilSimpleIcon as PencilSimple,
+  LightningIcon as Lightning,
+  FileDocIcon as FileDoc,
+  FilePdfIcon as FilePdf,
+  FileXlsIcon as FileXls,
+  ImageIcon,
+} from "@phosphor-icons/react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import { consumeAiUsage } from "../lib/usage";
 
@@ -1087,7 +1087,11 @@ export default function DocumentViewer({ docs = [] }) {
                   {["Professional", "Shorter", "Friendly"].map((style) => (
                     <button
                       key={style}
-                      onClick={() => handleRewrite(style)}
+                      onClick={() =>
+                        navigate(`/dashboard/documents/rewrite/${id}`, {
+                          state: { style: style.toLowerCase() },
+                        })
+                      }
                       disabled={isRewriting}
                       className={`flex-1 py-3 px-4 rounded-xl font-medium transition border ${
                         rewriteStyle === style && !isRewriting

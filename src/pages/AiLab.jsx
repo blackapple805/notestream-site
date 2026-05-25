@@ -10,10 +10,25 @@ import { motion, AnimatePresence } from "framer-motion";
 import { createSpeechRecognizer, processTranscription } from "../lib/voiceAI";
 import { loadStoredProfile, getProfileSummary } from "../lib/writingProfileAI";
 import {
-  Crown, Lightning, Microphone, CloudArrowUp, Users, Robot, Lock, Star,
-  Export, Repeat, CheckCircle, CreditCard, ShieldCheck, Stop, FileText,
-  FilePdf, FileDoc, BezierCurve,
-} from "phosphor-react";
+  CrownIcon as Crown,
+  LightningIcon as Lightning,
+  MicrophoneIcon as Microphone,
+  CloudArrowUpIcon as CloudArrowUp,
+  UsersIcon as Users,
+  RobotIcon as Robot,
+  LockIcon as Lock,
+  StarIcon as Star,
+  ExportIcon as Export,
+  RepeatIcon as Repeat,
+  CheckCircleIcon as CheckCircle,
+  CreditCardIcon as CreditCard,
+  ShieldCheckIcon as ShieldCheck,
+  StopIcon as Stop,
+  FileTextIcon as FileText,
+  FilePdfIcon as FilePdf,
+  FileDocIcon as FileDoc,
+  BezierCurveIcon as BezierCurve,
+} from "@phosphor-icons/react";
 import {
   FiX, FiCheck, FiLock, FiCreditCard, FiCalendar, FiDownload, FiZap,
 } from "react-icons/fi";

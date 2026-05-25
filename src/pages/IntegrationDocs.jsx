@@ -15,11 +15,11 @@ import {
   FiInfo,
 } from "react-icons/fi";
 import {
-  BookOpen,
-  Plugs,
-  Warning,
-  ShieldCheck,
-} from "phosphor-react";
+  BookOpenIcon as BookOpen,
+  PlugsIcon as Plugs,
+  WarningIcon as Warning,
+  ShieldCheckIcon as ShieldCheck,
+} from "@phosphor-icons/react";
 
 const DOCS = [
   {

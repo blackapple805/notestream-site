@@ -3,6 +3,10 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// ESM doesn't have __dirname; derive it from import.meta.url.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ command, mode }) => {
   // Keep your base as-is
@@ -35,6 +39,22 @@ export default defineConfig(({ command, mode }) => {
       https,
       host: "localhost",
       port: 5173,
+    },
+    build: {
+      // Split big third-party libs into their own chunks so browsers cache
+      // them independently of your app code. When you ship a code change,
+      // users don't re-download framer-motion or recharts.
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            "react-vendor": ["react", "react-dom", "react-router-dom"],
+            "framer-motion": ["framer-motion"],
+            "recharts": ["recharts"],
+            "supabase": ["@supabase/supabase-js"],
+            "icons": ["@phosphor-icons/react", "react-icons"],
+          },
+        },
+      },
     },
   };
 });

@@ -15,7 +15,7 @@ import {
   FiMic,
   FiMoreHorizontal,
 } from "react-icons/fi";
-import { Sparkle, Lightning } from "phosphor-react";
+import { SparkleIcon as Sparkle, LightningIcon as Lightning } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -103,6 +103,30 @@ export default function NoteView({
   onLockToggle,
 }) {
   const navigate = useNavigate();
+
+  // All useState calls MUST come before any conditional early returns to satisfy
+  // the Rules of Hooks. Defaults use optional chaining so they remain valid even
+  // when `note` is null on the first render.
+  const [showToast, setShowToast] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
+  const [title, setTitle] = useState(note?.title || "Untitled");
+  const [body, setBody] = useState(note?.body ?? "");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [voiceToast, setVoiceToast] = useState(false);
+
+  const [smartData, setSmartData] = useState({
+    summary: note?.summary || null,
+    SmartTasks: note?.SmartTasks || null,
+    SmartHighlights: note?.SmartHighlights || null,
+    SmartSchedule: note?.SmartSchedule || null,
+    generatedAt: note?.aiGeneratedAt || null,
+  });
 
   const { subscription, isFeatureUnlocked } = useSubscription();
   const isPro = !!subscription?.plan && subscription.plan !== "free";
@@ -216,27 +240,6 @@ export default function NoteView({
   const isVoiceNote = !!note?.audioUrl || note?.tag === "Voice";
   const isLocked = !!note.locked;
   const isFav = !!note.favorite;
-
-  const [showToast, setShowToast] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-
-  const [title, setTitle] = useState(note.title || "Untitled");
-  const [body, setBody] = useState(note.body ?? "");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
-
-  const [showUpgrade, setShowUpgrade] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [voiceToast, setVoiceToast] = useState(false);
-
-  const [smartData, setSmartData] = useState({
-    summary: note.summary || null,
-    SmartTasks: note.SmartTasks || null,
-    SmartHighlights: note.SmartHighlights || null,
-    SmartSchedule: note.SmartSchedule || null,
-    generatedAt: note.aiGeneratedAt || null,
-  });
 
   const textareaRef = useRef(null);
 

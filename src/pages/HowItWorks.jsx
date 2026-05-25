@@ -19,7 +19,7 @@ import {
   FiTarget,
 } from "react-icons/fi";
 import { motion } from "framer-motion";
-import { Brain, Sparkle, Lightning, ListChecks, Tag } from "phosphor-react";
+import { BrainIcon as Brain, SparkleIcon as Sparkle, LightningIcon as Lightning, ListChecksIcon as ListChecks, TagIcon as Tag } from "@phosphor-icons/react";
 
 export default function HowItWorks() {
   const navigate = useNavigate();

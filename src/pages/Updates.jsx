@@ -12,7 +12,7 @@ import {
   FiStar,
   FiArrowRight
 } from "react-icons/fi";
-import { Sparkle, Lightning, Rocket, Calendar, CheckCircle } from "phosphor-react";
+import { SparkleIcon as Sparkle, LightningIcon as Lightning, RocketIcon as Rocket, CalendarIcon as Calendar, CheckCircleIcon as CheckCircle } from "@phosphor-icons/react";
 
 export default function Updates() {
   return (

@@ -12,7 +12,7 @@ import {
   FiFolder,
   FiSearch,
 } from "react-icons/fi";
-import { Lightning, Sparkle } from "phosphor-react";
+import { LightningIcon as Lightning, SparkleIcon as Sparkle } from "@phosphor-icons/react";
 
 function ToneTile({ tone, size = 56, children, className = "" }) {
   return (

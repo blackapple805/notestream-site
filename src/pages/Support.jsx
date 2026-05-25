@@ -9,15 +9,15 @@ import {
   FiCheck,
 } from "react-icons/fi";
 import {
-  Lifebuoy,
-  BookOpen,
-  ChatCircleDots,
-  Envelope,
-  RocketLaunch,
-  Lightning,
-  ShieldCheck,
-  DiscordLogo,
-} from "phosphor-react";
+  LifebuoyIcon as Lifebuoy,
+  BookOpenIcon as BookOpen,
+  ChatCircleDotsIcon as ChatCircleDots,
+  EnvelopeIcon as Envelope,
+  RocketLaunchIcon as RocketLaunch,
+  LightningIcon as Lightning,
+  ShieldCheckIcon as ShieldCheck,
+  DiscordLogoIcon as DiscordLogo,
+} from "@phosphor-icons/react";
 
 function XIcon({ size = 20, className = "", style = {} }) {
   return (

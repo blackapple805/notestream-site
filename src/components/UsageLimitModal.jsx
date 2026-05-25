@@ -1,6 +1,6 @@
 // src/components/UsageLimitModal.jsx
 import { motion, AnimatePresence } from "framer-motion";
-import { Warning, Crown, Lightning } from "phosphor-react";
+import { WarningIcon as Warning, CrownIcon as Crown, LightningIcon as Lightning } from "@phosphor-icons/react";
 import { FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 

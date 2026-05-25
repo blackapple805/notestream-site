@@ -16,9 +16,21 @@ import {
   FiChevronRight, FiCheck, FiHelpCircle, FiZap, FiEdit2, FiX,
 } from "react-icons/fi";
 import {
-  Gear, UserCircle, PaintBrush, Robot, ShieldCheck, Warning, Crown,
-  Export, Question, ChatCircle, Fire, Lightning, Calendar, Sparkle,
-} from "phosphor-react";
+  GearIcon as Gear,
+  UserCircleIcon as UserCircle,
+  PaintBrushIcon as PaintBrush,
+  RobotIcon as Robot,
+  ShieldCheckIcon as ShieldCheck,
+  WarningIcon as Warning,
+  CrownIcon as Crown,
+  ExportIcon as Export,
+  QuestionIcon as Question,
+  ChatCircleIcon as ChatCircle,
+  FireIcon as Fire,
+  LightningIcon as Lightning,
+  CalendarIcon as Calendar,
+  SparkleIcon as Sparkle,
+} from "@phosphor-icons/react";
 
 const USER_STATS_TABLE = "user_engagement_stats";
 

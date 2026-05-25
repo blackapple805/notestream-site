@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiArrowLeft, FiMail, FiCheck, FiArrowRight } from "react-icons/fi";
-import { Envelope } from "phosphor-react";
+import { EnvelopeIcon as Envelope } from "@phosphor-icons/react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 export default function ResetPassword() {

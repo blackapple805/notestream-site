@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiArrowLeft, FiExternalLink } from "react-icons/fi";
-import { ShieldCheck, Lightning, Activity, Wrench, Clock } from "phosphor-react";
+import { ShieldCheckIcon as ShieldCheck, LightningIcon as Lightning, ActivityIcon as Activity, WrenchIcon as Wrench, ClockIcon as Clock } from "@phosphor-icons/react";
 
 export default function Status() {
   const navigate = useNavigate();

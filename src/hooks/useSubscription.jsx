@@ -7,7 +7,7 @@ import {
   useCallback,
   useRef,
 } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 // ============================================================
 // Plan definitions (DO NOT export from this file to keep Vite Fast Refresh happy)
@@ -195,6 +195,15 @@ export function SubscriptionProvider({ children }) {
     if (loadingRef.current) return;
     loadingRef.current = true;
 
+    // Supabase isn't configured (missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
+    // in .env). Fall back to cached/default state instead of crashing.
+    if (!isSupabaseConfigured || !supabase) {
+      loadFromCache();
+      setIsLoading(false);
+      loadingRef.current = false;
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
@@ -298,6 +307,11 @@ export function SubscriptionProvider({ children }) {
       try {
         setError(null);
 
+        if (!isSupabaseConfigured || !supabase) {
+          setError("Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.");
+          return { success: false, error: "supabase-not-configured" };
+        }
+
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -362,6 +376,12 @@ export function SubscriptionProvider({ children }) {
     try {
       setError(null);
       setCancelInFlight(true);
+
+      if (!isSupabaseConfigured || !supabase) {
+        setError("Supabase is not configured.");
+        setCancelInFlight(false);
+        return { success: false, error: "supabase-not-configured" };
+      }
 
       // optimistic
       setSubscription((prev) => ({
@@ -428,6 +448,12 @@ export function SubscriptionProvider({ children }) {
       setError(null);
       setReactivateInFlight(true);
 
+      if (!isSupabaseConfigured || !supabase) {
+        setError("Supabase is not configured.");
+        setReactivateInFlight(false);
+        return { success: false, error: "supabase-not-configured" };
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -485,6 +511,15 @@ export function SubscriptionProvider({ children }) {
     const dbType = typeMap[usageType] || usageType;
 
     try {
+      if (!isSupabaseConfigured || !supabase) {
+        // No backend; just bump local counter so UI still feels responsive.
+        setUsage((prev) => ({
+          ...prev,
+          [usageType]: (prev[usageType] || 0) + 1,
+        }));
+        return { success: true, limitReached: false };
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -585,6 +620,13 @@ export function SubscriptionProvider({ children }) {
   // ----------------------------------------------------------
   useEffect(() => {
     loadSubscription();
+
+    // If supabase isn't configured we still need loadSubscription to run
+    // (it falls back to cache), but we skip the auth listener since there's
+    // no client to listen to.
+    if (!isSupabaseConfigured || !supabase) {
+      return undefined;
+    }
 
     const inFlight = { current: false };
 

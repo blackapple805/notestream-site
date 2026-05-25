@@ -17,20 +17,20 @@ import { motion, AnimatePresence } from "framer-motion";
 import { createSpeechRecognizer, processTranscription } from "../lib/voiceAI";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import {
-  Microphone,
-  Stop,
-  Pause,
-  Play,
-  Trash,
-  FloppyDisk,
-  ArrowLeft,
-  Clock,
-  CheckCircle,
-  PencilSimple,
-  Copy,
-  SpeakerHigh,
-  Warning,
-} from "phosphor-react";
+  MicrophoneIcon as Microphone,
+  StopIcon as Stop,
+  PauseIcon as Pause,
+  PlayIcon as Play,
+  TrashIcon as Trash,
+  FloppyDiskIcon as FloppyDisk,
+  ArrowLeftIcon as ArrowLeft,
+  ClockIcon as Clock,
+  CheckCircleIcon as CheckCircle,
+  PencilSimpleIcon as PencilSimple,
+  CopyIcon as Copy,
+  SpeakerHighIcon as SpeakerHigh,
+  WarningIcon as Warning,
+} from "@phosphor-icons/react";
 import { FiX, FiCheck, FiTrash2, FiCopy } from "react-icons/fi";
 import { useSubscription } from "../hooks/useSubscription";
 

@@ -16,7 +16,7 @@ import {
   FiFilter,
 } from "react-icons/fi";
 import { createPortal } from "react-dom";
-import { Note, FilePlus, Crown, Fire, Lightning } from "phosphor-react";
+import { NoteIcon as Note, FilePlusIcon as FilePlus, CrownIcon as Crown, FireIcon as Fire, LightningIcon as Lightning } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";

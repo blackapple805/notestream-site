@@ -2,7 +2,7 @@
 import { motion } from "framer-motion";
 import { FiArrowLeft, FiExternalLink } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
-import { ShieldCheck, FileText, Lock, Users, Clock } from "phosphor-react";
+import { ShieldCheckIcon as ShieldCheck, FileTextIcon as FileText, LockIcon as Lock, UsersIcon as Users, ClockIcon as Clock } from "@phosphor-icons/react";
 
 export default function Privacy() {
   const navigate = useNavigate();

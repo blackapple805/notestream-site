@@ -21,26 +21,26 @@ import {
 } from "react-icons/fi";
 import { useReducedMotion, motion, AnimatePresence } from "framer-motion";
 import {
-  House,
-  Brain,
-  Sparkle,
-  Note,
-  Bell,
-  Activity,
-  Plugs,
-  BezierCurve,
-  Lightning,
-  FileText,
-  ChartLineUp,
-  Star,
-  Target,
-  Fire,
-  Calendar,
-  Warning,
-  CheckSquare,
-  Phone,
-  Flag,
-} from "phosphor-react";
+  HouseIcon as House,
+  BrainIcon as Brain,
+  SparkleIcon as Sparkle,
+  NoteIcon as Note,
+  BellIcon as Bell,
+  ActivityIcon as Activity,
+  PlugsIcon as Plugs,
+  BezierCurveIcon as BezierCurve,
+  LightningIcon as Lightning,
+  FileTextIcon as FileText,
+  ChartLineUpIcon as ChartLineUp,
+  StarIcon as Star,
+  TargetIcon as Target,
+  FireIcon as Fire,
+  CalendarIcon as Calendar,
+  WarningIcon as Warning,
+  CheckSquareIcon as CheckSquare,
+  PhoneIcon as Phone,
+  FlagIcon as Flag,
+} from "@phosphor-icons/react";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 

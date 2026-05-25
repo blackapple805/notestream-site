@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiArrowLeft, FiCheck, FiLock, FiArrowRight } from "react-icons/fi";
-import { ShieldCheck } from "phosphor-react";
+import { ShieldCheckIcon as ShieldCheck } from "@phosphor-icons/react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 export default function UpdatePassword() {

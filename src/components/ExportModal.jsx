@@ -2,15 +2,15 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Export,
-  FilePdf,
-  FileDoc,
-  FileText,
-  Copy,
-  Check,
-  Crown,
-  Spinner,
-} from "phosphor-react";
+  ExportIcon as Export,
+  FilePdfIcon as FilePdf,
+  FileDocIcon as FileDoc,
+  FileTextIcon as FileText,
+  CopyIcon as Copy,
+  CheckIcon as Check,
+  CrownIcon as Crown,
+  SpinnerIcon as Spinner,
+} from "@phosphor-icons/react";
 import { FiX, FiDownload, FiCheck } from "react-icons/fi";
 import { useSubscription } from "../hooks/useSubscription";
 

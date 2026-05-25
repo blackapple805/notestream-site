@@ -1,6 +1,6 @@
 // src/components/NoteCard.jsx
 import { FiHeart, FiLock, FiFileText, FiImage, FiMoreVertical, FiMic } from "react-icons/fi";
-import { Note, FilePdf, Image, Microphone } from "phosphor-react";
+import { NoteIcon as Note, FilePdfIcon as FilePdf, ImageIcon as Image, MicrophoneIcon as Microphone } from "@phosphor-icons/react";
 
 // Localized Relative Time Formatting
 const formatRelative = (date) => {
