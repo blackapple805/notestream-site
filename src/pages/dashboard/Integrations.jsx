@@ -3,24 +3,20 @@
 // EDITORIAL RESKIN — what changed and why
 // ─────────────────────────────────────────────────────────────────
 // Wrapped the page in `<div className="ns-ed">` and called
-// `useEditorial()`. The bento-tile integration grid is now an
-// editorial directory: chapter mark (`№ 07 — THE CORRESPONDENTS`),
-// a serif display title ("Letters from elsewhere.") with
-// "elsewhere" in italic accent blue, a mono dateline (n services /
-// n connected / n coming soon), a double-rule break, a brief lede,
-// mono filter pills, then full-width editorial article rows —
-// mono ordinal · serif name with terminal period · serif
-// description · mono meta with status chip · right-aligned aside
-// reading CONNECT → / MANAGE → / WAITLIST →. The detail modal is
-// a paper-50 EdModal with serif title, mono "Features included"
-// eyebrow, and ink/ghost buttons in the footer. Toast retained
-// via portal, restyled to mono editorial. Bottom help card is now
-// a paper-50 strip (left: serif title + italic-italic "elsewhere"
-// hint, right: docs and support buttons).
+// `useEditorial()`. The bento-glass tile grid is now an editorial
+// directory: chapter mark (`№ 07 — THE CORRESPONDENTS`), a serif
+// display title ("Letters from elsewhere.") with "elsewhere" in
+// italic accent blue, a mono dateline (n services / n connected /
+// n coming soon), a double-rule break, a brief lede, mono filter
+// pills, then full-width editorial article rows — mono ordinal ·
+// serif name with terminal period · serif description · mono meta
+// with status chip · right-aligned aside (CONNECT → / MANAGE → /
+// JOIN →). Detail modal is a paper-50 card with serif title, mono
+// "FEATURES INCLUDED" eyebrow, ink/ghost buttons.
 // All Supabase / subscription / connect / disconnect / waitlist
-// logic is UNCHANGED. The IconTile helper is removed since
-// editorial typography carries identity; the original icons are
-// reused as small monoline glyphs in the meta line.
+// logic is UNCHANGED. The original IconTile (coloured squircle)
+// is removed since editorial typography carries identity; the
+// original icons are reused inline at the title.
 // ═══════════════════════════════════════════════════════════════════
 
 import { useState, useMemo } from "react";
@@ -49,28 +45,46 @@ import {
 
 const integrations = [
   {
-    id: "google-drive", title: "Google Drive", desc: "Syncs docs, sheets, and slides back into the archive every fifteen minutes.",
-    icon: FiCloud,    features: ["Auto-sync files", "Folder organisation", "Real-time updates", "Two-way sync"], status: "available",
+    id: "google-drive", title: "Google Drive",
+    desc: "Syncs docs, sheets, and slides back into the archive every fifteen minutes.",
+    icon: FiCloud,
+    features: ["Auto-sync files", "Folder organisation", "Real-time updates", "Two-way sync"],
+    status: "available",
   },
   {
-    id: "slack", title: "Slack", desc: "Turn Slack conversations into organised notes — channels read, threads extracted, drafts kept.",
-    icon: FiLink2,    features: ["Channel summaries", "Thread extraction", "Direct messaging", "Workspace sync"], status: "available",
+    id: "slack", title: "Slack",
+    desc: "Turn Slack conversations into organised notes — channels read, threads extracted, drafts kept.",
+    icon: FiLink2,
+    features: ["Channel summaries", "Thread extraction", "Direct messaging", "Workspace sync"],
+    status: "available",
   },
   {
-    id: "notion", title: "Notion", desc: "Import and sync your Notion workspace, with pages, databases, and block formatting preserved.",
-    icon: FiDatabase, features: ["Page sync", "Database updates", "Block formatting", "Template support"],   status: "available",
+    id: "notion", title: "Notion",
+    desc: "Import and sync your Notion workspace with pages, databases, and block formatting preserved.",
+    icon: FiDatabase,
+    features: ["Page sync", "Database updates", "Block formatting", "Template support"],
+    status: "available",
   },
   {
-    id: "zapier", title: "Zapier", desc: "Automate workflows with five thousand apps. NoteStream sits quietly in the middle.",
-    icon: FiRefreshCw, features: ["5000+ apps", "Custom workflows", "Trigger actions", "Multi-step zaps"],    status: "available",
+    id: "zapier", title: "Zapier",
+    desc: "Automate workflows with five thousand apps. NoteStream sits quietly in the middle.",
+    icon: FiRefreshCw,
+    features: ["5000+ apps", "Custom workflows", "Trigger actions", "Multi-step zaps"],
+    status: "available",
   },
   {
-    id: "github", title: "GitHub", desc: "Link repos and track project notes. Issues created, pull requests summarised.",
-    icon: FiGithub,   features: ["Issue creation", "PR summaries", "Repo integration", "Commit linking"],     status: "coming-soon",
+    id: "github", title: "GitHub",
+    desc: "Link repos and track project notes. Issues created, pull requests summarised.",
+    icon: FiGithub,
+    features: ["Issue creation", "PR summaries", "Repo integration", "Commit linking"],
+    status: "coming-soon",
   },
   {
-    id: "email", title: "Email import", desc: "Forward emails and receive instant summaries with attachments parsed and categorised.",
-    icon: FiInbox,    features: ["Email forwarding", "Attachment parsing", "Auto-categorise", "Smart replies"], status: "coming-soon",
+    id: "email", title: "Email import",
+    desc: "Forward emails and receive instant summaries — attachments parsed, replies suggested.",
+    icon: FiInbox,
+    features: ["Email forwarding", "Attachment parsing", "Auto-categorise", "Smart replies"],
+    status: "coming-soon",
   },
 ];
 
@@ -86,7 +100,7 @@ export default function Integrations() {
   const [showToast, setShowToast] = useState(null);
   const [filter, setFilter] = useState("all");
 
-  /* Lock body scroll when modal is open to prevent page jump (UNCHANGED) */
+  /* Lock body scroll when modal is open (UNCHANGED) */
   const openModal = (integration) => {
     document.body.style.overflow = "hidden";
     setSelectedIntegration(integration);
@@ -155,9 +169,9 @@ export default function Integrations() {
     <div className="ns-ed">
       <style>{INT_STYLES}</style>
 
-      <div className="ed-page ns-int-wrap">
+      <div style={{ paddingBottom: "calc(var(--mobile-nav-height, 0px) + 24px)" }}>
 
-        {/* ── TOAST (portal, mono editorial) ── */}
+        {/* ── TOAST (portal) ── */}
         {createPortal(
           <AnimatePresence>
             {showToast && (
@@ -175,23 +189,27 @@ export default function Integrations() {
         )}
 
         {/* ── HEADER ── */}
-        <header className="ns-int-head">
+        <header className="ns-int-head" style={{ paddingTop: 32 }}>
           <div>
             <div className="ed-chapter" style={{ marginBottom: 18 }}>
               <span className="num">№ 07</span>
-              <span>— The correspondents</span>
+              <span>— THE CORRESPONDENTS</span>
             </div>
             <h1 className="ed-display ns-int-title">
               Letters from{" "}
               <span className="ed-italic" style={{ color: ED.accent }}>elsewhere.</span>
             </h1>
             <p className="ed-mono ns-int-sub">
-              {integrations.length} SERVICES · {connectedCount} CONNECTED · {comingSoonIntegrations.length} COMING SOON
+              {integrations.length} SERVICES
+              <span className="ns-dotsep">·</span>
+              {connectedCount} CONNECTED
+              <span className="ns-dotsep">·</span>
+              {comingSoonIntegrations.length} COMING SOON
             </p>
           </div>
         </header>
 
-        <hr className="ed-rule-dbl" />
+        <hr className="ed-rule-dbl" style={{ marginTop: 32 }} />
 
         {/* ── LEDE ── */}
         <p className="ed-serif ns-int-lede">
@@ -201,9 +219,9 @@ export default function Integrations() {
         {/* ── FILTERS ── */}
         <div className="ns-int-filters">
           {[
-            { id: "all",       label: "All",        n: integrations.length },
-            { id: "connected", label: "Connected",  n: connectedCount },
-            { id: "available", label: "Available",  n: availableIntegrations.length },
+            { id: "all",       label: "All",         n: integrations.length },
+            { id: "connected", label: "Connected",   n: connectedCount },
+            { id: "available", label: "Available",   n: availableIntegrations.length },
             { id: "coming",    label: "Coming soon", n: comingSoonIntegrations.length },
           ].map((f) => (
             <button
@@ -286,9 +304,7 @@ export default function Integrations() {
           </div>
         </section>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            INTEGRATION DETAIL MODAL (editorial)
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* ━━━━━━━━━━━━━━ DETAIL MODAL ━━━━━━━━━━━━━━ */}
         <AnimatePresence>
           {selectedIntegration && (
             <>
@@ -418,7 +434,7 @@ export default function Integrations() {
    SCOPED STYLES
 ═══════════════════════════════════════════════════════ */
 const INT_STYLES = `
-  .ns-ed .ns-int-wrap { padding-top: 40px; padding-bottom: 96px; }
+  .ns-ed .ns-dotsep { padding: 0 8px; color: var(--ed-rule); }
 
   .ns-ed .ns-int-toast {
     position: fixed; top: calc(env(safe-area-inset-top, 0px) + 80px);
@@ -434,7 +450,7 @@ const INT_STYLES = `
     box-shadow: 0 8px 24px rgba(0,0,0,0.06);
   }
 
-  .ns-ed .ns-int-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 32px; flex-wrap: wrap; }
+  .ns-ed .ns-int-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
   .ns-ed .ns-int-title { font-size: clamp(40px, 5vw, 64px); margin: 0; padding-bottom: 0.06em; }
   .ns-ed .ns-int-sub { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ed-ink-faint); margin-top: 28px; }
   .ns-ed .ns-int-lede {
@@ -503,7 +519,7 @@ const INT_STYLES = `
     color: var(--ed-ink-faint); margin: 0 0 8px 0;
   }
   .ns-ed .ns-int-help-title {
-    font-size: 26px; color: var(--ed-ink); margin: 0; letterSpacing: -0.01em;
+    font-size: 26px; color: var(--ed-ink); margin: 0; letter-spacing: -0.01em;
   }
   .ns-ed .ns-int-help-desc {
     font-size: 14.5px; line-height: 1.55; color: var(--ed-ink-mute); margin: 8px 0 0 0; max-width: 480px;
@@ -555,12 +571,12 @@ const INT_STYLES = `
     color: var(--ed-ink-faint); margin: 0 0 10px 0;
   }
   .ns-ed .ns-int-modal-features {
-    list-style: none; margin: 0; padding: 0; display: grid; gap: 8px;
+    list-style: none; margin: 0; padding: 0; display: grid; gap: 0;
     border-top: 1px solid var(--ed-rule-soft);
   }
   .ns-ed .ns-int-modal-features li {
     display: grid; grid-template-columns: 36px 1fr; gap: 12px;
-    align-items: baseline; padding: 10px 0;
+    align-items: baseline; padding: 12px 0;
     border-bottom: 1px solid var(--ed-rule-soft);
   }
   .ns-ed .ns-int-modal-features li .ord {

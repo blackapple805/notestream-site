@@ -1,8 +1,18 @@
-// src/pages/Settings.jsx
+// src/pages/Settings.jsx — "The Composing Room"
 // ═══════════════════════════════════════════════════════════════════
-// REDESIGNED: Matching bento-glass visual system.
-// + Page loading skeleton on initial load
-// + Full account deletion (data + auth user via RPC)
+// EDITORIAL RESKIN — what changed and why
+// ─────────────────────────────────────────────────────────────────
+// Wrapped the page in `<div className="ns-ed">` and called
+// `useEditorial()`. The dark bento-glass settings panels are now
+// editorial chapters: each section (Profile, Appearance, Workspace
+// AI, Security, Support, Danger zone) sits beneath a `§ NN —` mono
+// chapter mark, separated by hairline rules. Profile inputs are
+// paper-50 fields with hairline borders. Theme picker is three pill
+// buttons, ink-fill when active. Toggles are ink/paper pill switches.
+// Settings links are full-width article rows.
+// All Supabase / theme / workspace-settings / RPC delete / export /
+// PIN modal logic is UNCHANGED — only the JSX shell and CSS were
+// touched.
 // ═══════════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
@@ -11,92 +21,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "../context/ThemeContext";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { useEditorial, ED } from "../lib/editorial";
 import {
-  FiUser, FiLock, FiMoon, FiSun, FiMonitor, FiTrash2, FiLogOut,
+  FiLock, FiMoon, FiSun, FiMonitor, FiTrash2, FiLogOut,
   FiChevronRight, FiCheck, FiHelpCircle, FiZap, FiEdit2, FiX,
+  FiDownload, FiUser,
 } from "react-icons/fi";
-import {
-  GearIcon as Gear,
-  UserCircleIcon as UserCircle,
-  PaintBrushIcon as PaintBrush,
-  RobotIcon as Robot,
-  ShieldCheckIcon as ShieldCheck,
-  WarningIcon as Warning,
-  CrownIcon as Crown,
-  ExportIcon as Export,
-  QuestionIcon as Question,
-  ChatCircleIcon as ChatCircle,
-  FireIcon as Fire,
-  LightningIcon as Lightning,
-  CalendarIcon as Calendar,
-  SparkleIcon as Sparkle,
-} from "@phosphor-icons/react";
 
 const USER_STATS_TABLE = "user_engagement_stats";
-
-/* ─── Scoped styles ─── */
-const SETTINGS_STYLES = `
-@keyframes ns-set-fade-up {
-  0%   { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-.ns-set-stagger > * {
-  animation: ns-set-fade-up 0.4s cubic-bezier(.22,1,.36,1) both;
-}
-.ns-set-stagger > *:nth-child(1) { animation-delay: 0.02s; }
-.ns-set-stagger > *:nth-child(2) { animation-delay: 0.05s; }
-.ns-set-stagger > *:nth-child(3) { animation-delay: 0.08s; }
-.ns-set-stagger > *:nth-child(4) { animation-delay: 0.11s; }
-.ns-set-stagger > *:nth-child(5) { animation-delay: 0.14s; }
-.ns-set-stagger > *:nth-child(6) { animation-delay: 0.17s; }
-.ns-set-stagger > *:nth-child(7) { animation-delay: 0.20s; }
-.ns-set-stagger > *:nth-child(8) { animation-delay: 0.23s; }
-
-.ns-set-card {
-  position: relative;
-  border-radius: 20px;
-  overflow: hidden;
-  background: var(--card-glass-bg, var(--bg-surface));
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 1px solid var(--card-glass-border, var(--border-secondary));
-  box-shadow: var(--card-glass-shadow, 0 8px 32px rgba(0,0,0,0.12));
-}
-.ns-set-card::before {
-  content: '';
-  position: absolute; inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%);
-  pointer-events: none; z-index: 1;
-}
-.ns-set-card::after {
-  content: '';
-  position: absolute;
-  left: 24px; right: 24px; top: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-  pointer-events: none; z-index: 2;
-}
-
-.ns-set-row {
-  border-radius: 14px;
-  border: 1px solid var(--border-secondary);
-  background: var(--bg-input, var(--bg-tertiary));
-  transition: all 0.2s ease;
-}
-.ns-set-row:hover {
-  border-color: rgba(99,102,241,0.2);
-}
-
-@keyframes ns-skeleton-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.15; }
-}
-.ns-skeleton {
-  border-radius: 10px;
-  background: var(--border-secondary);
-  animation: ns-skeleton-pulse 1.8s ease-in-out infinite;
-}
-`;
 
 function formatDateShort(d) {
   try { return new Intl.DateTimeFormat(undefined, { month: "numeric", day: "numeric", year: "numeric" }).format(d); }
@@ -106,44 +38,13 @@ function getLast7DaysRange() {
   const end = new Date(); const start = new Date(); start.setDate(end.getDate() - 7); return { start, end };
 }
 
-/* ─── Loading Skeleton ─── */
-function SettingsSkeleton() {
-  return (
-    <div className="space-y-5">
-      {/* Header skeleton */}
-      <div className="flex items-center gap-3">
-        <div className="ns-skeleton h-11 w-11 rounded-2xl" />
-        <div className="space-y-2">
-          <div className="ns-skeleton h-5 w-24 rounded-lg" />
-          <div className="ns-skeleton h-3 w-48 rounded-lg" />
-        </div>
-      </div>
-      {/* Card skeletons */}
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="ns-set-card">
-          <div className="relative z-10 p-4 space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="ns-skeleton h-8 w-8 rounded-lg" />
-              <div className="ns-skeleton h-4 w-20 rounded-lg" />
-            </div>
-            <div className="ns-skeleton h-12 w-full rounded-xl" />
-            <div className="ns-skeleton h-12 w-full rounded-xl" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════
-   MAIN COMPONENT
-═══════════════════════════════════════════════════════ */
 export default function Settings() {
+  useEditorial();
   const navigate = useNavigate();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { settings, updateSetting } = useWorkspaceSettings();
 
-  /* ── State ── */
+  /* ── State (UNCHANGED) ── */
   const [pageLoading, setPageLoading] = useState(true);
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -164,7 +65,7 @@ export default function Settings() {
 
   const showToast = (message) => { setToast(message); setTimeout(() => setToast(null), 3000); };
 
-  /* ── Auth + DB helpers ── */
+  /* ── Auth + DB helpers (UNCHANGED) ── */
   const getUser = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) return null;
     const { data, error } = await supabase.auth.getSession();
@@ -205,9 +106,10 @@ export default function Settings() {
     if (!supabase) return;
     const { data: sub } = supabase.auth.onAuthStateChange(() => { reqRef.current += 1; hydrateFromDb(); });
     return () => sub?.subscription?.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ── Profile save ── */
+  /* ── Profile save (UNCHANGED) ── */
   const handleSaveProfile = async () => {
     const cleanName = (displayName || "").trim();
     if (!cleanName) return showToast("Display name cannot be empty.");
@@ -220,19 +122,17 @@ export default function Settings() {
       if (error) throw error;
       if (!data || data.length === 0) throw new Error("Update blocked (RLS).");
       try { await supabase.auth.updateUser({ data: { full_name: cleanName, name: cleanName } }); } catch {}
-      showToast("Profile updated!"); reqRef.current += 1; savingRef.current = false; hydrateFromDb();
+      showToast("Profile updated."); reqRef.current += 1; savingRef.current = false; hydrateFromDb();
     } catch (err) { showToast(err?.message || "Save failed."); savingRef.current = false; reqRef.current += 1; hydrateFromDb(); }
   };
 
-  /* ── DELETE ACCOUNT (full removal via RPC) ── */
+  /* ── Account deletion (UNCHANGED) ── */
   const handleDeleteAccount = async () => {
     setDeleteLoading(true);
     try {
       if (isSupabaseConfigured && supabase) {
         const { error } = await supabase.rpc("delete_my_account");
         if (error) throw error;
-        // Sign out locally — this clears the Supabase session token
-        // even though the auth user is already deleted server-side
         try { await supabase.auth.signOut({ scope: "local" }); } catch {}
       }
     } catch (err) {
@@ -245,11 +145,10 @@ export default function Settings() {
     localStorage.clear();
     setDeleteLoading(false);
     setShowDeleteModal(false);
-    // Hard redirect to clear any remaining auth state
     window.location.href = "/";
   };
 
-  /* ── Export ── */
+  /* ── Export (UNCHANGED) ── */
   const handleExportData = async () => {
     try {
       const exportData = { exportDate: new Date().toISOString(), version: "1.0.0", profile: { displayName: displayName || "Unknown", email: email || "Unknown" }, settings: { theme: theme || "dark", autoSummarize: !!settings.autoSummarize, smartNotifications: !!settings.smartNotifications, weeklyDigest: !!settings.weeklyDigest, pinEnabled: localStorage.getItem("ns-note-pin") !== null }, stats: stats || {}, notes: [], documents: [], activity: [] };
@@ -264,19 +163,19 @@ export default function Settings() {
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a"); link.href = url; link.download = `notestream-export-${new Date().toISOString().split("T")[0]}.json`; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
-      setShowExportModal(false); showToast("Data exported!");
+      setShowExportModal(false); showToast("Data exported.");
     } catch (err) { setShowExportModal(false); showToast("Export failed."); }
   };
 
-  /* ── Setting handlers ── */
-  const handleAutoSummarizeChange = (v) => { updateSetting("autoSummarize", v); showToast(v ? "Auto-summarize enabled" : "Auto-summarize disabled"); };
-  const handleWeeklyDigestChange = async (v) => { updateSetting("weeklyDigest", v); if (v && isSupabaseConfigured && supabase) { try { await hydrateFromDb(); } catch {} } showToast(v ? "Weekly digest enabled" : "Weekly digest disabled"); };
+  /* ── Setting handlers (UNCHANGED) ── */
+  const handleAutoSummarizeChange    = (v) => { updateSetting("autoSummarize", v);    showToast(v ? "Auto-summarise enabled" : "Auto-summarise disabled"); };
+  const handleWeeklyDigestChange     = async (v) => { updateSetting("weeklyDigest", v); if (v && isSupabaseConfigured && supabase) { try { await hydrateFromDb(); } catch {} } showToast(v ? "Weekly digest enabled" : "Weekly digest disabled"); };
   const handleSmartNotificationsChange = (v) => { updateSetting("smartNotifications", v); showToast(v ? "Smart notifications enabled" : "Smart notifications disabled"); };
 
   const themeOptions = [
-    { value: "dark", label: "Dark", icon: FiMoon, accent: "#818cf8" },
-    { value: "light", label: "Light", icon: FiSun, accent: "#f59e0b" },
-    { value: "system", label: "Auto", icon: FiMonitor, accent: "#06b6d4" },
+    { value: "light",  label: "Light",  icon: FiSun },
+    { value: "dark",   label: "Dark",   icon: FiMoon },
+    { value: "system", label: "Auto",   icon: FiMonitor },
   ];
 
   const range = getLast7DaysRange();
@@ -287,394 +186,437 @@ export default function Settings() {
      RENDER
   ═══════════════════════════════════════════════════════ */
 
-  // Show skeleton while loading
   if (pageLoading) {
     return (
-      <>
+      <div className="ns-ed">
         <style>{SETTINGS_STYLES}</style>
-        <SettingsSkeleton />
-      </>
+        <div style={{ padding: "80px 32px" }}>
+          <p className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint }}>
+            Loading the composing room…
+          </p>
+          <hr style={{ width: 160, height: 1, background: ED.rule, border: 0, margin: "14px 0 0 0", animation: "ns-set-pulse 1.4s ease-in-out infinite" }} />
+        </div>
+      </div>
     );
   }
 
   return (
-    <>
+    <div className="ns-ed">
       <style>{SETTINGS_STYLES}</style>
 
-      <div className="space-y-5 pb-[calc(var(--mobile-nav-height)+24px)] ns-set-stagger">
+      <div style={{ paddingBottom: "calc(var(--mobile-nav-height, 0px) + 24px)" }}>
 
-        {/* Toast */}
+        {/* ── TOAST ── */}
         <AnimatePresence>
           {toast && (
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-              className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-2xl text-sm font-semibold shadow-2xl flex items-center gap-2 bg-emerald-500 text-white">
-              <FiCheck size={16} /> {toast}
+            <motion.div
+              initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.2 }}
+              className="ns-set-toast ed-mono"
+            >
+              <FiCheck size={13} /> {toast}
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* ── HEADER ── */}
-        <header className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0"
-            style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.18), rgba(168,85,247,0.12))", border: "1px solid rgba(99,102,241,0.28)" }}>
-            <Gear weight="duotone" size={22} className="text-indigo-400" />
+        <header style={{ paddingTop: 32 }}>
+          <div className="ed-chapter" style={{ marginBottom: 18 }}>
+            <span className="num">№ 08</span>
+            <span>— THE COMPOSING ROOM</span>
           </div>
-          <div>
-            <h1 className="text-xl font-extrabold tracking-tight" style={{ color: "var(--text-primary)" }}>Settings</h1>
-            <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>Control how NoteStream works for you</p>
-          </div>
+          <h1 className="ed-display" style={{ fontSize: "clamp(40px, 5vw, 64px)", margin: 0, paddingBottom: "0.06em" }}>
+            How the paper{" "}
+            <span className="ed-italic" style={{ color: ED.accent }}>reads.</span>
+          </h1>
+          <p className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint, marginTop: 28 }}>
+            PROFILE · APPEARANCE · WORKSPACE · SECURITY · SUPPORT
+          </p>
         </header>
 
-        {/* ── PROFILE ── */}
-        <div className="ns-set-card">
-          <div className="relative z-10 p-4">
-            <SectionHead icon={<UserCircle size={16} weight="duotone" />} label="Profile" accent="#818cf8" />
-            <div className="space-y-3 mt-3">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest mb-1.5 block" style={{ color: "var(--text-muted)" }}>Display name</label>
-                {isEditingProfile ? (
-                  <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} autoFocus
-                    className="w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none transition"
-                    style={{ background: "var(--bg-input)", border: "1px solid rgba(99,102,241,0.3)", color: "var(--text-primary)" }} />
-                ) : (
-                  <div className="ns-set-row flex items-center justify-between px-4 py-2.5">
-                    <span className="text-sm" style={{ color: "var(--text-primary)" }}>{profileLoading ? "Loading…" : displayName || "—"}</span>
-                  </div>
-                )}
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest mb-1.5 block" style={{ color: "var(--text-muted)" }}>Email</label>
-                <div className="ns-set-row flex items-center justify-between px-4 py-2.5">
-                  <span className="text-sm" style={{ color: "var(--text-primary)" }}>{email || "—"}</span>
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-md" style={{ background: "var(--bg-tertiary)", color: "var(--text-muted)" }}>READ ONLY</span>
-                </div>
-              </div>
+        <hr className="ed-rule-dbl" style={{ marginTop: 32 }} />
+
+        {/* ━━━━━━━━━━━━━━ § 01 PROFILE ━━━━━━━━━━━━━━ */}
+        <section className="ns-set-section">
+          <div className="ns-set-section-head">
+            <div className="ed-chapter">
+              <span className="num">§ 01</span>
+              <span>— PROFILE</span>
+            </div>
+            <p className="ed-mono ns-set-section-sub">YOUR NAME ON THE MASTHEAD</p>
+          </div>
+          <hr className="ed-rule" />
+
+          <div className="ns-set-fieldset">
+            <Field label="Display name">
               {isEditingProfile ? (
-                <div className="flex gap-2 pt-1">
-                  <button onClick={() => { setIsEditingProfile(false); reqRef.current += 1; hydrateFromDb(); }}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition"
-                    style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>Cancel</button>
-                  <button onClick={handleSaveProfile}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
-                    style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 16px rgba(99,102,241,0.3)" }}>Save Changes</button>
-                </div>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  autoFocus
+                  className="ns-set-input"
+                />
               ) : (
-                <button onClick={() => setIsEditingProfile(true)}
-                  className="w-full py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2"
-                  style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>
-                  <FiEdit2 size={13} /> Edit Profile
+                <p className="ns-set-readout">{profileLoading ? "Loading…" : displayName || "—"}</p>
+              )}
+            </Field>
+
+            <Field label="Email" hint="Used for sign-in. Change requires verification.">
+              <p className="ns-set-readout">
+                {email || "—"}
+                <span className="ed-chip" style={{ marginLeft: 12 }}>READ ONLY</span>
+              </p>
+            </Field>
+
+            <div className="ns-set-actions">
+              {isEditingProfile ? (
+                <>
+                  <button
+                    onClick={() => { setIsEditingProfile(false); reqRef.current += 1; hydrateFromDb(); }}
+                    className="ed-btn ed-btn-ghost"
+                  >
+                    Cancel
+                  </button>
+                  <button onClick={handleSaveProfile} className="ed-btn ed-btn-primary">
+                    Save changes
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => setIsEditingProfile(true)} className="ed-btn ed-btn-ghost">
+                  <FiEdit2 size={13} /> Edit profile
                 </button>
               )}
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* ── APPEARANCE ── */}
-        <div className="ns-set-card">
-          <div className="relative z-10 p-4">
-            <SectionHead icon={<PaintBrush size={16} weight="duotone" />} label="Appearance" accent="#a855f7" />
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-2.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Theme</label>
-                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-lg"
-                  style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-muted)" }}>
-                  {resolvedTheme === "dark" ? "🌙 Dark" : "☀️ Light"}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
+        {/* ━━━━━━━━━━━━━━ § 02 APPEARANCE ━━━━━━━━━━━━━━ */}
+        <section className="ns-set-section">
+          <div className="ns-set-section-head">
+            <div className="ed-chapter">
+              <span className="num">§ 02</span>
+              <span>— APPEARANCE</span>
+            </div>
+            <p className="ed-mono ns-set-section-sub">
+              {theme === "system" ? "FOLLOWS YOUR DEVICE" : `${(theme || "").toUpperCase()} MODE ACTIVE`}
+            </p>
+          </div>
+          <hr className="ed-rule" />
+
+          <div className="ns-set-fieldset">
+            <Field label="Theme" hint="The paper reads best in light. Dark and auto are available for reading at night.">
+              <div className="ns-set-theme-row">
                 {themeOptions.map((opt) => {
                   const Icon = opt.icon;
                   const isActive = theme === opt.value;
-                  const rgbMap = { "#818cf8": "99,102,241", "#f59e0b": "245,158,11", "#06b6d4": "6,182,212" };
-                  const rgb = rgbMap[opt.accent] || "99,102,241";
                   return (
-                    <button key={opt.value} onClick={() => setTheme(opt.value)}
-                      className="flex items-center justify-center gap-2 py-3 rounded-xl text-[12px] font-bold transition"
-                      style={{
-                        background: isActive ? `rgba(${rgb},0.12)` : "var(--bg-input)",
-                        border: `1px solid ${isActive ? `rgba(${rgb},0.3)` : "var(--border-secondary)"}`,
-                        color: isActive ? opt.accent : "var(--text-secondary)",
-                        boxShadow: isActive ? `0 0 16px rgba(${rgb},0.08)` : "none",
-                      }}>
+                    <button
+                      key={opt.value}
+                      onClick={() => setTheme(opt.value)}
+                      className={`ns-set-theme-btn ${isActive ? "is-on" : ""}`}
+                    >
                       <Icon size={14} /> {opt.label}
                     </button>
                   );
                 })}
               </div>
-              <p className="text-[11px] mt-2" style={{ color: "var(--text-muted)" }}>
-                {theme === "system" ? "Follows your device settings" : `${theme.charAt(0).toUpperCase() + theme.slice(1)} mode active`}
+            </Field>
+          </div>
+        </section>
+
+        {/* ━━━━━━━━━━━━━━ § 03 WORKSPACE AI ━━━━━━━━━━━━━━ */}
+        <section className="ns-set-section">
+          <div className="ns-set-section-head">
+            <div className="ed-chapter">
+              <span className="num">§ 03</span>
+              <span>— WORKSPACE AI</span>
+            </div>
+            <p className="ed-mono ns-set-section-sub">HOW THE MODEL READS YOUR ARCHIVE</p>
+          </div>
+          <hr className="ed-rule" />
+
+          <div className="ns-set-toggles">
+            <Toggle
+              label="Auto-summarise uploads"
+              description="The model writes a three-sentence summary for every new document."
+              enabled={settings.autoSummarize}
+              onChange={handleAutoSummarizeChange}
+            />
+            <Toggle
+              label="Smart notifications"
+              description="Reminders surfaced from your own notes when the moment is right."
+              enabled={settings.smartNotifications}
+              onChange={handleSmartNotificationsChange}
+            />
+            <Toggle
+              label="Weekly digest"
+              description="A summary card on your dashboard every Monday morning."
+              enabled={settings.weeklyDigest}
+              onChange={handleWeeklyDigestChange}
+            />
+          </div>
+
+          {settings.weeklyDigest && (
+            <div className="ns-set-digest">
+              <div className="ns-set-digest-head">
+                <p className="ed-mono ns-set-section-sub">DIGEST PREVIEW · {digestPeriodLabel.toUpperCase()}</p>
+                <button
+                  type="button"
+                  onClick={() => { reqRef.current += 1; hydrateFromDb(); }}
+                  disabled={statsLoading}
+                  className="ed-mono ns-set-refresh"
+                >
+                  {statsLoading ? "LOADING…" : "↻ REFRESH"}
+                </button>
+              </div>
+              {statsError ? (
+                <p className="ed-serif ed-italic" style={{ color: "#a3261c", margin: 0, fontSize: 16 }}>{statsError}</p>
+              ) : (
+                <div className="ns-set-digest-grid">
+                  <DigestStat label="AI uses"    value={safeStats.ai_uses} />
+                  <DigestStat label="Streak"     value={`${safeStats.streak_days}d`} />
+                  <DigestStat label="Active"     value={safeStats.active_days} />
+                  <DigestStat label="Notes"      value={safeStats.notes_created} />
+                </div>
+              )}
+              <p className="ed-mono ns-set-digest-foot">
+                LAST ACTIVE: {safeStats.last_active_date ? String(safeStats.last_active_date).toUpperCase() : "—"}
               </p>
             </div>
-          </div>
-        </div>
+          )}
+        </section>
 
-        {/* ── WORKSPACE AI ── */}
-        <div className="ns-set-card">
-          <div className="relative z-10 p-4">
-            <SectionHead icon={<Robot size={16} weight="duotone" />} label="Workspace AI" accent="#10b981" />
-            <p className="text-[11px] mt-1 mb-3" style={{ color: "var(--text-muted)" }}>Configure how NoteStream uses AI</p>
-            <div className="space-y-2">
-              <ToggleSetting label="Auto-summarize uploads" description="Generate AI summaries for new files" enabled={settings.autoSummarize} onChange={handleAutoSummarizeChange} />
-              <ToggleSetting label="Smart notifications" description="AI-powered reminders from your notes" enabled={settings.smartNotifications} onChange={handleSmartNotificationsChange} />
-              <ToggleSetting label="Weekly digest" description="Summary card on your dashboard" enabled={settings.weeklyDigest} onChange={handleWeeklyDigestChange} />
+        {/* ━━━━━━━━━━━━━━ § 04 SECURITY ━━━━━━━━━━━━━━ */}
+        <section className="ns-set-section">
+          <div className="ns-set-section-head">
+            <div className="ed-chapter">
+              <span className="num">§ 04</span>
+              <span>— SECURITY</span>
             </div>
+            <p className="ed-mono ns-set-section-sub">KEEPING THE LOCK ON THE DESK DRAWER</p>
+          </div>
+          <hr className="ed-rule" />
 
-            {settings.weeklyDigest && (
-              <div className="mt-4 pt-4 border-t" style={{ borderColor: "var(--border-secondary)" }}>
-                <div className="flex items-center justify-between mb-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Digest preview</p>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-lg flex items-center gap-1"
-                    style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-muted)" }}>
-                    <Calendar size={11} weight="duotone" /> {digestPeriodLabel}
-                  </span>
-                </div>
-                {statsError ? (
-                  <div className="text-[11px] rounded-xl px-3 py-2" style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.2)", color: "#f43f5e" }}>{statsError}</div>
-                ) : (
-                  <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2 ${statsLoading ? "opacity-70" : ""}`}>
-                    <DigestStat icon={<FiZap size={11} />} label="AI uses" value={safeStats.ai_uses} accent="#818cf8" />
-                    <DigestStat icon={<Fire size={11} weight="fill" />} label="Streak" value={`${safeStats.streak_days}d`} accent="#f43f5e" />
-                    <DigestStat icon={<Lightning size={11} weight="fill" />} label="Active" value={safeStats.active_days} accent="#f59e0b" />
-                    <DigestStat icon={<FiUser size={11} />} label="Notes" value={safeStats.notes_created} accent="#10b981" />
-                  </div>
-                )}
-                <div className="mt-2 flex items-center justify-between">
-                  <button type="button" onClick={() => { reqRef.current += 1; hydrateFromDb(); }} disabled={statsLoading}
-                    className="text-[11px] font-medium transition disabled:opacity-50" style={{ color: "var(--text-muted)" }}>
-                    {statsLoading ? "Loading…" : "↻ Refresh"}
-                  </button>
-                  <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                    {safeStats.last_active_date ? `Last active: ${safeStats.last_active_date}` : "Last active: —"}
-                  </span>
-                </div>
+          <div className="ns-set-toggles">
+            <Toggle
+              label="App lock PIN"
+              description="A four-digit PIN required before opening locked notes."
+              enabled={pinEnabled}
+              onChange={(v) => {
+                if (v) setShowPinModal(true);
+                else { localStorage.removeItem("ns-note-pin"); setPinEnabled(false); showToast("PIN lock disabled"); }
+              }}
+            />
+          </div>
+
+          <LinkRow
+            label="Export my data"
+            sub="Download notes, documents, and settings as JSON."
+            onClick={() => setShowExportModal(true)}
+            ordinal="01"
+          />
+        </section>
+
+        {/* ━━━━━━━━━━━━━━ § 05 SUPPORT ━━━━━━━━━━━━━━ */}
+        <section className="ns-set-section">
+          <div className="ns-set-section-head">
+            <div className="ed-chapter">
+              <span className="num">§ 05</span>
+              <span>— SUPPORT</span>
+            </div>
+            <p className="ed-mono ns-set-section-sub">A REAL PERSON, A SLOW REPLY</p>
+          </div>
+          <hr className="ed-rule" />
+
+          <LinkRow ordinal="01" label="Help center"     sub="The FAQ, the field guide, the email link." onClick={() => navigate("/dashboard/help-center")} />
+          <LinkRow ordinal="02" label="Contact support" sub="Write a letter. We reply within a day."   onClick={() => navigate("/dashboard/contact-support")} />
+          <LinkRow ordinal="03" label="Upgrade to Pro"  sub="The full field guide. Cancel anytime."   onClick={() => navigate("/dashboard/ai-lab")} badge="NEW" />
+        </section>
+
+        {/* ━━━━━━━━━━━━━━ § 06 DANGER ━━━━━━━━━━━━━━ */}
+        <section className="ns-set-section">
+          <div className="ns-set-section-head">
+            <div className="ed-chapter">
+              <span className="num">§ 06</span>
+              <span style={{ color: "#a3261c" }}>— END OF FILE</span>
+            </div>
+            <p className="ed-mono ns-set-section-sub">ACTIONS THAT CANNOT BE UNDONE</p>
+          </div>
+          <hr className="ed-rule" />
+
+          <div className="ns-set-danger">
+            <button onClick={() => setShowLogoutModal(true)} className="ns-set-danger-row">
+              <span className="ord">01</span>
+              <div className="body">
+                <p className="title">Log out.</p>
+                <p className="meta">SIGN OUT OF YOUR ACCOUNT ON THIS DEVICE</p>
               </div>
-            )}
-
-            <div className="mt-4 pt-4 border-t" style={{ borderColor: "var(--border-secondary)" }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>Active features</p>
-              <div className="flex flex-wrap gap-1.5">
-                {settings.autoSummarize && <FeaturePill icon={<FiZap size={9} />} label="Auto-summarize" color="#10b981" />}
-                {settings.smartNotifications && <FeaturePill icon={<Sparkle size={9} weight="fill" />} label="Smart notifs" color="#f59e0b" />}
-                {settings.weeklyDigest && <FeaturePill icon={<Calendar size={9} weight="duotone" />} label="Digest" color="#a855f7" />}
-                {!settings.autoSummarize && !settings.smartNotifications && !settings.weeklyDigest && (
-                  <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>No AI features enabled</span>
-                )}
+              <span className="aside">SIGN OUT →</span>
+            </button>
+            <button onClick={() => setShowDeleteModal(true)} className="ns-set-danger-row is-danger">
+              <span className="ord">02</span>
+              <div className="body">
+                <p className="title">Close the file. Forever.</p>
+                <p className="meta">PERMANENTLY DELETES ALL DATA AND THE LOGIN ACCOUNT</p>
               </div>
-            </div>
+              <span className="aside">DELETE →</span>
+            </button>
           </div>
-        </div>
-
-        {/* ── SECURITY ── */}
-        <div className="ns-set-card">
-          <div className="relative z-10 p-4">
-            <SectionHead icon={<ShieldCheck size={16} weight="duotone" />} label="Security" accent="#f59e0b" />
-            <div className="space-y-2 mt-3">
-              <ToggleSetting label="App Lock PIN" description="Require PIN for locked notes" enabled={pinEnabled}
-                onChange={(v) => { if (v) setShowPinModal(true); else { localStorage.removeItem("ns-note-pin"); setPinEnabled(false); showToast("PIN lock disabled"); } }} />
-              <SettingsLink icon={<Export size={15} weight="duotone" />} iconBg="rgba(14,165,233,0.12)" iconColor="#0ea5e9"
-                label="Export my data" sub="Download notes, docs & settings" onClick={() => setShowExportModal(true)} />
-            </div>
-          </div>
-        </div>
-
-        {/* ── SUPPORT ── */}
-        <div className="ns-set-card">
-          <div className="relative z-10 p-4">
-            <SectionHead icon={<Question size={16} weight="duotone" />} label="Support" accent="#0ea5e9" />
-            <div className="space-y-2 mt-3">
-              <SettingsLink icon={<FiHelpCircle size={15} />} iconBg="rgba(99,102,241,0.12)" iconColor="#818cf8" label="Help Center" onClick={() => navigate("/dashboard/help-center")} />
-              <SettingsLink icon={<ChatCircle size={15} weight="duotone" />} iconBg="rgba(99,102,241,0.12)" iconColor="#818cf8" label="Contact Support" onClick={() => navigate("/dashboard/contact-support")} />
-              <SettingsLink icon={<Crown size={15} weight="duotone" />} iconBg="rgba(245,158,11,0.12)" iconColor="#f59e0b" label="Upgrade to Pro" badge="NEW" onClick={() => navigate("/dashboard/ai-lab")} />
-            </div>
-          </div>
-        </div>
-
-        {/* ── DANGER ZONE ── */}
-        <div className="ns-set-card" style={{ borderColor: "rgba(244,63,94,0.2)" }}>
-          <div className="relative z-10 p-4">
-            <SectionHead icon={<Warning size={16} weight="duotone" />} label="Danger Zone" accent="#f43f5e" />
-            <p className="text-[11px] mt-1 mb-3" style={{ color: "var(--text-muted)" }}>These actions cannot be undone.</p>
-            <div className="space-y-2">
-              <button onClick={() => setShowLogoutModal(true)} className="w-full ns-set-row flex items-center gap-3 px-4 py-3 transition text-left">
-                <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(255,255,255,0.04)" }}>
-                  <FiLogOut size={15} style={{ color: "var(--text-muted)" }} />
-                </div>
-                <div>
-                  <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Log out</p>
-                  <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Sign out of your account</p>
-                </div>
-              </button>
-              <button onClick={() => setShowDeleteModal(true)}
-                className="w-full flex items-center gap-3 rounded-[14px] px-4 py-3 transition text-left"
-                style={{ background: "rgba(244,63,94,0.04)", border: "1px solid rgba(244,63,94,0.2)" }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(244,63,94,0.08)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(244,63,94,0.04)"; }}>
-                <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(244,63,94,0.12)" }}>
-                  <FiTrash2 size={15} style={{ color: "#f43f5e" }} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: "#f43f5e" }}>Delete account</p>
-                  <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Permanently remove all data & auth account</p>
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
+        </section>
 
         {/* App Version */}
-        <div className="text-center py-3">
-          <p className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>NoteStream v1.0.0</p>
-          <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)", opacity: 0.5 }}>Made with ❤️ for productivity</p>
+        <div style={{ textAlign: "center", padding: "32px 0 0 0" }}>
+          <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint, margin: 0 }}>
+            NOTESTREAM · VOL. II · V1.0.0
+          </p>
         </div>
 
-        {/* ── MODALS ── */}
+        {/* ━━━━━━━━━━━━━━ MODALS ━━━━━━━━━━━━━━ */}
         <AnimatePresence>
           {showDeleteModal && (
-            <ConfirmModal title="Delete Account?" description="This will permanently delete all your notes, documents, settings, AND your login account. This cannot be undone."
-              confirmLabel={deleteLoading ? "Deleting…" : "Delete Forever"} confirmDisabled={deleteLoading}
-              confirmStyle={{ background: "linear-gradient(135deg, #e11d48, #f43f5e)" }}
-              icon={deleteLoading
-                ? <div className="w-5 h-5 border-2 border-rose-300/30 border-t-rose-400 rounded-full animate-spin" />
-                : <FiTrash2 size={18} style={{ color: "#f43f5e" }} />
-              }
-              iconBg="rgba(244,63,94,0.12)" iconBorder="rgba(244,63,94,0.25)"
+            <ConfirmModal
+              title="Close the file. Forever."
+              description="This permanently deletes your notes, documents, settings, and your login account. The file cannot be reopened."
+              confirmLabel={deleteLoading ? "Closing…" : "Close it forever"}
+              confirmDisabled={deleteLoading}
+              dangerous
               onConfirm={handleDeleteAccount}
-              onCancel={() => { if (!deleteLoading) setShowDeleteModal(false); }} />
+              onCancel={() => { if (!deleteLoading) setShowDeleteModal(false); }}
+            />
           )}
         </AnimatePresence>
 
         <AnimatePresence>
           {showLogoutModal && (
-            <ConfirmModal title="Log Out?" description="You'll need to sign in again to access your notes."
-              confirmLabel="Log Out" confirmStyle={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-primary)" }}
-              icon={<FiLogOut size={18} style={{ color: "var(--text-muted)" }} />} iconBg="rgba(255,255,255,0.04)" iconBorder="var(--border-secondary)"
+            <ConfirmModal
+              title="Log out?"
+              description="You'll need to sign in again to read the archive."
+              confirmLabel="Log out"
               onConfirm={async () => {
                 try { if (isSupabaseConfigured && supabase) await supabase.auth.signOut(); } catch {}
-                setShowLogoutModal(false); showToast("Logged out"); setTimeout(() => navigate("/"), 300);
+                setShowLogoutModal(false); showToast("Logged out."); setTimeout(() => navigate("/"), 300);
               }}
-              onCancel={() => setShowLogoutModal(false)} />
+              onCancel={() => setShowLogoutModal(false)}
+            />
           )}
         </AnimatePresence>
 
         <AnimatePresence>
           {showExportModal && (
-            <ConfirmModal title="Export Your Data" description="Download all notes, documents, stats, and settings as JSON."
-              confirmLabel="Download Export" confirmStyle={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
-              icon={<Export size={18} weight="duotone" style={{ color: "#0ea5e9" }} />} iconBg="rgba(14,165,233,0.12)" iconBorder="rgba(14,165,233,0.25)"
-              onConfirm={handleExportData} onCancel={() => setShowExportModal(false)} />
+            <ConfirmModal
+              title="Export the archive."
+              description="A JSON file with every note, document, stat, and setting. Downloads to your device."
+              confirmLabel="Download export"
+              onConfirm={handleExportData}
+              onCancel={() => setShowExportModal(false)}
+            />
           )}
         </AnimatePresence>
 
         <AnimatePresence>
           {showPinModal && (
             <PinModal
-              onSave={(pin) => { localStorage.setItem("ns-note-pin", pin); setPinEnabled(true); setShowPinModal(false); showToast("PIN lock enabled!"); }}
-              onCancel={() => setShowPinModal(false)} />
+              onSave={(pin) => { localStorage.setItem("ns-note-pin", pin); setPinEnabled(true); setShowPinModal(false); showToast("PIN lock enabled."); }}
+              onCancel={() => setShowPinModal(false)}
+            />
           )}
         </AnimatePresence>
       </div>
-    </>
+    </div>
   );
 }
-
 
 /* ═══════════════════════════════════════════════════════
    SUB-COMPONENTS
 ═══════════════════════════════════════════════════════ */
 
-function SectionHead({ icon, label, accent }) {
+function Field({ label, hint, children }) {
   return (
-    <div className="flex items-center gap-2.5">
-      <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: `${accent}1a`, border: `1px solid ${accent}33` }}>
-        <span style={{ color: accent }}>{icon}</span>
-      </div>
-      <h2 className="text-sm font-bold" style={{ color: accent }}>{label}</h2>
+    <div className="ns-set-field">
+      <label className="ed-mono ns-set-field-label">{label.toUpperCase()}</label>
+      {children}
+      {hint && <p className="ed-serif ed-italic ns-set-field-hint">{hint}</p>}
     </div>
   );
 }
 
-function ToggleSetting({ label, description, enabled, onChange }) {
+function Toggle({ label, description, enabled, onChange }) {
   return (
-    <div className="ns-set-row flex items-center justify-between px-4 py-3">
-      <div className="pr-4">
-        <p className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{label}</p>
-        {description && <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>{description}</p>}
+    <div className="ns-set-toggle">
+      <div className="body">
+        <p className="title">{label}</p>
+        {description && <p className="desc">{description}</p>}
       </div>
-      <button onClick={() => onChange(!enabled)}
-        className="relative w-11 h-6 rounded-full transition-colors flex-shrink-0"
-        style={{ background: enabled ? "rgba(99,102,241,0.8)" : "rgba(255,255,255,0.08)" }}>
-        <motion.div className="absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-md"
-          animate={{ x: enabled ? 20 : 0 }} transition={{ type: "spring", stiffness: 500, damping: 30 }} />
+      <button
+        onClick={() => onChange(!enabled)}
+        className={`ns-set-switch ${enabled ? "is-on" : ""}`}
+        aria-pressed={enabled}
+      >
+        <span className="thumb" />
       </button>
     </div>
   );
 }
 
-function SettingsLink({ icon, iconBg, iconColor, label, sub, badge, onClick }) {
+function LinkRow({ ordinal = "01", label, sub, badge, onClick }) {
   return (
-    <button onClick={onClick}
-      className="w-full ns-set-row flex items-center justify-between px-4 py-3 transition text-left group">
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: iconBg }}>
-          <span style={{ color: iconColor }}>{icon}</span>
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{label}</span>
-            {badge && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)", color: "#818cf8" }}>{badge}</span>}
-          </div>
-          {sub && <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>{sub}</p>}
-        </div>
+    <button onClick={onClick} className="ns-set-linkrow">
+      <span className="ord">{ordinal}</span>
+      <div className="body">
+        <p className="title">
+          {label}.
+          {badge && <span className="ed-chip ed-chip-accent" style={{ marginLeft: 12 }}>{badge}</span>}
+        </p>
+        {sub && <p className="meta">{sub}</p>}
       </div>
-      <FiChevronRight size={14} style={{ color: "var(--text-muted)" }} className="flex-shrink-0 group-hover:translate-x-0.5 transition-transform" />
+      <span className="aside">OPEN →</span>
     </button>
   );
 }
 
-function DigestStat({ icon, label, value, accent }) {
+function DigestStat({ label, value }) {
   return (
-    <div className="ns-set-row px-3 py-2.5">
-      <div className="flex items-center justify-between mb-1">
-        <span style={{ color: accent }}>{icon}</span>
-        <span className="text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>{label}</span>
-      </div>
-      <p className="text-lg font-extrabold" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{value}</p>
+    <div className="ns-set-digest-stat">
+      <p className="ed-mono ns-set-digest-stat-l">{label.toUpperCase()}</p>
+      <p className="ed-serif ed-italic ns-set-digest-stat-v">{value}</p>
     </div>
   );
 }
 
-function FeaturePill({ icon, label, color }) {
+function ConfirmModal({ title, description, confirmLabel, confirmDisabled, dangerous, onConfirm, onCancel }) {
   return (
-    <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1"
-      style={{ background: `${color}1a`, border: `1px solid ${color}33`, color }}>
-      {icon} {label}
-    </span>
-  );
-}
-
-function ConfirmModal({ title, description, confirmLabel, confirmStyle, confirmDisabled, icon, iconBg, iconBorder, onConfirm, onCancel }) {
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[9999] flex items-center justify-center px-4"
-      style={{ backgroundColor: "var(--bg-overlay, rgba(0,0,0,0.6))", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
-      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-        className="ns-set-card max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-        <div className="relative z-10 p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="h-11 w-11 rounded-2xl flex items-center justify-center" style={{ background: iconBg, border: `1px solid ${iconBorder}` }}>{icon}</div>
-            <h3 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>{title}</h3>
-          </div>
-          <p className="text-[13px] mb-5 leading-relaxed" style={{ color: "var(--text-muted)" }}>{description}</p>
-          <div className="flex gap-3">
-            <button onClick={onCancel} disabled={confirmDisabled} className="flex-1 py-3 rounded-xl text-sm font-semibold transition disabled:opacity-50"
-              style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>Cancel</button>
-            <button onClick={onConfirm} disabled={confirmDisabled} className="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition disabled:opacity-70"
-              style={{ boxShadow: "0 4px 16px rgba(0,0,0,0.2)", ...confirmStyle }}>{confirmLabel}</button>
-          </div>
+    <>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="ns-set-modal-bg"
+        onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
+        transition={{ duration: 0.2 }}
+        className="ns-set-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, margin: 0 }}>
+          <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>§</span>
+          {dangerous ? "FINAL CALL" : "CONFIRM"}
+        </p>
+        <h2 className="ed-serif" style={{ fontSize: 28, margin: "6px 0 12px", color: ED.ink, letterSpacing: "-0.01em", paddingBottom: "0.04em" }}>{title}</h2>
+        <p className="ed-serif" style={{ fontSize: 16, lineHeight: 1.55, color: ED.inkMute, margin: 0 }}>{description}</p>
+        <div style={{ display: "flex", gap: 10, marginTop: 24, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          <button onClick={onCancel} disabled={confirmDisabled} className="ed-btn ed-btn-ghost">Cancel</button>
+          <button
+            onClick={onConfirm}
+            disabled={confirmDisabled}
+            className={dangerous ? "ed-btn" : "ed-btn ed-btn-primary"}
+            style={dangerous ? { background: "#a3261c", color: "#fff", borderColor: "#a3261c" } : undefined}
+          >
+            {confirmLabel}
+          </button>
         </div>
       </motion.div>
-    </motion.div>
+    </>
   );
 }
 
@@ -688,47 +630,295 @@ function PinModal({ onSave, onCancel }) {
   const handleConfirm = () => { if (pin !== confirmPin) { setError("PINs don't match"); setConfirmPin(""); return; } onSave(pin); };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[9999] flex items-center justify-center px-4"
-      style={{ backgroundColor: "var(--bg-overlay, rgba(0,0,0,0.6))", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
-      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-        className="ns-set-card max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-        <div className="relative z-10 p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="h-11 w-11 rounded-2xl flex items-center justify-center"
-              style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)" }}>
-              <FiLock size={18} className="text-indigo-400" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>{step === 1 ? "Create PIN" : "Confirm PIN"}</h3>
-              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>{step === 1 ? "Enter a 4-digit PIN" : "Re-enter your PIN"}</p>
-            </div>
-          </div>
+    <>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="ns-set-modal-bg"
+        onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
+        transition={{ duration: 0.2 }}
+        className="ns-set-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, margin: 0 }}>
+          <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>§</span>
+          {step === 1 ? "CREATE PIN" : "CONFIRM PIN"}
+        </p>
+        <h2 className="ed-serif" style={{ fontSize: 28, margin: "6px 0 12px", color: ED.ink, letterSpacing: "-0.01em", paddingBottom: "0.04em" }}>
+          {step === 1 ? "Choose four digits." : "Once more for safekeeping."}
+        </h2>
 
-          {error && (
-            <div className="mb-3 px-3 py-2 rounded-xl text-[11px]"
-              style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.2)", color: "#f43f5e" }}>{error}</div>
-          )}
+        {error && (
+          <p className="ed-serif ed-italic" style={{ background: "#fdecea", color: "#a3261c", border: "1px solid #f5c2bd", borderRadius: 8, padding: "10px 12px", fontSize: 14, margin: "0 0 14px 0" }}>{error}</p>
+        )}
 
-          <input type="password" maxLength={4} value={step === 1 ? pin : confirmPin}
-            onChange={(e) => { const val = e.target.value.replace(/\D/g, ""); if (step === 1) setPin(val); else setConfirmPin(val); setError(""); }}
-            className="w-full rounded-xl px-4 py-4 text-center tracking-[0.5em] text-xl font-mono mb-4 focus:outline-none transition"
-            style={{ background: "var(--bg-input)", border: "1px solid rgba(99,102,241,0.3)", color: "var(--text-primary)" }}
-            placeholder="••••" autoFocus />
+        <input
+          type="password"
+          maxLength={4}
+          value={step === 1 ? pin : confirmPin}
+          onChange={(e) => {
+            const val = e.target.value.replace(/\D/g, "");
+            if (step === 1) setPin(val); else setConfirmPin(val);
+            setError("");
+          }}
+          className="ns-set-input"
+          style={{ textAlign: "center", letterSpacing: "0.5em", fontSize: 24, fontFamily: ED.mono, padding: "14px 16px" }}
+          placeholder="••••"
+          autoFocus
+        />
 
-          <div className="flex gap-3">
-            <button onClick={onCancel} className="flex-1 py-3 rounded-xl text-sm font-semibold transition"
-              style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-secondary)" }}>Cancel</button>
-            <button onClick={step === 1 ? handleNext : handleConfirm}
-              className="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition"
-              style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 16px rgba(99,102,241,0.3)" }}>
-              {step === 1 ? "Next" : "Save PIN"}
-            </button>
-          </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 24, justifyContent: "flex-end" }}>
+          <button onClick={onCancel} className="ed-btn ed-btn-ghost">Cancel</button>
+          <button onClick={step === 1 ? handleNext : handleConfirm} className="ed-btn ed-btn-primary">
+            {step === 1 ? "Next" : "Save PIN"}
+          </button>
         </div>
       </motion.div>
-    </motion.div>
+    </>
   );
 }
 
+/* ═══════════════════════════════════════════════════════
+   SCOPED STYLES
+═══════════════════════════════════════════════════════ */
+const SETTINGS_STYLES = `
+  @keyframes ns-set-pulse { 50% { background: var(--ed-accent); } }
+
+  .ns-ed .ns-set-toast {
+    position: fixed; top: calc(env(safe-area-inset-top, 0px) + 80px);
+    left: 50%; transform: translateX(-50%);
+    z-index: 9999;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 16px;
+    background: var(--ed-paper-50);
+    border: 1px solid var(--ed-accent);
+    border-radius: 999px;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ed-ink);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  }
+
+  /* sections */
+  .ns-ed .ns-set-section { margin-top: 56px; }
+  .ns-ed .ns-set-section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 24px; flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .ns-ed .ns-set-section-sub {
+    font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ed-ink-faint); margin: 0;
+  }
+  .ns-ed .ns-set-fieldset { padding: 24px 0 8px; display: grid; gap: 28px; }
+  .ns-ed .ns-set-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+
+  /* field */
+  .ns-ed .ns-set-field { display: grid; gap: 8px; }
+  .ns-ed .ns-set-field-label {
+    font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ed-ink-faint);
+  }
+  .ns-ed .ns-set-field-hint {
+    font-size: 14px; line-height: 1.5; color: var(--ed-ink-mute); margin: 4px 0 0 0;
+    max-width: 560px;
+  }
+  .ns-ed .ns-set-readout {
+    background: var(--ed-paper-50);
+    border: 1px solid var(--ed-rule);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-family: var(--ed-serif); font-size: 16px;
+    color: var(--ed-ink); margin: 0;
+    display: flex; align-items: center;
+  }
+  .ns-ed .ns-set-input {
+    width: 100%;
+    background: var(--ed-paper-50);
+    border: 1px solid var(--ed-rule);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-family: var(--ed-serif); font-size: 16px;
+    color: var(--ed-ink); outline: 0;
+    transition: border-color .15s ease;
+  }
+  .ns-ed .ns-set-input:focus { border-color: var(--ed-ink); }
+  .ns-ed .ns-set-input::placeholder { color: var(--ed-ink-faint); font-style: italic; }
+
+  /* theme picker */
+  .ns-ed .ns-set-theme-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    max-width: 560px;
+  }
+  .ns-ed .ns-set-theme-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 16px; border-radius: 10px;
+    background: var(--ed-paper-50);
+    border: 1px solid var(--ed-rule);
+    color: var(--ed-ink-mute);
+    font-family: var(--ed-sans); font-size: 14px; font-weight: 500;
+    cursor: pointer; transition: all .15s ease;
+  }
+  .ns-ed .ns-set-theme-btn:hover { border-color: var(--ed-ink); color: var(--ed-ink); }
+  .ns-ed .ns-set-theme-btn.is-on {
+    background: var(--ed-ink); color: var(--ed-paper-50); border-color: var(--ed-ink);
+  }
+
+  /* toggles */
+  .ns-ed .ns-set-toggles { padding: 16px 0 0; display: grid; gap: 4px; }
+  .ns-ed .ns-set-toggle {
+    display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center;
+    padding: 18px 0; border-bottom: 1px solid var(--ed-rule-soft);
+  }
+  .ns-ed .ns-set-toggle:last-child { border-bottom: 0; }
+  .ns-ed .ns-set-toggle .body { min-width: 0; }
+  .ns-ed .ns-set-toggle .title {
+    font-family: var(--ed-serif); font-size: 18px;
+    color: var(--ed-ink); margin: 0; line-height: 1.3;
+  }
+  .ns-ed .ns-set-toggle .desc {
+    font-family: var(--ed-serif); font-size: 14.5px; line-height: 1.5;
+    color: var(--ed-ink-mute); margin: 6px 0 0 0; max-width: 560px;
+  }
+
+  .ns-ed .ns-set-switch {
+    position: relative; width: 44px; height: 24px; border-radius: 999px;
+    background: var(--ed-paper-200); border: 1px solid var(--ed-rule);
+    cursor: pointer; transition: all .15s ease; flex-shrink: 0; padding: 0;
+  }
+  .ns-ed .ns-set-switch:hover { border-color: var(--ed-ink); }
+  .ns-ed .ns-set-switch.is-on { background: var(--ed-ink); border-color: var(--ed-ink); }
+  .ns-ed .ns-set-switch .thumb {
+    position: absolute; top: 2px; left: 2px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--ed-paper-50);
+    transition: transform .2s cubic-bezier(.22,1,.36,1);
+  }
+  .ns-ed .ns-set-switch.is-on .thumb { transform: translateX(20px); }
+
+  /* digest */
+  .ns-ed .ns-set-digest {
+    margin-top: 32px; padding-top: 24px;
+    border-top: 1px solid var(--ed-rule-soft);
+  }
+  .ns-ed .ns-set-digest-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+  }
+  .ns-ed .ns-set-refresh {
+    font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ed-ink-faint); background: transparent; border: 0;
+    cursor: pointer;
+  }
+  .ns-ed .ns-set-refresh:hover { color: var(--ed-ink); }
+  .ns-ed .ns-set-refresh:disabled { opacity: 0.4; cursor: wait; }
+
+  .ns-ed .ns-set-digest-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  }
+  .ns-ed .ns-set-digest-stat {
+    padding: 14px 16px;
+    background: var(--ed-paper-50);
+    border: 1px solid var(--ed-rule);
+    border-radius: 10px;
+  }
+  .ns-ed .ns-set-digest-stat-l {
+    font-size: 10px; letter-spacing: 0.14em; color: var(--ed-ink-faint); margin: 0;
+  }
+  .ns-ed .ns-set-digest-stat-v {
+    font-size: 32px; color: var(--ed-accent); margin: 4px 0 0 0; line-height: 1;
+  }
+  .ns-ed .ns-set-digest-foot {
+    font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ed-ink-faint); margin: 14px 0 0 0;
+  }
+
+  /* link rows */
+  .ns-ed .ns-set-linkrow {
+    display: grid; grid-template-columns: 44px 1fr minmax(0, 100px);
+    gap: 18px; padding: 18px 8px; width: 100%; text-align: left;
+    background: transparent; border: 0;
+    border-bottom: 1px solid var(--ed-rule-soft);
+    cursor: pointer; transition: background-color .12s, padding .12s;
+    align-items: start;
+  }
+  .ns-ed .ns-set-linkrow:hover { background: var(--ed-paper-150); padding-left: 12px; }
+  .ns-ed .ns-set-linkrow .ord {
+    font-family: var(--ed-mono); font-size: 11px; letter-spacing: 0.14em;
+    color: var(--ed-ink-faint); padding-top: 4px; transition: all .15s ease;
+  }
+  .ns-ed .ns-set-linkrow:hover .ord { color: var(--ed-accent); font-family: var(--ed-serif); font-style: italic; font-size: 17px; }
+  .ns-ed .ns-set-linkrow .title {
+    font-family: var(--ed-serif); font-size: 19px;
+    color: var(--ed-ink); margin: 0; line-height: 1.3;
+    display: flex; align-items: center; flex-wrap: wrap;
+  }
+  .ns-ed .ns-set-linkrow .meta {
+    font-family: var(--ed-serif); font-size: 14.5px; line-height: 1.5;
+    color: var(--ed-ink-mute); margin: 4px 0 0 0;
+  }
+  .ns-ed .ns-set-linkrow .aside {
+    font-family: var(--ed-mono); font-size: 10.5px; letter-spacing: 0.14em;
+    color: var(--ed-ink-faint); padding-top: 8px; text-align: right;
+  }
+
+  /* danger zone */
+  .ns-ed .ns-set-danger { padding: 8px 0 0; display: grid; gap: 0; }
+  .ns-ed .ns-set-danger-row {
+    display: grid; grid-template-columns: 44px 1fr minmax(0, 100px);
+    gap: 18px; padding: 18px 8px; width: 100%; text-align: left;
+    background: transparent; border: 0;
+    border-bottom: 1px solid var(--ed-rule-soft);
+    cursor: pointer; transition: background-color .12s, padding .12s;
+    align-items: start;
+  }
+  .ns-ed .ns-set-danger-row:hover { background: var(--ed-paper-150); padding-left: 12px; }
+  .ns-ed .ns-set-danger-row.is-danger:hover { background: #fdecea; }
+  .ns-ed .ns-set-danger-row .ord {
+    font-family: var(--ed-mono); font-size: 11px; letter-spacing: 0.14em;
+    color: var(--ed-ink-faint); padding-top: 4px; transition: all .15s ease;
+  }
+  .ns-ed .ns-set-danger-row:hover .ord { color: var(--ed-accent); font-family: var(--ed-serif); font-style: italic; font-size: 17px; }
+  .ns-ed .ns-set-danger-row.is-danger:hover .ord { color: #a3261c; }
+  .ns-ed .ns-set-danger-row .title {
+    font-family: var(--ed-serif); font-size: 19px;
+    color: var(--ed-ink); margin: 0; line-height: 1.3;
+  }
+  .ns-ed .ns-set-danger-row.is-danger .title { color: #a3261c; }
+  .ns-ed .ns-set-danger-row .meta {
+    font-family: var(--ed-mono); font-size: 10.5px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ed-ink-faint); margin: 6px 0 0 0;
+  }
+  .ns-ed .ns-set-danger-row .aside {
+    font-family: var(--ed-mono); font-size: 10.5px; letter-spacing: 0.14em;
+    color: var(--ed-ink-faint); padding-top: 8px; text-align: right;
+  }
+  .ns-ed .ns-set-danger-row.is-danger .aside { color: #a3261c; }
+
+  /* modal */
+  .ns-ed .ns-set-modal-bg {
+    position: fixed; inset: 0; z-index: 9998;
+    background: rgba(35, 28, 14, 0.4);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  }
+  .ns-ed .ns-set-modal {
+    position: fixed; inset: 0; margin: auto;
+    z-index: 9999; max-width: 440px; width: calc(100% - 2rem);
+    max-height: calc(100dvh - 3rem); height: fit-content;
+    background: var(--ed-paper-50);
+    border: 1px solid var(--ed-rule); border-radius: 14px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.12);
+    padding: 28px;
+  }
+
+  @media (max-width: 720px) {
+    .ns-ed .ns-set-digest-grid { grid-template-columns: repeat(2, 1fr); }
+    .ns-ed .ns-set-theme-row { grid-template-columns: 1fr; }
+    .ns-ed .ns-set-toggle { grid-template-columns: 1fr; }
+    .ns-ed .ns-set-toggle .ns-set-switch { justify-self: start; }
+    .ns-ed .ns-set-linkrow,
+    .ns-ed .ns-set-danger-row { grid-template-columns: 32px 1fr; }
+    .ns-ed .ns-set-linkrow .aside,
+    .ns-ed .ns-set-danger-row .aside { display: none; }
+  }
+`;
