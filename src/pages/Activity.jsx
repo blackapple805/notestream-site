@@ -766,9 +766,13 @@ export default function Activity() {
               title="Days on the desk."
             />
             <div className="ns-act-card" style={{ padding: 20, marginTop: 18 }}>
-              <div className="weekly-streak-adaptive">
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(7, 1fr)",
+                gap: 8,
+              }}>
                 {streakDays.map((d, i) => (
-                  <div key={i} className="streak-item">
+                  <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     <div
                       className="ns-act-streak-cell"
                       style={d.active
@@ -778,7 +782,13 @@ export default function Activity() {
                     >
                       {d.active ? "●" : "·"}
                     </div>
-                    <span className="streak-label">{d.day}</span>
+                    <span style={{
+                      fontFamily: ED.mono, fontSize: 9.5, letterSpacing: "0.14em",
+                      textTransform: "uppercase", color: ED.inkFaint,
+                      textAlign: "center",
+                    }}>
+                      {d.day}
+                    </span>
                   </div>
                 ))}
               </div>
