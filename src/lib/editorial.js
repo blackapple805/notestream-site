@@ -185,4 +185,109 @@ const SCOPED_CSS = `
   .ns-ed .demo-body { grid-template-columns: 1fr !important; gap: 32px !important; }
   .ns-ed .margin-col { padding-top: 0 !important; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE FIXES (≤ 767px)
+   ──────────────────────────────────────────────────────────────
+   Auto-collapses overcrowded layouts on phone-width viewports.
+   Designed to be additive: pages that already define their own
+   @media (max-width: 768px) blocks continue to win on specificity,
+   and pages that don't get sensible defaults applied here.
+
+   Two strategies in play:
+   ─ Attribute selectors on inline styles (no JSX changes needed)
+   ─ Opt-in helper classes (ed-mobile-stack, ed-mobile-wrap, etc.)
+     for cases where the attribute selector can't reach.
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+  /* ── 1.  Auto-collapse inline grids ──
+     Targets the common patterns we use across pages:
+     style="display: grid; gridTemplateColumns: repeat(3, 1fr)"
+     style="display: grid; gridTemplateColumns: repeat(4, 1fr)"
+     Also catches "1fr 1fr 1fr", "repeat(N,1fr)" variants.
+
+     We deliberately don't catch repeat(7,…) — that pattern is almost
+     always a 7-day calendar/streak row where small cells are intended.
+     Use the ed-mobile-stack class if you do want a 7-col grid to
+     collapse. */
+  .ns-ed [style*="repeat(3"][style*="grid"],
+  .ns-ed [style*="repeat(4"][style*="grid"],
+  .ns-ed [style*="repeat(5"][style*="grid"],
+  .ns-ed [style*="repeat(6"][style*="grid"] {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  /* Two-column "minmax" splits (e.g. "1.4fr 1fr", "1.6fr 1fr") collapse too */
+  .ns-ed [style*="minmax(0, 1.4fr)"][style*="minmax(0, 1fr)"],
+  .ns-ed [style*="minmax(0, 1.6fr)"][style*="minmax(0, 1fr)"],
+  .ns-ed [style*="minmax(0,1.4fr)"][style*="minmax(0,1fr)"],
+  .ns-ed [style*="minmax(0,1.6fr)"][style*="minmax(0,1fr)"] {
+    grid-template-columns: 1fr !important;
+    gap: 24px !important;
+  }
+
+  /* Opt-in helpers (preferred for new code, override attribute selector
+     above where you want a 2-up grid instead of 1-up) */
+  .ns-ed .ed-mobile-stack { grid-template-columns: 1fr !important; gap: 16px !important; }
+  .ns-ed .ed-mobile-2col  { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+  .ns-ed .ed-mobile-keep  { /* escape hatch: leave grid as-is on mobile */ }
+
+  /* ── 2.  Section headers with right-side controls ──
+     Pattern: <div style="display:flex; justify-content:space-between; flex-wrap:wrap">
+     On mobile we want them to stack vertically with a small gap, and
+     for the right-side control row to wrap and align to the left. */
+  .ns-ed .ed-section-head,
+  .ns-ed .page-hdr {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 16px !important;
+  }
+  .ns-ed .ed-section-head > * + *,
+  .ns-ed .page-hdr > * + * { margin-left: 0 !important; }
+
+  /* ── 3.  Page typography breathing room ──
+     Display headings that use line-height:0.95 squish badly on narrow
+     viewports — give them more air. */
+  .ns-ed .ed-display,
+  .ns-ed .page-title { line-height: 1.05 !important; }
+
+  /* ── 4.  Spacing scale: most sections use marginTop: 56 / 64 / 80.
+     On mobile this eats vertical screen real estate without helping
+     hierarchy. Compress in proportion. */
+  .ns-ed [style*="marginTop: 96"] { margin-top: 48px !important; }
+  .ns-ed [style*="marginTop: 80"] { margin-top: 40px !important; }
+  .ns-ed [style*="marginTop: 64"] { margin-top: 36px !important; }
+  .ns-ed [style*="marginTop: 56"] { margin-top: 32px !important; }
+  .ns-ed [style*="marginTop: 48"] { margin-top: 28px !important; }
+
+  /* ── 5.  Card interior padding on mobile.
+     ed-card defaults to padding from page code; common values are
+     20px / 24px which become cramped when card width drops below 360px.
+     Soften the minimum so content doesn't kiss the border. */
+  .ns-ed .ed-card { border-radius: 10px; }
+
+  /* ── 6.  Tap targets: filter chips and small mono pills need ≥ 32px
+     hit area on touch. Keep visual size but pad the click region. */
+  .ns-ed .ed-btn { padding: 10px 16px; min-height: 38px; }
+  .ns-ed .ed-btn-primary,
+  .ns-ed .ed-btn-ghost { min-height: 38px; }
+
+  /* ── 7.  Stat strip dividers ── Vertical borderRight from desktop
+     grid layouts becomes a vertical line in a stacked column — wrong.
+     Replace with a bottom rule. */
+  .ns-ed .ed-stat-cell,
+  .ns-ed [style*="borderRight"][style*="border-right"] { border-right: none !important; }
+  .ns-ed .ed-stat-cell:not(:last-child) {
+    border-bottom: 1px solid var(--ed-rule) !important;
+  }
+
+  /* ── 8.  Horizontal scroll guards ──
+     If a page contains a wide chart or table, let it scroll horizontally
+     within a wrapper rather than pushing the whole page wide. */
+  .ns-ed .ed-scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
 `;

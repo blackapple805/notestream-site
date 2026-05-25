@@ -31,6 +31,7 @@ import {
   FiChevronDown, FiRefreshCw, FiAlertCircle, FiDownload,
 } from "react-icons/fi";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
+import { useEditorial } from "../lib/editorial";
 
 /* ═══════════════════════════════════════════════════════
    Editorial tokens (with safe fallbacks)
@@ -340,6 +341,11 @@ const ChartTooltip = ({ active, payload, label }) => {
    MAIN COMPONENT — all RPC logic UNCHANGED
 ═══════════════════════════════════════════════════════ */
 export default function Activity() {
+  // Ensure editorial fonts + shared scoped CSS (including mobile rules) load
+  // even if the user lands directly on this page without going through the
+  // Sidebar first. No-op if already loaded.
+  useEditorial();
+
   const [timelineRange, setTimelineRange] = useState(7);
   const [chartRange, setChartRange] = useState("week");
   const chartDays = chartRange === "month" ? 30 : 7;
@@ -479,7 +485,7 @@ export default function Activity() {
       <>
         <style>{ACT_STYLES}</style>
         <div
-          className="ns-act-scope"
+          className="ns-ed ns-act-scope"
           style={{
             display: "flex", flexDirection: "column", alignItems: "center",
             justifyContent: "center", minHeight: "60vh", gap: 18,
@@ -518,7 +524,7 @@ export default function Activity() {
       <style>{ACT_STYLES}</style>
 
       <div
-        className="ns-act-scope ns-act-stagger"
+        className="ns-ed ns-act-scope ns-act-stagger"
         style={{
           fontFamily: ED.sans,
           color: ED.ink,
@@ -527,10 +533,13 @@ export default function Activity() {
         }}
       >
         {/* ═══ HEADER — chapter, title, subline, controls ═══ */}
-        <header style={{
-          display: "flex", alignItems: "baseline", justifyContent: "space-between",
-          gap: 24, flexWrap: "wrap", marginBottom: 28,
-        }}>
+        <header
+          className="ed-section-head"
+          style={{
+            display: "flex", alignItems: "baseline", justifyContent: "space-between",
+            gap: 24, flexWrap: "wrap", marginBottom: 28,
+          }}
+        >
           <div style={{ minWidth: 0 }}>
             <div style={{
               display: "inline-flex", alignItems: "baseline", gap: 10,
@@ -597,12 +606,15 @@ export default function Activity() {
         <hr className="ns-act-rule-dbl" />
 
         {/* ═══ STAT STRIP — newspaper-style numbers in italic serif ═══ */}
-        <section style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          marginTop: 0,
-          borderBottom: `1px solid ${ED.rule}`,
-        }}>
+        <section
+          className="ed-stat-strip"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            marginTop: 0,
+            borderBottom: `1px solid ${ED.rule}`,
+          }}
+        >
           <EdStat
             label={`Notes · ${statDays}d`}
             value={stats.notes_count}
@@ -1255,10 +1267,13 @@ function EdStat({ label, value, footnote, up = true, withRight }) {
   const footColor = footnote && (footnote.includes("+") || up === true) && !footnote.startsWith("-")
     ? ED.accent : ED.inkFaint;
   return (
-    <div style={{
-      padding: "28px 24px",
-      borderRight: withRight ? `1px solid ${ED.rule}` : "none",
-    }}>
+    <div
+      className="ed-stat-cell"
+      style={{
+        padding: "28px 24px",
+        borderRight: withRight ? `1px solid ${ED.rule}` : "none",
+      }}
+    >
       <p style={{
         fontFamily: ED.mono, fontSize: 10.5, letterSpacing: "0.18em",
         textTransform: "uppercase", color: ED.inkFaint, margin: 0,
@@ -1292,10 +1307,13 @@ function EdStat({ label, value, footnote, up = true, withRight }) {
 /* Section header used between blocks — chapter mark + title + optional controls */
 function SectionHeader({ chapter, kicker, title, right }) {
   return (
-    <div style={{
-      display: "flex", alignItems: "baseline", justifyContent: "space-between",
-      gap: 24, flexWrap: "wrap",
-    }}>
+    <div
+      className="ed-section-head"
+      style={{
+        display: "flex", alignItems: "baseline", justifyContent: "space-between",
+        gap: 24, flexWrap: "wrap",
+      }}
+    >
       <div style={{ minWidth: 0 }}>
         <div style={{
           display: "inline-flex", alignItems: "baseline", gap: 10,
@@ -1319,7 +1337,7 @@ function SectionHeader({ chapter, kicker, title, right }) {
           {title}
         </h2>
       </div>
-      {right && <div>{right}</div>}
+      {right && <div style={{ minWidth: 0 }}>{right}</div>}
     </div>
   );
 }
