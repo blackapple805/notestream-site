@@ -16,7 +16,7 @@ import {
   FiAlertCircle,
 } from "react-icons/fi";
 import { ChartLineIcon as ChartLine, FireIcon as Fire, NotePencilIcon as NotePencil, FileArrowUpIcon as FileArrowUp, BrainIcon as Brain, LightningIcon as Lightning } from "@phosphor-icons/react";
-import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { supabase, supabaseReady } from "../lib/supabaseClient";
 
 /* ─── Scoped styles ─── */
 const ACT_STYLES = `
@@ -193,8 +193,6 @@ const AnimatedDot = (props) => (
    MAIN COMPONENT — all RPC logic unchanged
 ═══════════════════════════════════════════════════════ */
 export default function Activity() {
-  const supabaseReady = typeof isSupabaseConfigured === "function" ? isSupabaseConfigured() : !!isSupabaseConfigured;
-
   const [timelineRange, setTimelineRange] = useState(7);
   const [chartRange, setChartRange] = useState("week");
   const chartDays = chartRange === "month" ? 30 : 7;

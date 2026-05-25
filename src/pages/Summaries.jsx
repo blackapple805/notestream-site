@@ -25,7 +25,7 @@ import {
   NoteIcon as Note,
   BrainIcon as Brain,
 } from "@phosphor-icons/react";
-import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { consumeAiUsage } from "../lib/usage";
 import { queryInsight } from "../lib/insightAI";
 
@@ -198,8 +198,6 @@ export default function Summaries() {
 
   const inputRef = useRef(null);
   const chatEndRef = useRef(null);
-
-  const supabaseReady = typeof isSupabaseConfigured === "function" ? isSupabaseConfigured() : !!isSupabaseConfigured;
 
   // Scroll to latest
   useEffect(() => {

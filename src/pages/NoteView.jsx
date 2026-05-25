@@ -20,7 +20,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSubscription } from "../hooks/useSubscription";
-import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { logActivityEvent } from "../lib/activityEvents";
 
 const USER_STATS_TABLE = "user_engagement_stats";
@@ -134,11 +134,6 @@ export default function NoteView({
     typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("voice") : isPro;
   const canUseExport =
     typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("export") : isPro;
-
-  const supabaseReady =
-    typeof isSupabaseConfigured === "function"
-      ? isSupabaseConfigured()
-      : !!isSupabaseConfigured;
 
   const isUuid = (v) =>
     typeof v === "string" &&

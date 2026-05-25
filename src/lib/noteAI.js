@@ -4,7 +4,7 @@
 // ✅ Graceful fallback to local analysis when AI provider unavailable
 // ✅ Persists ai_payload to notes table
 
-import { supabase, isSupabaseConfigured } from "./supabaseClient";
+import { supabase, supabaseReady } from "./supabaseClient";
 import { consumeAiUsage } from "./usage";
 
 const NOTES_TABLE = "notes";
@@ -28,11 +28,6 @@ export function shouldAutoAnalyze(noteBody, noteId) {
 
 export async function analyzeNote({ noteId, userId, title, body, isManual = false }) {
   if (!body || body.trim().length < MIN_CHARS_FOR_AUTO) return null;
-
-  const supabaseReady =
-    typeof isSupabaseConfigured === "function"
-      ? isSupabaseConfigured()
-      : !!isSupabaseConfigured;
 
   // 1) Enforce usage limits (single source of truth)
   if (supabaseReady && supabase && userId) {

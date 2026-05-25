@@ -2,7 +2,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useMemo, useState, useCallback } from "react";
 import { FiArrowLeft } from "react-icons/fi";
-import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { consumeAiUsage } from "../lib/usage";
 
 const EVENTS_TABLE = "activity_events";
@@ -10,11 +10,6 @@ const EVENTS_TABLE = "activity_events";
 export default function RewriteDocument({ docs = [] }) {
   const { id } = useParams();
   const navigate = useNavigate();
-
-  const supabaseReady =
-    typeof isSupabaseConfigured === "function"
-      ? isSupabaseConfigured()
-      : !!isSupabaseConfigured;
 
   const doc = useMemo(() => docs.find((d) => d.id === id) || null, [docs, id]);
 

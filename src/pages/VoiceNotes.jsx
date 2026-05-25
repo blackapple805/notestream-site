@@ -15,7 +15,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { createSpeechRecognizer, processTranscription } from "../lib/voiceAI";
-import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { supabase, supabaseReady } from "../lib/supabaseClient";
 import {
   MicrophoneIcon as Microphone,
   StopIcon as Stop,
@@ -98,11 +98,6 @@ export default function VoiceNotes() {
 
   const isPro = subscription.plan !== "free";
   const isUnlocked = isFeatureUnlocked("voice");
-  const supabaseReady =
-    typeof isSupabaseConfigured === "function"
-      ? isSupabaseConfigured()
-      : !!isSupabaseConfigured;
-
   useEffect(() => {
     if (!isPro || !isUnlocked) navigate("/dashboard/ai-lab");
   }, [isPro, isUnlocked, navigate]);

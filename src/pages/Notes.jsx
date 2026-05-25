@@ -27,7 +27,7 @@ import NoteView from "./NoteView";
 import { useSubscription } from "../hooks/useSubscription";
 import { useMobileNav } from "../hooks/useMobileNav";
 
-import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { analyzeNote, shouldAutoAnalyze } from "../lib/noteAI";
 
 /* ─── constants (unchanged) ─── */
@@ -143,8 +143,6 @@ export default function Notes() {
 
   const cameraInputRef = useRef(null);
   const filePickerRef = useRef(null);
-
-  const supabaseReady = typeof isSupabaseConfigured === "function" ? isSupabaseConfigured() : !!isSupabaseConfigured;
 
   const [selectedNote, setSelectedNote] = useState(null);
   const [gridView, setGridView] = useState(true);

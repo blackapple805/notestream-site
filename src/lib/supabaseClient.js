@@ -15,3 +15,7 @@ export const supabase = isSupabaseConfigured
       },
     })
   : null;
+
+// True when both env vars are present AND the client created successfully.
+// Use this everywhere instead of inlining `typeof isSupabaseConfigured === "function" ? ...`.
+export const supabaseReady = isSupabaseConfigured && !!supabase;

@@ -20,7 +20,7 @@ import {
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
-import { showMobileNav } from "../ui/layoutState";
+import { showMobileNav } from "../hooks/useMobileNav";
 import {
   FiArrowRight,
   FiSearch,

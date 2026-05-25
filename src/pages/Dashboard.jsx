@@ -42,7 +42,7 @@ import {
   FlagIcon as Flag,
 } from "@phosphor-icons/react";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
-import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { supabase, supabaseReady } from "../lib/supabaseClient";
 
 /* ─── DB constants (unchanged) ─── */
 const TAG_RESEARCH_BRIEF = "ai:research_brief";
@@ -61,11 +61,6 @@ const EMPTY_STATS = {
   created_at: null,
   updated_at: null,
 };
-
-const supabaseReady =
-  typeof isSupabaseConfigured === "function"
-    ? isSupabaseConfigured()
-    : !!isSupabaseConfigured;
 
 /* ─── Utility helpers (unchanged) ─── */
 const getGreeting = () => {

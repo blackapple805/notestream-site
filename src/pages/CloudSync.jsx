@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { detectDevice } from "../lib/deviceDetect";
 import {
   CloudArrowUpIcon as CloudArrowUp,
@@ -123,8 +123,6 @@ export default function CloudSync() {
   const { subscription, isFeatureUnlocked, isLoading } = useSubscription();
   const isPro = subscription?.plan !== "free";
   const isUnlocked = isFeatureUnlocked?.("cloud");
-  const supabaseReady = typeof isSupabaseConfigured === "function" ? isSupabaseConfigured() : !!isSupabaseConfigured;
-
   useEffect(() => {
     if (!isLoading && (!isPro || !isUnlocked)) navigate("/dashboard/ai-lab");
   }, [isLoading, isPro, isUnlocked, navigate]);

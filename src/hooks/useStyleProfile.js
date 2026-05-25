@@ -6,7 +6,7 @@
 // ✅ Removed: localStorage, styleAnalyzer imports
 
 import { useState, useEffect, useCallback } from "react";
-import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { supabase, supabaseReady } from "../lib/supabaseClient";
 import {
   loadStoredProfile,
   saveProfile as dbSaveProfile,
@@ -131,11 +131,6 @@ export function useStyleProfile() {
   const [isTraining, setIsTraining] = useState(false);
   const [error, setError] = useState(null);
   const [userId, setUserId] = useState(null);
-
-  const supabaseReady =
-    typeof isSupabaseConfigured === "function"
-      ? isSupabaseConfigured()
-      : !!isSupabaseConfigured;
 
   // ─── Persist helper ──────────────────────────────────────────
 
