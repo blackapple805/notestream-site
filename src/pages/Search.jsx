@@ -1,209 +1,307 @@
 // src/pages/Search.jsx
-import { useState, useRef } from "react";
-import { motion, useInView } from "framer-motion";
-import { FiSearch, FiClock, FiZap, FiBookOpen, FiFileText } from "react-icons/fi";
+// ───────────────────────────────────────────────────────────────
+// NoteStream — Editorial Search page (Vite drop-in)
+// Replaces src/pages/Search.jsx
+// Requires: src/lib/editorial.js
+//
+// This is the PUBLIC marketing /search page — a "search the library
+// of help articles & docs" surface. (The in-app archive search is
+// inside the dashboard and isn't affected by this file.)
+// ───────────────────────────────────────────────────────────────
 
-export default function SearchPage() {
-  const [query, setQuery] = useState("");
+import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { useEditorial, ED } from "../lib/editorial";
+import { FiSearch, FiArrowUpRight } from "react-icons/fi";
 
-  const fadeVariants = {
-    hidden: { opacity: 0, y: 35 },
-    visible: { opacity: 1, y: 0 },
-  };
+// Searchable items — help articles + key marketing pages.
+const INDEX = [
+  // Getting started
+  { t: "Capturing your first voice note", c: "Help · Getting started", to: "#" },
+  { t: "Importing notes from Notion or Apple Notes", c: "Help · Getting started", to: "#" },
+  { t: "Understanding spaces, tags, and the archive", c: "Help · Getting started", to: "#" },
+  { t: "Asking your first reasoning question", c: "Help · Getting started", to: "#" },
+  // Voice
+  { t: "How transcription works (and what it ignores)", c: "Help · Voice & capture", to: "#" },
+  { t: "Working with the verbatim vs edited transcript", c: "Help · Voice & capture", to: "#" },
+  { t: "Recording in noisy environments", c: "Help · Voice & capture", to: "#" },
+  // AI
+  { t: "When to use Search vs Reasoning", c: "Help · AI & reasoning", to: "#" },
+  { t: "Reading the citations panel", c: "Help · AI & reasoning", to: "#" },
+  { t: "Generating briefs from many notes", c: "Help · AI & reasoning", to: "#" },
+  // Team
+  { t: "Creating a shared space", c: "Help · Team & sharing", to: "#" },
+  { t: "Permissioned reasoning", c: "Help · Team & sharing", to: "#" },
+  // Billing
+  { t: "Switching from monthly to annual", c: "Help · Settings & billing", to: "#" },
+  { t: "Education and journalism discounts", c: "Help · Settings & billing", to: "#" },
+  { t: "Closing your account", c: "Help · Settings & billing", to: "#" },
+  // Privacy
+  { t: "What we collect, what we don't", c: "Help · Privacy & security", to: "/privacy" },
+  { t: "On-device transcription explained", c: "Help · Privacy & security", to: "#" },
+  { t: "Reporting a security issue", c: "Help · Privacy & security", to: "/support" },
+  // Marketing pages
+  { t: "How NoteStream works", c: "Pages", to: "/how-it-works" },
+  { t: "Pricing & plans", c: "Pages", to: "/pricing" },
+  { t: "Voice notes — the product", c: "Pages", to: "/voice-notes" },
+  { t: "Smart notes — the product", c: "Pages", to: "/smart-notes" },
+  { t: "AI summaries — the product", c: "Pages", to: "/ai-summary" },
+  { t: "Integrations", c: "Pages", to: "/integrations-landing" },
+  { t: "Field notes (changelog)", c: "Pages", to: "/updates" },
+  { t: "Status board", c: "Pages", to: "/status" },
+  { t: "Terms of service", c: "Pages", to: "/terms" },
+];
 
-  const sectionRef = useRef(null);
-  const sectionInView = useInView(sectionRef, { amount: 0.25 });
+const POPULAR = [
+  "voice notes",
+  "import from notion",
+  "ai briefs",
+  "education discount",
+  "privacy",
+  "cancel subscription",
+  "shared spaces",
+];
 
-  const recentSearches = ["Meeting notes", "Marketing update", "Expense report", "Project roadmap"];
+export default function Search() {
+  useEditorial();
+  const [q, setQ] = useState("");
 
-  const aiSuggestions = [
-    "Summaries",
-    "Meeting Decisions",
-    "Weekly Insights",
-    "Expenses",
-    "Uploaded Files",
-  ];
-
-  const placeholderResults = [
-    {
-      icon: <FiBookOpen className="text-indigo-500 w-6 h-6" />,
-      title: "Project Strategy Meeting Notes",
-      desc: "AI summary and extracted action points",
-    },
-    {
-      icon: <FiFileText className="text-indigo-500 w-6 h-6" />,
-      title: "Uploaded Screenshot: dashboard.png",
-      desc: "Converted into structured summary",
-    },
-    {
-      icon: <FiZap className="text-indigo-500 w-6 h-6" />,
-      title: "Weekly Insight Report",
-      desc: "Trends detected across your workspace",
-    },
-  ];
+  const results = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return [];
+    return INDEX.filter((r) =>
+      r.t.toLowerCase().includes(needle) || r.c.toLowerCase().includes(needle)
+    ).slice(0, 12);
+  }, [q]);
 
   return (
-    <section
-      ref={sectionRef}
-      className="relative min-h-screen w-full text-theme-primary px-6 py-[12vh] overflow-hidden"
-      style={{ backgroundColor: 'var(--bg-primary)' }}
-    >
-      {/* Background glows */}
-      <div className="absolute top-[10%] left-[5%] w-[260px] h-[260px] bg-indigo-500/20 blur-[150px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-[8%] right-[8%] w-[220px] h-[220px] bg-purple-500/15 blur-[150px] rounded-full pointer-events-none"></div>
-
-      <div className="relative z-10 max-w-4xl mx-auto">
-
-        {/* Title */}
-        <motion.h1
-          variants={fadeVariants}
-          initial="hidden"
-          animate={sectionInView ? "visible" : "hidden"}
-          transition={{ duration: 0.7 }}
-          className="text-4xl md:text-6xl font-extrabold text-center mb-6 text-theme-primary"
-        >
-          Search Your <span className="text-indigo-500">Workspace</span>
-        </motion.h1>
-
-        <motion.p
-          variants={fadeVariants}
-          initial="hidden"
-          animate={sectionInView ? "visible" : "hidden"}
-          transition={{ duration: 0.85 }}
-          className="text-theme-muted text-lg text-center max-w-2xl mx-auto mb-12"
-        >
-          Instantly find summaries, notes, insights, screenshots, meeting decisions, and more.
-        </motion.p>
-
-        {/* Search Bar */}
-        <motion.div
-          variants={fadeVariants}
-          initial="hidden"
-          animate={sectionInView ? "visible" : "hidden"}
-          transition={{ duration: 1.0 }}
-          className="relative w-full max-w-3xl mx-auto mb-10"
-        >
-          <div
-            className={`flex items-center w-full rounded-full px-6 py-4 transition-all duration-300 border ${
-              query ? "border-indigo-500 shadow-[0_0_35px_rgba(99,102,241,0.3)]" : ""
-            }`}
-            style={{ 
-              backgroundColor: 'var(--bg-input)', 
-              borderColor: query ? 'rgb(99, 102, 241)' : 'var(--border-secondary)' 
-            }}
-          >
-            <FiSearch className="text-theme-muted w-6 h-6 mr-3" />
-            <input
-              type="text"
-              placeholder="Search notes, summaries, uploads…"
-              className="w-full bg-transparent text-theme-primary placeholder:text-theme-muted text-[1.1rem] outline-none"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+    <div className="ns-ed" style={{ minHeight: "100vh" }}>
+      {/* ── Hero ─────────────────────────── */}
+      <section style={{ paddingTop: 140, paddingBottom: 56 }}>
+        <div className="ed-page">
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "flex-end",
+            marginBottom: 48, flexWrap: "wrap", gap: 16,
+          }}>
+            <div className="ed-chapter">
+              <span className="num">§</span>
+              <span>The Search</span>
+            </div>
+            <div className="ed-mono" style={{
+              fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint,
+            }}>
+              {INDEX.length} articles & pages indexed
+            </div>
           </div>
-        </motion.div>
+          <hr className="ed-rule-dbl" style={{ marginBottom: 48 }} />
 
-        {/* AI SUGGESTION CHIPS */}
-        {!query && (
-          <motion.div
-            variants={fadeVariants}
-            initial="hidden"
-            animate={sectionInView ? "visible" : "hidden"}
-            transition={{ duration: 1.1 }}
-            className="flex flex-wrap justify-center gap-3 mb-12"
-          >
-            {aiSuggestions.map((s, i) => (
-              <motion.button
-                key={i}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setQuery(s)}
-                className="px-5 py-2 rounded-full hover:border-indigo-500/50 hover:text-indigo-500 
-                           text-theme-secondary transition-all text-sm shadow border"
-                style={{ 
-                  backgroundColor: 'var(--bg-tertiary)', 
-                  borderColor: 'var(--border-secondary)' 
-                }}
-              >
-                {s}
-              </motion.button>
-            ))}
-          </motion.div>
-        )}
+          <h1 className="ed-display" style={{
+            fontSize: "clamp(48px, 7.4vw, 120px)", margin: 0, color: ED.ink,
+          }}>
+            Search the<br />
+            <span className="ed-italic" style={{ color: ED.accent }}>library.</span>
+          </h1>
+          <p className="ed-lede" style={{ marginTop: 28, maxWidth: 620 }}>
+            Help articles, product pages, the privacy policy, the changelog —
+            all in one place. Type a few words.
+          </p>
 
-        {/* RECENT SEARCHES */}
-        {!query && (
-          <motion.div
-            variants={fadeVariants}
-            initial="hidden"
-            animate={sectionInView ? "visible" : "hidden"}
-            transition={{ duration: 1.2 }}
-            className="mb-16"
-          >
-            <h3 className="text-theme-muted text-sm mb-3 flex items-center gap-2">
-              <FiClock /> Recent Searches
-            </h3>
+          {/* Search bar */}
+          <div style={{
+            marginTop: 36, display: "flex", alignItems: "center", gap: 14,
+            padding: "18px 24px", background: ED.paper50,
+            border: `2px solid ${ED.ink}`, borderRadius: 16, maxWidth: 720,
+          }}>
+            <FiSearch size={22} style={{ color: ED.ink }} />
+            <input
+              autoFocus value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="What are you looking for?"
+              style={{
+                flex: 1, border: 0, background: "transparent", outline: "none",
+                fontFamily: ED.serif, fontSize: 22, color: ED.ink,
+              }}
+            />
+            {q && (
+              <button onClick={() => setQ("")} className="ed-mono" style={{
+                fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase",
+                color: ED.inkFaint, padding: "4px 10px",
+                background: ED.paper200, borderRadius: 6,
+              }}>
+                Clear
+              </button>
+            )}
+          </div>
 
-            <div className="flex flex-wrap gap-3">
-              {recentSearches.map((item, i) => (
-                <button
-                  key={i}
-                  onClick={() => setQuery(item)}
-                  className="px-4 py-2 rounded-xl hover:border-indigo-500/50 hover:text-indigo-500 
-                             text-theme-muted text-sm transition border"
-                  style={{ 
-                    backgroundColor: 'var(--bg-card)', 
-                    borderColor: 'var(--border-secondary)' 
+          {/* Popular searches */}
+          {!q && (
+            <div style={{ marginTop: 28 }}>
+              <div className="ed-mono" style={{
+                fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase",
+                color: ED.inkFaint, marginBottom: 12,
+              }}>
+                Popular this week
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {POPULAR.map((p) => (
+                  <button key={p} onClick={() => setQ(p)} className="ed-chip" style={{
+                    cursor: "pointer", transition: "border-color .15s",
                   }}
-                >
-                  {item}
-                </button>
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = ED.ink}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = ED.rule}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Results ──────────────────────── */}
+      <section style={{ padding: "0 0 96px" }}>
+        <div className="ed-page">
+          {q && (
+            <div style={{
+              display: "flex", justifyContent: "space-between", alignItems: "baseline",
+              marginBottom: 16, flexWrap: "wrap", gap: 12,
+            }}>
+              <div className="ed-chapter">
+                <span className="num">§</span>
+                <span>Results</span>
+              </div>
+              <div className="ed-mono" style={{
+                fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint,
+              }}>
+                {results.length} {results.length === 1 ? "match" : "matches"} for "{q}"
+              </div>
+            </div>
+          )}
+
+          {q && results.length === 0 && (
+            <div style={{
+              padding: "64px 32px", textAlign: "center",
+              border: `1px solid ${ED.rule}`, borderRadius: 14, background: ED.paper50,
+            }}>
+              <h2 className="ed-display" style={{
+                fontSize: 44, margin: 0, color: ED.ink,
+              }}>
+                Nothing <span className="ed-italic" style={{ color: ED.accent }}>matches.</span>
+              </h2>
+              <p style={{ fontSize: 17, lineHeight: 1.6, color: ED.inkMute, marginTop: 14, maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}>
+                Try a broader phrase, or write to{" "}
+                <a href="mailto:help@notestream.co" className="ed-ulink" style={{ color: ED.accent }}>
+                  help@notestream.co
+                </a>{" "}— we'll find it for you and probably add it to the library.
+              </p>
+              <div style={{ marginTop: 22, display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+                <Link to="/help-center" className="ed-btn ed-btn-ghost">Browse all articles</Link>
+                <Link to="/faq" className="ed-btn ed-btn-ghost">FAQ</Link>
+              </div>
+            </div>
+          )}
+
+          {results.length > 0 && (
+            <div style={{ border: `1px solid ${ED.rule}`, borderRadius: 0 }}>
+              {results.map((r, i) => (
+                <Link key={i} to={r.to} style={{
+                  display: "grid", gridTemplateColumns: "auto 1fr auto auto",
+                  alignItems: "center", gap: 18,
+                  padding: "18px 22px",
+                  borderBottom: i < results.length - 1 ? `1px solid ${ED.rule}` : "none",
+                  background: "transparent", transition: "background .15s",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = ED.paper50}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                  <span className="ed-mono" style={{
+                    fontSize: 10, color: ED.inkFaint, letterSpacing: "0.08em",
+                    minWidth: 24,
+                  }}>
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span className="ed-serif" style={{
+                    fontSize: 18, color: ED.ink, letterSpacing: "-0.005em",
+                  }}>
+                    <Highlight text={r.t} q={q} />
+                  </span>
+                  <span className="ed-mono" style={{
+                    fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase",
+                    color: ED.inkFaint,
+                  }}>
+                    {r.c}
+                  </span>
+                  <FiArrowUpRight size={14} style={{ color: ED.inkFaint }} />
+                </Link>
               ))}
             </div>
-          </motion.div>
-        )}
+          )}
 
-        {/* SEARCH RESULTS */}
-        {query && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="mt-12 space-y-6"
-          >
-            <h3 className="text-indigo-500 text-lg font-semibold mb-4">
-              Results for "{query}"
-            </h3>
-
-            {placeholderResults.map((res, i) => (
-              <div
-                key={i}
-                className="rounded-2xl p-6 hover:-translate-y-1 hover:border-indigo-500/40 
-                           shadow-[0_0_20px_rgba(99,102,241,0.08)] 
-                           hover:shadow-[0_0_40px_rgba(99,102,241,0.15)]
-                           transition-all duration-300 cursor-pointer border"
-                style={{ 
-                  backgroundColor: 'var(--bg-card)', 
-                  borderColor: 'var(--border-secondary)' 
+          {/* Empty state — no query yet */}
+          {!q && (
+            <div className="search-empty" style={{
+              display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24,
+            }}>
+              {[
+                { h: "Browse the library", d: "168 articles, sorted into 6 collections", to: "/help-center", cta: "Open the help centre" },
+                { h: "Frequently asked", d: "12 of the most common questions", to: "/faq", cta: "Read the FAQ" },
+              ].map((b) => (
+                <Link key={b.h} to={b.to} style={{
+                  display: "block", padding: "28px 32px",
+                  background: ED.paper50, border: `1px solid ${ED.rule}`,
+                  borderRadius: 14, transition: "border-color .18s",
                 }}
-              >
-                <div className="flex items-start gap-4">
-                  <div 
-                    className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: 'var(--bg-tertiary)' }}
-                  >
-                    {res.icon}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = ED.ink}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = ED.rule}>
+                  <div className="ed-mono" style={{
+                    fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase",
+                    color: ED.inkFaint, marginBottom: 10,
+                  }}>
+                    Or browse
                   </div>
-                  <div>
-                    <h4 className="text-theme-primary font-semibold">{res.title}</h4>
-                    <p className="text-theme-muted text-sm mt-1">{res.desc}</p>
+                  <h3 className="ed-serif" style={{
+                    fontSize: 26, margin: 0, marginBottom: 8, color: ED.ink, letterSpacing: "-0.01em",
+                  }}>
+                    {b.h}
+                  </h3>
+                  <p style={{ fontSize: 14.5, lineHeight: 1.6, color: ED.inkMute, margin: 0 }}>
+                    {b.d}
+                  </p>
+                  <div className="ed-mono" style={{
+                    marginTop: 16, fontSize: 10.5, letterSpacing: "0.12em",
+                    textTransform: "uppercase", color: ED.accent,
+                  }}>
+                    {b.cta} →
                   </div>
-                </div>
-              </div>
-            ))}
-          </motion.div>
-        )}
-      </div>
-    </section>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <style>{`
+          @media (max-width: 900px) {
+            .ns-ed .search-empty { grid-template-columns: 1fr !important; }
+          }
+          @media (max-width: 700px) {
+            .ns-ed .search-empty + section { padding: 0 !important; }
+          }
+        `}</style>
+      </section>
+    </div>
+  );
+}
+
+// Highlight the matched substring in results
+function Highlight({ text, q }) {
+  if (!q) return text;
+  const needle = q.toLowerCase();
+  const i = text.toLowerCase().indexOf(needle);
+  if (i < 0) return text;
+  return (
+    <>
+      {text.slice(0, i)}
+      <span className="ed-hi" style={{ color: ED.ink }}>{text.slice(i, i + q.length)}</span>
+      {text.slice(i + q.length)}
+    </>
   );
 }

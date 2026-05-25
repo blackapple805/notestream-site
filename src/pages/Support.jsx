@@ -1,750 +1,253 @@
 // src/pages/Support.jsx
-import { motion } from "framer-motion";
-import { useMemo, useState } from "react";
-import {
-  FiCheckCircle,
-  FiExternalLink,
-  FiSend,
-  FiMail,
-  FiCheck,
-} from "react-icons/fi";
-import {
-  LifebuoyIcon as Lifebuoy,
-  BookOpenIcon as BookOpen,
-  ChatCircleDotsIcon as ChatCircleDots,
-  EnvelopeIcon as Envelope,
-  RocketLaunchIcon as RocketLaunch,
-  LightningIcon as Lightning,
-  ShieldCheckIcon as ShieldCheck,
-  DiscordLogoIcon as DiscordLogo,
-} from "@phosphor-icons/react";
-
-function XIcon({ size = 20, className = "", style = {} }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      className={className}
-      style={style}
-    >
-      <path
-        fill="currentColor"
-        d="M18.9 2H21l-6.6 7.6L22 22h-6.2l-4.9-6.4L5.3 22H3.2l7.1-8.2L2 2h6.3l4.4 5.8L18.9 2Zm-1.1 18h1.2L7.1 3.9H5.8L17.8 20Z"
-      />
-    </svg>
-  );
-}
+import { useState } from "react";
+import { useEditorial, ED } from "../lib/editorial";
+import { FiArrowRight, FiArrowUpRight } from "react-icons/fi";
 
 export default function Support() {
-  const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
+  useEditorial();
+  const [form, setForm] = useState({ name: "", email: "", topic: "general", message: "" });
+  const [sent, setSent] = useState(false);
 
-  const [submitted, setSubmitted] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const isValidEmail = useMemo(() => {
-    if (!email) return false;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  }, [email]);
-
-  const categories = [
-    {
-      icon: RocketLaunch,
-      title: "Getting Started",
-      desc: "New to NoteStream? Learn the basics and get up and running in minutes.",
-      link: "/how-it-works",
-      color: "indigo",
-    },
-    {
-      icon: BookOpen,
-      title: "Documentation",
-      desc: "Deep-dive guides covering features, workflows, and best practices.",
-      link: "/docs",
-      color: "purple",
-    },
-    {
-      icon: ChatCircleDots,
-      title: "FAQ",
-      desc: "Find quick answers to the most commonly asked questions.",
-      link: "/faq",
-      color: "emerald",
-    },
+  const topics = [
+    { v: "general",  l: "General question" },
+    { v: "billing",  l: "Billing & subscriptions" },
+    { v: "voice",    l: "Voice notes & transcription" },
+    { v: "ai",       l: "AI reasoning & briefs" },
+    { v: "team",     l: "Team & shared workspaces" },
+    { v: "privacy",  l: "Privacy or security concern" },
+    { v: "bug",      l: "I think I found a bug" },
+    { v: "other",    l: "Something else" },
   ];
 
-  const quickLinks = [
-    { label: "Reset Password", link: "/reset-password" },
-    { label: "Billing & Plans", link: "/pricing" },
-    { label: "Privacy Policy", link: "/privacy" },
-    { label: "Terms of Service", link: "/terms" },
-  ];
-
-  const status = {
-    healthy: true,
-    services: [
-      { name: "API", status: "operational" },
-      { name: "Dashboard", status: "operational" },
-      { name: "AI Processing", status: "operational" },
-      { name: "Sync", status: "operational" },
-    ],
-  };
-
-  const colorConfig = {
-    indigo: {
-      bg: "rgba(99, 102, 241, 0.1)",
-      border: "rgba(99, 102, 241, 0.25)",
-      text: "var(--accent-indigo)",
-    },
-    purple: {
-      bg: "rgba(168, 85, 247, 0.1)",
-      border: "rgba(168, 85, 247, 0.25)",
-      text: "var(--accent-purple)",
-    },
-    emerald: {
-      bg: "rgba(16, 185, 129, 0.1)",
-      border: "rgba(16, 185, 129, 0.25)",
-      text: "var(--accent-emerald)",
-    },
-  };
-
-  const handleSubmit = async (e) => {
+  const onSubmit = (e) => {
     e.preventDefault();
-    if (!isValidEmail || !message.trim() || isSubmitting) return;
-
-    setIsSubmitting(true);
-
-    // TODO: replace with your real API call
-    // await fetch("/api/support", { method: "POST", body: JSON.stringify({ email, message }) })
-    await new Promise((r) => setTimeout(r, 750));
-
-    setIsSubmitting(false);
-    setSubmitted(true);
-
-    // Clear form
-    setEmail("");
-    setMessage("");
-
-    // Auto-hide success
-    window.setTimeout(() => setSubmitted(false), 2200);
+    setSent(true);
   };
 
   return (
-    <section
-      className="min-h-screen px-6 py-24 md:py-32 relative"
-      style={{ backgroundColor: "var(--bg-primary)" }}
-    >
-      {/* Background glows */}
-      <div
-        className="absolute top-[10%] left-[10%] w-[300px] h-[300px] rounded-full pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(99, 102, 241, 0.15), transparent 70%)",
-          filter: "blur(60px)",
-        }}
-      />
-      <div
-        className="absolute bottom-[15%] right-[10%] w-[250px] h-[250px] rounded-full pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(168, 85, 247, 0.12), transparent 70%)",
-          filter: "blur(60px)",
-        }}
-      />
-
-      <div className="relative z-10 max-w-5xl mx-auto">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
-        >
-          {/* Badge */}
-          <div
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6 border"
-            style={{
-              backgroundColor: "rgba(99, 102, 241, 0.1)",
-              borderColor: "rgba(99, 102, 241, 0.25)",
-            }}
-          >
-            <Lifebuoy
-              size={16}
-              weight="duotone"
-              style={{ color: "var(--accent-indigo)" }}
-            />
-            <span
-              className="text-sm font-medium"
-              style={{ color: "var(--accent-indigo)" }}
-            >
-              Support Center
-            </span>
+    <div className="ns-ed" style={{ minHeight: "100vh" }}>
+      <section style={{ paddingTop: 140, paddingBottom: 56 }}>
+        <div className="ed-page">
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "flex-end",
+            marginBottom: 48, flexWrap: "wrap", gap: 16,
+          }}>
+            <div className="ed-chapter">
+              <span className="num">№ 01</span>
+              <span>Support · Get a Person</span>
+            </div>
+            <div className="ed-mono" style={{
+              fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint,
+            }}>
+              Avg reply: 4 hours · Mon–Fri
+            </div>
           </div>
+          <hr className="ed-rule-dbl" style={{ marginBottom: 48 }} />
 
-          <h1
-            className="text-4xl md:text-5xl font-bold mb-4"
-            style={{ color: "var(--text-primary)" }}
-          >
-            How can we <span style={{ color: "var(--accent-indigo)" }}>help</span>{" "}
-            you?
+          <h1 className="ed-display" style={{
+            fontSize: "clamp(48px, 7.4vw, 120px)", margin: 0, color: ED.ink,
+          }}>
+            A real<br />
+            <span className="ed-italic" style={{ color: ED.accent }}>person,</span> replying.
           </h1>
-          <p
-            className="text-lg max-w-2xl mx-auto"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Find answers, browse documentation, or reach out to our support team.
+          <p className="ed-lede" style={{ marginTop: 28, maxWidth: 620 }}>
+            No chatbot, no ticket queue. Write to us and a human on the team
+            replies — usually within hours, always within a day. We read
+            every message.
           </p>
-        </motion.div>
-
-        {/* Categories */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-16">
-          {categories.map((c, idx) => {
-            const colors = colorConfig[c.color];
-            const IconComponent = c.icon;
-
-            return (
-              <motion.a
-                key={idx}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 + idx * 0.1 }}
-                href={c.link}
-                className="group p-6 rounded-2xl border text-center transition-all duration-300 hover:-translate-y-1"
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  borderColor: "var(--border-secondary)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = colors.border;
-                  e.currentTarget.style.boxShadow = `0 10px 40px ${colors.bg}`;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border-secondary)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              >
-                <div
-                  className="w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-4 transition-all duration-300 group-hover:scale-110"
-                  style={{
-                    backgroundColor: colors.bg,
-                    border: `1px solid ${colors.border}`,
-                  }}
-                >
-                  <IconComponent
-                    size={26}
-                    weight="duotone"
-                    style={{ color: colors.text }}
-                  />
-                </div>
-
-                <h3
-                  className="text-lg font-semibold mb-2 transition-colors"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {c.title}
-                </h3>
-
-                <p
-                  className="text-sm leading-relaxed"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  {c.desc}
-                </p>
-
-                <div
-                  className="mt-4 text-xs font-medium flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ color: colors.text }}
-                >
-                  Learn more <FiExternalLink size={12} />
-                </div>
-              </motion.a>
-            );
-          })}
         </div>
+      </section>
 
-        {/* System Status */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="rounded-2xl p-6 mb-16 border"
-          style={{
-            backgroundColor: "var(--bg-surface)",
-            borderColor: "var(--border-secondary)",
-          }}
-        >
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{
-                  backgroundColor: status.healthy
-                    ? "rgba(16, 185, 129, 0.15)"
-                    : "rgba(244, 63, 94, 0.15)",
-                  border: `1px solid ${
-                    status.healthy
-                      ? "rgba(16, 185, 129, 0.3)"
-                      : "rgba(244, 63, 94, 0.3)"
-                  }`,
-                }}
-              >
-                {status.healthy ? (
-                  <ShieldCheck
-                    size={20}
-                    weight="duotone"
-                    style={{ color: "var(--accent-emerald)" }}
-                  />
-                ) : (
-                  <Lightning
-                    size={20}
-                    weight="fill"
-                    style={{ color: "var(--accent-rose)" }}
-                  />
-                )}
+      <section style={{ padding: "0 0 96px" }}>
+        <div className="ed-page">
+          <div className="sup-grid" style={{
+            display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 56, alignItems: "start",
+          }}>
+            {/* Quick paths */}
+            <div>
+              <div className="ed-chapter" style={{ marginBottom: 18 }}>
+                <span className="num">§</span>
+                <span>Before you write</span>
               </div>
-              <div>
-                <h3
-                  className="font-semibold"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  System Status
-                </h3>
-                <p
-                  className="text-xs"
-                  style={{
-                    color: status.healthy
-                      ? "var(--accent-emerald)"
-                      : "var(--accent-rose)",
+              <p className="ed-serif" style={{
+                fontSize: 17, lineHeight: 1.55, color: ED.inkMute, margin: 0,
+              }}>
+                A few common questions live in faster places:
+              </p>
+
+              <div style={{ marginTop: 28, display: "grid", gap: 14 }}>
+                {[
+                  { t: "Help centre", d: "168 articles, written plainly", to: "/help-center" },
+                  { t: "FAQ", d: "12 most common questions", to: "/faq" },
+                  { t: "Status board", d: "Live service status & incidents", to: "/status" },
+                  { t: "Privacy policy", d: "Yes, even the long version", to: "/privacy" },
+                ].map((it) => (
+                  <a key={it.t} href={it.to} style={{
+                    display: "block", padding: "16px 20px",
+                    border: `1px solid ${ED.rule}`, borderRadius: 12,
+                    background: ED.paper50, transition: "all .18s ease",
                   }}
-                >
-                  {status.healthy
-                    ? "All systems operational"
-                    : "Service interruptions"}
-                </p>
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = ED.ink; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = ED.rule; }}>
+                    <div style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "baseline",
+                    }}>
+                      <span className="ed-serif" style={{ fontSize: 18, color: ED.ink, letterSpacing: "-0.005em" }}>
+                        {it.t}
+                      </span>
+                      <FiArrowRight size={14} style={{ color: ED.inkFaint }} />
+                    </div>
+                    <div className="ed-mono" style={{
+                      fontSize: 10.5, letterSpacing: "0.1em", color: ED.inkFaint,
+                      textTransform: "uppercase", marginTop: 4,
+                    }}>
+                      {it.d}
+                    </div>
+                  </a>
+                ))}
               </div>
-            </div>
 
-            <a
-              href="/status"
-              className="text-xs font-medium transition"
-              style={{ color: "var(--accent-indigo)" }}
-            >
-              View details →
-            </a>
-          </div>
+              <hr className="ed-rule-soft" style={{ margin: "32px 0" }} />
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {status.services.map((service, idx) => (
-              <div
-                key={idx}
-                className="p-3 rounded-xl text-center border"
-                style={{
-                  backgroundColor: "var(--bg-tertiary)",
-                  borderColor: "var(--border-secondary)",
-                }}
-              >
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: "var(--accent-emerald)" }}
-                  />
-                  <span
-                    className="text-xs font-medium"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    {service.name}
-                  </span>
-                </div>
-                <span
-                  className="text-[10px] uppercase font-semibold"
-                  style={{ color: "var(--accent-emerald)" }}
-                >
-                  {service.status}
-                </span>
+              <div className="ed-mono" style={{
+                fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase",
+                color: ED.inkFaint, marginBottom: 12,
+              }}>
+                Or write to us directly
               </div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Contact Form Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-16"
-        >
-          {/* Contact Form */}
-          <div
-            className="rounded-2xl p-6 border"
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              borderColor: "var(--border-secondary)",
-            }}
-          >
-            <div className="flex items-center gap-3 mb-5">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{
-                  backgroundColor: "rgba(99, 102, 241, 0.15)",
-                  border: "1px solid rgba(99, 102, 241, 0.3)",
-                }}
-              >
-                <Envelope
-                  size={20}
-                  weight="duotone"
-                  style={{ color: "var(--accent-indigo)" }}
-                />
-              </div>
-              <div>
-                <h3
-                  className="font-semibold"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  Send us a message
-                </h3>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  We typically respond within 24 hours
-                </p>
-              </div>
-            </div>
-
-            {/* Success block (footer-like) */}
-            {submitted ? (
-              <div
-                className="p-5 rounded-2xl border flex items-start gap-3"
-                style={{
-                  backgroundColor: "rgba(16, 185, 129, 0.10)",
-                  borderColor: "rgba(16, 185, 129, 0.25)",
-                }}
-              >
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center border flex-shrink-0"
-                  style={{
-                    backgroundColor: "rgba(16, 185, 129, 0.12)",
-                    borderColor: "rgba(16, 185, 129, 0.25)",
-                  }}
-                >
-                  <FiCheck size={18} style={{ color: "var(--accent-emerald)" }} />
-                </div>
-
-                <div>
-                  <p
-                    className="text-sm font-semibold"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    Sent — we received your message.
-                  </p>
-                  <p
-                    className="text-sm mt-1"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    We’ll get back to you soon.
-                  </p>
-                  <p
-                    className="text-xs mt-2"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    Tip: If you don’t hear back, check spam/junk folders.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label
-                    className="text-xs font-medium mb-2 block"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    Email
-                  </label>
-
-                  <div
-                    className="relative rounded-xl border transition-all"
-                    style={{
-                      backgroundColor: "var(--bg-tertiary)",
-                      borderColor: email
-                        ? "rgba(99, 102, 241, 0.35)"
-                        : "var(--border-secondary)",
-                      boxShadow: email
-                        ? "0 0 0 4px rgba(99, 102, 241, 0.10)"
-                        : "none",
-                    }}
-                  >
-                    <FiMail
-                      className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4"
-                      style={{ color: "var(--text-muted)" }}
-                    />
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      className="w-full pl-11 pr-4 py-3 rounded-xl bg-transparent outline-none text-sm"
-                      style={{ color: "var(--text-primary)" }}
-                      autoComplete="email"
-                      inputMode="email"
-                    />
-                  </div>
-
-                  {!email ? null : !isValidEmail ? (
-                    <p
-                      className="mt-2 text-xs font-medium"
-                      style={{ color: "var(--accent-rose)" }}
-                    >
-                      Please enter a valid email.
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                      We’ll reply to this address.
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label
-                    className="text-xs font-medium mb-2 block"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    Message
-                  </label>
-                  <textarea
-                    required
-                    rows={4}
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="How can we help you?"
-                    className="w-full px-4 py-3 rounded-xl border outline-none transition text-sm resize-none"
-                    style={{
-                      backgroundColor: "var(--bg-tertiary)",
-                      borderColor: "var(--border-secondary)",
-                      color: "var(--text-primary)",
-                    }}
-                  />
-                  {!message.trim() ? (
-                    <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                      Include a quick summary so we can help faster.
-                    </p>
-                  ) : null}
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={!isValidEmail || !message.trim() || isSubmitting}
-                  className="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))",
-                    boxShadow: "0 10px 28px rgba(99, 102, 241, 0.22)",
-                    color: "white",
-                  }}
-                >
-                  <FiSend size={16} />
-                  {isSubmitting ? "Sending…" : "Send Message"}
-                </button>
-              </form>
-            )}
-          </div>
-
-          {/* Quick Links + Social */}
-          <div className="space-y-6">
-            {/* Quick Links */}
-            <div
-              className="rounded-2xl p-6 border"
-              style={{
-                backgroundColor: "var(--bg-surface)",
-                borderColor: "var(--border-secondary)",
-              }}
-            >
-              <h3
-                className="font-semibold mb-4"
-                style={{ color: "var(--text-primary)" }}
-              >
-                Quick Links
-              </h3>
-              <div className="space-y-2">
-                {quickLinks.map((link, idx) => (
-                  <a
-                    key={idx}
-                    href={link.link}
-                    className="flex items-center justify-between p-3 rounded-xl border transition-all"
-                    style={{
-                      backgroundColor: "var(--bg-tertiary)",
-                      borderColor: "var(--border-secondary)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor =
-                        "rgba(99, 102, 241, 0.3)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor =
-                        "var(--border-secondary)";
-                    }}
-                  >
-                    <span
-                      className="text-sm"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
-                      {link.label}
+              <div style={{ display: "grid", gap: 8 }}>
+                {[
+                  ["help@notestream.co", "General questions"],
+                  ["billing@notestream.co", "Anything about subscriptions"],
+                  ["security@notestream.co", "Report a vulnerability"],
+                ].map(([e, l]) => (
+                  <a key={e} href={`mailto:${e}`} className="ed-ulink" style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "baseline",
+                    fontFamily: ED.sans, fontSize: 14, color: ED.accent,
+                  }}>
+                    <span style={{ fontWeight: 500 }}>{e}</span>
+                    <span className="ed-mono" style={{ fontSize: 10.5, color: ED.inkFaint, letterSpacing: "0.06em" }}>
+                      {l}
                     </span>
-                    <FiExternalLink
-                      size={14}
-                      style={{ color: "var(--text-muted)" }}
-                    />
                   </a>
                 ))}
               </div>
             </div>
 
-            {/* Community / Social */}
-            <div
-              className="rounded-2xl p-6 border"
-              style={{
-                backgroundColor: "var(--bg-surface)",
-                borderColor: "var(--border-secondary)",
-              }}
-            >
-              <h3
-                className="font-semibold mb-4"
-                style={{ color: "var(--text-primary)" }}
-              >
-                Join the Community
-              </h3>
-              <div className="grid grid-cols-2 gap-3">
-                <a
-                  href="https://discord.gg/notestream"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 p-3 rounded-xl border transition-all hover:scale-[1.02]"
-                  style={{
-                    backgroundColor: "rgba(88, 101, 242, 0.1)",
-                    borderColor: "rgba(88, 101, 242, 0.25)",
-                  }}
-                >
-                  <DiscordLogo
-                    size={20}
-                    weight="fill"
-                    style={{ color: "#5865F2" }}
-                  />
-                  <span className="text-sm font-medium" style={{ color: "#5865F2" }}>
-                    Discord
-                  </span>
-                </a>
-
-                <a
-                  href="https://x.com/notestream"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 p-3 rounded-xl border transition-all hover:scale-[1.02]"
-                  style={{
-                    backgroundColor: "rgba(255, 255, 255, 0.4)",
-                    borderColor: "rgba(27, 13, 13, 0.34)",
-                  }}
-                >
-                  <XIcon size={20} style={{ color: "var(--text-primary)" }} />
-                  <span
-                    className="text-sm font-medium"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                  </span>
-                </a>
+            {/* Form */}
+            <div className="ed-card" style={{ padding: 32 }}>
+              <div className="ed-mono" style={{
+                fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase",
+                color: ED.accent, marginBottom: 8,
+              }}>
+                The form
               </div>
+              <h2 className="ed-serif" style={{
+                fontSize: 30, margin: 0, marginBottom: 24, color: ED.ink,
+                letterSpacing: "-0.01em",
+              }}>
+                Tell us what's going on.
+              </h2>
+
+              {sent ? (
+                <div className="ed-reveal" style={{ padding: "24px 0", textAlign: "center" }}>
+                  <div className="ed-display" style={{
+                    fontSize: 32, color: ED.accent, marginBottom: 12,
+                  }}>
+                    Sent. <span className="ed-italic">Thank you.</span>
+                  </div>
+                  <p style={{ fontSize: 15, color: ED.inkMute, margin: 0 }}>
+                    We'll reply to <span style={{ color: ED.ink, fontWeight: 500 }}>{form.email || "your email"}</span> within a day. Usually a few hours.
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={onSubmit} style={{ display: "grid", gap: 18 }}>
+                  <Field label="Your name">
+                    <input
+                      required value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      style={inputStyle}
+                    />
+                  </Field>
+
+                  <Field label="Email">
+                    <input
+                      required type="email" value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      style={inputStyle}
+                    />
+                  </Field>
+
+                  <Field label="Topic">
+                    <select
+                      value={form.topic}
+                      onChange={(e) => setForm({ ...form, topic: e.target.value })}
+                      style={inputStyle}
+                    >
+                      {topics.map((t) => (
+                        <option key={t.v} value={t.v}>{t.l}</option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="What's the problem, or the question?">
+                    <textarea
+                      required rows={6}
+                      value={form.message}
+                      onChange={(e) => setForm({ ...form, message: e.target.value })}
+                      placeholder="Be specific where you can. If it's a bug, include what you expected vs. what happened."
+                      style={{ ...inputStyle, resize: "vertical", minHeight: 130 }}
+                    />
+                  </Field>
+
+                  <div style={{
+                    display: "flex", justifyContent: "space-between",
+                    alignItems: "center", marginTop: 6, flexWrap: "wrap", gap: 12,
+                  }}>
+                    <p className="ed-mono" style={{
+                      fontSize: 10.5, letterSpacing: "0.1em", color: ED.inkFaint,
+                      textTransform: "uppercase", margin: 0,
+                    }}>
+                      A human reads this, not a model
+                    </p>
+                    <button type="submit" className="ed-btn ed-btn-primary">
+                      Send the message <FiArrowUpRight size={13} />
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Removed the bottom mailto CTA*/}
-      </div>
-    </section>
+        <style>{`
+          @media (max-width: 900px) {
+            .ns-ed .sup-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
+          }
+        `}</style>
+      </section>
+    </div>
   );
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+const inputStyle = {
+  width: "100%", padding: "12px 14px",
+  border: `1px solid ${ED.rule}`, borderRadius: 10,
+  background: ED.paper100, color: ED.ink,
+  fontFamily: ED.sans, fontSize: 15,
+  outline: "none",
+};
+
+function Field({ label, children }) {
+  return (
+    <label style={{ display: "block" }}>
+      <span className="ed-mono" style={{
+        display: "block", fontSize: 10.5, letterSpacing: "0.14em",
+        textTransform: "uppercase", color: ED.inkFaint, marginBottom: 8,
+      }}>
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}

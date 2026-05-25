@@ -1,546 +1,398 @@
 // src/components/Demo.jsx
-import { useState, useEffect, useRef } from "react";
-import { 
-  FiPlay, FiFileText, FiZap, FiCheck, FiArrowRight,
-  FiMic, FiImage, FiUpload, FiClock, FiStar
+// ───────────────────────────────────────────────────────────────
+// NoteStream — Editorial Demo (Vite drop-in)
+// Self-contained: shares tokens + CSS with Hero via editorial.js.
+// ───────────────────────────────────────────────────────────────
+
+import { useEffect, useState } from "react";
+import { useEditorial, ED } from "../lib/editorial";
+import {
+  FiArrowRight, FiArrowUpRight, FiSearch, FiMic, FiFileText,
 } from "react-icons/fi";
-import { SparkleIcon as Sparkle, LightningIcon as Lightning, BrainIcon as Brain } from "@phosphor-icons/react";
-import { motion, AnimatePresence, useInView } from "framer-motion";
+import {
+  SparkleIcon as Sparkle,
+  BrainIcon as Brain,
+  QuotesIcon as Quotes,
+} from "@phosphor-icons/react";
 
 export default function Demo() {
-  const [activeStep, setActiveStep] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isDark, setIsDark] = useState(true);
+  useEditorial();
+  const [active, setActive] = useState(0);
 
-  // Detect theme changes
-  useEffect(() => {
-    const checkTheme = () => {
-      setIsDark(document.documentElement.classList.contains('dark'));
-    };
-    checkTheme();
-    
-    const observer = new MutationObserver(checkTheme);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    
-    return () => observer.disconnect();
-  }, []);
-
-  // Auto-play demo steps
-  useEffect(() => {
-    if (!isPlaying) return;
-    
-    const interval = setInterval(() => {
-      setActiveStep((prev) => {
-        if (prev >= 3) {
-          setIsPlaying(false);
-          return 0;
-        }
-        return prev + 1;
-      });
-    }, 2500);
-
-    return () => clearInterval(interval);
-  }, [isPlaying]);
-
-  const steps = [
-    { 
-      icon: <FiUpload size={20} />, 
-      title: "Capture", 
-      desc: "Upload notes, voice memos, or images",
-      color: "var(--accent-indigo)"
+  const flows = [
+    {
+      num: "I", id: "capture", label: "Capture",
+      title: "A thought, before it gets away.",
+      blurb: "Hold the button. Speak. NoteStream transcribes, tags, and files it where it belongs — without you opening another app.",
+      aside: "Voice notes are transcribed locally first, then cleaned by the model — so even your fillers are gone before anyone sees them.",
     },
-    { 
-      icon: <Brain size={20} weight="fill" />, 
-      title: "Analyze", 
-      desc: "AI extracts key insights automatically",
-      color: "var(--accent-purple)"
+    {
+      num: "II", id: "find", label: "Find",
+      title: "Ask, instead of digging.",
+      blurb: "Search by meaning, not keywords. Your archive becomes a conversation — a librarian who has actually read every note.",
+      aside: "Every answer cites its sources. You can press through to the original note, exactly as you wrote it.",
     },
-    { 
-      icon: <FiZap size={20} />, 
-      title: "Summarize", 
-      desc: "Get actionable summaries in seconds",
-      color: "var(--accent-amber)"
-    },
-    { 
-      icon: <FiCheck size={20} />, 
-      title: "Act", 
-      desc: "Export, share, or integrate anywhere",
-      color: "var(--accent-emerald)"
+    {
+      num: "III", id: "reason", label: "Reason",
+      title: "Argue with your own archive.",
+      blurb: "Cross-reference a year of meetings, memos and voice notes. Surface the contradictions, the patterns, the one thing that mattered.",
+      aside: "Reasoning runs across spaces, dates and document types. Your week-old voice memo can support a paragraph in today's brief.",
     },
   ];
 
-  const useScrollFade = (options = { amount: 0.3 }) => {
-    const ref = useRef(null);
-    const inView = useInView(ref, options);
-    const variants = {
-      hidden: { opacity: 0, y: 40 },
-      visible: { opacity: 1, y: 0 },
-    };
-    return { ref, inView, variants };
-  };
-
-  const heading = useScrollFade();
-  const demo = useScrollFade();
-
   return (
-    <>
-      <section
-        id="demo"
-        className="relative flex flex-col items-center justify-center text-center py-24 md:py-32 px-6 overflow-hidden"
-        style={{ backgroundColor: 'var(--bg-primary)' }}
-      >
-        {/* === Background Glows === */}
-        <div 
-          className="absolute top-[20%] left-[5%] w-[300px] h-[300px] rounded-full pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(99, 102, 241, 0.12), transparent 70%)', filter: 'blur(60px)' }}
-        />
-        <div 
-          className="absolute bottom-[10%] right-[10%] w-[250px] h-[250px] rounded-full pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(139, 92, 246, 0.1), transparent 70%)', filter: 'blur(60px)' }}
-        />
-
-        {/* === Heading === */}
-        <motion.div
-          ref={heading.ref}
-          variants={heading.variants}
-          initial="hidden"
-          animate={heading.inView ? "visible" : "hidden"}
-          transition={{ duration: 0.7, ease: "easeOut" }}
-          className="relative z-10 max-w-3xl mx-auto"
-        >
-          <div 
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6 border"
-            style={{ 
-              backgroundColor: 'rgba(168, 85, 247, 0.1)', 
-              borderColor: 'rgba(168, 85, 247, 0.2)' 
-            }}
-          >
-            <Lightning size={16} weight="fill" style={{ color: 'var(--accent-purple)' }} />
-            <span className="text-sm font-medium" style={{ color: 'var(--accent-purple)' }}>
-              See It In Action
-            </span>
+    <section id="demo" className="ns-ed" style={{ padding: "88px 0 96px" }}>
+      <div className="ed-page">
+        {/* Section title */}
+        <div className="sec-head" style={{
+          display: "grid", gridTemplateColumns: "1fr 2fr", gap: 64,
+          alignItems: "end", marginBottom: 56,
+        }}>
+          <div>
+            <div className="ed-chapter" style={{ marginBottom: 18 }}>
+              <span className="num">№ 02</span>
+              <span>A Demonstration</span>
+            </div>
+            <h2 className="ed-display" style={{ fontSize: "clamp(40px, 5.4vw, 78px)", margin: 0 }}>
+              In three<br />
+              <span className="ed-italic" style={{ color: ED.accent }}>movements.</span>
+            </h2>
           </div>
-
-          <h2 className="text-3xl md:text-5xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>
-            Experience <span style={{ color: 'var(--accent-indigo)' }}>NoteStream</span>
-          </h2>
-          <p className="text-lg max-w-2xl mx-auto mb-12" style={{ color: 'var(--text-muted)' }}>
-            Watch how NoteStream transforms your raw notes into organized, actionable insights in just a few steps.
+          <p className="ed-lede" style={{ maxWidth: 540, margin: 0 }}>
+            Capture is the easy part. The trick is what happens after — when
+            a year of half-thoughts needs to behave like a single mind.
+            What follows is how NoteStream does it.
           </p>
-        </motion.div>
+        </div>
 
-        {/* === Interactive Demo === */}
-        <motion.div
-          ref={demo.ref}
-          variants={demo.variants}
-          initial="hidden"
-          animate={demo.inView ? "visible" : "hidden"}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="relative z-10 w-full max-w-5xl"
-        >
-          {/* Steps Indicator */}
-          <div className="flex items-center justify-center gap-2 md:gap-4 mb-8">
-            {steps.map((step, i) => (
+        <hr className="ed-rule" style={{ marginBottom: 40 }} />
+
+        {/* Tabs */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 }}>
+          {flows.map((f, i) => {
+            const isActive = active === i;
+            return (
               <button
-                key={i}
-                onClick={() => setActiveStep(i)}
-                className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-full transition-all duration-300"
+                key={f.id}
+                onClick={() => setActive(i)}
                 style={{
-                  backgroundColor: activeStep === i ? `${step.color}15` : 'transparent',
-                  border: `1px solid ${activeStep === i ? `${step.color}40` : 'var(--border-secondary)'}`,
+                  textAlign: "left", border: 0, background: "transparent",
+                  padding: "20px 22px",
+                  borderTop: `1px solid ${ED.ink}`,
+                  borderBottom: isActive ? `2px solid ${ED.ink}` : `1px solid ${ED.ruleSoft}`,
+                  cursor: "pointer", transition: "all .25s ease",
+                  fontFamily: ED.sans,
                 }}
               >
-                <div 
-                  className="w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300"
-                  style={{ 
-                    backgroundColor: activeStep >= i ? step.color : 'var(--bg-tertiary)',
-                    color: activeStep >= i ? 'white' : 'var(--text-muted)',
-                  }}
-                >
-                  {activeStep > i ? <FiCheck size={12} /> : <span className="text-xs font-medium">{i + 1}</span>}
+                <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+                  <span className="ed-serif ed-italic" style={{
+                    fontSize: 26, color: isActive ? ED.accent : ED.inkFaint, minWidth: 28,
+                  }}>{f.num}.</span>
+                  <div>
+                    <div className="ed-serif" style={{
+                      fontSize: 22, color: isActive ? ED.ink : ED.inkMute,
+                      letterSpacing: "-0.01em",
+                    }}>{f.label}</div>
+                    <div className="ed-mono" style={{
+                      fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase",
+                      color: ED.inkFaint, marginTop: 4,
+                    }}>Movement {f.num}</div>
+                  </div>
                 </div>
-                <span 
-                  className="text-sm font-medium hidden md:block transition-colors duration-300"
-                  style={{ color: activeStep === i ? step.color : 'var(--text-muted)' }}
-                >
-                  {step.title}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content split */}
+        <div className="demo-body" style={{
+          display: "grid", gridTemplateColumns: "5fr 7fr", gap: 56,
+          marginTop: 48, alignItems: "start",
+        }}>
+          {/* Copy */}
+          <div key={"copy-" + active} className="ed-reveal">
+            <h3 className="ed-display" style={{
+              fontSize: "clamp(28px, 3.4vw, 44px)", margin: 0, color: ED.ink,
+            }}>
+              {flows[active].title.split(" ").map((w, i, arr) => (
+                <span key={i}>
+                  {i === arr.length - 1
+                    ? <span className="ed-italic" style={{ color: ED.accent }}>{w}</span>
+                    : w}
+                  {i < arr.length - 1 ? " " : ""}
                 </span>
-              </button>
-            ))}
-          </div>
+              ))}
+            </h3>
 
-          {/* Demo Container */}
-          <div 
-            className="rounded-2xl overflow-hidden border"
-            style={{ 
-              backgroundColor: 'var(--bg-surface)',
-              borderColor: 'var(--border-secondary)',
-              boxShadow: '0 25px 80px rgba(0, 0, 0, 0.2), 0 0 40px rgba(99, 102, 241, 0.1)',
-            }}
-          >
-            {/* Window Chrome */}
-            <div 
-              className="flex items-center justify-between px-4 py-3 border-b"
-              style={{ borderColor: 'var(--border-secondary)' }}
-            >
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ff5f57' }} />
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ffbd2e' }} />
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#28ca42' }} />
-              </div>
-              
-              {/* Play Button */}
-              <button
-                onClick={() => {
-                  setActiveStep(0);
-                  setIsPlaying(true);
-                }}
-                className="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-300"
-                style={{
-                  backgroundColor: isPlaying ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-tertiary)',
-                  color: isPlaying ? 'var(--accent-indigo)' : 'var(--text-secondary)',
-                  border: `1px solid ${isPlaying ? 'rgba(99, 102, 241, 0.3)' : 'var(--border-secondary)'}`,
-                }}
-              >
-                {isPlaying ? (
-                  <>
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 1, repeat: Infinity }}
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: 'var(--accent-indigo)' }}
-                    />
-                    Playing...
-                  </>
-                ) : (
-                  <>
-                    <FiPlay size={14} />
-                    Watch Demo
-                  </>
-                )}
-              </button>
+            <p style={{ marginTop: 22, fontSize: 17, lineHeight: 1.6, color: ED.inkSoft, maxWidth: 460 }}>
+              {flows[active].blurb}
+            </p>
 
-              <div className="w-16" />
-            </div>
+            <a href="#" className="ed-ulink" style={{
+              display: "inline-flex", alignItems: "center", gap: 8, marginTop: 26,
+              fontFamily: ED.sans, fontSize: 14, color: ED.accent, fontWeight: 500,
+            }}>
+              Read more on {flows[active].label.toLowerCase()}
+              <FiArrowRight size={13} />
+            </a>
 
-            {/* Demo Content */}
-            <div className="p-6 md:p-8 min-h-[400px] md:min-h-[450px]">
-              <AnimatePresence mode="wait">
-                {activeStep === 0 && <CaptureStep key="capture" />}
-                {activeStep === 1 && <AnalyzeStep key="analyze" />}
-                {activeStep === 2 && <SummarizeStep key="summarize" />}
-                {activeStep === 3 && <ActStep key="act" />}
-              </AnimatePresence>
+            <div style={{ marginTop: 40, paddingTop: 22, borderTop: `1px dotted ${ED.rule}` }}>
+              <div className="ed-eyebrow" style={{ marginBottom: 8 }}>Aside</div>
+              <p className="ed-serif ed-italic" style={{
+                fontSize: 15, color: ED.inkMute, margin: 0, lineHeight: 1.55,
+              }}>
+                {flows[active].aside}
+              </p>
             </div>
           </div>
 
-          {/* Step Description */}
-          <motion.div 
-            key={activeStep}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-6 text-center"
-          >
-            <p className="text-lg font-semibold" style={{ color: steps[activeStep].color }}>
-              {steps[activeStep].title}
-            </p>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              {steps[activeStep].desc}
-            </p>
-          </motion.div>
-        </motion.div>
-      </section>
-
-      {/* === Divider === */}
-      <div style={{ borderTop: '1px solid var(--border-secondary)' }} />
-    </>
+          {/* Visual */}
+          <div className="ed-card" key={"vis-" + active} style={{ padding: 0, minHeight: 460, overflow: "hidden" }}>
+            {active === 0 && <CaptureView />}
+            {active === 1 && <FindView />}
+            {active === 2 && <ReasonView />}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   STEP COMPONENTS
-═══════════════════════════════════════════════════════════ */
-
-function CaptureStep() {
-  const inputTypes = [
-    { icon: <FiFileText size={24} />, label: "Text Note", active: true },
-    { icon: <FiMic size={24} />, label: "Voice Memo", active: false },
-    { icon: <FiImage size={24} />, label: "Image", active: false },
-  ];
+/* ─ Movement I — Capture ─ */
+function CaptureView() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setSeconds((s) => (s + 1) % 180), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+  const ss = String(seconds % 60).padStart(2, "0");
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="h-full flex flex-col items-center justify-center"
-    >
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        {inputTypes.map((type, i) => (
-          <motion.div
-            key={type.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="flex flex-col items-center gap-2 p-4 rounded-xl border transition-all duration-300"
-            style={{
-              backgroundColor: type.active ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-tertiary)',
-              borderColor: type.active ? 'rgba(99, 102, 241, 0.3)' : 'var(--border-secondary)',
-              color: type.active ? 'var(--accent-indigo)' : 'var(--text-muted)',
-            }}
-          >
-            {type.icon}
-            <span className="text-xs font-medium">{type.label}</span>
-          </motion.div>
-        ))}
+    <div className="ed-reveal" style={{ padding: 28 }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        paddingBottom: 14, borderBottom: `1px solid ${ED.ruleSoft}`,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{
+            width: 8, height: 8, borderRadius: "50%", background: "#e63b1e",
+            animation: "ed-pulse 1.6s ease-in-out infinite",
+          }} />
+          <span className="ed-mono" style={{
+            fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkMute,
+          }}>Recording</span>
+          <span className="ed-mono" style={{
+            fontSize: 13, color: ED.ink, fontVariantNumeric: "tabular-nums",
+          }}>00:{mm}:{ss}</span>
+        </div>
+        <span className="ed-mono" style={{ fontSize: 11, color: ED.inkFaint }}>
+          iPhone 16 · Bobber garage
+        </span>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="w-full max-w-md rounded-xl p-4 border"
-        style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-secondary)' }}
-      >
-        <div className="flex items-start gap-3">
-          <div 
-            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: 'rgba(99, 102, 241, 0.15)' }}
-          >
-            <FiFileText size={16} style={{ color: 'var(--accent-indigo)' }} />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>Team Meeting Notes</p>
-            <motion.p 
-              className="text-xs leading-relaxed"
-              style={{ color: 'var(--text-muted)' }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
-            >
-              Discussed Q4 roadmap priorities. Sarah to finalize designs by Friday. 
-              Engineering to review API specs. Follow-up meeting scheduled for next Tuesday...
-            </motion.p>
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
+      <div style={{
+        marginTop: 22, padding: "26px 6px", height: 130, background: ED.paper150,
+        borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 3,
+      }}>
+        {Array.from({ length: 56 }).map((_, i) => {
+          const h = 12 + Math.abs(Math.sin(i * 0.7 + seconds * 0.4)) * 70;
+          return (
+            <span key={i} style={{
+              width: 3, height: `${h}px`,
+              background: i % 8 === 0 ? ED.accent : ED.ink,
+              borderRadius: 2, transition: "height .25s ease",
+              opacity: i > 50 - (seconds % 50) ? 0.3 : 1,
+            }} />
+          );
+        })}
+      </div>
 
-function AnalyzeStep() {
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress((prev) => Math.min(prev + 5, 100));
-    }, 100);
-    return () => clearInterval(interval);
-  }, []);
-
-  const analysisItems = [
-    { label: "Extracting key points", done: progress > 30 },
-    { label: "Identifying action items", done: progress > 60 },
-    { label: "Detecting deadlines", done: progress > 80 },
-    { label: "Generating summary", done: progress >= 100 },
-  ];
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="h-full flex flex-col items-center justify-center"
-    >
-      <motion.div
-        animate={{ rotate: progress < 100 ? 360 : 0 }}
-        transition={{ duration: 2, repeat: progress < 100 ? Infinity : 0, ease: "linear" }}
-        className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
-        style={{ 
-          backgroundColor: 'rgba(168, 85, 247, 0.15)',
-          border: '2px solid rgba(168, 85, 247, 0.3)',
-        }}
-      >
-        <Brain size={36} weight="fill" style={{ color: 'var(--accent-purple)' }} />
-      </motion.div>
-
-      <div className="w-full max-w-xs mb-6">
-        <div 
-          className="h-2 rounded-full overflow-hidden"
-          style={{ backgroundColor: 'var(--bg-tertiary)' }}
-        >
-          <motion.div
-            className="h-full rounded-full"
-            style={{ 
-              backgroundColor: 'var(--accent-purple)',
-              width: `${progress}%`,
-            }}
-            transition={{ duration: 0.3 }}
-          />
-        </div>
-        <p className="text-xs mt-2 text-center" style={{ color: 'var(--text-muted)' }}>
-          Analyzing... {progress}%
+      <div style={{ marginTop: 22 }}>
+        <div className="ed-eyebrow" style={{ marginBottom: 10 }}>Live transcript</div>
+        <p className="ed-serif" style={{ fontSize: 19, lineHeight: 1.5, color: ED.ink, margin: 0 }}>
+          "Reminder for tomorrow — call back the mechanic about the Suzuki
+          carburetor, and pick up rear shock bushings before three.{" "}
+          <span style={{ color: ED.accent }}>
+            Also: ask Maya if she's free for coffee Thursday.
+          </span>
+          <span style={{
+            display: "inline-block", width: 2, height: 18, background: ED.accent,
+            verticalAlign: "middle", marginLeft: 3, animation: "ed-blink 1s steps(2) infinite",
+          }} />"
         </p>
       </div>
 
-      <div className="space-y-2">
-        {analysisItems.map((item, i) => (
-          <motion.div
-            key={item.label}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: item.done ? 1 : 0.4, x: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="flex items-center gap-2"
-          >
-            <div 
-              className="w-5 h-5 rounded-full flex items-center justify-center"
-              style={{ 
-                backgroundColor: item.done ? 'var(--accent-purple)' : 'var(--bg-tertiary)',
-              }}
-            >
-              {item.done && <FiCheck size={12} color="white" />}
-            </div>
-            <span 
-              className="text-sm"
-              style={{ color: item.done ? 'var(--text-primary)' : 'var(--text-muted)' }}
-            >
-              {item.label}
-            </span>
-          </motion.div>
-        ))}
+      <div style={{
+        marginTop: 22, paddingTop: 16, borderTop: `1px dashed ${ED.rule}`,
+        display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+      }}>
+        <span className="ed-mono" style={{
+          fontSize: 10.5, color: ED.inkFaint, letterSpacing: "0.12em", textTransform: "uppercase",
+        }}>NoteStream filed →</span>
+        <span className="ed-chip">#garage</span>
+        <span className="ed-chip">#bobber-build</span>
+        <span className="ed-chip">#thursday</span>
+        <span className="ed-chip ed-chip-accent">→ 2 tasks created</span>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
-function SummarizeStep() {
-  const summaryItems = [
-    { icon: <FiStar size={14} />, text: "Q4 roadmap is top priority", color: 'var(--accent-amber)' },
-    { icon: <FiCheck size={14} />, text: "Sarah: Finalize designs by Friday", color: 'var(--accent-emerald)' },
-    { icon: <FiCheck size={14} />, text: "Engineering: Review API specs", color: 'var(--accent-emerald)' },
-    { icon: <FiClock size={14} />, text: "Follow-up: Tuesday", color: 'var(--accent-indigo)' },
-  ];
+/* ─ Movement II — Find ─ */
+function FindView() {
+  const [typed, setTyped] = useState("");
+  const query = "what did we decide about pricing tiers?";
+
+  useEffect(() => {
+    let i = 0;
+    setTyped("");
+    const id = setInterval(() => {
+      i++;
+      setTyped(query.slice(0, i));
+      if (i >= query.length) clearInterval(id);
+    }, 38);
+    return () => clearInterval(id);
+  }, []);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="h-full flex flex-col items-center justify-center"
-    >
-      <motion.div
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="w-full max-w-md rounded-xl p-5 border"
-        style={{ 
-          backgroundColor: 'rgba(245, 158, 11, 0.05)',
-          borderColor: 'rgba(245, 158, 11, 0.2)',
-        }}
-      >
-        <div className="flex items-center gap-2 mb-4">
-          <div 
-            className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)' }}
-          >
-            <Sparkle size={16} weight="fill" style={{ color: 'var(--accent-amber)' }} />
-          </div>
-          <p className="text-sm font-semibold" style={{ color: 'var(--accent-amber)' }}>AI Summary</p>
-        </div>
+    <div className="ed-reveal" style={{ padding: 28 }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 12, padding: "14px 16px",
+        background: ED.paper100, borderRadius: 10, border: `1px solid ${ED.rule}`,
+      }}>
+        <FiSearch size={16} style={{ color: ED.inkMute }} />
+        <span className="ed-serif" style={{ fontSize: 18, color: ED.ink, flex: 1 }}>
+          {typed}
+          <span style={{
+            display: "inline-block", width: 2, height: 18, marginLeft: 2,
+            background: ED.accent, verticalAlign: "middle",
+            animation: "ed-blink 1s steps(2) infinite",
+          }} />
+        </span>
+        <span className="ed-mono" style={{
+          fontSize: 10, color: ED.inkFaint, padding: "3px 8px",
+          background: ED.paper200, borderRadius: 4,
+        }}>⌘K</span>
+      </div>
 
-        <div className="space-y-3">
-          {summaryItems.map((item, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 + i * 0.15 }}
-              className="flex items-start gap-3 p-2 rounded-lg"
-              style={{ backgroundColor: 'var(--bg-surface)' }}
-            >
-              <div 
-                className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ backgroundColor: `${item.color}20`, color: item.color }}
-              >
-                {item.icon}
-              </div>
-              <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{item.text}</p>
-            </motion.div>
+      <div style={{
+        marginTop: 18, padding: 22, position: "relative",
+        background: ED.ink, color: ED.paper50, borderRadius: 10,
+      }}>
+        <div style={{
+          position: "absolute", top: -1, left: 22, right: 22, height: 2,
+          background: ED.accent,
+        }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <Sparkle size={12} weight="fill" style={{ color: ED.accent }} />
+          <span className="ed-mono" style={{
+            fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase",
+            color: "#c8b988",
+          }}>The answer · synthesized in 1.2s</span>
+        </div>
+        <p className="ed-serif" style={{ fontSize: 17, lineHeight: 1.55, margin: 0, color: ED.paper50 }}>
+          Three tiers, settled on Aug 14:{" "}
+          <span style={{ color: "#fff", fontWeight: 500 }}>Free</span> (5 notes/day),{" "}
+          <span style={{ color: "#fff", fontWeight: 500 }}>Pro $12/mo</span> (unlimited + voice),{" "}
+          <span style={{ color: "#fff", fontWeight: 500 }}>Team $24/seat</span> (workspace + SSO).
+          Maya pushed for $14 Pro; the room landed on $12 to sit below Notion AI.
+        </p>
+      </div>
+
+      <div style={{ marginTop: 22 }}>
+        <div className="ed-eyebrow" style={{ marginBottom: 12 }}>Cited from</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {[
+            { icon: <FiFileText size={14} />, t: "Pricing review — full notes", d: "Aug 14, 4:12 pm" },
+            { icon: <FiMic size={14} />, t: "Maya, voice memo on pricing", d: "Aug 14, 2:48 pm" },
+            { icon: <Quotes size={14} />, t: "Slack: #pricing-discussion", d: "Aug 12" },
+          ].map((s, i) => (
+            <a key={i} href="#" className="ed-ulink" style={{
+              display: "flex", alignItems: "center", gap: 12, padding: "10px 12px",
+              borderRadius: 8, color: ED.inkSoft, transition: "background .15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = ED.paper150)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+              <span style={{ color: ED.inkMute }}>{s.icon}</span>
+              <span style={{ flex: 1, fontSize: 14 }}>{s.t}</span>
+              <span className="ed-mono" style={{ fontSize: 11, color: ED.inkFaint }}>{s.d}</span>
+              <FiArrowUpRight size={12} style={{ color: ED.inkFaint }} />
+            </a>
           ))}
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }
 
-function ActStep() {
-  const actions = [
-    { icon: <FiFileText size={18} />, label: "Export PDF", desc: "Download formatted report" },
-    { icon: <FiZap size={18} />, label: "Add to Tasks", desc: "Sync with your todo app" },
-    { icon: <FiArrowRight size={18} />, label: "Share", desc: "Send to your team" },
-  ];
-
+/* ─ Movement III — Reason ─ */
+function ReasonView() {
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="h-full flex flex-col items-center justify-center"
-    >
-      <motion.div
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ type: "spring", stiffness: 200, damping: 15 }}
-        className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6"
-        style={{ 
-          backgroundColor: 'rgba(16, 185, 129, 0.15)',
-          border: '2px solid rgba(16, 185, 129, 0.3)',
-        }}
-      >
-        <FiCheck size={32} style={{ color: 'var(--accent-emerald)' }} />
-      </motion.div>
+    <div className="ed-reveal" style={{ padding: 28 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span className="ed-chip">
+          <Brain size={11} /> Cross-archive brief
+        </span>
+        <span className="ed-mono" style={{ fontSize: 11, color: ED.inkFaint }}>
+          47 notes · 12 docs · 6 weeks
+        </span>
+      </div>
 
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="text-lg font-semibold mb-6"
-        style={{ color: 'var(--text-primary)' }}
-      >
-        Ready to use!
-      </motion.p>
+      <h4 className="ed-serif" style={{
+        fontSize: 28, marginTop: 16, marginBottom: 4, color: ED.ink, letterSpacing: "-0.01em",
+      }}>
+        Why is mid-market churning?
+      </h4>
+      <div className="ed-mono" style={{
+        fontSize: 11, color: ED.inkFaint, letterSpacing: "0.12em",
+        textTransform: "uppercase", marginBottom: 18,
+      }}>
+        Asked Oct 8 · synthesized from your archive
+      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-lg">
-        {actions.map((action, i) => (
-          <motion.div
-            key={action.label}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 + i * 0.1 }}
-            className="flex flex-col items-center gap-2 p-4 rounded-xl border cursor-pointer transition-all duration-300"
-            style={{ 
-              backgroundColor: 'var(--bg-tertiary)',
-              borderColor: 'var(--border-secondary)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.4)';
-              e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.08)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-secondary)';
-              e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-            }}
-          >
-            <div 
-              className="w-10 h-10 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-emerald)' }}
-            >
-              {action.icon}
+      <div style={{
+        padding: "16px 0 16px 22px", borderLeft: `3px solid ${ED.accent}`, marginBottom: 18,
+      }}>
+        <p className="ed-serif ed-italic" style={{
+          fontSize: 21, lineHeight: 1.4, color: ED.ink, margin: 0,
+        }}>
+          Three signals, all pointing the same direction: onboarding length,
+          a missing analytics view, and price perception against{" "}
+          <span className="ed-hi">two competitors who launched in July.</span>
+        </p>
+      </div>
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {[
+          ["§ 1", "Onboarding length", "12 of 18 churned accounts cited setup > 2 hrs (calls, weeks 34–40)."],
+          ["§ 2", "Missing analytics", "5 customer-success memos reference 'no team-level view' (Q3 sync, Sep 22 doc)."],
+          ["§ 3", "Price perception", "Bramble launched at $9 in July; 4 mentions in lost-deal voice notes."],
+        ].map(([num, h, b], i) => (
+          <div key={i} style={{
+            display: "grid", gridTemplateColumns: "44px 1fr", gap: 14,
+            padding: "12px 0", borderTop: i > 0 ? `1px dotted ${ED.rule}` : "none",
+          }}>
+            <div className="ed-serif ed-italic" style={{ fontSize: 18, color: ED.accent }}>{num}</div>
+            <div>
+              <div className="ed-serif" style={{ fontSize: 16, color: ED.ink, marginBottom: 3 }}>{h}</div>
+              <div style={{ fontSize: 13, color: ED.inkMute, lineHeight: 1.5 }}>{b}</div>
             </div>
-            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{action.label}</p>
-            <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>{action.desc}</p>
-          </motion.div>
+          </div>
         ))}
       </div>
-    </motion.div>
+
+      <div style={{
+        marginTop: 22, paddingTop: 16, borderTop: `1px solid ${ED.ruleSoft}`,
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+      }}>
+        <span className="ed-mono" style={{
+          fontSize: 10.5, color: ED.inkFaint, letterSpacing: "0.12em", textTransform: "uppercase",
+        }}>Synthesized · sources cited · saved to archive</span>
+        <a href="#" className="ed-ulink ed-mono" style={{
+          fontSize: 11, color: ED.accent, letterSpacing: "0.06em",
+        }}>Open full brief →</a>
+      </div>
+    </div>
   );
 }

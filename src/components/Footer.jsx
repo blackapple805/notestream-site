@@ -1,254 +1,197 @@
-import { Link } from "react-router-dom";
-import { useMemo, useState } from "react";
-import { FiArrowRight, FiGithub, FiLinkedin, FiCheck } from "react-icons/fi";
-import { FaInstagram, FaWhatsapp } from "react-icons/fa";
+// src/components/Footer.jsx
+// ───────────────────────────────────────────────────────────────
+// NoteStream — Editorial Footer / Colophon (Vite drop-in)
+// Drop into src/components/Footer.jsx (overwrite existing).
+// Requires: src/lib/editorial.js
+// ───────────────────────────────────────────────────────────────
+
+import { Link, useLocation } from "react-router-dom";
+import { useEditorial, ED } from "../lib/editorial";
+import { FiArrowRight } from "react-icons/fi";
 
 export default function Footer() {
-  const socials = {
-    github: "https://github.com/blackapple805",
-    linkedin: "https://www.linkedin.com/in/eric-del-angel/",
-    instagram: "https://instagram.com/quest.on.a.dream",
-    whatsapp: "https://wa.me/18056768875",
-  };
+  useEditorial();
+  const location = useLocation();
 
-  const [email, setEmail] = useState("");
-  const [saved, setSaved] = useState(false);
+  // Defensive: don't show footer on dashboard routes
+  if (location.pathname.startsWith("/dashboard")) return null;
 
-  const isValidEmail = useMemo(() => {
-    if (!email) return false;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  }, [email]);
-
-  const onSubscribe = (e) => {
-    e.preventDefault();
-    if (!isValidEmail) return;
-
-    // MOCK: "save" locally for now
-    setSaved(true);
-
-    // Optional: clear input after save
-    // setEmail("");
-
-    // Auto-hide success after a moment
-    window.setTimeout(() => setSaved(false), 2200);
-  };
+  const today = (() => {
+    const d = new Date();
+    return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  })();
 
   return (
-    <footer
-      className="relative text-theme-muted pt-20 pb-12 px-10 lg:px-20"
-      style={{
-        backgroundColor: "var(--bg-primary)",
-        borderTop: "1px solid var(--border-secondary)",
-      }}
-    >
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16">
-        {/* Newsletter */}
-        <div className="lg:col-span-2">
-          <h3 className="text-[1.6rem] font-semibold text-theme-primary mb-3">
-            Stay Updated with{" "}
-            <span className="text-indigo-500 font-bold">NoteStream</span>
-          </h3>
-          <p className="text-theme-muted mb-6 max-w-lg">
-            Subscribe for product releases, new AI features, and exclusive early
-            access programs.
-          </p>
-
-          <form onSubmit={onSubscribe} className="w-full max-w-md">
-            <div
-              className="flex items-center rounded-full overflow-hidden shadow-[0_0_25px_rgba(99,102,241,0.1)] focus-within:ring-2 focus-within:ring-indigo-500/50 transition-all border"
-              style={{
-                backgroundColor: "var(--bg-input)",
-                borderColor: saved
-                  ? "rgba(16, 185, 129, 0.35)"
-                  : "var(--border-secondary)",
-              }}
-            >
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="w-full px-5 py-3.5 bg-transparent text-theme-primary text-[1rem] outline-none placeholder:text-theme-muted"
-                autoComplete="email"
-                inputMode="email"
-                aria-label="Email address"
-              />
-
-              <button
-                className="px-5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                type="submit"
-                aria-label="Subscribe"
-                disabled={!isValidEmail || saved}
-                style={{
-                  color: saved ? "var(--accent-emerald)" : "var(--accent-indigo)",
-                }}
-              >
-                {saved ? (
-                  <FiCheck className="w-5 h-5" />
-                ) : (
-                  <FiArrowRight className="w-5 h-5" />
-                )}
-              </button>
+    <footer id="colophon" className="ns-ed" style={{
+      paddingTop: 96, paddingBottom: 48,
+      background: ED.ink, color: ED.paper100,
+      position: "relative",
+    }}>
+      <div className="ed-page">
+        {/* CTA — the final pitch */}
+        <div className="cta-grid" style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56,
+          paddingBottom: 64, borderBottom: "1px solid rgba(255,255,255,0.08)",
+        }}>
+          <div>
+            <div className="ed-mono" style={{
+              fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase",
+              color: "rgba(255,255,255,0.4)", marginBottom: 18,
+            }}>
+              The last page
             </div>
-
-            {/* Mock success / validation text */}
-            <div className="mt-2 min-h-[20px]">
-              {saved ? (
-                <p
-                  className="text-xs font-medium"
-                  style={{ color: "var(--accent-emerald)" }}
-                >
-                  Saved — you’re on the list.
-                </p>
-              ) : email && !isValidEmail ? (
-                <p
-                  className="text-xs font-medium"
-                  style={{ color: "var(--accent-rose)" }}
-                >
-                  Please enter a valid email.
-                </p>
-              ) : (
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  No spam. Unsubscribe anytime.
-                </p>
-              )}
+            <h2 className="ed-display" style={{
+              fontSize: "clamp(40px, 5.6vw, 84px)", margin: 0, color: "#fff", lineHeight: 1,
+            }}>
+              Start the<br />
+              <span className="ed-italic" style={{ color: ED.accent }}>archive.</span>
+            </h2>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+            <p className="ed-serif" style={{
+              fontSize: 21, lineHeight: 1.45, color: "rgba(255,255,255,0.78)", margin: 0,
+              maxWidth: 460,
+            }}>
+              Bring fifteen years of voice notes, twelve open browser tabs and a
+              shoebox of PDFs. NoteStream will read them all, and answer when
+              you ask.
+            </p>
+            <div style={{ marginTop: 26, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Link to="/signup" className="ed-btn" style={{
+                background: ED.accent, color: "#fff", borderColor: ED.accent,
+              }}>
+                Start free <FiArrowRight size={14} />
+              </Link>
+              <Link to="/support" className="ed-btn ed-btn-ghost" style={{
+                color: "#fff", borderColor: "rgba(255,255,255,0.2)",
+              }}>
+                Talk to a human
+              </Link>
             </div>
-          </form>
+          </div>
         </div>
 
-        {/* Features */}
-        <div>
-          <h4 className="text-theme-primary font-semibold mb-3">Features</h4>
-          <ul className="space-y-2">
-            <li>
-              <Link
-                to="/smart-notes"
-                className="text-theme-muted hover:text-indigo-500 transition"
-              >
-                Smart Notes
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/ai-summary"
-                className="text-theme-muted hover:text-indigo-500 transition"
-              >
-                AI Summary
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/integrations"
-                className="text-theme-muted hover:text-indigo-500 transition"
-              >
-                Integrations
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/updates"
-                className="text-theme-muted hover:text-indigo-500 transition"
-              >
-                Product Updates
-              </Link>
-            </li>
-          </ul>
+        {/* Sitemap-style columns */}
+        <div className="footer-cols" style={{
+          display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr", gap: 32,
+          padding: "48px 0",
+        }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 14 }}>
+              <span className="ed-serif" style={{ fontSize: 26, color: "#fff", letterSpacing: "-0.02em" }}>
+                Notestream
+              </span>
+              <span className="ed-serif ed-italic" style={{ fontSize: 14, color: ED.accent }}>&</span>
+              <span className="ed-mono" style={{
+                fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase",
+                color: "rgba(255,255,255,0.4)",
+              }}>
+                Co.
+              </span>
+            </div>
+            <p style={{
+              fontSize: 13.5, lineHeight: 1.6, color: "rgba(255,255,255,0.55)",
+              maxWidth: 280, margin: 0,
+            }}>
+              An archive that reasons. Made for thinkers, writers, and operators
+              who keep more notes than they can read.
+            </p>
+            <div style={{ marginTop: 22, display: "flex", gap: 14 }}>
+              {["X", "GitHub", "RSS"].map((s) => (
+                <a key={s} href="#" className="ed-ulink" style={{
+                  fontFamily: ED.mono, fontSize: 11, letterSpacing: "0.12em",
+                  textTransform: "uppercase", color: "rgba(255,255,255,0.55)",
+                }}>{s}</a>
+              ))}
+            </div>
+          </div>
+
+          {[
+            { h: "Product", items: [
+              { l: "Smart notes",     to: "/smart-notes" },
+              { l: "AI summaries",    to: "/ai-summary" },
+              { l: "Voice notes",     to: "/voice-notes" },
+              { l: "Integrations",    to: "/integrations-landing" },
+            ]},
+            { h: "Reading", items: [
+              { l: "Field notes",     to: "/updates" },
+              { l: "How it works",    to: "/how-it-works" },
+              { l: "Pricing",         to: "/pricing" },
+              { l: "Status",          to: "/status" },
+            ]},
+            { h: "Company", items: [
+              { l: "Support",         to: "/support" },
+              { l: "FAQ",             to: "/faq" },
+              { l: "Search",          to: "/search" },
+            ]},
+            { h: "Small print", items: [
+              { l: "Privacy",         to: "/privacy" },
+              { l: "Terms",           to: "/terms" },
+            ]},
+          ].map((col) => (
+            <div key={col.h}>
+              <div className="ed-mono" style={{
+                fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase",
+                color: "rgba(255,255,255,0.4)", marginBottom: 14,
+              }}>
+                {col.h}
+              </div>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+                {col.items.map((it) => (
+                  <li key={it.l}>
+                    <Link to={it.to} className="ed-ulink" style={{
+                      fontFamily: ED.serif, fontSize: 15, color: "rgba(255,255,255,0.78)",
+                    }}>
+                      {it.l}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
-        {/* Company */}
-        <div>
-          <h4 className="text-theme-primary font-semibold mb-3">Company</h4>
-          <ul className="space-y-2">
-            <li>
-              <Link
-                to="/how-it-works"
-                className="text-theme-muted hover:text-indigo-500 transition"
-              >
-                How it Works
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/support"
-                className="text-theme-muted hover:text-indigo-500 transition"
-              >
-                Support
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/faq"
-                className="text-theme-muted hover:text-indigo-500 transition"
-              >
-                FAQ
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/terms"
-                className="text-theme-muted hover:text-indigo-500 transition"
-              >
-                Terms & Privacy
-              </Link>
-            </li>
-          </ul>
+        <hr style={{ border: 0, height: 1, background: "rgba(255,255,255,0.08)", margin: 0 }} />
+
+        {/* Actual colophon */}
+        <div className="colophon-bar" style={{
+          display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 32,
+          paddingTop: 28,
+          fontFamily: ED.mono, fontSize: 10.5, letterSpacing: "0.14em",
+          textTransform: "uppercase", color: "rgba(255,255,255,0.4)",
+        }}>
+          <span>© 2026 · Notestream Co.</span>
+          <span style={{ textAlign: "center" }}>
+            Set in <span style={{
+              color: "rgba(255,255,255,0.78)", fontFamily: ED.serif,
+              textTransform: "none", letterSpacing: 0, fontStyle: "italic",
+            }}>Instrument Serif</span>{" "}
+            & <span style={{
+              color: "rgba(255,255,255,0.78)", textTransform: "none", letterSpacing: 0,
+            }}>Geist</span>{" "}
+            · Printed monthly · {today} issue
+          </span>
+          <span style={{
+            textAlign: "right", display: "flex", justifyContent: "flex-end",
+            alignItems: "center", gap: 8,
+          }}>
+            <span style={{
+              width: 5, height: 5, borderRadius: "50%", background: ED.accent,
+              animation: "ed-pulse 2.4s ease-in-out infinite",
+            }} />
+            All systems quiet
+          </span>
         </div>
       </div>
 
-      {/* Bottom Row */}
-      <div
-        className="max-w-7xl mx-auto mt-16 pt-8 flex flex-col sm:flex-row items-center justify-between text-[0.95rem]"
-        style={{ borderTop: "1px solid var(--border-secondary)" }}
-      >
-        <div className="text-theme-muted mb-5 sm:mb-0">
-          © {new Date().getFullYear()}{" "}
-          <span className="text-indigo-500 font-medium">NoteStream</span> — Built
-          with AI precision
-        </div>
-
-        <div className="flex items-center gap-6 text-theme-muted">
-          <a
-            href={socials.github}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="hover:text-indigo-500 transition"
-            aria-label="GitHub"
-          >
-            <FiGithub className="w-6 h-6" />
-          </a>
-
-          <a
-            href={socials.linkedin}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="hover:text-indigo-500 transition"
-            aria-label="LinkedIn"
-          >
-            <FiLinkedin className="w-6 h-6" />
-          </a>
-
-          <a
-            href={socials.instagram}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="hover:text-indigo-500 transition"
-            aria-label="Instagram"
-          >
-            <FaInstagram className="w-6 h-6" />
-          </a>
-
-          <a
-            href={socials.whatsapp}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="hover:text-indigo-500 transition"
-            aria-label="WhatsApp"
-          >
-            <FaWhatsapp className="w-6 h-6" />
-          </a>
-        </div>
-      </div>
+      <style>{`
+        @media (max-width: 900px) {
+          .ns-ed .cta-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
+          .ns-ed .footer-cols { grid-template-columns: 1fr 1fr !important; }
+          .ns-ed .colophon-bar { grid-template-columns: 1fr !important; text-align: left !important; }
+          .ns-ed .colophon-bar > span { text-align: left !important; justify-content: flex-start !important; }
+        }
+      `}</style>
     </footer>
   );
 }
-

@@ -1,404 +1,361 @@
 // src/pages/HowItWorks.jsx
-import { useNavigate } from "react-router-dom";
-import { 
-  FiUploadCloud, 
-  FiCpu, 
-  FiBarChart2, 
-  FiZap, 
-  FiShield, 
-  FiCheck,
-  FiFile,
-  FiImage,
-  FiFileText,
-  FiMessageSquare,
-  FiCalendar,
-  FiDollarSign,
-  FiTrendingUp,
-  FiPieChart,
-  FiLayers,
-  FiTarget,
-} from "react-icons/fi";
-import { motion } from "framer-motion";
-import { BrainIcon as Brain, SparkleIcon as Sparkle, LightningIcon as Lightning, ListChecksIcon as ListChecks, TagIcon as Tag } from "@phosphor-icons/react";
+// ───────────────────────────────────────────────────────────────
+// NoteStream — Editorial "How It Works" page (Vite drop-in)
+// Drop into src/pages/HowItWorks.jsx (overwrite existing).
+// Requires: src/lib/editorial.js (the shared design module).
+// ───────────────────────────────────────────────────────────────
+
+import { useEditorial, ED } from "../lib/editorial";
+import { FiArrowRight } from "react-icons/fi";
 
 export default function HowItWorks() {
-  const navigate = useNavigate();
+  useEditorial();
 
   return (
-    <section 
-      className="relative min-h-screen text-theme-primary px-6 pt-32 pb-32 overflow-hidden"
-      style={{ backgroundColor: 'var(--bg-primary)' }}
-    >
-      {/* ===== Background Glow ===== */}
-      <div className="absolute top-[15%] left-[5%] w-[320px] h-[320px] bg-indigo-500/20 blur-[150px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-[10%] right-[5%] w-[260px] h-[260px] bg-purple-500/15 blur-[130px] rounded-full pointer-events-none"></div>
-
-      {/* ===== Header ===== */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="text-center mb-20 relative z-10"
-      >
-        <h1 className="text-5xl md:text-6xl font-extrabold mb-4 text-theme-primary">
-          How <span className="text-indigo-500">NoteStream</span> Works
-        </h1>
-        <p className="text-theme-muted max-w-2xl mx-auto text-lg">
-          A simple workflow powered by serious AI. From unstructured chaos → organized clarity.
-        </p>
-      </motion.div>
-
-      {/* =========================================================
-          STEP TIMELINE
-      ========================================================== */}
-      <div className="max-w-5xl mx-auto space-y-28 relative z-10">
-
-        {/* ===== Step 1: Upload ===== */}
-        <motion.div
-          initial={{ opacity: 0, x: -40 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center"
-        >
-          <div>
-            <h2 className="text-3xl font-bold mb-3 flex items-center gap-3 text-theme-primary">
-              <FiUploadCloud className="text-indigo-500" /> 1. Upload Your Content
-            </h2>
-            <p className="text-theme-muted leading-relaxed text-lg">
-              Upload notes, screenshots, receipts, articles, or meeting logs.
-              NoteStream instantly extracts text, tags, structure, and context — no formatting required.
-            </p>
+    <div className="ns-ed" style={{ minHeight: "100vh" }}>
+      {/* ── Cover ───────────────────────────── */}
+      <section style={{ paddingTop: 140, paddingBottom: 72 }}>
+        <div className="ed-page">
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "flex-end",
+            marginBottom: 56, flexWrap: "wrap", gap: 16,
+          }}>
+            <div className="ed-chapter">
+              <span className="num">№ 01</span>
+              <span>The Mechanics</span>
+            </div>
+            <div className="ed-mono" style={{
+              fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase",
+              color: ED.inkFaint,
+            }}>
+              An essay · 6 minutes · For the curious
+            </div>
           </div>
-          
-          {/* Icon-based Upload Illustration */}
-          <div 
-            className="rounded-2xl overflow-hidden border p-8"
-            style={{ 
-              backgroundColor: 'var(--bg-card)', 
-              borderColor: 'var(--border-secondary)',
-              boxShadow: '0 0 35px rgba(99,102,241,0.12)'
-            }}
-          >
-            <div className="flex flex-col items-center">
-              <div 
-                className="w-full rounded-xl border-2 border-dashed border-indigo-500/40 p-8 flex flex-col items-center mb-6"
-                style={{ backgroundColor: 'var(--bg-tertiary)' }}
-              >
-                <div className="w-16 h-16 rounded-full bg-indigo-500/20 flex items-center justify-center mb-4">
-                  <FiUploadCloud className="w-8 h-8 text-indigo-500" />
-                </div>
-                <p className="text-theme-secondary font-medium mb-1">Drop files here</p>
-                <p className="text-theme-muted text-sm">or click to browse</p>
+
+          <hr className="ed-rule-dbl" style={{ marginBottom: 48 }} />
+
+          <div className="hero-grid" style={{
+            display: "grid", gridTemplateColumns: "1fr 320px", gap: 64, alignItems: "start",
+          }}>
+            <div>
+              <h1 className="ed-display ed-reveal" style={{
+                fontSize: "clamp(50px, 8vw, 130px)", margin: 0, color: ED.ink,
+              }}>
+                From a voice<br />
+                memo to a <span className="ed-italic" style={{ color: ED.accent }}>brief</span>,<br />
+                in four turns.
+              </h1>
+
+              <p className="ed-lede ed-reveal" style={{ marginTop: 36, maxWidth: 620, animationDelay: "0.15s" }}>
+                NoteStream isn't a notes app with AI bolted on. It's a small,
+                opinionated pipeline — capture, transcribe, index, reason —
+                where each stage is built to do one thing well, and to hand
+                clean material to the next.
+              </p>
+
+              <div className="ed-reveal" style={{
+                marginTop: 36, display: "flex", gap: 12, flexWrap: "wrap",
+                animationDelay: "0.3s",
+              }}>
+                <a href="#act-1" className="ed-btn ed-btn-primary">
+                  Begin reading <FiArrowRight size={14} />
+                </a>
+                <a href="/pricing" className="ed-btn ed-btn-ghost">
+                  The plans
+                </a>
               </div>
-              
-              <div className="flex gap-4 justify-center">
-                {[
-                  { icon: FiFileText, label: "Notes", color: "text-blue-500" },
-                  { icon: FiImage, label: "Images", color: "text-emerald-500" },
-                  { icon: FiFile, label: "PDFs", color: "text-rose-500" },
-                  { icon: FiMessageSquare, label: "Chats", color: "text-purple-500" },
-                ].map((item, i) => (
-                  <div key={i} className="flex flex-col items-center">
-                    <div 
-                      className="w-12 h-12 rounded-xl flex items-center justify-center mb-2"
-                      style={{ backgroundColor: 'var(--bg-elevated)' }}
-                    >
-                      <item.icon className={`w-6 h-6 ${item.color}`} />
-                    </div>
-                    <span className="text-xs text-theme-muted">{item.label}</span>
+            </div>
+
+            <aside className="margin-col ed-reveal" style={{ paddingTop: 28, animationDelay: "0.45s" }}>
+              <div style={{ borderLeft: `1px solid ${ED.rule}`, paddingLeft: 20 }}>
+                <div className="ed-mono" style={{
+                  fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase",
+                  color: ED.inkFaint, marginBottom: 14,
+                }}>
+                  The four turns
+                </div>
+                <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 14 }}>
+                  {[
+                    ["I", "Capture", "What you bring", "#act-1"],
+                    ["II", "Transcribe", "Clean material, never your filler", "#act-2"],
+                    ["III", "Index", "Quiet structure, on every note", "#act-3"],
+                    ["IV", "Reason", "An archive that argues back", "#act-4"],
+                  ].map(([n, t, d, h]) => (
+                    <li key={n}>
+                      <a href={h} style={{
+                        display: "grid", gridTemplateColumns: "32px 1fr", gap: 10,
+                        padding: "6px 0", textDecoration: "none",
+                      }}>
+                        <span className="ed-serif ed-italic" style={{
+                          fontSize: 24, color: ED.accent, lineHeight: 1,
+                        }}>{n}</span>
+                        <div>
+                          <div className="ed-serif" style={{ fontSize: 16, color: ED.ink }}>{t}</div>
+                          <div className="ed-mono" style={{
+                            fontSize: 10.5, letterSpacing: "0.08em", color: ED.inkFaint, marginTop: 2,
+                          }}>{d}</div>
+                        </div>
+                      </a>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pipeline diagram ────────────────── */}
+      <section style={{ padding: "48px 0 88px" }}>
+        <div className="ed-page">
+          <hr className="ed-rule-soft" style={{ marginBottom: 36 }} />
+          <PipelineDiagram />
+          <hr className="ed-rule-soft" style={{ marginTop: 36 }} />
+        </div>
+      </section>
+
+      {/* ── Acts ────────────────────────────── */}
+      <Act
+        id="act-1" num="I" chapter="Act One"
+        title="Capture" subtitle="What you bring."
+        text={[
+          "Most thinking is not at a desk. It happens at 6 a.m. on a walk, halfway through reading a paragraph, in the third minute of a stand-up. NoteStream is built for that. Voice notes are the primary input. Text, screenshots, PDFs, web clippings, the occasional ten-page transcript — all welcome, none required.",
+          "We do not ask you to triage the moment. You hold the button, you speak, you let go. The note lives. Where it goes, what it's called, whose project it belongs to — those are problems for later, and not yours.",
+        ]}
+        aside={{ label: "On the device", body: "Voice is captured on the device first. Nothing leaves your phone until it has to." }}
+        flip={false}
+      />
+
+      <Act
+        id="act-2" num="II" chapter="Act Two"
+        title="Transcribe" subtitle="Clean material, never your filler."
+        text={[
+          "Raw voice is a mess. Pauses, restarts, throat-clearings, half-finished sentences that pivoted mid-clause. A transcript that preserves all of it is a transcript no one reads.",
+          "NoteStream transcribes locally, then runs a small editing pass: collapsing the false starts, joining the fragments, keeping the structure but losing the cruft. Your original audio is preserved alongside, untouched, in case you ever want it back. What the index sees, though, is the clean version — so reasoning later doesn't have to wade through your throat-clearing to find the point.",
+        ]}
+        aside={{ label: "Lost in editing", body: "Verbatim transcript is one tap away. We don't throw your original recording out — we just don't ask the model to read it." }}
+        flip={true}
+      />
+
+      <Act
+        id="act-3" num="III" chapter="Act Three"
+        title="Index" subtitle="Quiet structure, on every note."
+        text={[
+          "Behind every note, NoteStream is doing the boring work of librarianship — extracting people, projects, places, dates, the dollar figures, the deadlines, the questions you asked but didn't answer. None of it requires you to tag anything.",
+          "The result is a thin layer of structure under the surface of your archive. You never see it directly. But it's how a question like \"what did Maya say about pricing\" can return an answer in under a second, with the right citations, instead of returning four pages of full-text search results.",
+        ]}
+        aside={{ label: "Soft tags", body: "We extract structure. We never force a taxonomy on you. If you call it 'Atlas' on Monday and 'the launch' on Friday, NoteStream knows." }}
+        flip={false}
+      />
+
+      <Act
+        id="act-4" num="IV" chapter="Act Four"
+        title="Reason" subtitle="An archive that argues back."
+        text={[
+          "This is the part most notes apps don't do, and the part NoteStream was built for. With a small index and an opinionated model, your archive becomes a thing you can ask questions of — not a thing you search.",
+          "Reasoning runs across every space, every date, every document type. It cites its sources. It can disagree with itself across two notes written six months apart. It can write you a brief that uses last Tuesday's voice memo as evidence for a paragraph in tomorrow's plan. This is the second reader we kept wanting and could never quite find.",
+        ]}
+        aside={{ label: "Always cited", body: "Every answer points back to the original notes it drew from. You're never reading a hallucination — you're reading a re-reading." }}
+        flip={true}
+      />
+
+      {/* ── What we don't do ────────────────── */}
+      <section style={{
+        padding: "96px 0", background: ED.paper50,
+        borderTop: `1px solid ${ED.rule}`, borderBottom: `1px solid ${ED.rule}`,
+      }}>
+        <div className="ed-page">
+          <div className="ed-chapter" style={{ marginBottom: 24 }}>
+            <span className="num">§</span>
+            <span>An aside on what we don't do</span>
+          </div>
+          <h2 className="ed-display" style={{
+            fontSize: "clamp(36px, 5vw, 64px)", maxWidth: 900, margin: 0,
+          }}>
+            Some things are <span className="ed-italic" style={{ color: ED.accent }}>worth not building.</span>
+          </h2>
+
+          <div className="dont-grid" style={{
+            marginTop: 56, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0,
+            borderTop: `1px solid ${ED.rule}`,
+          }}>
+            {[
+              { t: "Training on your notes", b: "We don't. Not ours, not anyone else's. Your archive is not a corpus. If a future model improves NoteStream, it learned from public data, never from your private writing." },
+              { t: "Selling your data", b: "We don't sell, share, or expose your archive. We make money from subscriptions. That alignment is the product." },
+              { t: "Locking you in", b: "Export everything, anytime — Markdown, plain text, JSON of the structured layer, the original audio files. The archive is yours to take with you." },
+              { t: "Asking you to tag", b: "If we're a real librarian, we don't make you write the card catalogue. Structure is extracted, not assigned." },
+              { t: "Notifications", b: "NoteStream sends you nothing. It is not designed to be opened. It is designed to be opened on your terms — which means, usually, when you have a question." },
+              { t: "A timeline you scroll", b: "There is no feed. Your archive is a library you visit with a purpose, not a river you drown in." },
+            ].map((d, i) => {
+              const col = i % 3;
+              const row = Math.floor(i / 3);
+              return (
+                <article key={d.t} style={{
+                  padding: "30px 28px",
+                  borderRight: col < 2 ? `1px solid ${ED.rule}` : "none",
+                  borderBottom: row === 0 ? `1px solid ${ED.rule}` : "none",
+                }}>
+                  <div className="ed-mono" style={{
+                    fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase",
+                    color: ED.accent, marginBottom: 10,
+                  }}>
+                    We don't
                   </div>
-                ))}
-              </div>
-            </div>
+                  <h3 className="ed-serif" style={{
+                    fontSize: 22, margin: 0, marginBottom: 10, color: ED.ink, letterSpacing: "-0.01em",
+                  }}>
+                    {d.t}
+                  </h3>
+                  <p style={{ fontSize: 14, lineHeight: 1.6, color: ED.inkMute, margin: 0 }}>{d.b}</p>
+                </article>
+              );
+            })}
           </div>
-        </motion.div>
+        </div>
 
-        {/* ===== Step 2: AI Processing ===== */}
-        <motion.div
-          initial={{ opacity: 0, x: 40 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center"
-        >
-          <div className="order-2 md:order-1">
-            <h2 className="text-3xl font-bold mb-3 flex items-center gap-3 text-theme-primary">
-              <FiCpu className="text-indigo-500" /> 2. AI Understanding Engine
+        <style>{`
+          @media (max-width: 900px) {
+            .ns-ed .dont-grid { grid-template-columns: 1fr !important; }
+            .ns-ed .dont-grid > article { border-right: none !important; border-bottom: 1px solid ${ED.rule} !important; }
+            .ns-ed .dont-grid > article:last-child { border-bottom: none !important; }
+          }
+        `}</style>
+      </section>
+
+      {/* ── Closing CTA ─────────────────────── */}
+      <section style={{ padding: "96px 0" }}>
+        <div className="ed-page" style={{ textAlign: "center" }}>
+          <div className="ed-chapter" style={{ justifyContent: "center", marginBottom: 24 }}>
+            <span className="num">¶</span>
+            <span>The end of this essay</span>
+          </div>
+          <h2 className="ed-display" style={{ fontSize: "clamp(40px, 6vw, 84px)", maxWidth: 880, margin: "0 auto" }}>
+            That's it. <span className="ed-italic" style={{ color: ED.accent }}>Four turns.</span>{" "}
+            One archive. Yours.
+          </h2>
+          <div style={{ marginTop: 36, display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+            <a href="/signup" className="ed-btn ed-btn-primary">Start free <FiArrowRight size={14} /></a>
+            <a href="/pricing" className="ed-btn ed-btn-ghost">See the plans</a>
+          </div>
+          <p className="ed-mono" style={{
+            fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase",
+            color: ED.inkFaint, marginTop: 18,
+          }}>
+            No card · 14-day pro trial · Yours alone, always
+          </p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ── Act ── */
+function Act({ id, num, chapter, title, subtitle, text, aside, flip }) {
+  return (
+    <section id={id} style={{ padding: "72px 0", borderTop: `1px solid ${ED.rule}` }}>
+      <div className="ed-page">
+        <div className="act-grid" style={{
+          display: "grid",
+          gridTemplateColumns: flip ? "320px 1fr" : "1fr 320px",
+          gap: 64, alignItems: "start",
+        }}>
+          <aside className="act-aside" style={{ order: flip ? 0 : 1, paddingTop: 16 }}>
+            <div style={{ borderLeft: `1px solid ${ED.rule}`, paddingLeft: 20 }}>
+              <div className="ed-chapter" style={{ marginBottom: 12 }}>
+                <span className="num">{num}.</span>
+                <span>{chapter}</span>
+              </div>
+              <div className="ed-mono" style={{
+                fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase",
+                color: ED.inkFaint, marginBottom: 8,
+              }}>
+                {aside.label}
+              </div>
+              <p className="ed-serif ed-italic" style={{
+                fontSize: 17, lineHeight: 1.5, color: ED.inkSoft, margin: 0,
+              }}>
+                {aside.body}
+              </p>
+            </div>
+          </aside>
+
+          <div style={{ order: flip ? 1 : 0 }}>
+            <div className="ed-serif ed-italic" style={{ fontSize: 22, color: ED.accent, marginBottom: 8 }}>
+              Act {num}.
+            </div>
+            <h2 className="ed-display" style={{ fontSize: "clamp(40px, 5.6vw, 78px)", margin: 0, lineHeight: 0.96 }}>
+              {title}
             </h2>
-            <p className="text-theme-muted leading-relaxed text-lg mb-4">
-              Our AI breaks your content down into:
+            <p className="ed-serif ed-italic" style={{
+              fontSize: 22, color: ED.inkMute, marginTop: 12,
+            }}>
+              {subtitle}
             </p>
-            <ul className="space-y-2 text-theme-secondary">
-              {["Key points", "Action items", "Sentiment", "Financial values", "Topics & relationships"].map((item, i) => (
-                <li key={i} className="flex items-center gap-2">
-                  <FiCheck className="text-indigo-500 flex-shrink-0" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-            <p className="text-theme-muted mt-4">
-              Think of it as your personal analyst reading everything for you.
-            </p>
-          </div>
 
-          {/* Icon-based AI Processing Illustration */}
-          <div 
-            className="rounded-2xl overflow-hidden border p-8 order-1 md:order-2"
-            style={{ 
-              backgroundColor: 'var(--bg-card)', 
-              borderColor: 'var(--border-secondary)',
-              boxShadow: '0 0 35px rgba(99,102,241,0.12)'
-            }}
-          >
-            <div className="flex flex-col items-center">
-              <div className="relative mb-8">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-indigo-500/30">
-                  <Brain size={48} weight="duotone" className="text-indigo-500" />
-                </div>
-                <div className="absolute inset-0 rounded-full border-2 border-indigo-500/20 animate-ping" style={{ animationDuration: '2s' }}></div>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-4 w-full">
-                {[
-                  { icon: ListChecks, label: "Tasks", color: "text-emerald-500" },
-                  { icon: Tag, label: "Tags", color: "text-blue-500" },
-                  { icon: FiCalendar, label: "Dates", color: "text-amber-500" },
-                  { icon: FiDollarSign, label: "Values", color: "text-green-500" },
-                  { icon: FiTarget, label: "Intent", color: "text-rose-500" },
-                  { icon: Lightning, label: "Insights", color: "text-purple-500" },
-                ].map((item, i) => (
-                  <motion.div 
-                    key={i}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.1 }}
-                    className="flex flex-col items-center p-3 rounded-xl"
-                    style={{ backgroundColor: 'var(--bg-tertiary)' }}
-                  >
-                    <item.icon size={24} className={item.color} />
-                    <span className="text-xs text-theme-muted mt-1">{item.label}</span>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </motion.div>
+            <hr style={{ margin: "32px 0 28px", border: 0, height: 1, background: ED.ink, width: 64 }} />
 
-        {/* ===== Step 3: Summary & Insights ===== */}
-        <motion.div
-          initial={{ opacity: 0, x: -40 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center"
-        >
-          <div>
-            <h2 className="text-3xl font-bold mb-3 flex items-center gap-3 text-theme-primary">
-              <FiBarChart2 className="text-indigo-500" /> 3. Get Your Summary & Insights
-            </h2>
-            <p className="text-theme-muted leading-relaxed text-lg">
-              NoteStream turns everything into a beautifully structured summary —
-              plus charts, categories, totals, insights, and trends.
-              All ready to export or share.
-            </p>
+            {text.map((p, i) => (
+              <p key={i} className={i === 0 ? "ed-dropcap" : ""} style={{
+                fontSize: 17, lineHeight: 1.7, color: ED.inkSoft,
+                maxWidth: 620, marginTop: i === 0 ? 0 : 18,
+              }}>
+                {p}
+              </p>
+            ))}
           </div>
-
-          {/* Icon-based Summary Illustration */}
-          <div 
-            className="rounded-2xl overflow-hidden border p-6"
-            style={{ 
-              backgroundColor: 'var(--bg-card)', 
-              borderColor: 'var(--border-secondary)',
-              boxShadow: '0 0 35px rgba(99,102,241,0.12)'
-            }}
-          >
-            <div 
-              className="rounded-xl p-4 mb-4 border"
-              style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border-secondary)' }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkle size={18} weight="fill" className="text-indigo-500" />
-                <span className="text-sm font-semibold text-theme-primary">AI Summary</span>
-              </div>
-              <div className="space-y-2">
-                <div className="h-2 rounded-full w-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}></div>
-                <div className="h-2 rounded-full w-4/5" style={{ backgroundColor: 'var(--bg-tertiary)' }}></div>
-                <div className="h-2 rounded-full w-3/5" style={{ backgroundColor: 'var(--bg-tertiary)' }}></div>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              {[
-                { icon: FiTrendingUp, value: "+24%", label: "Growth", color: "text-emerald-500" },
-                { icon: FiPieChart, value: "12", label: "Topics", color: "text-blue-500" },
-                { icon: FiLayers, value: "48", label: "Items", color: "text-purple-500" },
-              ].map((stat, i) => (
-                <div 
-                  key={i}
-                  className="rounded-lg p-3 text-center"
-                  style={{ backgroundColor: 'var(--bg-tertiary)' }}
-                >
-                  <stat.icon className={`w-5 h-5 mx-auto mb-1 ${stat.color}`} />
-                  <p className={`text-lg font-bold ${stat.color}`}>{stat.value}</p>
-                  <p className="text-xs text-theme-muted">{stat.label}</p>
-                </div>
-              ))}
-            </div>
-            
-            <div 
-              className="rounded-lg p-3 border"
-              style={{ backgroundColor: 'var(--bg-input)', borderColor: 'var(--border-secondary)' }}
-            >
-              <p className="text-xs text-theme-muted mb-2 font-medium">Action Items</p>
-              <div className="space-y-2">
-                {["Review Q4 budget proposal", "Schedule team sync", "Update project docs"].map((task, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded border border-indigo-500/50 flex items-center justify-center">
-                      {i === 0 && <FiCheck className="w-3 h-3 text-indigo-500" />}
-                    </div>
-                    <span className={`text-sm ${i === 0 ? 'text-theme-muted line-through' : 'text-theme-secondary'}`}>{task}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </motion.div>
+        </div>
       </div>
 
-      {/* =========================================================
-          REALTIME AI DEMO PANEL
-      ========================================================== */}
-      <motion.div
-        initial={{ opacity: 0, y: 40 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-        className="max-w-4xl mx-auto mt-32 mb-24 p-10 rounded-3xl border"
-        style={{ 
-          backgroundColor: 'var(--bg-card)', 
-          borderColor: 'var(--border-secondary)',
-          boxShadow: '0 0 60px rgba(99,102,241,0.15)'
-        }}
-      >
-        <h2 className="text-4xl font-bold mb-6 text-center text-theme-primary">
-          What NoteStream Understands <span className="text-indigo-500">Automatically</span>
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-10">
-          {[
-            { icon: <FiZap className="text-indigo-500 w-7 h-7"/>, title: "Key Sentences", text: "Pulls the most important statements out of long text."},
-            { icon: <FiShield className="text-indigo-500 w-7 h-7"/>, title: "Action Items", text: "Detects tasks, deadlines, and next steps automatically."},
-            { icon: <FiCpu className="text-indigo-500 w-7 h-7"/>, title: "Context Linking", text: "Understands relationships between ideas, dates, and topics."},
-          ].map((f, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 15 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.45, delay: i * 0.1 }}
-              className="p-6 rounded-2xl border transition-all duration-300 hover:-translate-y-1"
-              style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border-secondary)' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)';
-                e.currentTarget.style.boxShadow = '0 0 35px rgba(99,102,241,0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-secondary)';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <div 
-                className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
-                style={{ backgroundColor: 'var(--bg-tertiary)' }}
-              >
-                {f.icon}
-              </div>
-              <h3 className="text-xl font-semibold mb-2 text-theme-primary">{f.title}</h3>
-              <p className="text-theme-muted">{f.text}</p>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* =========================================================
-          WHY NOTESTREAM?
-      ========================================================== */}
-      <motion.div
-        initial={{ opacity: 0, y: 35 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-        className="max-w-5xl mx-auto text-center mt-32"
-      >
-        <h2 className="text-4xl font-bold mb-4 text-theme-primary">Why NoteStream?</h2>
-        <p className="text-theme-muted max-w-2xl mx-auto text-lg mb-16">
-          We're not "just another summarizer."  
-          We're a complete intelligence layer for your digital life.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {[
-            { title: "Highest Accuracy", desc: "Custom-tuned models built specifically for personal knowledge processing." },
-            { title: "Private By Default", desc: "Your data is encrypted and never used for training. Ever." },
-            { title: "Fast + Beautiful", desc: "Designed with top-tier UX — smooth, intuitive, and addictive to use." }
-          ].map((item, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 15 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.45, delay: i * 0.1 }}
-              className="p-7 rounded-2xl border transition-all duration-300 hover:-translate-y-1"
-              style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-secondary)' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)';
-                e.currentTarget.style.boxShadow = '0 0 40px rgba(99,102,241,0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-secondary)';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <h3 className="text-xl font-semibold mb-3 text-indigo-500">{item.title}</h3>
-              <p className="text-theme-muted">{item.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* ===== CTA Section ===== */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-        className="max-w-3xl mx-auto text-center mt-32"
-      >
-        <div 
-          className="rounded-2xl p-10 border"
-          style={{ 
-            backgroundColor: 'var(--bg-card)', 
-            borderColor: 'var(--border-secondary)',
-            boxShadow: '0 0 50px rgba(99,102,241,0.1)'
-          }}
-        >
-          <h3 className="text-3xl font-bold text-theme-primary mb-4">
-            Ready to get started?
-          </h3>
-          <p className="text-theme-muted mb-8 max-w-lg mx-auto">
-            Join thousands of users who have transformed how they capture and understand information.
-          </p>
-          <button 
-            onClick={() => navigate("/signup")}
-            className="px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg shadow-indigo-500/25 text-lg"
-          >
-            Start Free Trial
-          </button>
-        </div>
-      </motion.div>
-
-      <div className="h-[100px]" />
+      <style>{`
+        @media (max-width: 960px) {
+          .ns-ed .act-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
+          .ns-ed .act-aside { order: -1 !important; }
+        }
+      `}</style>
     </section>
+  );
+}
+
+/* ── Pipeline diagram ── */
+function PipelineDiagram() {
+  const steps = [
+    { n: "I",   t: "Capture",     sub: "voice · text · pdf" },
+    { n: "II",  t: "Transcribe",  sub: "on-device first" },
+    { n: "III", t: "Index",       sub: "structure, quietly" },
+    { n: "IV",  t: "Reason",      sub: "your archive, asked" },
+  ];
+  return (
+    <div className="pipeline" style={{
+      display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0, position: "relative",
+    }}>
+      {steps.map((s, i) => (
+        <div key={s.n} style={{ padding: "0 18px", textAlign: "center", position: "relative" }}>
+          <div className="ed-serif ed-italic" style={{
+            fontSize: 44, color: ED.accent, lineHeight: 1,
+          }}>{s.n}.</div>
+          <div className="ed-serif" style={{
+            fontSize: 22, color: ED.ink, letterSpacing: "-0.01em", marginTop: 6,
+          }}>{s.t}</div>
+          <div className="ed-mono" style={{
+            fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase",
+            color: ED.inkFaint, marginTop: 6,
+          }}>{s.sub}</div>
+          {i < steps.length - 1 && (
+            <div className="pipeline-arrow" style={{
+              position: "absolute", right: -8, top: 22, color: ED.inkFaint,
+            }}>
+              <FiArrowRight size={18} />
+            </div>
+          )}
+        </div>
+      ))}
+
+      <style>{`
+        @media (max-width: 800px) {
+          .ns-ed .pipeline { grid-template-columns: 1fr 1fr !important; gap: 36px 0 !important; }
+          .ns-ed .pipeline-arrow { display: none !important; }
+        }
+      `}</style>
+    </div>
   );
 }

@@ -48,8 +48,10 @@ import LoginPage from "./pages/Login";
 // Secondary public pages
 const HowItWorks = lazy(() => import("./pages/HowItWorks"));
 const Updates = lazy(() => import("./pages/Updates"));
+const HelpCenterMarketing = lazy(() => import("./pages/HelpCenter"));
 const SmartNotes = lazy(() => import("./pages/SmartNotes"));
 const AISummary = lazy(() => import("./pages/AISummary"));
+const VoiceNotesMarketing = lazy(() => import("./pages/VoiceNotesMarketing"));
 const IntegrationsLanding = lazy(() => import("./pages/IntegrationsLanding"));
 const Support = lazy(() => import("./pages/Support"));
 const FAQ = lazy(() => import("./pages/FAQ"));
@@ -183,18 +185,14 @@ function PublicRoutesFadeWrapper() {
   }, [location.pathname]);
 
   const variants = {
-    initial: { opacity: 0, y: 12, filter: "blur(6px)" },
+    initial: { opacity: 0 },
     animate: {
       opacity: 1,
-      y: 0,
-      filter: "blur(0)",
-      transition: { duration: 0.35, ease: "easeOut" },
+      transition: { duration: 0.22, ease: "easeOut" },
     },
     exit: {
       opacity: 0,
-      y: -12,
-      filter: "blur(6px)",
-      transition: { duration: 0.25, ease: "easeIn" },
+      transition: { duration: 0.14, ease: "easeIn" },
     },
   };
 
@@ -217,6 +215,7 @@ function PublicRoutesFadeWrapper() {
 
               <Route path="/smart-notes" element={<SmartNotes />} />
               <Route path="/ai-summary" element={<AISummary />} />
+              <Route path="/voice-notes" element={<VoiceNotesMarketing />} />
 
               <Route
                 path="/integrations-landing"
@@ -232,6 +231,7 @@ function PublicRoutesFadeWrapper() {
 
               <Route path="/support" element={<Support />} />
               <Route path="/faq" element={<FAQ />} />
+              <Route path="/help-center" element={<HelpCenterMarketing />} />
 
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/update-password" element={<UpdatePassword />} />

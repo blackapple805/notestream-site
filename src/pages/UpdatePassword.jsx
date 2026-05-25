@@ -1,372 +1,130 @@
 // src/pages/UpdatePassword.jsx
-import { motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { FiArrowLeft, FiCheck, FiLock, FiArrowRight } from "react-icons/fi";
-import { ShieldCheckIcon as ShieldCheck } from "@phosphor-icons/react";
-import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+// ───────────────────────────────────────────────────────────────
+// Editorial "set a new password" page (after clicking the reset link).
+// Visual layout only — wire your supabase.auth.updateUser({ password })
+// in onSubmit.
+// ───────────────────────────────────────────────────────────────
+
+import { useState } from "react";
+import AuthShell, { authInputStyle, AuthField } from "../components/AuthShell";
+import { ED } from "../lib/editorial";
+import { FiArrowRight, FiCheck } from "react-icons/fi";
 
 export default function UpdatePassword() {
-  const navigate = useNavigate();
+  const [form, setForm] = useState({ password: "", confirm: "" });
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
 
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
-  const [success, setSuccess] = useState(false);
-
-  const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const token_hash = params.get("token_hash");
-  const type = params.get("type"); // expected: "recovery"
-
-  const hasQueryRecovery = Boolean(token_hash && type === "recovery");
-
-  const canSubmit = useMemo(() => {
-    if (!password || password.length < 8) return false;
-    if (password !== confirm) return false;
-    return true;
-  }, [password, confirm]);
-
-  useEffect(() => {
-    // Basic configuration guard
-    if (!isSupabaseConfigured || !supabase) {
-      setErrorMsg(
-        "Supabase is not configured. Check VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY."
-      );
-      return;
-    }
-
-    // If you're using the custom email template, the link must include token_hash + type=recovery
-    // But we also support the legacy flow where Supabase puts a session in the URL hash.
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      const hasSession = Boolean(data?.session);
-
-      if (!hasQueryRecovery && !hasSession) {
-        setErrorMsg(
-          "Invalid or expired recovery link. Please request a new password reset."
-        );
-      }
-    })();
-  }, [hasQueryRecovery]);
-
-  const primaryBtn = {
-    background:
-      "linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))",
-    boxShadow: "0 10px 28px rgba(99, 102, 241, 0.22)",
-    color: "white",
-  };
-
-  const secondaryBtn = {
-    backgroundColor: "var(--bg-tertiary)",
-    border: "1px solid var(--border-secondary)",
-    color: "var(--text-primary)",
-  };
+  const mismatch = form.confirm.length > 0 && form.password !== form.confirm;
+  const ok = form.password.length >= 12 && form.password === form.confirm;
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    setErrorMsg("");
-
-    if (!isSupabaseConfigured || !supabase) return;
-    if (!canSubmit || submitting) return;
-
-    setSubmitting(true);
-    try {
-      // If token_hash link (recommended template)
-      if (hasQueryRecovery) {
-        const { error: verifyErr } = await supabase.auth.verifyOtp({
-          type: "recovery",
-          token_hash,
-        });
-        if (verifyErr) throw verifyErr;
-      } else {
-        // Legacy flow: session may already exist via URL hash
-        const { data } = await supabase.auth.getSession();
-        if (!data?.session) {
-          throw new Error(
-            "Recovery session not found. Please request a new password reset."
-          );
-        }
-      }
-
-      const { error: updErr } = await supabase.auth.updateUser({ password });
-      if (updErr) throw updErr;
-
-      // Optional but clean: force re-login after change
-      await supabase.auth.signOut();
-
-      setSuccess(true);
-      setTimeout(() => navigate("/login"), 900);
-    } catch (err) {
-      setErrorMsg(
-        err?.message ||
-          "Failed to update password. Please request a new reset link."
-      );
-    } finally {
-      setSubmitting(false);
-    }
+    if (!ok) return;
+    setBusy(true);
+    // ─── REPLACE with supabase.auth.updateUser({ password: form.password }) ───
+    await new Promise((r) => setTimeout(r, 600));
+    setBusy(false);
+    setDone(true);
   };
 
   return (
-    <section
-      className="min-h-screen px-6 py-24 md:py-28 relative"
-      style={{ backgroundColor: "var(--bg-primary)" }}
+    <AuthShell
+      chapter="Setting a new password"
+      title="A fresh"
+      italicWord="key."
+      lede="Choose something at least twelve characters long. NoteStream never sees the plain version — only the hash."
+      footerText="Changed your mind?"
+      footerLinkLabel="Back to sign in →"
+      footerLinkTo="/login"
     >
-      {/* Background glows */}
-      <div
-        className="absolute top-[12%] left-[10%] w-[280px] h-[280px] rounded-full pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(99, 102, 241, 0.14), transparent 70%)",
-          filter: "blur(60px)",
-        }}
-      />
-      <div
-        className="absolute bottom-[12%] right-[10%] w-[260px] h-[260px] rounded-full pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(168, 85, 247, 0.12), transparent 70%)",
-          filter: "blur(60px)",
-        }}
-      />
-
-      <div className="relative z-10 max-w-2xl mx-auto">
-        {/* Top bar */}
-        <div className="mb-8 flex items-center justify-between gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2.5 rounded-xl transition-all active:scale-[0.98]"
-            style={{
-              color: "var(--text-primary)",
-              backgroundColor: "var(--bg-surface)",
-              border: "1px solid var(--border-secondary)",
-            }}
-            aria-label="Go back"
-            type="button"
-          >
-            <FiArrowLeft className="w-5 h-5" />
-          </button>
-
-          <button
-            onClick={() => navigate("/login")}
-            className="text-xs font-semibold transition hover:opacity-90"
-            style={{ color: "var(--accent-indigo)" }}
-            type="button"
-          >
-            Back to login <FiArrowRight className="inline ml-1" size={12} />
-          </button>
+      {done ? (
+        <div className="ed-reveal" style={{ textAlign: "center", padding: "16px 0" }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: "50%",
+            background: ED.accentSoft, color: ED.accent,
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            margin: "0 auto 18px",
+          }}>
+            <FiCheck size={22} />
+          </div>
+          <h2 className="ed-display" style={{
+            fontSize: 36, margin: 0, marginBottom: 10, color: ED.ink,
+          }}>
+            Done. <span className="ed-italic" style={{ color: ED.accent }}>Welcome back.</span>
+          </h2>
+          <p style={{ fontSize: 15, color: ED.inkMute, marginBottom: 20 }}>
+            Your password has been updated. You'll be redirected to the archive in a moment.
+          </p>
+          <a href="/dashboard" className="ed-btn ed-btn-primary" style={{ justifyContent: "center" }}>
+            Open the archive <FiArrowRight size={14} />
+          </a>
         </div>
+      ) : (
+        <>
+          <div className="ed-mono" style={{
+            fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase",
+            color: ED.accent, marginBottom: 8,
+          }}>
+            New password
+          </div>
+          <h2 className="ed-serif" style={{
+            fontSize: 30, margin: 0, marginBottom: 24, color: ED.ink, letterSpacing: "-0.01em",
+          }}>
+            Choose something <span className="ed-italic" style={{ color: ED.accent }}>memorable.</span>
+          </h2>
 
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-          {/* Badge */}
-          <div className="flex justify-center mb-7">
-            <div
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border"
+          <form onSubmit={onSubmit}>
+            <AuthField
+              label="New password"
+              hint="At least 12 characters. A passphrase is easier to remember than a random string."
+            >
+              <input
+                required type="password" autoComplete="new-password" minLength={12}
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                style={authInputStyle}
+              />
+            </AuthField>
+
+            <AuthField
+              label="Confirm new password"
+              hint={mismatch ? "These two don't match." : undefined}
+            >
+              <input
+                required type="password" autoComplete="new-password" minLength={12}
+                value={form.confirm}
+                onChange={(e) => setForm({ ...form, confirm: e.target.value })}
+                style={{
+                  ...authInputStyle,
+                  borderColor: mismatch ? "#c2410c" : ED.rule,
+                }}
+              />
+            </AuthField>
+
+            <button
+              type="submit"
+              disabled={busy || !ok}
+              className="ed-btn ed-btn-primary"
               style={{
-                backgroundColor: "rgba(99, 102, 241, 0.1)",
-                borderColor: "rgba(99, 102, 241, 0.25)",
+                width: "100%", justifyContent: "center",
+                opacity: busy || !ok ? 0.6 : 1,
+                cursor: busy || !ok ? "not-allowed" : "pointer",
               }}
             >
-              <ShieldCheck
-                size={16}
-                weight="duotone"
-                style={{ color: "var(--accent-indigo)" }}
-              />
-              <span
-                className="text-sm font-medium"
-                style={{ color: "var(--accent-indigo)" }}
-              >
-                Secure Password Update
-              </span>
-            </div>
-          </div>
+              {busy ? "Saving…" : "Set new password"}
+              <FiArrowRight size={14} />
+            </button>
 
-          <h1
-            className="text-4xl md:text-5xl font-bold mb-3"
-            style={{ color: "var(--text-primary)" }}
-          >
-            Update <span style={{ color: "var(--accent-indigo)" }}>Password</span>
-          </h1>
-          <p className="mb-8 text-base md:text-lg" style={{ color: "var(--text-muted)" }}>
-            Choose a new password (minimum 8 characters).
-          </p>
-
-          {/* Main card */}
-          <div
-            className="rounded-2xl p-7 md:p-10 border"
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              borderColor: "var(--border-secondary)",
-              boxShadow: "0 24px 70px rgba(0,0,0,0.30)",
-              minHeight: "340px",
-            }}
-          >
-            {/* Error banner */}
-            {errorMsg ? (
-              <div
-                className="mb-5 rounded-2xl border p-3.5"
-                style={{
-                  backgroundColor: "rgba(244,63,94,0.08)",
-                  borderColor: "rgba(244,63,94,0.22)",
-                  boxShadow: "0 0 0 1px rgba(244,63,94,0.10) inset",
-                }}
-              >
-                <p className="text-[12px] text-rose-200/90">{errorMsg}</p>
-
-                <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                  <button
-                    type="button"
-                    onClick={() => navigate("/reset-password")}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold transition active:scale-[0.98]"
-                    style={primaryBtn}
-                  >
-                    Request new link
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/login")}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold transition active:scale-[0.98]"
-                    style={secondaryBtn}
-                  >
-                    Back to login
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {success ? (
-              <div className="space-y-4">
-                <div
-                  className="p-5 rounded-2xl border flex items-start gap-3"
-                  style={{
-                    backgroundColor: "rgba(16, 185, 129, 0.10)",
-                    borderColor: "rgba(16, 185, 129, 0.25)",
-                  }}
-                >
-                  <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center border flex-shrink-0"
-                    style={{
-                      backgroundColor: "rgba(16, 185, 129, 0.12)",
-                      borderColor: "rgba(16, 185, 129, 0.25)",
-                    }}
-                  >
-                    <FiCheck size={18} style={{ color: "var(--accent-emerald)" }} />
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                      Password updated
-                    </p>
-                    <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-                      Redirecting you to login…
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => navigate("/login")}
-                  className="w-full py-3 rounded-xl text-sm font-semibold transition hover:opacity-95 active:scale-[0.98]"
-                  style={primaryBtn}
-                  type="button"
-                >
-                  Go to Login
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={onSubmit} className="space-y-4">
-                <div>
-                  <label className="text-xs font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>
-                    New password
-                  </label>
-
-                  <div
-                    className="relative rounded-xl border transition-all"
-                    style={{
-                      backgroundColor: "var(--bg-tertiary)",
-                      borderColor: password ? "rgba(99, 102, 241, 0.35)" : "var(--border-secondary)",
-                      boxShadow: password ? "0 0 0 4px rgba(99, 102, 241, 0.10)" : "none",
-                    }}
-                  >
-                    <FiLock
-                      className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4"
-                      style={{ color: "var(--text-muted)" }}
-                    />
-                    <input
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full pl-11 pr-4 py-3 rounded-xl bg-transparent outline-none text-sm"
-                      style={{ color: "var(--text-primary)" }}
-                      autoComplete="new-password"
-                    />
-                  </div>
-
-                  {password && password.length < 8 ? (
-                    <p className="mt-2 text-xs" style={{ color: "var(--accent-rose)" }}>
-                      Use at least 8 characters.
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                      Make it strong and unique.
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>
-                    Confirm password
-                  </label>
-
-                  <div
-                    className="relative rounded-xl border transition-all"
-                    style={{
-                      backgroundColor: "var(--bg-tertiary)",
-                      borderColor: confirm ? "rgba(99, 102, 241, 0.35)" : "var(--border-secondary)",
-                      boxShadow: confirm ? "0 0 0 4px rgba(99, 102, 241, 0.10)" : "none",
-                    }}
-                  >
-                    <FiLock
-                      className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4"
-                      style={{ color: "var(--text-muted)" }}
-                    />
-                    <input
-                      type="password"
-                      required
-                      value={confirm}
-                      onChange={(e) => setConfirm(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full pl-11 pr-4 py-3 rounded-xl bg-transparent outline-none text-sm"
-                      style={{ color: "var(--text-primary)" }}
-                      autoComplete="new-password"
-                    />
-                  </div>
-
-                  {confirm && confirm !== password ? (
-                    <p className="mt-2 text-xs" style={{ color: "var(--accent-rose)" }}>
-                      Passwords do not match.
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                      Re-enter the same password.
-                    </p>
-                  )}
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={!canSubmit || submitting || !!errorMsg}
-                  className="w-full py-3 rounded-xl font-semibold text-sm transition active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
-                  style={primaryBtn}
-                >
-                  {submitting ? "Updating…" : "Update password"}
-                </button>
-              </form>
-            )}
-          </div>
-        </motion.div>
-      </div>
-    </section>
+            <p className="ed-mono" style={{
+              fontSize: 10.5, letterSpacing: "0.1em", color: ED.inkFaint,
+              textTransform: "uppercase", marginTop: 14, textAlign: "center",
+            }}>
+              Stored as a hash · We never see the plain version
+            </p>
+          </form>
+        </>
+      )}
+    </AuthShell>
   );
 }

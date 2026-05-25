@@ -1,15 +1,5 @@
-// src/pages/Updates.jsx
-// ───────────────────────────────────────────────────────────────
-// NoteStream — Editorial "Field Notes" / Changelog page (Vite drop-in)
-// Drop into src/pages/Updates.jsx (overwrite existing).
-// Requires: src/lib/editorial.js
-// ───────────────────────────────────────────────────────────────
-
-import { useEditorial, ED } from "../lib/editorial";
-
-export default function Updates() {
-  useEditorial();
-
+// Changelog — releases as serialized magazine issues.
+function ChangelogPage() {
   const issues = [
     {
       vol: "Vol. II · No. 24", date: "Nov 14, 2026", title: "Voice notes, finally",
@@ -108,34 +98,37 @@ export default function Updates() {
   ];
 
   return (
-    <div className="ns-ed" style={{ minHeight: "100vh" }}>
+    <>
       {/* ── Header ─────────────────────────── */}
       <section style={{ paddingTop: 140, paddingBottom: 64 }}>
-        <div className="ed-page">
+        <div className="page">
           <div style={{
             display: "flex", justifyContent: "space-between", alignItems: "flex-end",
             marginBottom: 48, flexWrap: "wrap", gap: 16,
           }}>
-            <div className="ed-chapter">
+            <div className="chapter-mark">
               <span className="num">№ 01</span>
               <span>Field Notes</span>
             </div>
-            <div className="ed-mono" style={{
-              fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint,
+            <div className="mono" style={{
+              fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase",
+              color: "var(--ink-faint)",
             }}>
               Updated as we ship · Subscribe by RSS
             </div>
           </div>
-          <hr className="ed-rule-dbl" style={{ marginBottom: 48 }} />
+          <hr className="rule-double" style={{ marginBottom: 48 }} />
 
           <div className="cl-hero" style={{
             display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 64, alignItems: "end",
           }}>
-            <h1 className="ed-display" style={{ fontSize: "clamp(48px, 7.4vw, 120px)", margin: 0 }}>
+            <h1 className="display" style={{
+              fontSize: "clamp(48px, 7.4vw, 120px)", margin: 0,
+            }}>
               What we<br />
-              <span className="ed-italic" style={{ color: ED.accent }}>shipped.</span>
+              <span className="italic" style={{ color: "var(--accent)" }}>shipped.</span>
             </h1>
-            <p className="ed-lede" style={{ maxWidth: 460, margin: 0 }}>
+            <p className="lede" style={{ maxWidth: 460, margin: 0 }}>
               Releases, written out plainly. We publish an issue every couple
               of weeks — sometimes a big chapter, more often a stack of small
               kindnesses. The most recent is on top.
@@ -143,63 +136,65 @@ export default function Updates() {
           </div>
 
           <div style={{ marginTop: 36, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <a href="#" className="ed-btn ed-btn-ghost">Subscribe by RSS</a>
-            <a href="#" className="ed-btn ed-btn-ghost">Follow on X</a>
-            <a href="#" className="ed-btn ed-btn-ghost">Annual report</a>
+            <a href="#" className="btn btn-ghost">Subscribe by RSS</a>
+            <a href="#" className="btn btn-ghost">Follow on X</a>
+            <a href="#" className="btn btn-ghost">Annual report</a>
           </div>
         </div>
 
         <style>{`
           @media (max-width: 900px) {
-            .ns-ed .cl-hero { grid-template-columns: 1fr !important; gap: 28px !important; }
+            .cl-hero { grid-template-columns: 1fr !important; gap: 28px !important; }
           }
         `}</style>
       </section>
 
       {/* ── Issues feed ────────────────────── */}
       <section style={{ paddingBottom: 96 }}>
-        <div className="ed-page">
+        <div className="page">
           {issues.map((it, i) => (
             <Issue key={i} issue={it} index={i} />
           ))}
 
+          {/* end-of-archive marker */}
           <div style={{ marginTop: 56, textAlign: "center" }}>
-            <hr className="ed-rule-dbl" />
-            <div className="ed-mono" style={{
+            <hr className="rule-double" />
+            <div className="mono" style={{
               fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase",
-              color: ED.inkFaint, padding: "24px 0",
+              color: "var(--ink-faint)", padding: "24px 0",
             }}>
-              ¶  End of recent issues · See the{" "}
-              <a href="#" className="ed-ulink" style={{ color: ED.accent }}>full archive →</a>
+              ¶  End of recent issues · See the <a href="#" className="ulink" style={{ color: "var(--accent)" }}>full archive →</a>
             </div>
-            <hr className="ed-rule-dbl" />
+            <hr className="rule-double" />
           </div>
         </div>
       </section>
 
       {/* ── Roadmap teaser ─────────────────── */}
       <section style={{
-        padding: "96px 0", background: ED.paper50,
-        borderTop: `1px solid ${ED.rule}`, borderBottom: `1px solid ${ED.rule}`,
+        padding: "96px 0", background: "var(--bg-soft)",
+        borderTop: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)",
       }}>
-        <div className="ed-page">
-          <div className="rm-grid" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 56, alignItems: "start" }}>
+        <div className="page">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 56, alignItems: "start" }} className="rm-grid">
             <div>
-              <div className="ed-chapter" style={{ marginBottom: 18 }}>
+              <div className="chapter-mark" style={{ marginBottom: 18 }}>
                 <span className="num">№ 02</span>
                 <span>Coming next</span>
               </div>
-              <h2 className="ed-display" style={{ fontSize: "clamp(36px, 5vw, 64px)", margin: 0 }}>
+              <h2 className="display" style={{
+                fontSize: "clamp(36px, 5vw, 64px)", margin: 0,
+              }}>
                 On the<br />
-                <span className="ed-italic" style={{ color: ED.accent }}>desk.</span>
+                <span className="italic" style={{ color: "var(--accent)" }}>desk.</span>
               </h2>
-              <p className="ed-serif" style={{ fontSize: 17, lineHeight: 1.55, color: ED.inkMute, marginTop: 18 }}>
+              <p className="serif" style={{ fontSize: 17, lineHeight: 1.55, color: "var(--ink-muted)", marginTop: 18 }}>
                 What we're working on, roughly in the order we expect to ship.
                 Subject to change — but we'll write about it here when it does.
               </p>
             </div>
             <div style={{
-              borderTop: `1px solid ${ED.rule}`, borderBottom: `1px solid ${ED.rule}`,
+              borderTop: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)",
             }}>
               {[
                 { t: "Web clipper, with reading view", e: "In review · Dec '26", s: "shipping" },
@@ -210,18 +205,18 @@ export default function Updates() {
               ].map((r, i) => (
                 <div key={i} style={{
                   display: "grid", gridTemplateColumns: "1fr auto", gap: 20,
-                  padding: "18px 0", borderTop: i > 0 ? `1px dotted ${ED.rule}` : "none",
+                  padding: "18px 0", borderTop: i > 0 ? "1px dotted var(--rule)" : "none",
                   alignItems: "baseline",
                 }}>
-                  <span className="ed-serif" style={{ fontSize: 19, color: ED.ink, letterSpacing: "-0.005em" }}>
-                    <span className="ed-serif ed-italic" style={{ color: ED.accent, marginRight: 10 }}>
+                  <span className="serif" style={{ fontSize: 19, color: "var(--ink)", letterSpacing: "-0.005em" }}>
+                    <span className="serif italic" style={{ color: "var(--accent)", marginRight: 10 }}>
                       {String(i + 1).padStart(2, "0")}.
                     </span>
                     {r.t}
                   </span>
-                  <span className="ed-mono" style={{
+                  <span className="mono" style={{
                     fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase",
-                    color: r.s === "shipping" ? ED.accent : ED.inkFaint,
+                    color: r.s === "shipping" ? "var(--accent)" : "var(--ink-faint)",
                   }}>
                     {r.e}
                   </span>
@@ -233,11 +228,11 @@ export default function Updates() {
 
         <style>{`
           @media (max-width: 900px) {
-            .ns-ed .rm-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
+            .rm-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
           }
         `}</style>
       </section>
-    </div>
+    </>
   );
 }
 
@@ -245,43 +240,48 @@ function Issue({ issue, index }) {
   return (
     <article style={{
       padding: "48px 0",
-      borderTop: `1px solid ${ED.rule}`,
-      borderBottom: index === 0 ? `1px solid ${ED.rule}` : "none",
+      borderTop: "1px solid var(--rule)",
+      borderBottom: index === 0 ? "1px solid var(--rule)" : "none",
     }}>
       <div className="issue-grid" style={{
         display: "grid", gridTemplateColumns: "240px 1fr", gap: 56, alignItems: "start",
       }}>
+        {/* Margin meta */}
         <aside style={{ paddingTop: 4 }}>
-          <div className="ed-mono" style={{
+          <div className="mono" style={{
             fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase",
-            color: ED.inkFaint, marginBottom: 6,
+            color: "var(--ink-faint)", marginBottom: 6,
           }}>
             {issue.vol}
           </div>
-          <div className="ed-serif ed-italic" style={{ fontSize: 17, color: ED.ink }}>
+          <div className="serif italic" style={{
+            fontSize: 17, color: "var(--ink)",
+          }}>
             {issue.date}
           </div>
           <div style={{
             marginTop: 16, display: "inline-block",
             padding: "3px 10px", fontSize: 10.5, letterSpacing: "0.16em",
-            textTransform: "uppercase", fontFamily: ED.mono,
-            color: issue.tag === "Major" ? ED.accent : ED.inkMute,
-            background: issue.tag === "Major" ? ED.accentSoft : ED.paper200,
+            textTransform: "uppercase", fontFamily: "var(--mono)",
+            color: issue.tag === "Major" ? "var(--accent)" : "var(--ink-muted)",
+            background: issue.tag === "Major" ? "var(--accent-soft)" : "var(--paper-200)",
             borderRadius: 999,
           }}>
             {issue.tag} release
           </div>
         </aside>
 
+        {/* Issue body */}
         <div>
-          <h2 className="ed-display" style={{
-            fontSize: "clamp(34px, 4.4vw, 56px)", margin: 0, color: ED.ink,
+          <h2 className="display" style={{
+            fontSize: "clamp(34px, 4.4vw, 56px)", margin: 0, color: "var(--ink)",
             letterSpacing: "-0.02em", lineHeight: 1.02,
           }}>
             {issue.title}
           </h2>
-          <p className="ed-serif" style={{
-            fontSize: 19, lineHeight: 1.5, color: ED.inkMute, marginTop: 14, maxWidth: 680,
+          <p className="serif" style={{
+            fontSize: 19, lineHeight: 1.5, color: "var(--ink-muted)", marginTop: 14,
+            maxWidth: 680,
           }}>
             {issue.lede}
           </p>
@@ -289,26 +289,29 @@ function Issue({ issue, index }) {
           <div style={{ marginTop: 32, display: "grid", gap: 22 }}>
             {issue.sections.map((sec) => (
               <div key={sec.h}>
-                <div className="ed-mono" style={{
+                <div className="mono" style={{
                   fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase",
-                  color: ED.accent, marginBottom: 10,
+                  color: "var(--accent)", marginBottom: 10,
                 }}>
                   § {sec.h}
                 </div>
                 <ul style={{
-                  margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 8,
+                  margin: 0, padding: 0, listStyle: "none",
+                  display: "grid", gap: 8,
                 }}>
                   {sec.items.map((t, i) => (
                     <li key={i} style={{
                       display: "grid", gridTemplateColumns: "auto 1fr", gap: 12,
                       alignItems: "baseline",
                     }}>
-                      <span className="ed-mono" style={{
-                        fontSize: 10.5, color: ED.inkFaint, letterSpacing: "0.06em",
+                      <span className="mono" style={{
+                        fontSize: 10.5, color: "var(--ink-faint)", letterSpacing: "0.06em",
                       }}>
                         {String(i + 1).padStart(2, "0")}
                       </span>
-                      <span style={{ fontSize: 15.5, lineHeight: 1.6, color: ED.inkSoft }}>
+                      <span style={{
+                        fontSize: 15.5, lineHeight: 1.6, color: "var(--ink-soft)",
+                      }}>
                         {t}
                       </span>
                     </li>
@@ -322,9 +325,11 @@ function Issue({ issue, index }) {
 
       <style>{`
         @media (max-width: 900px) {
-          .ns-ed .issue-grid { grid-template-columns: 1fr !important; gap: 18px !important; }
+          .issue-grid { grid-template-columns: 1fr !important; gap: 18px !important; }
         }
       `}</style>
     </article>
   );
 }
+
+window.ChangelogPage = ChangelogPage;

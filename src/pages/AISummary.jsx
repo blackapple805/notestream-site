@@ -1,309 +1,296 @@
 // src/pages/AISummary.jsx
-import { FiZap, FiEdit3, FiFeather, FiList, FiArrowRight } from "react-icons/fi";
-import { useNavigate } from "react-router-dom";
-import ScrollReveal from "../components/ScrollReveal";
-import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
-import { SparkleIcon as Sparkle, LightningIcon as Lightning, BrainIcon as Brain } from "@phosphor-icons/react";
+import { useEditorial, ED } from "../lib/editorial";
+import { FiArrowRight } from "react-icons/fi";
 
 export default function AISummary() {
-  const navigate = useNavigate();
-  const [animateText, setAnimateText] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setAnimateText(true), 700);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const features = [
-    {
-      icon: <FiEdit3 className="text-indigo-500 w-7 h-7" />,
-      title: "Instant Smart Summary",
-      desc: "Condense long notes into clear, structured summaries in seconds.",
-      bgColor: "bg-indigo-500/20",
-    },
-    {
-      icon: <FiList className="text-purple-500 w-7 h-7" />,
-      title: "Key Action Item Extraction",
-      desc: "Auto-identifies decisions, deadlines, and tasks from any text.",
-      bgColor: "bg-purple-500/20",
-    },
-    {
-      icon: <FiFeather className="text-emerald-500 w-7 h-7" />,
-      title: "Tone + Context Awareness",
-      desc: "Understands nuance — sentiment, urgency, and writing style.",
-      bgColor: "bg-emerald-500/20",
-    },
-  ];
-
-  const beforeText = `Meeting notes:
-- client unhappy with timeline
-- need marketing assets soon
-- backend bug unresolved
-- ask Sarah about analytics update
-- contract renewal may be delayed`;
-
-  const afterText = [
-    { text: "Timeline risk — client expecting earlier delivery.", priority: "high" },
-    { text: "Marketing assets required immediately.", priority: "high" },
-    { text: "Engineering: unresolved backend issue.", priority: "medium" },
-    { text: "Follow up with Sarah on analytics dashboard.", priority: "low" },
-    { text: "Renewal impacted by current delays.", priority: "medium" },
-  ];
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case "high": return "text-rose-500";
-      case "medium": return "text-amber-500";
-      case "low": return "text-emerald-500";
-      default: return "text-indigo-500";
-    }
-  };
+  useEditorial();
 
   return (
-    <section
-      className="relative min-h-screen text-theme-primary px-6 py-[18vh] overflow-hidden"
-      style={{ backgroundColor: 'var(--bg-primary)' }}
-    >
-      {/* BG Glows */}
-      <div className="absolute top-[8%] left-[10%] w-[280px] h-[280px] bg-indigo-500/20 blur-[140px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-[10%] right-[8%] w-[240px] h-[240px] bg-purple-500/15 blur-[130px] rounded-full pointer-events-none"></div>
-
-      {/* Title */}
-      <ScrollReveal>
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/30 mb-6">
-            <Sparkle size={18} weight="fill" className="text-indigo-500" />
-            <span className="text-sm font-medium text-indigo-500">AI-Powered</span>
+    <div className="ns-ed" style={{ minHeight: "100vh" }}>
+      {/* Hero */}
+      <section style={{ paddingTop: 140, paddingBottom: 64 }}>
+        <div className="ed-page">
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "flex-end",
+            marginBottom: 48, flexWrap: "wrap", gap: 16,
+          }}>
+            <div className="ed-chapter">
+              <span className="num">№ 01</span>
+              <span>The Product</span>
+            </div>
+            <div className="ed-mono" style={{
+              fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint,
+            }}>
+              On AI summaries
+            </div>
           </div>
-          <h1 className="text-4xl md:text-6xl font-extrabold text-theme-primary">
-            Smarter <span className="text-indigo-500">Summaries</span> Powered by{" "}
-            <span className="text-purple-500">AI</span>
-          </h1>
-        </div>
-      </ScrollReveal>
+          <hr className="ed-rule-dbl" style={{ marginBottom: 48 }} />
 
-      <ScrollReveal delay={0.1}>
-        <p className="text-theme-muted text-lg max-w-2xl mx-auto text-center mb-20">
-          Turn long, messy notes into clear insights. NoteStream's AI doesn't just summarize —
-          it understands, rewrites, and highlights what actually matters.
-        </p>
-      </ScrollReveal>
-
-      {/* Feature Cards */}
-      <ScrollReveal delay={0.15}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto mb-20">
-          {features.map((f, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="group rounded-2xl p-8 border backdrop-blur-md transition-all duration-500 hover:-translate-y-2"
-              style={{ 
-                backgroundColor: 'var(--bg-card)', 
-                borderColor: 'var(--border-secondary)',
-                boxShadow: '0 0 25px rgba(99,102,241,0.08)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)';
-                e.currentTarget.style.boxShadow = '0 0 50px rgba(99,102,241,0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-secondary)';
-                e.currentTarget.style.boxShadow = '0 0 25px rgba(99,102,241,0.08)';
-              }}
-            >
-              <div 
-                className={`flex items-center justify-center w-14 h-14 rounded-xl ${f.bgColor} mb-5 
-                group-hover:scale-110 transition-all duration-300`}
-              >
-                {f.icon}
+          <div className="ai-hero" style={{
+            display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 56, alignItems: "end",
+          }}>
+            <div>
+              <h1 className="ed-display" style={{
+                fontSize: "clamp(54px, 8.8vw, 140px)", margin: 0, color: ED.ink,
+              }}>
+                The one<br />
+                <span className="ed-italic" style={{ color: ED.accent }}>thing</span> that mattered.
+              </h1>
+              <p className="ed-lede" style={{ marginTop: 32, maxWidth: 540 }}>
+                A meeting becomes its decision. A 47-page transcript becomes
+                the deadline that moved. A week of voice notes becomes the
+                pattern you didn't see. Every summary cites the original —
+                no hallucinations, no invented details.
+              </p>
+              <div style={{ marginTop: 30, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <a href="/signup" className="ed-btn ed-btn-primary">Start free <FiArrowRight size={14} /></a>
+                <a href="/how-it-works" className="ed-btn ed-btn-ghost">How it works</a>
               </div>
-              <h3 className="text-xl font-semibold text-theme-primary mb-3 group-hover:text-indigo-500 transition">
-                {f.title}
-              </h3>
-              <p className="text-theme-muted text-[0.95rem] leading-relaxed">{f.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </ScrollReveal>
+            </div>
 
-      {/* BEFORE → AFTER TRANSFORMATION */}
-      <ScrollReveal delay={0.2}>
-        <div 
-          className="max-w-5xl mx-auto rounded-2xl p-8 md:p-10 mb-20 border"
-          style={{ 
-            backgroundColor: 'var(--bg-card)', 
-            borderColor: 'var(--border-secondary)',
-            boxShadow: '0 0 40px rgba(99,102,241,0.12)'
-          }}
-        >
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center">
-              <Brain size={28} weight="duotone" className="text-indigo-500" />
+            <SummaryMock />
+          </div>
+        </div>
+
+        <style>{`
+          @media (max-width: 960px) {
+            .ns-ed .ai-hero { grid-template-columns: 1fr !important; gap: 32px !important; }
+          }
+        `}</style>
+      </section>
+
+      {/* Five kinds of summary */}
+      <section style={{ padding: "64px 0 96px", borderTop: `1px solid ${ED.rule}` }}>
+        <div className="ed-page">
+          <div className="sec-head" style={{
+            display: "grid", gridTemplateColumns: "1fr 2fr", gap: 56, alignItems: "end",
+            marginBottom: 48,
+          }}>
+            <div>
+              <div className="ed-chapter" style={{ marginBottom: 18 }}>
+                <span className="num">№ 02</span>
+                <span>What gets summarized</span>
+              </div>
+              <h2 className="ed-display" style={{
+                fontSize: "clamp(36px, 5vw, 64px)", margin: 0, color: ED.ink,
+              }}>
+                Five<br />
+                <span className="ed-italic" style={{ color: ED.accent }}>shapes.</span>
+              </h2>
+            </div>
+            <p className="ed-lede" style={{ maxWidth: 540, margin: 0 }}>
+              Different inputs deserve different outputs. NoteStream picks the
+              right shape automatically — a one-liner for a quick voice memo,
+              a multi-paragraph brief for a week of meetings.
+            </p>
+          </div>
+
+          <hr className="ed-rule-dbl" style={{ marginBottom: 0 }} />
+
+          <div className="shapes" style={{
+            display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 0,
+          }}>
+            {[
+              { n: "i.", t: "The one-liner",
+                d: "For voice memos and short notes. A single sentence: what was said, what it means, what to do." },
+              { n: "ii.", t: "The meeting brief",
+                d: "Decisions, action items, blockers — extracted from a recorded meeting or pasted transcript. Owner and deadline on every item." },
+              { n: "iii.", t: "The document distillation",
+                d: "Long docs (PDF, slides, articles) reduced to their argument: the claim, the evidence, the counter-argument, what to read again." },
+              { n: "iv.", t: "The weekly digest",
+                d: "Monday morning: every note you wrote last week, the recurring themes you didn't notice, the one thing worth your time today." },
+              { n: "v.", t: "The cross-archive brief",
+                d: "A question, answered across your whole archive — citations from voice notes, docs, meetings, all woven into a multi-paragraph answer." },
+            ].map((s, i) => {
+              const col = i % 2;
+              const row = Math.floor(i / 2);
+              const isLast = i === 4;
+              return (
+                <article key={s.n} style={{
+                  padding: "36px 32px",
+                  borderRight: !isLast && col === 0 ? `1px solid ${ED.rule}` : "none",
+                  borderTop: row > 0 ? `1px solid ${ED.rule}` : "none",
+                  gridColumn: isLast ? "1 / -1" : "auto",
+                }} className="shape-cell">
+                  <div style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "baseline",
+                  }}>
+                    <span className="ed-serif ed-italic" style={{ fontSize: 30, color: ED.accent, lineHeight: 1 }}>
+                      {s.n}
+                    </span>
+                    <span className="ed-mono" style={{
+                      fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase",
+                      color: ED.inkFaint,
+                    }}>
+                      Shape {String(i + 1).padStart(2, "0")}
+                    </span>
+                  </div>
+                  <h3 className="ed-serif" style={{
+                    fontSize: 28, margin: "12px 0 12px", color: ED.ink, letterSpacing: "-0.01em",
+                  }}>
+                    {s.t}
+                  </h3>
+                  <p style={{ fontSize: 15.5, lineHeight: 1.65, color: ED.inkMute, margin: 0, maxWidth: 540 }}>
+                    {s.d}
+                  </p>
+                </article>
+              );
+            })}
+          </div>
+
+          <hr className="ed-rule-dbl" style={{ marginTop: 0 }} />
+        </div>
+
+        <style>{`
+          @media (max-width: 900px) {
+            .ns-ed .sec-head { grid-template-columns: 1fr !important; gap: 24px !important; }
+            .ns-ed .shapes { grid-template-columns: 1fr !important; }
+            .ns-ed .shape-cell { border-right: none !important; }
+          }
+        `}</style>
+      </section>
+
+      {/* On citation */}
+      <section style={{ padding: "96px 0", background: ED.ink, color: ED.paper100 }}>
+        <div className="ed-page">
+          <div className="cite-grid" style={{
+            display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 64, alignItems: "start",
+          }}>
+            <div>
+              <div className="ed-mono" style={{
+                fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase",
+                color: "rgba(255,255,255,0.4)", marginBottom: 18,
+              }}>
+                № 03 · On citation
+              </div>
+              <h2 className="ed-display" style={{
+                fontSize: "clamp(36px, 5vw, 64px)", margin: 0, color: "#fff", lineHeight: 1,
+              }}>
+                Every claim,<br />
+                <span className="ed-italic" style={{ color: ED.accent }}>cited.</span>
+              </h2>
             </div>
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-theme-primary">
-                See AI Summary Transform Your Notes
-              </h2>
-              <p className="text-theme-muted text-sm">Watch messy notes become actionable insights</p>
-            </div>
-          </div>
+              <p className="ed-serif" style={{
+                fontSize: 21, lineHeight: 1.5, color: "rgba(255,255,255,0.85)",
+                margin: 0, maxWidth: 600,
+              }}>
+                A summary that can't be checked is a fabrication. NoteStream summaries
+                point at the original passages they came from — exact timestamps,
+                exact paragraphs — so you can verify any line in a tap. If a claim
+                can't be grounded, the summary leaves it out and says so.
+              </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
-            {/* BEFORE BOX */}
-            <div 
-              className="p-6 rounded-xl border relative"
-              style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border-secondary)' }}
-            >
-              <div className="absolute -top-3 left-4">
-                <span 
-                  className="px-3 py-1 rounded-full text-xs font-semibold border"
-                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-secondary)', color: 'var(--text-muted)' }}
-                >
-                  BEFORE
-                </span>
+              <div style={{ marginTop: 36, display: "grid", gap: 0 }}>
+                {[
+                  ["Source citations", "Every sentence in a brief is traceable to a specific note, with a timestamp and a quote."],
+                  ["No invented details", "If the model isn't confident, it abstains rather than fabricates. We'd rather return less than wrong."],
+                  ["You can disagree", "Every summary has a 'this isn't right' button. We use the feedback to tune your reasoning profile, never to retrain a model."],
+                ].map(([t, b], i) => (
+                  <div key={t} style={{
+                    display: "grid", gridTemplateColumns: "32px 1fr", gap: 16,
+                    padding: "16px 0", alignItems: "baseline",
+                    borderTop: i === 0 ? "1px solid rgba(255,255,255,0.12)" : "1px dotted rgba(255,255,255,0.12)",
+                    borderBottom: i === 2 ? "1px solid rgba(255,255,255,0.12)" : "none",
+                  }}>
+                    <span className="ed-serif ed-italic" style={{ color: ED.accent, fontSize: 20 }}>
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <div>
+                      <div className="ed-serif" style={{
+                        fontSize: 19, color: "#fff", letterSpacing: "-0.005em",
+                      }}>{t}</div>
+                      <div style={{
+                        fontSize: 14.5, color: "rgba(255,255,255,0.6)", marginTop: 4, lineHeight: 1.5,
+                      }}>{b}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="mt-3">
-                <p className="text-theme-secondary whitespace-pre-line text-sm leading-relaxed font-mono">
-                  {beforeText}
-                </p>
-              </div>
-            </div>
-
-            {/* Arrow */}
-            <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-              <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-                <FiArrowRight className="text-white w-5 h-5" />
-              </div>
-            </div>
-
-            {/* AFTER BOX */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={animateText ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.7, ease: "easeOut" }}
-              className="p-6 rounded-xl border-2 border-indigo-500/40 relative"
-              style={{ backgroundColor: 'var(--bg-elevated)' }}
-            >
-              <div className="absolute -top-3 left-4">
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500 text-white">
-                  AFTER
-                </span>
-              </div>
-              <div className="mt-3">
-                <ul className="text-sm space-y-3">
-                  {afterText.map((item, index) => (
-                    <motion.li 
-                      key={index} 
-                      className="flex items-start gap-3"
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={animateText ? { opacity: 1, x: 0 } : {}}
-                      transition={{ delay: index * 0.1 + 0.3 }}
-                    >
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                        item.priority === 'high' ? 'bg-rose-500/20' :
-                        item.priority === 'medium' ? 'bg-amber-500/20' : 'bg-emerald-500/20'
-                      }`}>
-                        <Lightning 
-                          size={12} 
-                          weight="fill" 
-                          className={getPriorityColor(item.priority)} 
-                        />
-                      </div>
-                      <span className="text-theme-secondary">{item.text}</span>
-                    </motion.li>
-                  ))}
-                </ul>
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Legend */}
-          <div className="flex flex-wrap gap-4 mt-6 pt-6 border-t" style={{ borderColor: 'var(--border-secondary)' }}>
-            <span className="text-xs text-theme-muted">Priority:</span>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-rose-500/30"></div>
-              <span className="text-xs text-theme-muted">High</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-amber-500/30"></div>
-              <span className="text-xs text-theme-muted">Medium</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-emerald-500/30"></div>
-              <span className="text-xs text-theme-muted">Low</span>
             </div>
           </div>
         </div>
-      </ScrollReveal>
 
-      {/* How It Works */}
-      <ScrollReveal delay={0.25}>
-        <div className="max-w-4xl mx-auto mb-20">
-          <h2 className="text-3xl font-bold text-center text-theme-primary mb-12">
-            How AI Summary Works
+        <style>{`
+          @media (max-width: 900px) {
+            .ns-ed .cite-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
+          }
+        `}</style>
+      </section>
+
+      {/* Closing */}
+      <section style={{ padding: "96px 0" }}>
+        <div className="ed-page" style={{ textAlign: "center" }}>
+          <h2 className="ed-display" style={{
+            fontSize: "clamp(40px, 6vw, 84px)", margin: "0 auto", maxWidth: 880, color: ED.ink,
+          }}>
+            See the<br />
+            <span className="ed-italic" style={{ color: ED.accent }}>shape</span> of your week.
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              { step: "1", title: "Paste or Upload", desc: "Drop in any text, document, or screenshot", icon: FiEdit3 },
-              { step: "2", title: "AI Analyzes", desc: "Our engine extracts key information", icon: Brain },
-              { step: "3", title: "Get Results", desc: "Receive a clean, actionable summary", icon: Sparkle },
-            ].map((item, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.15 }}
-                className="text-center"
-              >
-                <div 
-                  className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-                  style={{ backgroundColor: 'var(--bg-card)' }}
-                >
-                  <item.icon size={28} className="text-indigo-500" />
-                </div>
-                <div className="text-xs font-semibold text-indigo-500 mb-2">STEP {item.step}</div>
-                <h3 className="text-lg font-semibold text-theme-primary mb-2">{item.title}</h3>
-                <p className="text-sm text-theme-muted">{item.desc}</p>
-              </motion.div>
-            ))}
+          <div style={{ marginTop: 30, display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+            <a href="/signup" className="ed-btn ed-btn-primary">Start free <FiArrowRight size={14} /></a>
+            <a href="/pricing" className="ed-btn ed-btn-ghost">See the plans</a>
           </div>
         </div>
-      </ScrollReveal>
+      </section>
+    </div>
+  );
+}
 
-      {/* CTA */}
-      <ScrollReveal delay={0.3}>
-        <div className="text-center">
-          <div 
-            className="max-w-xl mx-auto rounded-2xl p-8 border"
-            style={{ 
-              backgroundColor: 'var(--bg-card)', 
-              borderColor: 'var(--border-secondary)',
-              boxShadow: '0 0 40px rgba(99,102,241,0.1)'
-            }}
-          >
-            <h3 className="text-2xl font-bold text-theme-primary mb-3">
-              Ready to summarize smarter?
-            </h3>
-            <p className="text-theme-muted mb-6">
-              Try AI Summary free and see the difference.
-            </p>
-            <button 
-              onClick={() => navigate("/signup")}
-              className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:opacity-90 
-            text-white px-10 py-4 rounded-full font-semibold text-lg 
-            shadow-lg shadow-indigo-500/25 transition-all duration-300 hover:scale-[1.02] 
-            flex items-center gap-2 mx-auto"
-            >
-              Try AI Summary <FiZap className="w-5 h-5" />
-            </button>
-          </div>
+function SummaryMock() {
+  return (
+    <div style={{ maxWidth: 460, marginLeft: "auto" }}>
+      <div style={{
+        padding: 22, background: ED.ink, color: ED.paper50, borderRadius: 14, position: "relative",
+      }}>
+        <div style={{
+          position: "absolute", top: -1, left: 22, right: 22, height: 2,
+          background: ED.accent,
+        }} />
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "baseline",
+          marginBottom: 14,
+        }}>
+          <span className="ed-mono" style={{
+            fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase",
+            color: "#c8b988",
+          }}>The one thing that mattered</span>
+          <span className="ed-mono" style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+            47-page transcript · 1.2s
+          </span>
         </div>
-      </ScrollReveal>
-    </section>
+        <p className="ed-serif" style={{
+          fontSize: 17, lineHeight: 1.55, margin: 0, color: ED.paper50,
+        }}>
+          v3 shipping date moved{" "}
+          <span style={{ color: "#fff", fontWeight: 500 }}>two weeks earlier</span> to
+          align with the partner launch. Three blocker items still open —{" "}
+          <span style={{ color: "#fff", fontWeight: 500 }}>auth refactor is the riskiest</span>.
+        </p>
+      </div>
+
+      <div style={{
+        marginTop: 12, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8,
+      }}>
+        {[
+          { v: 4, l: "Decisions" },
+          { v: 11, l: "Action items" },
+          { v: 3, l: "Blockers" },
+        ].map((m) => (
+          <div key={m.l} style={{
+            padding: 14, background: ED.paper50,
+            border: `1px solid ${ED.rule}`, borderRadius: 10, textAlign: "center",
+          }}>
+            <div className="ed-display" style={{ fontSize: 32, color: ED.ink, lineHeight: 1 }}>
+              {m.v}
+            </div>
+            <div className="ed-mono" style={{
+              fontSize: 9.5, letterSpacing: "0.14em", color: ED.inkFaint,
+              textTransform: "uppercase", marginTop: 4,
+            }}>{m.l}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

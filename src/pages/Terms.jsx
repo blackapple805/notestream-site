@@ -1,287 +1,153 @@
 // src/pages/Terms.jsx
-import { useEffect, useMemo, useState } from "react";
-import GlassCard from "../components/GlassCard";
-import {
-  ShieldCheckIcon as ShieldCheck,
-  FileTextIcon as FileText,
-  UserCircleIcon as UserCircle,
-  DatabaseIcon as Database,
-  WrenchIcon as Wrench,
-  WarningCircleIcon as WarningCircle,
-  EnvelopeSimpleIcon as EnvelopeSimple,
-} from "@phosphor-icons/react";
+import { useEditorial, ED } from "../lib/editorial";
 
-export default function TermsPage() {
-  const updated = new Date().toLocaleDateString();
+export default function Terms() {
+  useEditorial();
 
-  const sections = useMemo(
-    () => [
-      {
-        id: "use",
-        title: "Use of Service",
-        icon: ShieldCheck,
-        body: "You agree to use NoteStream only for lawful and permitted purposes, and not to attempt unauthorized access, reverse engineering, or data extraction.",
-      },
-      {
-        id: "account",
-        title: "Account Responsibilities",
-        icon: UserCircle,
-        body: "You are responsible for preserving the confidentiality of your login credentials and for any actions taken inside your account.",
-      },
-      {
-        id: "privacy",
-        title: "Data & Privacy",
-        icon: Database,
-        body: "All uploaded files, notes, and analytics remain privately accessible to you. We do not sell personal data. For full details, refer to our Privacy Policy document.",
-      },
-      {
-        id: "mods",
-        title: "Service Modifications",
-        icon: Wrench,
-        body: "We may update or improve features at any time, including beta access, without prior notice.",
-      },
-      {
-        id: "liability",
-        title: "Liability",
-        icon: WarningCircle,
-        body: 'NoteStream is provided "as-is" without guarantees of accuracy or uptime. We are not responsible for indirect or consequential damages.',
-      },
-      {
-        id: "contact",
-        title: "Contact",
-        icon: EnvelopeSimple,
-        body: "For account or legal inquiries, reach us at support@notestream.app.",
-      },
-    ],
-    []
-  );
-
-  const [activeId, setActiveId] = useState(sections[0]?.id || "use");
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  const scrollToId = (id) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  useEffect(() => {
-    const els = sections
-      .map((s) => document.getElementById(s.id))
-      .filter(Boolean);
-
-    if (!els.length) return;
-
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => (b.intersectionRatio || 0) - (a.intersectionRatio || 0))[0];
-        if (visible?.target?.id) setActiveId(visible.target.id);
-      },
-      {
-        root: null,
-        rootMargin: "-96px 0px -70% 0px",
-        threshold: [0.1, 0.2, 0.35, 0.5, 0.75],
-      }
-    );
-
-    els.forEach((el) => obs.observe(el));
-    return () => obs.disconnect();
-  }, [sections]);
+  const sections = [
+    { h: "The agreement", body: [
+      "By creating a NoteStream account, you agree to these terms. They're written to be readable; if anything is unclear, write to legal@notestream.co and we'll explain — and probably rewrite this page.",
+      "These terms apply to anyone using the service, on any plan, including the free Reader tier. They may be updated; material changes get 30 days' notice.",
+    ]},
+    { h: "Your account", body: [
+      "You're responsible for keeping your login credentials private. If you suspect unauthorized access, write to security@notestream.co immediately and we'll lock the account while we investigate — no charge.",
+      "One person, one account. Team plans allow multiple seats; sharing a single seat across people is not allowed and may trigger an automatic upgrade prompt.",
+    ]},
+    { h: "Your content", body: [
+      "You own everything you put into NoteStream. We claim no rights to your notes, voice memos, documents, or any derived structured data. We host them, encrypt them, and serve them back to you.",
+      "You grant us the minimum technical license needed to operate the service: to store, transmit, decrypt at your request, and process for the specific AI features you invoke. That's it. The grant ends when you delete your data.",
+    ]},
+    { h: "Acceptable use", body: [
+      "Don't use NoteStream to store or transmit illegal content. Don't probe our infrastructure looking for vulnerabilities outside our coordinated disclosure program (security@notestream.co — we pay bounties).",
+      "Don't use the service in a way that would violate the privacy or rights of people you're capturing notes about. Local laws on recording, retention, and consent apply.",
+    ]},
+    { h: "Service availability", body: [
+      "We aim for 99.9% uptime, measured monthly. Recent statistics are on the Status page. If we miss the target, paying customers get a pro-rated credit, automatically.",
+      "We may take the service offline briefly for maintenance, with advance notice when possible. Emergency security patches happen without notice.",
+    ]},
+    { h: "Billing", body: [
+      "Paid plans renew monthly or annually. Cancel anytime from Settings; access continues until the end of the current period.",
+      "Refunds: within 30 days of an initial subscription, full refund, no questions. After that, pro-rated on cancellation if you request it. We'd rather you leave easily than feel stuck.",
+    ]},
+    { h: "If we mess up", body: [
+      "Our liability is capped at the amount you paid us in the previous 12 months. We carry insurance above that, but legally we have to write a cap; this is it.",
+      "We do not offer warranties on the accuracy of AI-generated summaries, briefs, or reasoning. They're tools to help you think — not statements of fact. Verify before you act.",
+    ]},
+    { h: "Ending the relationship", body: [
+      "You can close your account from Settings. We can suspend an account that's actively breaking these terms — usually after notice and a chance to fix the issue, except in cases of clear abuse.",
+      "On termination, you have 30 days to export your data. After that, it's deleted as described in the privacy policy.",
+    ]},
+    { h: "Jurisdiction", body: [
+      "These terms are governed by the laws of the State of Delaware, USA, with disputes resolved in the courts of New Castle County. EU residents retain all rights under their local consumer protection laws.",
+    ]},
+  ];
 
   return (
-    <div className="min-h-screen relative" style={{ backgroundColor: "var(--bg-primary)" }}>
-      {/* Subtle background */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div
-          className="absolute -top-24 left-1/2 -translate-x-1/2 h-[520px] w-[520px] rounded-full blur-3xl opacity-30"
-          style={{ background: "radial-gradient(circle, rgba(99,102,241,.35), transparent 60%)" }}
-        />
-        <div
-          className="absolute -bottom-24 left-1/3 h-[520px] w-[520px] rounded-full blur-3xl opacity-20"
-          style={{ background: "radial-gradient(circle, rgba(16,185,129,.25), transparent 60%)" }}
-        />
-      </div>
+    <div className="ns-ed" style={{ minHeight: "100vh" }}>
+      <section style={{ paddingTop: 140, paddingBottom: 64 }}>
+        <div className="ed-page">
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "flex-end",
+            marginBottom: 48, flexWrap: "wrap", gap: 16,
+          }}>
+            <div className="ed-chapter">
+              <span className="num">§</span>
+              <span>The terms, made plain</span>
+            </div>
+            <div className="ed-mono" style={{
+              fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint,
+            }}>
+              Effective May 2026 · v3.0
+            </div>
+          </div>
+          <hr className="ed-rule-dbl" style={{ marginBottom: 48 }} />
 
-      <section className="relative max-w-5xl mx-auto px-5 sm:px-6 py-16 sm:py-20">
-
-        {/* ── Page header ── */}
-        <div className="mb-10 sm:mb-12 text-center">
-          <h1
-            className="text-3xl sm:text-4xl font-bold tracking-tight"
-            style={{ color: "var(--text-primary)" }}
-          >
-            Terms & Conditions
+          <h1 className="ed-display" style={{
+            fontSize: "clamp(48px, 7vw, 110px)", margin: 0, color: ED.ink,
+          }}>
+            Terms of<br />
+            <span className="ed-italic" style={{ color: ED.accent }}>good faith.</span>
           </h1>
-          <p className="text-sm mt-2" style={{ color: "var(--text-muted)" }}>
-            Last updated: <span style={{ color: "var(--text-secondary)" }}>{updated}</span>
+          <p className="ed-lede" style={{ marginTop: 28, maxWidth: 620 }}>
+            The contract between you and NoteStream, written so a normal person
+            can read it. If something is unclear, it's our fault — write to
+            us and we'll fix the page.
           </p>
         </div>
+      </section>
 
-        {/* ── Intro card ── */}
-        <div className="mb-8">
-          <GlassCard className="p-6 sm:p-8">
-            <p
-              className="text-[15px] leading-relaxed"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Welcome to{" "}
-              <span className="font-semibold" style={{ color: "#818cf8" }}>NoteStream</span>.
-              By accessing or using our website, dashboard, or associated services,
-              you agree to the terms below. If you do not agree, please discontinue use.
-            </p>
+      <section style={{ padding: "0 0 96px" }}>
+        <div className="ed-page">
+          <div className="legal-grid" style={{
+            display: "grid", gridTemplateColumns: "220px 1fr", gap: 56, alignItems: "start",
+          }}>
+            <aside style={{ position: "sticky", top: 120 }}>
+              <div className="ed-mono" style={{
+                fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase",
+                color: ED.inkFaint, marginBottom: 14,
+              }}>
+                On this page
+              </div>
+              <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 8 }}>
+                {sections.map((s, i) => (
+                  <li key={s.h}>
+                    <a href={`#t-${i}`} className="ed-ulink" style={{
+                      display: "grid", gridTemplateColumns: "24px 1fr", gap: 10,
+                      fontFamily: ED.serif, fontSize: 15, color: ED.inkSoft,
+                    }}>
+                      <span className="ed-mono" style={{ fontSize: 10, color: ED.inkFaint }}>
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span>{s.h}</span>
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </aside>
 
-            {/* Mobile TOC */}
-            <div className="mt-5 lg:hidden">
-              <button
-                type="button"
-                onClick={() => setMobileOpen((v) => !v)}
-                className="w-full flex items-center justify-between rounded-xl px-4 py-3 border text-sm transition"
-                style={{
-                  borderColor: "var(--border-secondary)",
-                  backgroundColor: "var(--bg-input)",
-                  color: "var(--text-secondary)",
-                }}
-              >
-                <span className="font-medium">On this page</span>
-                <span style={{ color: "var(--text-muted)" }}>{mobileOpen ? "−" : "+"}</span>
-              </button>
-
-              {mobileOpen && (
-                <div
-                  className="mt-2 rounded-xl border overflow-hidden"
-                  style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-input)" }}
-                >
-                  {sections.map((s, idx) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => { setMobileOpen(false); scrollToId(s.id); }}
-                      className="w-full text-left px-4 py-3 text-sm transition"
-                      style={{
-                        backgroundColor: activeId === s.id ? "rgba(255,255,255,0.04)" : "transparent",
-                        color: "var(--text-secondary)",
-                      }}
-                    >
-                      <span style={{ color: "var(--text-muted)" }} className="mr-2">{idx + 1}.</span>
-                      {s.title}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </GlassCard>
-        </div>
-
-        {/* ── Content grid ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-
-          {/* Desktop sidebar TOC */}
-          <aside className="hidden lg:block lg:col-span-4">
-            <div className="sticky top-28">
-              <GlassCard className="p-5">
-                <p
-                  className="text-[10px] font-bold uppercase tracking-widest mb-4"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  On this page
-                </p>
-
-                <div className="space-y-1.5">
-                  {sections.map((s, idx) => {
-                    const isActive = activeId === s.id;
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => scrollToId(s.id)}
-                        className="w-full flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] transition"
-                        style={{
-                          backgroundColor: isActive ? "rgba(99,102,241,0.08)" : "transparent",
-                          border: isActive ? "1px solid rgba(99,102,241,0.25)" : "1px solid transparent",
-                          color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
-                        }}
-                      >
-                        <span className="truncate">
-                          <span style={{ color: "var(--text-muted)" }} className="mr-2">{idx + 1}.</span>
-                          {s.title}
-                        </span>
-                        {isActive && (
-                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#818cf8" }} />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--border-secondary)" }}>
-                  <button
-                    type="button"
-                    onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                    className="w-full rounded-xl px-3 py-2 text-[12px] transition"
-                    style={{ color: "var(--text-muted)", border: "1px solid var(--border-secondary)" }}
-                  >
-                    ↑ Back to top
-                  </button>
-                </div>
-              </GlassCard>
-            </div>
-          </aside>
-
-          {/* Sections */}
-          <main className="lg:col-span-8 space-y-5">
-            {sections.map((s, idx) => {
-              const Icon = s.icon;
-              return (
-                <GlassCard key={s.id} className="p-6 sm:p-7">
-                  <div id={s.id} className="scroll-mt-32">
-                    <div className="flex items-center gap-3 mb-3">
-                      <Icon size={20} weight="duotone" style={{ color: "#818cf8", flexShrink: 0 }} />
-                      <h2
-                        className="text-lg font-semibold"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {idx + 1}. {s.title}
-                      </h2>
-                    </div>
-
-                    <p
-                      className="text-[14px] leading-relaxed"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
-                      {s.body}
-                    </p>
-
-                    {s.id === "contact" && (
-                      <div className="mt-4">
-                        <a
-                          className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-[13px] font-medium transition"
-                          style={{
-                            backgroundColor: "rgba(99,102,241,0.08)",
-                            border: "1px solid rgba(99,102,241,0.25)",
-                            color: "#818cf8",
-                          }}
-                          href="mailto:support@notestream.app"
-                        >
-                          <EnvelopeSimple size={14} weight="duotone" />
-                          support@notestream.app
-                        </a>
-                      </div>
-                    )}
+            <div>
+              {sections.map((s, i) => (
+                <article key={s.h} id={`t-${i}`} style={{
+                  paddingBottom: 40, marginBottom: 40,
+                  borderBottom: i < sections.length - 1 ? `1px solid ${ED.rule}` : "none",
+                }}>
+                  <div className="ed-chapter" style={{ marginBottom: 14 }}>
+                    <span className="num">§ {String(i + 1).padStart(2, "0")}</span>
                   </div>
-                </GlassCard>
-              );
-            })}
+                  <h2 className="ed-display" style={{
+                    fontSize: "clamp(28px, 3.6vw, 44px)", margin: 0, color: ED.ink,
+                    letterSpacing: "-0.02em",
+                  }}>
+                    {s.h}
+                  </h2>
+                  <div style={{ marginTop: 18 }}>
+                    {s.body.map((p, j) => (
+                      <p key={j} className={j === 0 ? "ed-dropcap" : ""} style={{
+                        fontSize: 17, lineHeight: 1.7, color: ED.inkSoft,
+                        maxWidth: 680, marginTop: j === 0 ? 0 : 14,
+                      }}>
+                        {p}
+                      </p>
+                    ))}
+                  </div>
+                </article>
+              ))}
 
-            <GlassCard className="p-5">
-              <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-                These terms are a general template and may need review to match your
-                jurisdiction, billing model, and privacy policy.
+              <p className="ed-serif ed-italic" style={{
+                fontSize: 17, color: ED.inkMute, marginTop: 24,
+              }}>
+                Questions? <a href="mailto:legal@notestream.co" className="ed-ulink" style={{ color: ED.accent }}>legal@notestream.co</a>.
               </p>
-            </GlassCard>
-          </main>
+            </div>
+          </div>
         </div>
+
+        <style>{`
+          @media (max-width: 900px) {
+            .ns-ed .legal-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
+            .ns-ed .legal-grid > aside { position: static !important; }
+          }
+        `}</style>
       </section>
     </div>
   );
