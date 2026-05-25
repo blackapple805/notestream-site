@@ -211,7 +211,7 @@ const SCOPED_CSS = `
      Use the ed-mobile-stack class if you do want a 7-col grid to
      collapse. */
   .ns-ed [style*="repeat(3"][style*="grid"],
-  .ns-ed [style*="repeat(4"][style*="grid"],
+  .ns-ed [style*="repeat(4, 1fr)"][style*="grid"],
   .ns-ed [style*="repeat(5"][style*="grid"],
   .ns-ed [style*="repeat(6"][style*="grid"] {
     grid-template-columns: 1fr !important;

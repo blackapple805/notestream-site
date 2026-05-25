@@ -293,3 +293,23 @@ button { font-family: inherit; cursor: pointer; }
     radial-gradient(circle at 75% 70%, rgba(19,16,8,0.02), transparent 55%);
   z-index: 0;
 }
+
+.clarity-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  margin-top: 18px;
+}
+
+@media (max-width: 767px) {
+  .clarity-grid {
+    grid-template-columns: 1fr; /* Single column on mobile */
+  }
+}
+
+/* Or for tablet breakpoint */
+@media (max-width: 1023px) {
+  .clarity-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); /* 2 columns */
+  }
+}

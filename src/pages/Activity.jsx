@@ -837,12 +837,8 @@ export default function Activity() {
             title="What the model thinks of your week."
           />
 
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)",
-            gap: 24,
-            marginTop: 18,
-          }}>
+          {/* Changed: Removed inline style, added className */}
+          <div className="clarity-grid">
             {/* Clarity */}
             <div className="ns-act-card" style={{ padding: 24 }}>
               <p style={{
