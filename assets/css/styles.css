@@ -307,45 +307,133 @@ button { font-family: inherit; cursor: pointer; }
   }
 }
 
-/* Or for tablet breakpoint */
-@media (max-width: 1023px) {
-  .clarity-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); /* 2 columns */
-  }
-}
-
-.weekly-streak-grid {
+/* Fully responsive weekly streak grid */
+.weekly-streak-adaptive {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.streak-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
 }
 
 .ns-act-streak-cell {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  font-size: 20px;
+  font-size: 22px;
+  font-weight: 500;
   flex-shrink: 0;
 }
 
-/* Mobile adjustment */
-@media (max-width: 767px) {
+.streak-label {
+  font-family: var(--ed-mono, "Geist Mono", ui-monospace, monospace);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ed-ink-faint, #8a8472);
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+/* Tablet: 5 columns + smaller gap */
+@media (max-width: 1023px) {
+  .weekly-streak-adaptive {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+  }
+
+  .ns-act-streak-cell {
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+  }
+
+  .streak-label {
+    font-size: 8px;
+  }
+}
+
+/* Larger tablet: 4 columns + adjusted gap */
+@media (max-width: 900px) {
+  .weekly-streak-adaptive {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .ns-act-streak-cell {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .streak-label {
+    font-size: 7.5px;
+  }
+}
+
+/* Mobile landscape: 4 columns */
+@media (max-width: 768px) {
+  .weekly-streak-adaptive {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .ns-act-streak-cell {
+    width: 38px;
+    height: 38px;
+    font-size: 17px;
+  }
+
+  .streak-label {
+    font-size: 7px;
+    letter-spacing: 0.12em;
+  }
+}
+
+/* Mobile portrait: 3-4 columns wrapping naturally */
+@media (max-width: 540px) {
+  .weekly-streak-adaptive {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
   .ns-act-streak-cell {
     width: 36px;
     height: 36px;
-    font-size: 18px;
+    font-size: 16px;
+  }
+
+  .streak-label {
+    font-size: 6.5px;
+    letter-spacing: 0.1em;
   }
 }
 
-@media (max-width: 480px) {
+/* Small mobile: 2-3 columns wrapping */
+@media (max-width: 380px) {
+  .weekly-streak-adaptive {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+  }
+
   .ns-act-streak-cell {
     width: 32px;
     height: 32px;
-    font-size: 16px;
+    font-size: 14px;
+  }
+
+  .streak-label {
+    font-size: 6px;
+    letter-spacing: 0.08em;
   }
 }
-
