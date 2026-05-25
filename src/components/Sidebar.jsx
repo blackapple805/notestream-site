@@ -659,17 +659,41 @@ const QuickCreateItem = ({ icon, label, sub, onClick, ord }) => (
 ═══════════════════════════════════════════════════════ */
 const SidebarScopedStyles = ({ desktopH, mobileH, leftW }) => (
   <style>{`
-    /* ── GLOBAL paper paint (unscoped) ── */
+    /* ── GLOBAL paper paint (unscoped) ──
+       Paints the entire authenticated app in the editorial palette
+       by overriding the legacy CSS variables that older page code
+       still references. This means any page we haven't reskinned
+       (and any sub-component inside a reskinned page that still uses
+       --bg-input, --text-muted, etc.) inherits the paper / ink
+       values automatically. */
     html, body {
       background-color: #f6f1e3 !important;
       color: #131008;
     }
+    :root {
+      --bg-primary:    #f6f1e3 !important;
+      --bg-secondary:  #f6f1e3 !important;
+      --bg-surface:    #fbf8f0 !important;
+      --bg-elevated:   #fbf8f0 !important;
+      --bg-tertiary:   #efe9d8 !important;
+      --bg-input:      #fbf8f0 !important;
+      --bg-hover:      #efe9d8 !important;
+      --bg-overlay:    rgba(19,16,8,0.32) !important;
+      --text-primary:    #131008 !important;
+      --text-secondary:  #2a2519 !important;
+      --text-muted:      #8a8472 !important;
+      --border-primary:   #d8cfb6 !important;
+      --border-secondary: #d8cfb6 !important;
+      --accent-indigo: #1f3aa8 !important;
+      --accent-purple: #1f3aa8 !important;
+      --accent-rose:   #1f3aa8 !important;
+    }
     .bg-theme-primary, .bg-theme-secondary, .bg-theme-tertiary {
       background-color: #f6f1e3 !important;
     }
-    .text-theme-primary { color: #131008 !important; }
+    .text-theme-primary   { color: #131008 !important; }
     .text-theme-secondary { color: #2a2519 !important; }
-    .text-theme-muted { color: #8a8472 !important; }
+    .text-theme-muted     { color: #8a8472 !important; }
 
     .ns-ed-sidebar { display: contents; }
 
