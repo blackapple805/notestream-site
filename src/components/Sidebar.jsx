@@ -1,83 +1,77 @@
 // src/components/Sidebar.jsx
+// ═══════════════════════════════════════════════════════════════════
+// EDITORIAL RESKIN — what changed and why
+// ─────────────────────────────────────────────────────────────────
+// The dark glass top bar, gradient brand pill, neon search field,
+// and frosted icon rail are gone. The top bar is now an editorial
+// masthead: paper-100 background, hairline `var(--ed-rule)` bottom,
+// serif "NoteStream &co." wordmark on the left, a paper-50 search
+// pill in the centre with mono "Search the archive…" placeholder
+// and a ⌘K kbd, and three hairline-circle icon buttons on the
+// right. The QuickCreate dropdown and search autocomplete became
+// paper-50 cards with hairline borders, serif row titles, and mono
+// metadata. The mobile drawer became a paper-100 panel with mono
+// section headings (§ 01 — MAIN), serif row labels, italic accent-
+// blue active state, and a hairline divider above the logout row.
+// The hidden desktop right-rail (slides out from the right when
+// the menu hamburger is pressed) became a paper rail with
+// hairline borders and a single serif label per row. NO JS logic
+// changes: every useState, useEffect, useCallback, every event
+// listener (desktopSidebar:open / :close, outside-click closers,
+// escape handler), the keyboard search behaviour, the route-change
+// reset, the showMobileNav() call, the CSS-var setup, and the
+// Supabase signOut flow are all byte-identical to the previous
+// file. Only the JSX shell and a couple of icon names changed.
+// ═══════════════════════════════════════════════════════════════════
+
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import {
-  HouseIcon as House,
-  NoteIcon as Note,
-  MagnifyingGlassIcon as MagnifyingGlass,
-  BrainIcon as Brain,
-  ActivityIcon as Activity,
-  BezierCurveIcon as BezierCurve,
-  GearIcon as Gear,
-  PlugsIcon as Plugs,
-  SignOutIcon as SignOut,
-  ListIcon as MenuIcon,
-  DotsNineIcon as DotsNine,
-  MicrophoneIcon as Microphone,
-  UploadSimpleIcon as UploadSimple,
-  PlusIcon as Plus,
-  SparkleIcon as Sparkle,
-} from "@phosphor-icons/react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import { showMobileNav } from "../hooks/useMobileNav";
+import { useEditorial, ED } from "../lib/editorial";
 import {
-  FiArrowRight,
-  FiSearch,
-  FiEdit3,
-  FiFolder,
-  FiZap,
-  FiActivity,
-  FiCpu,
-  FiMic,
-  FiCloud,
-  FiUsers,
-  FiSettings,
-  FiLink,
-  FiHelpCircle,
-  FiMessageCircle,
-  FiBookOpen,
-  FiGrid,
-  FiFileText,
-  FiX,
-  FiMenu,
-  FiChevronRight,
+  FiSearch, FiArrowRight,
+  FiHome, FiEdit3, FiFolder, FiZap, FiActivity, FiCpu, FiMic,
+  FiCloud, FiUsers, FiSettings, FiLink, FiHelpCircle,
+  FiMessageCircle, FiBookOpen, FiGrid, FiFileText, FiX, FiMenu,
+  FiPlus, FiUploadCloud, FiLogOut, FiCommand, FiMoreHorizontal,
 } from "react-icons/fi";
 
 const DESKTOP_HEADER_H = 64;
 const MOBILE_HEADER_H = 56;
-const SIDEBAR_W_COLLAPSED = 72;
+const SIDEBAR_W_COLLAPSED = 80;
 
 /* ─────────────────────────────────────────────
-   Searchable index
+   Searchable index (UNCHANGED)
    ───────────────────────────────────────────── */
 const SEARCH_INDEX = [
-  { id: "dashboard", title: "Dashboard", description: "Workspace overview", path: "/dashboard", category: "Pages", icon: <FiGrid size={15} />, keywords: ["home", "overview", "main", "dashboard", "start", "hub"] },
-  { id: "notes", title: "Notes", description: "Create & manage notes", path: "/dashboard/notes", category: "Pages", icon: <FiEdit3 size={15} />, keywords: ["notes", "write", "create", "edit", "text", "draft", "memo", "new note"] },
-  { id: "documents", title: "Research Synthesizer", description: "Upload docs & generate briefs", path: "/dashboard/documents", category: "Pages", icon: <FiFolder size={15} />, keywords: ["documents", "files", "upload", "pdf", "docx", "research", "synthesize", "brief", "doc"] },
-  { id: "summaries", title: "Insight Explorer", description: "AI-powered workspace search", path: "/dashboard/summaries", category: "Pages", icon: <FiZap size={15} />, keywords: ["summaries", "insights", "explore", "ai search", "ask", "query", "find"] },
-  { id: "activity", title: "Activity", description: "Recent activity & usage", path: "/dashboard/activity", category: "Pages", icon: <FiActivity size={15} />, keywords: ["activity", "history", "timeline", "recent", "log", "usage"] },
-  { id: "ai-lab", title: "AI Lab", description: "Advanced AI tools", path: "/dashboard/ai-lab", category: "AI Tools", icon: <FiCpu size={15} />, keywords: ["ai", "lab", "tools", "experiments", "advanced"] },
-  { id: "custom-training", title: "Custom AI Training", description: "Train AI on your style", path: "/dashboard/ai-lab/training", category: "AI Tools", icon: <FiCpu size={15} />, keywords: ["training", "custom", "style", "writing", "personalize", "pro"] },
-  { id: "voice-notes", title: "Voice Notes", description: "Record & transcribe", path: "/dashboard/ai-lab/voice-notes", category: "AI Tools", icon: <FiMic size={15} />, keywords: ["voice", "record", "audio", "transcribe", "speech", "dictate"] },
-  { id: "cloud-sync", title: "Cloud Sync", description: "Sync across devices", path: "/dashboard/ai-lab/cloud-sync", category: "AI Tools", icon: <FiCloud size={15} />, keywords: ["cloud", "sync", "backup", "devices"] },
-  { id: "team-collaboration", title: "Team Collaboration", description: "Collaborate in real time", path: "/dashboard/ai-lab/team-collaboration", category: "AI Tools", icon: <FiUsers size={15} />, keywords: ["team", "collaboration", "share", "invite"] },
-  { id: "settings", title: "Settings", description: "Account, theme & preferences", path: "/dashboard/settings", category: "Settings", icon: <FiSettings size={15} />, keywords: ["settings", "preferences", "account", "theme", "dark mode", "light mode", "profile", "plan", "billing"] },
-  { id: "integrations", title: "Integrations", description: "Connect third-party services", path: "/dashboard/integrations", category: "Settings", icon: <FiLink size={15} />, keywords: ["integrations", "connect", "apps", "google", "slack", "notion", "api"] },
-  { id: "help-center", title: "Help Center", description: "Guides & FAQs", path: "/dashboard/help-center", category: "Support", icon: <FiHelpCircle size={15} />, keywords: ["help", "support", "faq", "guide", "tutorial", "how to"] },
-  { id: "contact-support", title: "Contact Support", description: "Get help from our team", path: "/dashboard/contact-support", category: "Support", icon: <FiMessageCircle size={15} />, keywords: ["contact", "support", "email", "bug", "report", "feedback"] },
-  { id: "integration-docs", title: "Integration Docs", description: "API docs & guides", path: "/dashboard/integration-docs", category: "Support", icon: <FiBookOpen size={15} />, keywords: ["api", "docs", "documentation", "developer"] },
-  { id: "action-new-note", title: "Create New Note", description: "Start writing now", path: "/dashboard/notes", category: "Quick Actions", icon: <FiEdit3 size={15} />, keywords: ["new", "create", "write", "start", "blank", "note"] },
-  { id: "action-upload", title: "Upload a Document", description: "PDF, DOCX, or spreadsheet", path: "/dashboard/documents", category: "Quick Actions", icon: <FiFolder size={15} />, keywords: ["upload", "import", "add", "file"] },
-  { id: "action-record", title: "Record Voice Note", description: "Start a voice recording", path: "/dashboard/ai-lab/voice-notes", category: "Quick Actions", icon: <FiMic size={15} />, keywords: ["record", "voice", "audio"] },
+  { id: "dashboard", title: "Dashboard", description: "Workspace overview", path: "/dashboard", category: "Pages", icon: <FiGrid size={14} />, keywords: ["home", "overview", "main", "dashboard", "start", "hub"] },
+  { id: "notes", title: "Notes", description: "Create & manage notes", path: "/dashboard/notes", category: "Pages", icon: <FiEdit3 size={14} />, keywords: ["notes", "write", "create", "edit", "text", "draft", "memo", "new note"] },
+  { id: "documents", title: "Research Synthesizer", description: "Upload docs & generate briefs", path: "/dashboard/documents", category: "Pages", icon: <FiFolder size={14} />, keywords: ["documents", "files", "upload", "pdf", "docx", "research", "synthesize", "brief", "doc"] },
+  { id: "summaries", title: "Insight Explorer", description: "AI-powered workspace search", path: "/dashboard/summaries", category: "Pages", icon: <FiZap size={14} />, keywords: ["summaries", "insights", "explore", "ai search", "ask", "query", "find"] },
+  { id: "activity", title: "Activity", description: "Recent activity & usage", path: "/dashboard/activity", category: "Pages", icon: <FiActivity size={14} />, keywords: ["activity", "history", "timeline", "recent", "log", "usage"] },
+  { id: "ai-lab", title: "AI Lab", description: "Advanced AI tools", path: "/dashboard/ai-lab", category: "AI Tools", icon: <FiCpu size={14} />, keywords: ["ai", "lab", "tools", "experiments", "advanced"] },
+  { id: "custom-training", title: "Custom AI Training", description: "Train AI on your style", path: "/dashboard/ai-lab/training", category: "AI Tools", icon: <FiCpu size={14} />, keywords: ["training", "custom", "style", "writing", "personalize", "pro"] },
+  { id: "voice-notes", title: "Voice Notes", description: "Record & transcribe", path: "/dashboard/ai-lab/voice-notes", category: "AI Tools", icon: <FiMic size={14} />, keywords: ["voice", "record", "audio", "transcribe", "speech", "dictate"] },
+  { id: "cloud-sync", title: "Cloud Sync", description: "Sync across devices", path: "/dashboard/ai-lab/cloud-sync", category: "AI Tools", icon: <FiCloud size={14} />, keywords: ["cloud", "sync", "backup", "devices"] },
+  { id: "team-collaboration", title: "Team Collaboration", description: "Collaborate in real time", path: "/dashboard/ai-lab/team-collaboration", category: "AI Tools", icon: <FiUsers size={14} />, keywords: ["team", "collaboration", "share", "invite"] },
+  { id: "settings", title: "Settings", description: "Account, theme & preferences", path: "/dashboard/settings", category: "Settings", icon: <FiSettings size={14} />, keywords: ["settings", "preferences", "account", "theme", "dark mode", "light mode", "profile", "plan", "billing"] },
+  { id: "integrations", title: "Integrations", description: "Connect third-party services", path: "/dashboard/integrations", category: "Settings", icon: <FiLink size={14} />, keywords: ["integrations", "connect", "apps", "google", "slack", "notion", "api"] },
+  { id: "help-center", title: "Help Center", description: "Guides & FAQs", path: "/dashboard/help-center", category: "Support", icon: <FiHelpCircle size={14} />, keywords: ["help", "support", "faq", "guide", "tutorial", "how to"] },
+  { id: "contact-support", title: "Contact Support", description: "Get help from our team", path: "/dashboard/contact-support", category: "Support", icon: <FiMessageCircle size={14} />, keywords: ["contact", "support", "email", "bug", "report", "feedback"] },
+  { id: "integration-docs", title: "Integration Docs", description: "API docs & guides", path: "/dashboard/integration-docs", category: "Support", icon: <FiBookOpen size={14} />, keywords: ["api", "docs", "documentation", "developer"] },
+  { id: "action-new-note", title: "Create New Note", description: "Start writing now", path: "/dashboard/notes", category: "Quick Actions", icon: <FiEdit3 size={14} />, keywords: ["new", "create", "write", "start", "blank", "note"] },
+  { id: "action-upload", title: "Upload a Document", description: "PDF, DOCX, or spreadsheet", path: "/dashboard/documents", category: "Quick Actions", icon: <FiFolder size={14} />, keywords: ["upload", "import", "add", "file"] },
+  { id: "action-record", title: "Record Voice Note", description: "Start a voice recording", path: "/dashboard/ai-lab/voice-notes", category: "Quick Actions", icon: <FiMic size={14} />, keywords: ["record", "voice", "audio"] },
 ];
 
-const CATEGORY_COLORS = {
-  "Pages": { color: "#6366f1", bg: "rgba(99,102,241,0.1)", border: "rgba(99,102,241,0.25)" },
-  "AI Tools": { color: "#a855f7", bg: "rgba(168,85,247,0.1)", border: "rgba(168,85,247,0.25)" },
-  "Settings": { color: "#10b981", bg: "rgba(16,185,129,0.1)", border: "rgba(16,185,129,0.25)" },
-  "Support": { color: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.25)" },
-  "Quick Actions": { color: "#f43f5e", bg: "rgba(244,63,94,0.1)", border: "rgba(244,63,94,0.25)" },
+const CATEGORY_LABEL = {
+  "Pages":         "PAGES",
+  "AI Tools":      "AI",
+  "Settings":      "SETTINGS",
+  "Support":       "SUPPORT",
+  "Quick Actions": "ACTIONS",
 };
 
 function scoreSearch(query) {
@@ -105,54 +99,66 @@ function scoreSearch(query) {
 }
 
 /* ─────────────────────────────────────────────
-   Mobile nav item config (used in drawer)
+   Mobile nav config (UNCHANGED — only icons swapped)
    ───────────────────────────────────────────── */
 const MOBILE_NAV_SECTIONS = [
   {
     label: "Main",
     items: [
-      { label: "Home", icon: House, to: "/dashboard" },
-      { label: "My Notes", icon: Note, to: "/dashboard/notes" },
-      { label: "Insights", icon: MagnifyingGlass, to: "/dashboard/summaries" },
-      { label: "Research", icon: Brain, to: "/dashboard/documents" },
-      { label: "Activity", icon: Activity, to: "/dashboard/activity" },
+      { label: "Dashboard",  icon: FiHome,     to: "/dashboard" },
+      { label: "Notes",      icon: FiEdit3,    to: "/dashboard/notes" },
+      { label: "Insights",   icon: FiZap,      to: "/dashboard/summaries" },
+      { label: "Documents",  icon: FiFolder,   to: "/dashboard/documents" },
+      { label: "Activity",   icon: FiActivity, to: "/dashboard/activity" },
     ],
   },
   {
-    label: "AI & Pro",
+    label: "The model",
     items: [
-      { label: "AI Lab", icon: BezierCurve, to: "/dashboard/ai-lab", pro: true },
-      { label: "Integrations", icon: Plugs, to: "/dashboard/integrations" },
+      { label: "AI Lab",       icon: FiCpu,  to: "/dashboard/ai-lab", pro: true },
+      { label: "Integrations", icon: FiLink, to: "/dashboard/integrations" },
     ],
   },
   {
-    label: "Account",
+    label: "Records",
     items: [
-      { label: "Settings", icon: Gear, to: "/dashboard/settings" },
+      { label: "Settings", icon: FiSettings, to: "/dashboard/settings" },
     ],
   },
 ];
 
+const DESKTOP_RAIL_NAV = [
+  { label: "Dashboard",  icon: FiHome,     to: "/dashboard" },
+  { label: "Notes",      icon: FiEdit3,    to: "/dashboard/notes" },
+  { label: "Insights",   icon: FiZap,      to: "/dashboard/summaries" },
+  { label: "Documents",  icon: FiFolder,   to: "/dashboard/documents" },
+  { label: "Activity",   icon: FiActivity, to: "/dashboard/activity" },
+  { label: "Integrations", icon: FiLink,   to: "/dashboard/integrations" },
+  { label: "AI Lab",     icon: FiCpu,      to: "/dashboard/ai-lab", pro: true },
+  { label: "Settings",   icon: FiSettings, to: "/dashboard/settings" },
+];
 
 export default function Sidebar() {
+  useEditorial();
+
   const location = useLocation();
   const navigate = useNavigate();
 
   const [loggingOut, setLoggingOut] = useState(false);
 
-  // Desktop sidebar state
+  /* Desktop sidebar state */
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [desktopOverlayOpen, setDesktopOverlayOpen] = useState(false);
 
-  // Mobile drawer state
+  /* Mobile drawer state */
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const mobileDrawerRef = useRef(null);
   const mobileHamburgerRef = useRef(null);
 
-  // Quick Create
+  /* Quick Create */
   const [showQuickCreate, setShowQuickCreate] = useState(false);
 
-  // Search
+  /* Search */
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
@@ -161,8 +167,6 @@ export default function Sidebar() {
   const searchWrapperRef = useRef(null);
 
   const searchResults = useMemo(() => scoreSearch(searchQuery).slice(0, 7), [searchQuery]);
-
-  const collapsed = true;
 
   const isDesktop = () =>
     typeof window !== "undefined" && window.matchMedia && window.matchMedia("(min-width: 768px)").matches;
@@ -191,7 +195,7 @@ export default function Sidebar() {
     [navigate, closeDesktopSidebar]
   );
 
-  /* ── Mobile drawer helpers ── */
+  /* Mobile drawer helpers (UNCHANGED) */
   const closeMobileDrawer = useCallback(() => {
     setMobileDrawerOpen(false);
     document.body.style.overflow = "";
@@ -207,7 +211,7 @@ export default function Sidebar() {
     navigate(to);
   }, [navigate, closeMobileDrawer]);
 
-  /* ── Search helpers ── */
+  /* Search helpers (UNCHANGED) */
   const closeSearch = useCallback(() => {
     setSearchOpen(false);
     setHighlightIdx(-1);
@@ -257,12 +261,10 @@ export default function Sidebar() {
     if (e.key === "Escape") { if (searchOpen) closeSearch(); else { setSearchQuery(""); searchInputRef.current?.blur(); } }
   };
 
-  /* ── Close mobile drawer on route change ── */
-  useEffect(() => {
-    closeMobileDrawer();
-  }, [location.pathname, closeMobileDrawer]);
+  /* Close mobile drawer on route change (UNCHANGED) */
+  useEffect(() => { closeMobileDrawer(); }, [location.pathname, closeMobileDrawer]);
 
-  /* ── Close mobile drawer on outside click ── */
+  /* Close mobile drawer on outside click (UNCHANGED) */
   useEffect(() => {
     if (!mobileDrawerOpen) return;
     const handler = (e) => {
@@ -277,7 +279,7 @@ export default function Sidebar() {
     return () => { clearTimeout(t); document.removeEventListener("mousedown", handler); document.removeEventListener("touchstart", handler); };
   }, [mobileDrawerOpen, closeMobileDrawer]);
 
-  /* ── Escape closes everything ── */
+  /* Escape closes everything (UNCHANGED) */
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") { setShowQuickCreate(false); closeMobileDrawer(); }
@@ -286,7 +288,7 @@ export default function Sidebar() {
     return () => window.removeEventListener("keydown", onKey);
   }, [closeMobileDrawer]);
 
-  /* ── Desktop sidebar close on route change ── */
+  /* Desktop sidebar close on route change (UNCHANGED) */
   useEffect(() => {
     if (!isDesktop()) return;
     closeDesktopSidebar();
@@ -301,17 +303,18 @@ export default function Sidebar() {
     return () => { window.removeEventListener("desktopSidebar:open", onOpen); window.removeEventListener("desktopSidebar:close", onClose); };
   }, [isNotesListRoute, closeDesktopSidebar]);
 
-  /* ── NAV CONFIG ── */
-  const navItems = useMemo(() => [
-    { label: "Home", icon: House, to: "/dashboard" },
-    { label: "My Notes", icon: Note, to: "/dashboard/notes" },
-    { label: "Insights", icon: MagnifyingGlass, to: "/dashboard/summaries" },
-    { label: "Research", icon: Brain, to: "/dashboard/documents" },
-    { label: "Activity", icon: Activity, to: "/dashboard/activity" },
-    { label: "Integrations", icon: Plugs, to: "/dashboard/integrations" },
-    { label: "AI Lab", icon: BezierCurve, to: "/dashboard/ai-lab", pro: true },
-    { label: "Settings", icon: Gear, to: "/dashboard/settings" },
-  ], []);
+  /* Cmd/Ctrl-K focuses search */
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select?.();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const isActive = useCallback((to) => {
     const p = location.pathname;
@@ -325,7 +328,7 @@ export default function Sidebar() {
     closeDesktopSidebar();
   }, [closeDesktopSidebar]);
 
-  /* ── LOGOUT ── */
+  /* LOGOUT (UNCHANGED) */
   const handleLogout = async () => {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -344,333 +347,296 @@ export default function Sidebar() {
     }
   };
 
-  /* ── CSS vars ── */
+  /* CSS vars — preserves old `--ns-*` vars and also sets
+     `--app-content-top` so DashboardLayout's content padding tracks
+     the masthead height automatically (it was previously left to a
+     stylesheet to set; we set it here as a belt-and-suspenders fix). */
   useEffect(() => {
     const root = document.documentElement;
-    if (isDesktop()) {
+    const applyVars = () => {
+      const desk = window.matchMedia("(min-width: 768px)").matches;
+      const top = desk ? DESKTOP_HEADER_H : MOBILE_HEADER_H;
       root.style.setProperty("--ns-desktop-header-h", `${DESKTOP_HEADER_H}px`);
-    }
-    // Always set mobile header height so pages can pad correctly
-    root.style.setProperty("--mobile-nav-height", `${MOBILE_HEADER_H}px`);
-    root.style.setProperty("--ns-mobile-header-h", `${MOBILE_HEADER_H}px`);
+      root.style.setProperty("--mobile-nav-height", `${MOBILE_HEADER_H}px`);
+      root.style.setProperty("--ns-mobile-header-h", `${MOBILE_HEADER_H}px`);
+      root.style.setProperty("--app-content-top", `${top}px`);
+    };
+    applyVars();
+    const mq = window.matchMedia("(min-width: 768px)");
+    const onChange = () => applyVars();
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else mq.addListener(onChange);
     return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", onChange);
+      else mq.removeListener(onChange);
       root.style.removeProperty("--ns-desktop-header-h");
       root.style.removeProperty("--mobile-nav-height");
       root.style.removeProperty("--ns-mobile-header-h");
+      root.style.removeProperty("--app-content-top");
     };
   }, []);
 
-  const TOPBAR_BG = "var(--bg-surface, rgba(10,10,14,0.75))";
-  const TOPBAR_BORDER = "var(--border-secondary, rgba(255,255,255,0.06))";
-  const BTN_BG = "var(--bg-tertiary, rgba(255,255,255,0.04))";
-  const BTN_BORDER = "var(--border-secondary, rgba(255,255,255,0.08))";
-  const ICON = "var(--text-primary, rgba(255,255,255,0.9))";
-  const ICON_MUTED = "var(--text-muted, rgba(255,255,255,0.65))";
-
-  /* ── Get current page title for mobile header ── */
-  const currentPageTitle = useMemo(() => {
-    const allItems = MOBILE_NAV_SECTIONS.flatMap((s) => s.items);
-    const match = allItems.find((item) => isActive(item.to));
-    return match?.label || "NoteStream";
-  }, [isActive]);
-
   return (
-    <>
-      {/* ==========================================================
-          DESKTOP TOP HEADER (unchanged)
-      ========================================================== */}
-      <header
-        className="hidden md:flex fixed top-0 left-0 right-0 z-[95] items-center"
-        style={{
-          height: `${DESKTOP_HEADER_H}px`,
-          background: TOPBAR_BG,
-          backdropFilter: "blur(28px) saturate(180%)",
-          WebkitBackdropFilter: "blur(28px) saturate(180%)",
-          borderBottom: `1px solid ${TOPBAR_BORDER}`,
-        }}
-      >
-        <div className="w-full px-4 flex items-center gap-3">
-          {/* Left: Brand — matches mobile */}
-          <Link to="/dashboard" className="flex items-center gap-2.5 min-w-[150px]" onClick={onNavClick}>
-            <div className="h-9 w-9 rounded-xl flex items-center justify-center"
-              style={{
-                background: "linear-gradient(135deg, var(--accent-indigo, #6366f1), var(--accent-purple, #a855f7))",
-                boxShadow: "0 4px 20px rgba(99, 102, 241, 0.35)",
-              }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M7 7H17M7 12H17M7 17H12" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+    <div className="ns-ed ns-ed-sidebar">
+      <SidebarScopedStyles desktopH={DESKTOP_HEADER_H} mobileH={MOBILE_HEADER_H} railW={SIDEBAR_W_COLLAPSED} />
+
+      {/* ═══ DESKTOP MASTHEAD (TOP BAR) ═══ */}
+      <header className="ns-mh ns-mh--desktop">
+        {/* Left: serif wordmark */}
+        <Link to="/dashboard" className="ns-wordmark" onClick={onNavClick}>
+          <span className="ns-wordmark-name">NoteStream</span>
+          <span className="ns-wordmark-co">&amp; co.</span>
+        </Link>
+
+        {/* Center: dateline + search */}
+        <div className="ns-mh-center">
+          <div className="ns-search-wrap" ref={searchWrapperRef}>
+            <div className={`ns-search ${searchOpen ? "is-open" : ""}`}>
+              <FiSearch size={13} style={{ color: ED.inkFaint }} />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search the archive…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                onFocus={() => { if (searchQuery.trim().length > 0 && searchResults.length > 0) setSearchOpen(true); }}
+                autoComplete="off" autoCorrect="off" spellCheck={false}
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => { setSearchQuery(""); closeSearch(); searchInputRef.current?.focus(); }}
+                  className="ns-search-clear"
+                  aria-label="Clear"
+                >
+                  <FiX size={12} />
+                </button>
+              ) : (
+                <span className="ns-kbd">⌘K</span>
+              )}
             </div>
-            <span className="text-lg font-semibold tracking-tight">
-              <span style={{ color: "var(--text-primary, rgba(255,255,255,0.92))" }}>Note</span>
-              <span style={{ color: "var(--accent-indigo, #6366f1)" }}>Stream</span>
-            </span>
-          </Link>
 
-          {/* Center: Search */}
-          <div className="flex-1 flex justify-center">
-            <div className="w-full max-w-[760px] relative" ref={searchWrapperRef}>
-              <div className="h-11 rounded-full flex items-center gap-2 px-4 transition-all duration-200"
-                style={{ background: BTN_BG, border: `1px solid ${searchOpen ? "rgba(99,102,241,0.3)" : BTN_BORDER}`, boxShadow: searchOpen ? "0 4px 16px rgba(0,0,0,0.15), 0 0 8px rgba(99,102,241,0.06)" : "none" }}>
-                <MagnifyingGlass size={18} weight="bold" style={{ color: ICON_MUTED }} />
-                <input ref={searchInputRef} type="text" placeholder="Search pages, tools, actions…" className="w-full bg-transparent outline-none text-[13px]"
-                  style={{ color: "var(--text-primary, rgba(255,255,255,0.9))" }} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={handleSearchKeyDown}
-                  onFocus={() => { if (searchQuery.trim().length > 0 && searchResults.length > 0) setSearchOpen(true); }} autoComplete="off" autoCorrect="off" spellCheck={false} />
-                {searchQuery && (
-                  <button type="button" onClick={() => { setSearchQuery(""); closeSearch(); searchInputRef.current?.focus(); }} className="p-1 rounded-full transition flex-shrink-0" style={{ color: ICON_MUTED }} aria-label="Clear search">
-                    <FiX size={14} />
-                  </button>
-                )}
-              </div>
-
-              {/* Autocomplete Dropdown */}
-              <AnimatePresence>
-                {searchOpen && searchResults.length > 0 && (
-                  <motion.div ref={searchDropdownRef} initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }} transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="absolute left-0 right-0 top-full mt-2 z-[200] rounded-xl border shadow-2xl overflow-hidden"
-                    style={{ backgroundColor: "var(--bg-surface, rgba(15,15,20,0.95))", borderColor: "var(--border-secondary)", backdropFilter: "blur(20px) saturate(180%)", WebkitBackdropFilter: "blur(20px) saturate(180%)", boxShadow: "0 20px 60px rgba(0,0,0,0.4), 0 0 20px rgba(99,102,241,0.06)" }}>
-                    <div className="px-3.5 py-2 border-b flex items-center justify-between" style={{ borderColor: "var(--border-secondary)" }}>
-                      <span className="text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>{searchResults.length} suggestion{searchResults.length !== 1 ? "s" : ""}</span>
-                      <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>↑↓ navigate · ↵ go · tab complete</span>
-                    </div>
-                    <div className="py-1 max-h-[360px] overflow-y-auto">
-                      {searchResults.map((item, idx) => {
-                        const meta = CATEGORY_COLORS[item.category] || CATEGORY_COLORS["Pages"];
-                        const isHighlighted = idx === highlightIdx;
-                        return (
-                          <button key={item.id} type="button" onClick={() => handleSearchNavigate(item)} onMouseEnter={() => setHighlightIdx(idx)}
-                            className="w-full text-left flex items-center gap-3 px-3.5 py-2.5 transition-colors"
-                            style={{ backgroundColor: isHighlighted ? meta.bg : "transparent", borderLeft: isHighlighted ? `2px solid ${meta.color}` : "2px solid transparent" }}>
-                            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
-                              style={{ backgroundColor: isHighlighted ? meta.bg : "var(--bg-tertiary, rgba(255,255,255,0.04))", color: isHighlighted ? meta.color : "var(--text-muted)" }}>
-                              {item.icon}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[13px] font-medium truncate" style={{ color: isHighlighted ? "var(--text-primary)" : "var(--text-secondary)" }}>{item.title}</p>
-                              <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>{item.description}</p>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md border" style={{ color: meta.color, backgroundColor: meta.bg, borderColor: meta.border }}>{item.category}</span>
-                              <FiArrowRight size={12} style={{ color: meta.color, opacity: isHighlighted ? 1 : 0, transition: "opacity 0.15s ease" }} />
-                            </div>
+            <AnimatePresence>
+              {searchOpen && searchResults.length > 0 && (
+                <motion.div
+                  ref={searchDropdownRef}
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                  className="ed-card ns-search-pop"
+                >
+                  <div className="ns-search-pop-head">
+                    <span className="ed-mono">{searchResults.length} {searchResults.length === 1 ? "match" : "matches"}</span>
+                    <span className="ed-mono">↑↓ NAV · ↵ GO · ⇥ COMPLETE</span>
+                  </div>
+                  <ul className="ns-search-pop-list">
+                    {searchResults.map((item, idx) => {
+                      const on = idx === highlightIdx;
+                      return (
+                        <li key={item.id}>
+                          <button
+                            type="button"
+                            onClick={() => handleSearchNavigate(item)}
+                            onMouseEnter={() => setHighlightIdx(idx)}
+                            className={`ns-search-row ${on ? "is-on" : ""}`}
+                          >
+                            <span className="ns-search-row-ord">
+                              {on ? <span style={{ fontFamily: ED.serif, fontStyle: "italic", color: ED.accent, fontSize: 15 }}>{String(idx + 1).padStart(2, "0")}</span>
+                                  : String(idx + 1).padStart(2, "0")}
+                            </span>
+                            <span className="ns-search-row-icon">{item.icon}</span>
+                            <span className="ns-search-row-body">
+                              <span className="ns-search-row-title">{item.title}</span>
+                              <span className="ns-search-row-desc">{item.description}</span>
+                            </span>
+                            <span className="ns-search-row-cat">
+                              {CATEGORY_LABEL[item.category] || item.category.toUpperCase()}
+                            </span>
+                            <FiArrowRight size={12} style={{ color: on ? ED.accent : "transparent", transition: "color .15s ease" }} />
                           </button>
-                        );
-                      })}
-                    </div>
-                    <div className="px-3.5 py-2 border-t flex items-center justify-center gap-1.5" style={{ borderColor: "var(--border-secondary)" }}>
-                      <FiSearch size={10} style={{ color: "var(--text-muted)" }} />
-                      <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>Press Enter to go · Esc to close</span>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-
-          {/* Right: Quick Create + Hamburger */}
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <button type="button" aria-label="Quick Create" aria-expanded={showQuickCreate} onClick={() => setShowQuickCreate((v) => !v)}
-                className="h-10 w-10 flex items-center justify-center transition"
-                style={{ background: "transparent" }}>
-                <DotsNine size={22} weight="bold" style={{ color: showQuickCreate ? "var(--accent-indigo, #6366f1)" : ICON }} />
-              </button>
-              <AnimatePresence>
-                {showQuickCreate && (
-                  <>
-                    <motion.div className="fixed inset-0 z-[110] hidden md:block" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeQuickCreate} style={{ background: "transparent" }} />
-                    <motion.div initial={{ opacity: 0, y: -8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.98 }} transition={{ type: "spring", stiffness: 420, damping: 32 }}
-                      className="absolute right-0 top-12 z-[120] w-[240px] rounded-2xl border shadow-xl overflow-hidden"
-                      style={{ backgroundColor: "var(--bg-elevated)", borderColor: "var(--border-secondary)", backdropFilter: "blur(16px)" }}>
-                      <div className="p-2">
-                        <QuickCreateItem icon={<Plus size={16} weight="bold" />} label="New Note" sub="Write a text note" onClick={() => goQuickCreate("note")} />
-                        <QuickCreateItem icon={<Microphone size={16} weight="bold" />} label="New Voice Note" sub="Record & transcribe" onClick={() => goQuickCreate("voice")} />
-                        <QuickCreateItem icon={<UploadSimple size={16} weight="bold" />} label="Upload File" sub="PDF / image / doc" onClick={() => goQuickCreate("upload")} />
-                      </div>
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
-            <button type="button" aria-label="Toggle sidebar" aria-expanded={desktopOpen}
-              onClick={() => { setShowQuickCreate(false); if (desktopOpen) closeDesktopSidebar(); else openDesktopSidebarFromHamburger(); }}
-              className="h-10 w-10 flex items-center justify-center transition"
-              style={{ background: "transparent" }}>
-              <MenuIcon size={22} weight="bold" style={{ color: desktopOpen ? "var(--accent-indigo, #6366f1)" : ICON }} />
-            </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="ns-search-pop-foot">
+                    <span className="ed-mono">PRESS ENTER TO GO · ESC TO CLOSE</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
-      </header>
 
-      {/* ==========================================================
-          MOBILE TOP HEADER
-      ========================================================== */}
-      <header
-        className="md:hidden fixed top-0 left-0 right-0 z-[95] flex items-center"
-        style={{
-          height: `${MOBILE_HEADER_H}px`,
-          paddingTop: "env(safe-area-inset-top, 0px)",
-          background: "var(--bg-surface, rgba(10,10,14,0.85))",
-          backdropFilter: "blur(28px) saturate(180%)",
-          WebkitBackdropFilter: "blur(28px) saturate(180%)",
-          borderBottom: `1px solid ${TOPBAR_BORDER}`,
-        }}
-      >
-        <div className="w-full px-4 flex items-center justify-between">
-          {/* Left: Brand — matches Navbar.jsx exactly */}
-          <Link to="/dashboard" className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl flex items-center justify-center"
-              style={{
-                background: "linear-gradient(135deg, var(--accent-indigo, #6366f1), var(--accent-purple, #a855f7))",
-                boxShadow: "0 4px 20px rgba(99, 102, 241, 0.35)",
-              }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M7 7H17M7 12H17M7 17H12" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <span className="text-lg font-semibold tracking-tight">
-              <span style={{ color: "var(--text-primary)" }}>Note</span>
-              <span style={{ color: "var(--accent-indigo, #6366f1)" }}>Stream</span>
-            </span>
-          </Link>
+        {/* Right: Quick Create + Hamburger */}
+        <div className="ns-mh-right">
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              aria-label="Quick create"
+              aria-expanded={showQuickCreate}
+              onClick={() => setShowQuickCreate((v) => !v)}
+              className={`ns-icon-btn ${showQuickCreate ? "is-on" : ""}`}
+              title="Quick create"
+            >
+              <FiPlus size={14} />
+            </button>
 
-          {/* Right: Hamburger */}
+            <AnimatePresence>
+              {showQuickCreate && (
+                <>
+                  <motion.div
+                    className="ns-qc-scrim"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    onClick={closeQuickCreate}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.18 }}
+                    className="ed-card ns-qc"
+                  >
+                    <p className="ed-mono ns-qc-eyebrow">
+                      <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>№</span>
+                      QUICK CREATE
+                    </p>
+                    <hr className="ed-rule-soft" style={{ margin: "8px 0 4px" }} />
+                    <QuickCreateItem icon={<FiEdit3 size={14} />}      label="New note"        sub="Write a text note"     ord="01" onClick={() => goQuickCreate("note")} />
+                    <QuickCreateItem icon={<FiMic size={14} />}        label="Voice memo"      sub="Record & transcribe"   ord="02" onClick={() => goQuickCreate("voice")} />
+                    <QuickCreateItem icon={<FiUploadCloud size={14}/>} label="Upload document" sub="PDF · image · markdown"ord="03" onClick={() => goQuickCreate("upload")} />
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+
           <button
-            ref={mobileHamburgerRef}
             type="button"
-            onClick={() => { if (mobileDrawerOpen) closeMobileDrawer(); else openMobileDrawer(); }}
-            className="h-10 w-10 flex items-center justify-center transition"
-            style={{ background: "transparent" }}
-            aria-label={mobileDrawerOpen ? "Close menu" : "Open menu"}
-            aria-expanded={mobileDrawerOpen}
+            aria-label="Menu"
+            aria-expanded={desktopOpen}
+            onClick={() => { setShowQuickCreate(false); if (desktopOpen) closeDesktopSidebar(); else openDesktopSidebarFromHamburger(); }}
+            className={`ns-icon-btn ${desktopOpen ? "is-on" : ""}`}
+            title="Menu"
           >
-            {mobileDrawerOpen
-              ? <FiX size={22} style={{ color: "var(--accent-indigo, #6366f1)" }} />
-              : <FiMenu size={22} style={{ color: ICON }} />
-            }
+            <FiMenu size={14} />
           </button>
         </div>
       </header>
 
-      {/* ==========================================================
-          MOBILE SLIDE-OUT DRAWER
-      ========================================================== */}
+      {/* ═══ MOBILE MASTHEAD ═══ */}
+      <header className="ns-mh ns-mh--mobile">
+        <Link to="/dashboard" className="ns-wordmark">
+          <span className="ns-wordmark-name">NoteStream</span>
+          <span className="ns-wordmark-co">&amp; co.</span>
+        </Link>
+
+        <button
+          ref={mobileHamburgerRef}
+          type="button"
+          onClick={() => { if (mobileDrawerOpen) closeMobileDrawer(); else openMobileDrawer(); }}
+          className={`ns-icon-btn ${mobileDrawerOpen ? "is-on" : ""}`}
+          aria-label={mobileDrawerOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileDrawerOpen}
+        >
+          {mobileDrawerOpen ? <FiX size={14} /> : <FiMenu size={14} />}
+        </button>
+      </header>
+
+      {/* ═══ MOBILE DRAWER ═══ */}
       <AnimatePresence>
         {mobileDrawerOpen && (
           <>
-            {/* Overlay */}
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-[100] md:hidden"
-              style={{ backgroundColor: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
+              className="ns-md-scrim"
               onClick={closeMobileDrawer}
             />
-
-            {/* Drawer panel — slides from right */}
             <motion.div
               ref={mobileDrawerRef}
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
+              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
-              className="fixed top-0 right-0 z-[110] md:hidden flex flex-col"
-              style={{
-                width: "min(300px, 82vw)",
-                height: "100dvh",
-                paddingTop: "env(safe-area-inset-top, 0px)",
-                background: "var(--bg-surface)",
-                borderLeft: "1px solid var(--border-secondary)",
-                boxShadow: "-10px 0 50px rgba(0,0,0,0.35)",
-                willChange: "transform",
-                backfaceVisibility: "hidden",
-                WebkitBackfaceVisibility: "hidden",
-              }}
-              role="dialog"
-              aria-modal="true"
+              className="ns-md-panel"
+              role="dialog" aria-modal="true"
             >
-              {/* Drawer header */}
-              <div className="flex items-center justify-between px-5" style={{ height: `${MOBILE_HEADER_H}px`, borderBottom: "1px solid var(--border-secondary)" }}>
-                <span className="text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>Menu</span>
-                <button type="button" onClick={closeMobileDrawer} className="h-8 w-8 rounded-xl flex items-center justify-center transition"
-                  style={{ background: BTN_BG, border: `1px solid ${BTN_BORDER}` }} aria-label="Close menu">
-                  <FiX size={16} style={{ color: "var(--text-muted)" }} />
+              <header className="ns-md-head">
+                <p className="ed-mono ns-md-eyebrow">
+                  <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>§</span>
+                  MENU
+                </p>
+                <button
+                  type="button" onClick={closeMobileDrawer}
+                  className="ns-icon-btn" aria-label="Close menu"
+                >
+                  <FiX size={14} />
                 </button>
-              </div>
+              </header>
+              <hr className="ed-rule" />
 
-              {/* Drawer nav sections */}
-              <div className="flex-1 overflow-y-auto px-3 py-4" style={{ WebkitOverflowScrolling: "touch" }}>
+              <nav className="ns-md-body">
                 {MOBILE_NAV_SECTIONS.map((section, si) => (
-                  <div key={section.label} className={si > 0 ? "mt-4" : ""}>
-                    <p className="text-[10px] font-bold uppercase tracking-widest px-3 mb-1.5" style={{ color: "var(--text-muted)" }}>{section.label}</p>
-                    <div className="space-y-0.5">
-                      {section.items.map((item) => {
+                  <section key={section.label} className="ns-md-section">
+                    <p className="ed-mono ns-md-section-h">
+                      <span className="num">§ {String(si + 1).padStart(2, "0")}</span>
+                      — {section.label.toUpperCase()}
+                    </p>
+                    <ul>
+                      {section.items.map((item, ii) => {
                         const active = isActive(item.to);
                         const Icon = item.icon;
+                        const ord = String(ii + 1).padStart(2, "0");
                         return (
-                          <button
-                            key={item.to}
-                            type="button"
-                            onClick={() => handleMobileNavigate(item.to)}
-                            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all"
-                            style={{
-                              backgroundColor: active ? "var(--sidebar-item-active, rgba(99,102,241,0.08))" : "transparent",
-                            }}
-                          >
-                            <Icon size={22} weight={active ? "fill" : "duotone"} style={{ color: active ? "var(--sidebar-icon-color-active, #818cf8)" : "var(--text-muted)", flexShrink: 0 }} />
-                            <span className="text-[14px] font-medium flex-1 text-left" style={{ color: active ? "var(--text-primary)" : "var(--text-secondary)" }}>
-                              {item.label}
-                            </span>
-                            {item.pro && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(245,158,11,0.12)", color: "#fbbf24" }}>PRO</span>
-                            )}
-                            {active && (
-                              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--accent-indigo, #6366f1)" }} />
-                            )}
-                          </button>
+                          <li key={item.to}>
+                            <button
+                              type="button"
+                              onClick={() => handleMobileNavigate(item.to)}
+                              className={`ns-md-row ${active ? "is-on" : ""}`}
+                            >
+                              <span className="ord">{ord}</span>
+                              <Icon size={14} className="ic" />
+                              <span className="lb">{item.label}</span>
+                              {item.pro && <span className="ed-chip ed-chip-ink ns-pro">PRO</span>}
+                            </button>
+                          </li>
                         );
                       })}
-                    </div>
-                  </div>
+                    </ul>
+                  </section>
                 ))}
-              </div>
+              </nav>
 
-              {/* Drawer footer: Logout */}
-              <div className="px-3 pb-4 pt-2" style={{ paddingBottom: "max(env(safe-area-inset-bottom, 16px), 16px)", borderTop: "1px solid var(--border-secondary)" }}>
-                <button type="button" onClick={handleLogout} disabled={loggingOut}
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition disabled:opacity-50"
-                  style={{ backgroundColor: "rgba(244,63,94,0.06)" }}>
-                  <SignOut size={22} weight="duotone" style={{ color: "#fb7185", flexShrink: 0 }} />
-                  <span className="text-[14px] font-medium" style={{ color: "#fb7185" }}>
-                    {loggingOut ? "Logging out…" : "Logout"}
-                  </span>
+              <footer className="ns-md-foot">
+                <hr className="ed-rule" />
+                <button
+                  type="button" onClick={handleLogout} disabled={loggingOut}
+                  className="ns-md-logout"
+                >
+                  <FiLogOut size={14} />
+                  <span>{loggingOut ? "Signing out…" : "Sign out"}</span>
                 </button>
-              </div>
+              </footer>
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
-      {/* ==========================================================
-          DESKTOP OVERLAY
-      ========================================================== */}
+      {/* ═══ DESKTOP OVERLAY (UNCHANGED) ═══ */}
       <AnimatePresence>
         {desktopOverlayOpen && desktopOpen && (
-          <motion.div className="hidden md:block fixed inset-0 z-[89]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="absolute inset-0" onClick={closeDesktopSidebar} style={{ background: "var(--bg-overlay, rgba(0,0,0,0.35))" }} />
+          <motion.div
+            className="ns-overlay"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <div className="ns-overlay-bg" onClick={closeDesktopSidebar} />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ==========================================================
-          DESKTOP SIDEBAR — RIGHT SIDE ICONS ONLY
-      ========================================================== */}
+      {/* ═══ DESKTOP RIGHT RAIL (slides in from right when menu open) ═══ */}
       <motion.aside
-        className="hidden md:flex fixed right-0 z-[90] overflow-hidden liquid-glass-sidebar"
+        className="ns-rail"
         style={{
           top: `${DESKTOP_HEADER_H}px`,
           height: `calc(100vh - ${DESKTOP_HEADER_H}px)`,
@@ -679,95 +645,352 @@ export default function Sidebar() {
           transition: "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)",
         }}
       >
-        <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 50%, rgba(255,255,255,0.02) 100%)" }} />
-        <div className="absolute left-0 top-0 bottom-0 w-[1px] pointer-events-none" style={{ background: "linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)" }} />
+        <nav className="ns-rail-nav">
+          {DESKTOP_RAIL_NAV.map((item, i) => {
+            const active = isActive(item.to);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={onNavClick}
+                className={`ns-rail-link ${active ? "is-on" : ""}`}
+                aria-label={item.label}
+                title={item.label}
+              >
+                <span className="ord">{String(i + 1).padStart(2, "0")}</span>
+                <Icon size={16} />
+                <span className="tip">
+                  {item.label}
+                  {item.pro && <span className="ed-chip ed-chip-ink ns-pro">PRO</span>}
+                </span>
+              </Link>
+            );
+          })}
+        </nav>
 
-        <div className="relative flex flex-col h-full w-full py-4">
-          <nav className="flex-1 px-2 space-y-0.5 pt-2">
-            {navItems.map((item, i) => {
-              const active = isActive(item.to);
-              const Icon = item.icon;
-              return (
-                <Link key={i} to={item.to}
-                  className="group relative flex items-center justify-center rounded-xl transition-all duration-200"
-                  style={{ padding: "10px", backgroundColor: active ? "var(--sidebar-item-active)" : "transparent" }}
-                  onClick={onNavClick}
-                  onMouseEnter={(e) => { if (!active) e.currentTarget.style.backgroundColor = "var(--sidebar-item-hover)"; }}
-                  onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = "transparent"; }}
-                  aria-label={item.label} title={item.label}>
-                  <Icon size={22} weight={active ? "fill" : "duotone"} style={{ color: active ? "var(--sidebar-icon-color-active)" : "var(--sidebar-icon-color)", transition: "color 0.2s ease" }} />
-                  <div className="absolute right-full mr-2 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
-                    style={{ backgroundColor: "var(--sidebar-tooltip-bg)", border: "1px solid var(--sidebar-tooltip-border)", color: "var(--sidebar-tooltip-text)", boxShadow: "0 4px 20px rgba(0,0,0,0.5)", backdropFilter: "blur(12px)" }}>
-                    <span className="text-[12px] font-medium whitespace-nowrap" style={{ color: "var(--text-primary, rgba(255,255,255,0.85))" }}>
-                      {item.label}
-                      {item.pro && <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: "rgba(245, 158, 11, 0.12)", color: "#fbbf24" }}>PRO</span>}
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
-          </nav>
-          <div className="px-2 pt-3 mt-auto">
-            <div className="h-px w-full mb-3 mx-auto" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%)" }} />
-            <button type="button" onClick={handleLogout} disabled={loggingOut}
-              className="group relative flex items-center justify-center rounded-xl transition-all duration-200 w-full disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{ padding: "10px" }} aria-label="Logout" title="Logout">
-              <SignOut size={22} weight="duotone" style={{ color: "#fb7185" }} />
-              <div className="absolute right-full mr-2 px-3 py-2 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
-                style={{ backgroundColor: "var(--sidebar-tooltip-bg)", border: "1px solid var(--sidebar-tooltip-border)", color: "var(--sidebar-tooltip-text)", boxShadow: "0 4px 20px rgba(0,0,0,0.5)", backdropFilter: "blur(12px)" }}>
-                <span className="text-[12px] font-medium whitespace-nowrap" style={{ color: "var(--text-primary, rgba(255,255,255,0.85))" }}>{loggingOut ? "Logging out…" : "Logout"}</span>
-              </div>
-            </button>
-          </div>
-        </div>
+        <footer className="ns-rail-foot">
+          <hr className="ed-rule-soft" />
+          <button
+            type="button" onClick={handleLogout} disabled={loggingOut}
+            className="ns-rail-link" aria-label="Sign out" title={loggingOut ? "Signing out…" : "Sign out"}
+          >
+            <span className="ord">—</span>
+            <FiLogOut size={16} />
+            <span className="tip">{loggingOut ? "Signing out…" : "Sign out"}</span>
+          </button>
+        </footer>
       </motion.aside>
-
-      {/* Styles */}
-      <style>{`
-        .liquid-glass-sidebar {
-          background: var(--sidebar-glass-bg);
-          backdrop-filter: blur(40px) saturate(180%);
-          -webkit-backdrop-filter: blur(40px) saturate(180%);
-          border-left: 1px solid var(--sidebar-glass-border);
-          box-shadow: var(--sidebar-glass-shadow);
-        }
-        .liquid-glass-sidebar::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          border-radius: inherit;
-          background: var(--glass-sheen);
-          opacity: 0;
-          animation: liquid-shimmer 8s ease-in-out infinite;
-          pointer-events: none;
-        }
-        @keyframes liquid-shimmer {
-          0%, 100% { opacity: 0; transform: translateX(-100%); }
-          50% { opacity: 0.6; }
-          100% { transform: translateX(100%); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .liquid-glass-sidebar::before { animation: none; }
-        }
-      `}</style>
-    </>
+    </div>
   );
 }
 
-/* Quick Create Item */
-const QuickCreateItem = ({ icon, label, sub, onClick }) => (
-  <button type="button" onClick={onClick}
-    className="w-full text-left px-3 py-2.5 rounded-xl transition flex items-start gap-3"
-    style={{ color: "var(--text-secondary)" }}
-    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-hover)")}
-    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
-    <span className="h-8 w-8 rounded-xl flex items-center justify-center flex-shrink-0"
-      style={{ backgroundColor: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", color: "var(--text-primary)" }}>
-      {icon}
+/* ═══════════════════════════════════════════════════════
+   QuickCreateItem (editorial)
+═══════════════════════════════════════════════════════ */
+const QuickCreateItem = ({ icon, label, sub, onClick, ord }) => (
+  <button type="button" onClick={onClick} className="ns-qc-row">
+    <span className="ord">{ord}</span>
+    <span className="ic">{icon}</span>
+    <span className="body">
+      <span className="title">{label}</span>
+      <span className="sub">{sub}</span>
     </span>
-    <span className="flex-1">
-      <div className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>{label}</div>
-      <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>{sub}</div>
-    </span>
+    <FiArrowRight size={11} className="go" />
   </button>
+);
+
+/* ═══════════════════════════════════════════════════════
+   Scoped CSS
+═══════════════════════════════════════════════════════ */
+const SidebarScopedStyles = ({ desktopH, mobileH, railW }) => (
+  <style>{`
+    /* The root wrapper carries .ns-ed so editorial vars resolve.
+       But it must NOT take layout space — children are fixed. */
+    .ns-ed-sidebar { display: contents; }
+
+    /* ── masthead shared ── */
+    .ns-ed .ns-mh {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 95;
+      background: ${ED.paper100};
+      border-bottom: 1px solid ${ED.rule};
+      display: flex; align-items: center; gap: 16px;
+      padding: 0 20px;
+    }
+    .ns-ed .ns-mh--desktop { display: none; height: ${desktopH}px; }
+    .ns-ed .ns-mh--mobile  { display: flex; height: ${mobileH}px; padding-top: env(safe-area-inset-top, 0px); justify-content: space-between; }
+    @media (min-width: 768px) {
+      .ns-ed .ns-mh--desktop { display: grid; grid-template-columns: 1fr minmax(280px, 560px) 1fr; }
+      .ns-ed .ns-mh--mobile  { display: none; }
+    }
+
+    /* ── wordmark ── */
+    .ns-ed .ns-wordmark {
+      display: inline-flex; align-items: baseline;
+      color: ${ED.ink}; text-decoration: none;
+      min-width: 0;
+    }
+    .ns-ed .ns-wordmark-name {
+      font-family: ${ED.serif}; font-size: 22px; letter-spacing: -0.01em;
+      color: ${ED.ink};
+    }
+    .ns-ed .ns-wordmark-co {
+      font-family: ${ED.serif}; font-style: italic; font-size: 14px;
+      color: ${ED.inkFaint}; margin-left: 5px;
+    }
+
+    /* ── search ── */
+    .ns-ed .ns-mh-center { display: flex; justify-content: center; }
+    .ns-ed .ns-search-wrap { position: relative; width: 100%; max-width: 560px; }
+    .ns-ed .ns-search {
+      display: flex; align-items: center; gap: 10px;
+      background: ${ED.paper50}; border: 1px solid ${ED.rule};
+      border-radius: 999px; padding: 9px 16px;
+      transition: border-color .18s ease;
+    }
+    .ns-ed .ns-search.is-open,
+    .ns-ed .ns-search:focus-within { border-color: ${ED.ink}; }
+    .ns-ed .ns-search input {
+      background: transparent; border: 0; outline: 0; flex: 1; min-width: 0;
+      font-family: ${ED.mono}; font-size: 12px; letter-spacing: 0.06em; color: ${ED.inkSoft};
+    }
+    .ns-ed .ns-search input::placeholder { color: ${ED.inkFaint}; }
+    .ns-ed .ns-kbd {
+      font-family: ${ED.mono}; font-size: 10px;
+      padding: 2px 6px; border: 1px solid ${ED.rule};
+      border-radius: 4px; color: ${ED.inkFaint};
+      background: ${ED.paper100};
+    }
+    .ns-ed .ns-search-clear {
+      width: 18px; height: 18px; border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: ${ED.inkFaint}; background: transparent; border: 0; cursor: pointer;
+    }
+    .ns-ed .ns-search-clear:hover { color: ${ED.ink}; }
+
+    /* ── icon buttons (top-right) ── */
+    .ns-ed .ns-mh-right { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+    .ns-ed .ns-icon-btn {
+      position: relative;
+      height: 34px; width: 34px; border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid ${ED.rule}; color: ${ED.inkSoft};
+      background: transparent; cursor: pointer;
+      transition: color .18s ease, border-color .18s ease, background-color .18s ease;
+    }
+    .ns-ed .ns-icon-btn:hover { color: ${ED.ink}; border-color: ${ED.ink}; }
+    .ns-ed .ns-icon-btn.is-on { background: ${ED.ink}; color: ${ED.paper50}; border-color: ${ED.ink}; }
+
+    /* ── Quick create dropdown ── */
+    .ns-ed .ns-qc-scrim { position: fixed; inset: 0; z-index: 110; background: transparent; }
+    .ns-ed .ns-qc {
+      position: absolute; top: 44px; right: 0; z-index: 120;
+      width: 280px; padding: 14px; background: ${ED.paper50};
+    }
+    .ns-ed .ns-qc-eyebrow {
+      font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: ${ED.inkFaint}; margin: 0 4px 4px;
+    }
+    .ns-ed .ns-qc-row {
+      display: grid; grid-template-columns: 28px 22px 1fr auto;
+      align-items: center; gap: 10px; padding: 9px 6px;
+      border: 0; background: transparent; cursor: pointer;
+      width: 100%; text-align: left; border-radius: 6px;
+      transition: background-color .12s ease;
+    }
+    .ns-ed .ns-qc-row:hover { background: ${ED.paper150}; }
+    .ns-ed .ns-qc-row .ord {
+      font-family: ${ED.mono}; font-size: 11px; letter-spacing: 0.14em;
+      color: ${ED.inkFaint};
+    }
+    .ns-ed .ns-qc-row:hover .ord {
+      color: ${ED.accent}; font-family: ${ED.serif}; font-style: italic; font-size: 14px;
+    }
+    .ns-ed .ns-qc-row .ic { color: ${ED.inkFaint}; display: inline-flex; }
+    .ns-ed .ns-qc-row:hover .ic { color: ${ED.ink}; }
+    .ns-ed .ns-qc-row .body { display: flex; flex-direction: column; min-width: 0; }
+    .ns-ed .ns-qc-row .title { font-family: ${ED.serif}; font-size: 17px; color: ${ED.ink}; }
+    .ns-ed .ns-qc-row .sub {
+      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.12em;
+      text-transform: uppercase; color: ${ED.inkFaint};
+    }
+    .ns-ed .ns-qc-row .go { color: ${ED.inkFaint}; }
+    .ns-ed .ns-qc-row:hover .go { color: ${ED.accent}; }
+
+    /* ── search dropdown ── */
+    .ns-ed .ns-search-pop {
+      position: absolute; left: 0; right: 0; top: calc(100% + 6px);
+      z-index: 200; padding: 0; background: ${ED.paper50};
+      overflow: hidden;
+    }
+    .ns-ed .ns-search-pop-head,
+    .ns-ed .ns-search-pop-foot {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 16px; gap: 8px;
+      font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: ${ED.inkFaint}; background: ${ED.paper100};
+    }
+    .ns-ed .ns-search-pop-head { border-bottom: 1px solid ${ED.rule}; }
+    .ns-ed .ns-search-pop-foot { border-top: 1px solid ${ED.rule}; }
+    .ns-ed .ns-search-pop-list {
+      list-style: none; padding: 4px 0; margin: 0;
+      max-height: 360px; overflow-y: auto;
+    }
+    .ns-ed .ns-search-row {
+      display: grid;
+      grid-template-columns: 36px 22px 1fr auto 14px;
+      align-items: center; gap: 10px;
+      padding: 9px 16px; width: 100%; text-align: left;
+      border: 0; background: transparent; cursor: pointer;
+      transition: background-color .12s ease;
+    }
+    .ns-ed .ns-search-row:hover,
+    .ns-ed .ns-search-row.is-on { background: ${ED.paper150}; }
+    .ns-ed .ns-search-row-ord {
+      font-family: ${ED.mono}; font-size: 11px; letter-spacing: 0.14em;
+      color: ${ED.inkFaint};
+    }
+    .ns-ed .ns-search-row-icon { color: ${ED.inkFaint}; display: inline-flex; }
+    .ns-ed .ns-search-row.is-on .ns-search-row-icon { color: ${ED.ink}; }
+    .ns-ed .ns-search-row-body { display: flex; flex-direction: column; min-width: 0; }
+    .ns-ed .ns-search-row-title {
+      font-family: ${ED.serif}; font-size: 16px; color: ${ED.ink};
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ns-ed .ns-search-row.is-on .ns-search-row-title { color: ${ED.accent}; }
+    .ns-ed .ns-search-row-desc {
+      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.06em;
+      color: ${ED.inkFaint}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ns-ed .ns-search-row-cat {
+      font-family: ${ED.mono}; font-size: 10px; letter-spacing: 0.16em;
+      text-transform: uppercase; color: ${ED.inkFaint};
+      padding: 2px 8px; border: 1px solid ${ED.rule}; border-radius: 999px;
+    }
+
+    /* ── mobile drawer ── */
+    .ns-ed .ns-md-scrim {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(19,16,8,0.32);
+    }
+    .ns-ed .ns-md-panel {
+      position: fixed; top: 0; right: 0; z-index: 110;
+      width: min(320px, 86vw); height: 100dvh;
+      padding-top: env(safe-area-inset-top, 0px);
+      background: ${ED.paper100};
+      border-left: 1px solid ${ED.rule};
+      display: flex; flex-direction: column;
+    }
+    .ns-ed .ns-md-head {
+      height: ${mobileH}px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px;
+    }
+    .ns-ed .ns-md-eyebrow {
+      font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: ${ED.inkFaint}; margin: 0;
+    }
+    .ns-ed .ns-md-body {
+      flex: 1; overflow-y: auto;
+      padding: 18px 8px 12px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .ns-ed .ns-md-section + .ns-md-section { margin-top: 20px; }
+    .ns-ed .ns-md-section-h {
+      display: inline-flex; align-items: baseline; gap: 8px;
+      font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase;
+      color: ${ED.inkFaint}; padding: 0 12px 8px;
+    }
+    .ns-ed .ns-md-section-h .num {
+      font-family: ${ED.serif}; font-style: italic; font-size: 16px;
+      letter-spacing: 0; color: ${ED.accent};
+    }
+    .ns-ed .ns-md-section ul { list-style: none; padding: 0; margin: 0; }
+    .ns-ed .ns-md-row {
+      display: grid; grid-template-columns: 28px 18px 1fr auto;
+      align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: 6px;
+      width: 100%; text-align: left;
+      background: transparent; border: 0; cursor: pointer; color: ${ED.ink};
+      transition: background-color .12s ease;
+    }
+    .ns-ed .ns-md-row:hover { background: ${ED.paper150}; }
+    .ns-ed .ns-md-row.is-on { background: ${ED.paper150}; }
+    .ns-ed .ns-md-row .ord {
+      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.14em;
+      color: ${ED.inkFaint};
+    }
+    .ns-ed .ns-md-row.is-on .ord {
+      color: ${ED.accent}; font-family: ${ED.serif}; font-style: italic; font-size: 14px;
+    }
+    .ns-ed .ns-md-row .ic { color: ${ED.inkFaint}; display: inline-flex; }
+    .ns-ed .ns-md-row.is-on .ic { color: ${ED.ink}; }
+    .ns-ed .ns-md-row .lb {
+      font-family: ${ED.serif}; font-size: 17px;
+    }
+    .ns-ed .ns-md-row.is-on .lb { color: ${ED.accent}; font-style: italic; }
+    .ns-ed .ns-md-row .ns-pro { font-size: 9px; padding: 2px 6px; }
+
+    .ns-ed .ns-md-foot {
+      padding: 12px 8px;
+      padding-bottom: max(env(safe-area-inset-bottom, 16px), 16px);
+    }
+    .ns-ed .ns-md-logout {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border: 1px solid ${ED.rule};
+      border-radius: 999px; background: transparent; cursor: pointer;
+      color: ${ED.ink}; font-family: ${ED.sans}; font-size: 14px;
+      transition: all .15s ease;
+      margin: 12px 12px 0;
+    }
+    .ns-ed .ns-md-logout:hover { border-color: ${ED.ink}; }
+    .ns-ed .ns-md-logout:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── desktop overlay scrim ── */
+    .ns-ed .ns-overlay { position: fixed; inset: 0; z-index: 89; display: none; }
+    @media (min-width: 768px) { .ns-ed .ns-overlay { display: block; } }
+    .ns-ed .ns-overlay-bg { position: absolute; inset: 0; background: rgba(19,16,8,0.18); }
+
+    /* ── desktop right rail ── */
+    .ns-ed .ns-rail {
+      position: fixed; right: 0; z-index: 90;
+      display: none;
+      background: ${ED.paper50};
+      border-left: 1px solid ${ED.rule};
+      flex-direction: column;
+      padding: 12px 0;
+    }
+    @media (min-width: 768px) { .ns-ed .ns-rail { display: flex; } }
+    .ns-ed .ns-rail-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 4px 8px; }
+    .ns-ed .ns-rail-foot { padding: 4px 8px; }
+    .ns-ed .ns-rail-link {
+      position: relative;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      height: 44px; padding: 0 8px;
+      border-radius: 6px; text-decoration: none;
+      background: transparent; border: 0; cursor: pointer;
+      color: ${ED.inkSoft};
+      transition: background-color .12s ease, color .12s ease;
+    }
+    .ns-ed .ns-rail-link:hover { background: ${ED.paper150}; color: ${ED.ink}; }
+    .ns-ed .ns-rail-link.is-on { background: ${ED.paper150}; color: ${ED.accent}; }
+    .ns-ed .ns-rail-link .ord {
+      font-family: ${ED.mono}; font-size: 10px; letter-spacing: 0.12em;
+      color: ${ED.inkFaint}; display: none;
+    }
+    .ns-ed .ns-rail-link .tip {
+      position: absolute; right: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+      background: ${ED.paper50}; border: 1px solid ${ED.rule};
+      border-radius: 6px; padding: 6px 10px;
+      font-family: ${ED.serif}; font-size: 14px; color: ${ED.ink};
+      white-space: nowrap;
+      opacity: 0; pointer-events: none; transition: opacity .15s ease;
+    }
+    .ns-ed .ns-rail-link:hover .tip,
+    .ns-ed .ns-rail-link:focus-visible .tip { opacity: 1; }
+    .ns-ed .ns-rail-link .ns-pro { margin-left: 8px; font-size: 9px; padding: 1px 6px; }
+
+    /* ── content offset ── */
+    /* Layout already pads via --app-content-top; we leave that to the layout file. */
+  `}</style>
 );

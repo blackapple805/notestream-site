@@ -33,14 +33,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import {
-  FiSearch,
-  FiMenu,
-  FiGrid,
-  FiBell,
-  FiArrowRight,
-  FiX,
-} from "react-icons/fi";
+import { FiArrowRight, FiX } from "react-icons/fi";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { toLocalYMD, parseYMDToDate, diffDaysLocal } from "../lib/formatDate";
@@ -390,46 +383,10 @@ export default function Dashboard() {
 
       <div style={{ paddingBottom: "calc(var(--mobile-nav-height, 0px) + 64px)" }}>
 
-        {/* ━━━━━━━━━━━━━━ MASTHEAD ━━━━━━━━━━━━━━ */}
-        <header className="ed-masthead">
-          <div className="ed-masthead-left">
-            <Link to="/dashboard" className="ed-wordmark">
-              <span className="ed-serif" style={{ fontSize: 22, letterSpacing: "-0.01em" }}>NoteStream</span>
-              <span className="ed-serif" style={{ fontSize: 14, fontStyle: "italic", color: ED.inkFaint, marginLeft: 4 }}>&amp; co.</span>
-            </Link>
-          </div>
-
-          <div className="ed-masthead-center">
-            <div className="ed-search">
-              <FiSearch size={14} style={{ color: ED.inkFaint }} />
-              <input
-                className="ed-mono"
-                placeholder="Search the archive…"
-                style={{ background: "transparent", border: 0, outline: 0, width: "100%", fontSize: 12, letterSpacing: "0.06em", color: ED.inkSoft }}
-              />
-              <kbd className="ed-mono ed-kbd">⌘K</kbd>
-            </div>
-          </div>
-
-          <div className="ed-masthead-right">
-            <button
-              className="ed-icon-btn"
-              onClick={() => settings.smartNotifications && notifCount > 0 && setShowNotifications(true)}
-              aria-label="Notifications"
-              title="Notifications"
-            >
-              <FiBell size={15} />
-              {notifCount > 0 && <span className="ed-icon-dot" />}
-            </button>
-            <button className="ed-icon-btn" aria-label="Grid"><FiGrid size={15} /></button>
-            <button className="ed-icon-btn" aria-label="Menu"><FiMenu size={15} /></button>
-          </div>
-        </header>
-
-        <hr className="ed-rule" />
-
-        {/* ━━━━━━━━━━━━━━ DATELINE ROW ━━━━━━━━━━━━━━ */}
-        <div className="ed-dateline">
+        {/* ━━━━━━━━━━━━━━ DATELINE — page-level, sits under the
+            global Sidebar masthead and acts as the dashboard's
+            own issue marker. ━━━━━━━━━━━━━━ */}
+        <div className="ed-dateline" style={{ paddingTop: 18 }}>
           <span className="ed-mono">VOL. {vol} · NO. {no}</span>
           <span className="ed-mono">{issueLine()}</span>
           <span className="ed-mono">

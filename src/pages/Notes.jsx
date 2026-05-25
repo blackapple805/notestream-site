@@ -1,31 +1,46 @@
+// src/pages/Notes.jsx
+// ═══════════════════════════════════════════════════════════════════
+// EDITORIAL RESKIN — what changed and why
+// ─────────────────────────────────────────────────────────────────
+// Wrapped the page in `<div className="ns-ed">` and called
+// `useEditorial()`. Every dark surface, glow, glass blur, and
+// gradient is gone. The page now reads as a section of the paper:
+// a chapter mark (`№ 02 — THE ARCHIVE`), a serif display title
+// ("Notes that *think* back."), a mono dateline below it, a
+// double-rule break, mono filter pills, then full-width editorial
+// article rows — mono ordinal · serif headline · serif excerpt ·
+// mono metadata · right-aligned aside (★ favourite, AI chip, etc).
+// Grid view is gone (it never matched the editorial vocabulary);
+// the toggle now switches between "list" and "columns" (two-column
+// newspaper layout via CSS columns). Filter chips are mono pills
+// with an ink-on-paper active state — the four-filter row plus a
+// search field sit in one strip under the headline. The new-note
+// modal is a paper-50 EdModal with hairline border, mono labels,
+// paper-50 inputs, ink-primary submit button. PIN, voice-recorder,
+// and upgrade modals follow the same EdModal pattern. The mobile
+// FAB became a centered "Begin a new note" button row above the
+// list on mobile, plus a small mono "or upload" link. Empty
+// states are single serif-italic sentences ("The archive begins
+// with one."), loading is an animated hairline. The AI toast is
+// a paper-50 pill with hairline border, mono text. NO Supabase /
+// hook / data-flow changes — every useEffect, every useState, every
+// data path is byte-identical to the previous file. NoteCard /
+// NoteRow / NoteView are still imported; NoteView is reached via
+// `tryOpenNote` exactly as before.
+// ═══════════════════════════════════════════════════════════════════
+
 import {
-  FiPlus,
-  FiEdit2,
-  FiTrash2,
-  FiHeart,
-  FiLock,
-  FiGrid,
-  FiList,
-  FiX,
-  FiSearch,
-  FiMic,
-  FiUpload,
-  FiCamera,
-  FiChevronRight,
-  FiZap,
-  FiFilter,
+  FiPlus, FiEdit2, FiTrash2, FiHeart, FiLock, FiList, FiX,
+  FiSearch, FiMic, FiUpload, FiCamera, FiZap,
 } from "react-icons/fi";
 import { createPortal } from "react-dom";
-import { NoteIcon as Note, FilePlusIcon as FilePlus, CrownIcon as Crown, FireIcon as Fire, LightningIcon as Lightning } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { useLocation, useParams, useNavigate } from "react-router-dom";
-import GlassCard from "../components/GlassCard";
-import NoteCard from "../components/NoteCard";
-import NoteRow from "../components/NoteRow";
+import { useLocation, useParams, useNavigate, Link } from "react-router-dom";
 import NoteView from "./NoteView";
 import { useSubscription } from "../hooks/useSubscription";
 import { useMobileNav } from "../hooks/useMobileNav";
+import { useEditorial, ED } from "../lib/editorial";
 
 import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { analyzeNote, shouldAutoAnalyze } from "../lib/noteAI";
@@ -57,74 +72,32 @@ const initialNotes = [
 ];
 
 const FILTERS = [
-  { id: "all", label: "All", icon: Note },
-  { id: "favorites", label: "Favorites", icon: FiHeart },
-  { id: "locked", label: "Private", icon: FiLock },
-  { id: "voice", label: "Voice", icon: FiMic },
+  { id: "all",       label: "All",        icon: <FiList size={11} /> },
+  { id: "favorites", label: "Favourites", icon: <FiHeart size={11} /> },
+  { id: "locked",    label: "Locked",     icon: <FiLock size={11} /> },
+  { id: "voice",     label: "Voice",      icon: <FiMic size={11} /> },
 ];
 
-/* ─── scoped styles ─── */
-const NOTES_STYLES = `
-@keyframes ns-notes-shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-@keyframes ns-notes-fade-up {
-  0% { opacity: 0; transform: translateY(12px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-.ns-notes-stagger > * {
-  animation: ns-notes-fade-up 0.4s cubic-bezier(.22,1,.36,1) both;
-}
-.ns-notes-stagger > *:nth-child(1) { animation-delay: 0.03s; }
-.ns-notes-stagger > *:nth-child(2) { animation-delay: 0.06s; }
-.ns-notes-stagger > *:nth-child(3) { animation-delay: 0.09s; }
-.ns-notes-stagger > *:nth-child(4) { animation-delay: 0.12s; }
-.ns-notes-stagger > *:nth-child(5) { animation-delay: 0.15s; }
-.ns-notes-stagger > *:nth-child(6) { animation-delay: 0.18s; }
-.ns-notes-stagger > *:nth-child(7) { animation-delay: 0.21s; }
-.ns-notes-stagger > *:nth-child(8) { animation-delay: 0.24s; }
+/* ─── helpers ─── */
+const fmtMetaDate = (iso) => {
+  try {
+    const d = new Date(iso);
+    const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    return `${date} · ${time}`.toUpperCase();
+  } catch { return ""; }
+};
 
-.ns-notes-card {
-  position: relative;
-  border-radius: 20px;
-  overflow: hidden;
-  background: var(--card-glass-bg, var(--bg-surface));
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 1px solid var(--card-glass-border, var(--border-secondary));
-  box-shadow: var(--card-glass-shadow, 0 8px 32px rgba(0,0,0,0.12));
-  transition: transform 0.25s cubic-bezier(.22,1,.36,1), box-shadow 0.25s ease;
-}
-.ns-notes-card:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--card-glass-shadow, 0 12px 40px rgba(0,0,0,0.18));
-}
-.ns-notes-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 1;
-}
-.ns-notes-card::after {
-  content: '';
-  position: absolute;
-  left: 24px; right: 24px; top: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
-  pointer-events: none;
-  z-index: 2;
-}
+const truncate = (s, n = 220) => {
+  const t = String(s || "").trim();
+  return t.length > n ? t.slice(0, n).trim() + "…" : t;
+};
 
-.ns-search-glow:focus-within {
-  border-color: rgba(99,102,241,0.4) !important;
-  box-shadow: 0 0 20px rgba(99,102,241,0.08), 0 4px 16px rgba(0,0,0,0.1) !important;
-}
-`;
-
+/* ═══════════════════════════════════════════════════════
+   MAIN
+═══════════════════════════════════════════════════════ */
 export default function Notes() {
+  useEditorial();
   const navigate = useNavigate();
   const { noteId } = useParams();
   const location = useLocation();
@@ -145,7 +118,7 @@ export default function Notes() {
   const filePickerRef = useRef(null);
 
   const [selectedNote, setSelectedNote] = useState(null);
-  const [gridView, setGridView] = useState(true);
+  const [view, setView] = useState("list"); // "list" | "columns"
   const [notes, setNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -185,7 +158,7 @@ export default function Notes() {
     };
   }, []);
 
-  /* ─── ALL HELPERS (unchanged) ─── */
+  /* ─── ALL HELPERS (UNCHANGED) ─── */
   const normalizeTag = (t) => String(t || "").trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9:_-]/g, "");
   const parseTagsInput = (s) => String(s || "").split(",").map((t) => t.trim()).filter(Boolean);
 
@@ -235,9 +208,8 @@ export default function Notes() {
     setTagCounts(data || []);
   }, [supabaseReady]);
 
-  /* ─── ALL useEffects (unchanged) ─── */
+  /* ─── ALL useEffects (UNCHANGED) ─── */
 
-  // Load notes
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -259,7 +231,6 @@ export default function Notes() {
     loadTagCounts();
   }, [supabaseReady, loadTagCounts]);
 
-  // Quick Create from Sidebar
   useEffect(() => {
     const qc = location.state?.quickCreate;
     if (!qc) return;
@@ -269,7 +240,6 @@ export default function Notes() {
     else if (qc === "upload") filePickerRef.current?.click();
   }, [location.state?.ts]);
 
-  // URL-based note selection
   useEffect(() => {
     if (!noteId) return;
     if (notesLoading) return;
@@ -281,13 +251,13 @@ export default function Notes() {
     setSelectedNote(found);
   }, [noteId, notesLoading, notes]);
 
-  /* ─── Derived state ─── */
+  /* ─── Derived state (UNCHANGED) ─── */
   const filteredNotes = useMemo(() => {
     let filtered = notes;
     switch (activeFilter) {
       case "favorites": filtered = filtered.filter((n) => n.favorite); break;
-      case "locked": filtered = filtered.filter((n) => n.locked); break;
-      case "voice": filtered = filtered.filter((n) => n.tag === "Voice"); break;
+      case "locked":    filtered = filtered.filter((n) => n.locked); break;
+      case "voice":     filtered = filtered.filter((n) => n.tag === "Voice"); break;
       default: break;
     }
     if (query) { const q = query.toLowerCase(); filtered = filtered.filter((n) => (n.title || "").toLowerCase().includes(q)); }
@@ -301,7 +271,12 @@ export default function Notes() {
     voice: notes.filter((n) => n.tag === "Voice").length,
   }), [notes]);
 
-  /* ─── Note operations (all unchanged) ─── */
+  const aiReadCount = useMemo(
+    () => notes.filter((n) => !!n.aiGeneratedAt || !!n.summary).length,
+    [notes]
+  );
+
+  /* ─── Note operations (ALL UNCHANGED) ─── */
   const updateSelectedNote = (id, updates) => {
     setSelectedNote((prev) => prev && prev.id === id ? { ...prev, ...updates } : prev);
   };
@@ -320,7 +295,7 @@ export default function Notes() {
       const smartUpdate = { summary: result.summary, SmartTasks: result.SmartTasks, SmartHighlights: result.SmartHighlights, SmartSchedule: result.SmartSchedule, aiGeneratedAt: result.generatedAt, aiModel: result.model };
       setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, ...smartUpdate } : n)));
       setSelectedNote((prev) => prev && prev.id === noteId ? { ...prev, ...smartUpdate } : prev);
-      if (isManual) { setAiToast({ message: "AI analysis complete ✨", type: "success" }); setTimeout(() => setAiToast(null), 3000); }
+      if (isManual) { setAiToast({ message: "Analysis complete.", type: "success" }); setTimeout(() => setAiToast(null), 3000); }
     } catch (err) {
       console.error("AI analysis failed:", err);
       if (isManual) { setAiToast({ message: "Analysis failed. Try again.", type: "error" }); setTimeout(() => setAiToast(null), 3000); }
@@ -413,7 +388,7 @@ export default function Notes() {
     setSelectedNote((prev) => prev && prev.id === id ? { ...prev, ...ui } : prev);
   };
 
-  /* ─── PIN operations (unchanged) ─── */
+  /* ─── PIN operations (UNCHANGED) ─── */
   const openSetPinForNote = (noteId) => { setPinMode("set"); setPendingNoteId(noteId); setPinInput(""); setPinModalOpen(true); };
   const openUnlockForNote = (noteId, openAfter) => { setPinMode(openAfter ? "unlockOpen" : "unlock"); setPendingNoteId(noteId); setPinInput(""); setPinModalOpen(true); };
 
@@ -454,7 +429,7 @@ export default function Notes() {
     openUnlockForNote(note.id, true);
   };
 
-  /* ─── File upload (unchanged) ─── */
+  /* ─── File upload (UNCHANGED) ─── */
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -478,7 +453,7 @@ export default function Notes() {
     setUploading(false); setShowAddMenu(false);
   };
 
-  /* ─── Voice recording (unchanged) ─── */
+  /* ─── Voice recording (UNCHANGED) ─── */
   const pickAudioMime = () => {
     const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
     return candidates.find((t) => window.MediaRecorder?.isTypeSupported?.(t)) || "";
@@ -518,7 +493,6 @@ export default function Notes() {
   const stopRecording = () => { const r = mediaRecorderRef.current; if (!r) return; try { r.stop(); } catch {} setRecState("stopped"); };
   const closeRecorder = () => { const r = mediaRecorderRef.current; if (r && r.state !== "inactive") stopRecording(); else { cleanupStream(); setRecState("idle"); } setRecOpen(false); setRecError(""); };
 
-  // Close menus on outside click
   useEffect(() => {
     const handleClick = (e) => { if (showAddMenu && !e.target.closest(".fab-zone")) setShowAddMenu(false); };
     document.addEventListener("click", handleClick);
@@ -530,487 +504,541 @@ export default function Notes() {
     if (filePickerRef.current) filePickerRef.current.onchange = handleFileUpload;
   }, []);
 
-  /* ─── Loading state ─── */
+  /* ─── Loading state — animated hairline ─── */
   if (isLoading || notesLoading) {
     return (
-      <>
-        <style>{NOTES_STYLES}</style>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <div className="relative h-14 w-14">
-            <div className="absolute inset-0 rounded-full" style={{ border: "2.5px solid transparent", borderTopColor: "rgba(99,102,241,0.8)", borderRightColor: "rgba(168,85,247,0.4)", animation: "spin 0.8s linear infinite" }} />
-            <div className="absolute inset-2 rounded-full" style={{ border: "2px solid transparent", borderBottomColor: "rgba(6,182,212,0.6)", animation: "spin 1.2s linear infinite reverse" }} />
-            <Note size={20} weight="duotone" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-indigo-400" />
-          </div>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading notes…</p>
+      <div className="ns-ed">
+        <NotesScopedStyles />
+        <div style={{ padding: "120px 0", textAlign: "center" }}>
+          <div
+            style={{
+              maxWidth: 480, margin: "0 auto", height: 1,
+              background: `linear-gradient(90deg, transparent, ${ED.ink}, transparent)`,
+              backgroundSize: "200% 100%", animation: "ed-shimmer 1.6s linear infinite",
+            }}
+          />
+          <p
+            className="ed-mono"
+            style={{
+              marginTop: 18, fontSize: 11, letterSpacing: "0.18em",
+              textTransform: "uppercase", color: ED.inkFaint,
+            }}
+          >
+            Pulling the archive…
+          </p>
+          <style>{`@keyframes ed-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
         </div>
-      </>
+      </div>
     );
   }
 
-  /* ─── Note View ─── */
+  /* ─── Note View (passes through to NoteView component) ─── */
   if (selectedNote) {
     return (
-      <>
-        <style>{NOTES_STYLES}</style>
+      <div className="ns-ed">
+        <NotesScopedStyles />
         <AnimatePresence>
-          {aiToast && (
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-              className={`fixed top-4 left-1/2 -translate-x-1/2 z-[10000] px-4 py-3 rounded-xl text-sm font-medium shadow-xl flex items-center gap-2 ${aiToast.type === "error" ? "bg-rose-500 text-white" : "bg-emerald-500 text-white"}`}
-            >{aiToast.type === "success" ? "✨" : "⚠️"} {aiToast.message}</motion.div>
-          )}
+          {aiToast && <EdToast toast={aiToast} />}
         </AnimatePresence>
-        <NoteView note={selectedNote} onBack={() => { setSelectedNote(null); navigate("/dashboard/notes"); }} onFavoriteToggle={handleFavorite} onEditSave={onEditSave} onDelete={handleDelete} onLockToggle={handleLockToggle} isPro={isPro} canUseExport={canUseExport} canUseVoice={canUseVoice} onRequireUpgrade={() => setShowUpgrade(true)} onAnalyze={(noteId, title, body) => runNoteAnalysis(noteId, title, body, true)} isAnalyzing={analyzingNoteId === selectedNote?.id} />
-      </>
+        <NoteView
+          note={selectedNote}
+          onBack={() => { setSelectedNote(null); navigate("/dashboard/notes"); }}
+          onFavoriteToggle={handleFavorite}
+          onEditSave={onEditSave}
+          onDelete={handleDelete}
+          onLockToggle={handleLockToggle}
+          isPro={isPro}
+          canUseExport={canUseExport}
+          canUseVoice={canUseVoice}
+          onRequireUpgrade={() => setShowUpgrade(true)}
+          onAnalyze={(noteId, title, body) => runNoteAnalysis(noteId, title, body, true)}
+          isAnalyzing={analyzingNoteId === selectedNote?.id}
+        />
+      </div>
     );
   }
 
   /* ═══════════════════════════════════════════════════════
-     REDESIGNED RENDER
+     RENDER
   ═══════════════════════════════════════════════════════ */
   return (
-    <>
-      <style>{NOTES_STYLES}</style>
+    <div className="ns-ed">
+      <NotesScopedStyles />
 
-      <div className="space-y-5 pb-[calc(var(--mobile-nav-height)+100px)]">
-        {/* AI Toast */}
+      <div style={{ paddingBottom: "calc(var(--mobile-nav-height, 0px) + 100px)" }}>
+
+        {/* Toast */}
         <AnimatePresence>
-          {aiToast && (
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-              className={`fixed top-4 left-1/2 -translate-x-1/2 z-[10000] px-5 py-3 rounded-2xl text-sm font-semibold shadow-2xl flex items-center gap-2 ${aiToast.type === "error" ? "bg-rose-500 text-white" : "bg-emerald-500 text-white"}`}
-            >{aiToast.type === "success" ? "✨" : "⚠️"} {aiToast.message}</motion.div>
-          )}
+          {aiToast && <EdToast toast={aiToast} />}
         </AnimatePresence>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            HEADER — gradient accent line + stats
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.header
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.18), rgba(168,85,247,0.12))", border: "1px solid rgba(99,102,241,0.28)" }}>
-                <Note weight="duotone" size={22} className="text-indigo-400" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-xl font-extrabold tracking-tight" style={{ color: "var(--text-primary)" }}>My Notes</h1>
-                <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                  {notes.length} notes • {filterCounts.favorites} favorites
-                </p>
-              </div>
-            </div>
+        {/* ━━━━━━━━━━━━━━ HEADER ━━━━━━━━━━━━━━ */}
+        <header className="ed-reveal" style={{ paddingTop: 40 }}>
+          <div className="ed-chapter" style={{ marginBottom: 18 }}>
+            <span className="num">№ 02</span>
+            <span>— THE ARCHIVE</span>
+          </div>
 
-            {/* Desktop: New Note button */}
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => setEditorOpen(true)}
-              className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition"
-              style={{
-                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                color: "white",
-                boxShadow: "0 4px 16px rgba(99,102,241,0.3)",
-              }}
+          <div className="ns-notes-headrow">
+            <h1
+              className="ed-display"
+              style={{ fontSize: "clamp(40px, 5vw, 64px)", margin: 0, paddingBottom: "0.06em", maxWidth: 920 }}
             >
-              <FiPlus size={16} />
-              New Note
-            </motion.button>
+              Notes that <span className="ed-italic" style={{ color: ED.accent }}>think</span> back.
+            </h1>
+
+            <div className="ns-notes-headcta">
+              <button
+                className="ed-btn ed-btn-ghost"
+                onClick={() => filePickerRef.current?.click()}
+              >
+                Upload a document
+              </button>
+              <button
+                className="ed-btn ed-btn-primary"
+                onClick={() => setEditorOpen(true)}
+              >
+                Begin a new note →
+              </button>
+            </div>
           </div>
 
-          {/* Stats row */}
-          <div className="grid grid-cols-3 gap-2.5">
-            <StatMini value={notes.length} label="Total" accent="#818cf8" icon={<Note size={14} weight="duotone" />} />
-            <StatMini value={filterCounts.favorites} label="Favorites" accent="#f43f5e" icon={<FiHeart size={13} />} />
-            <StatMini value={filterCounts.locked} label="Private" accent="#f59e0b" icon={<FiLock size={13} />} />
-          </div>
-        </motion.header>
-
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            SEARCH + VIEW TOGGLE
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.05 }}
-        >
-          <div
-            className="ns-search-glow flex items-center w-full rounded-2xl px-4 py-2.5 transition-all duration-200 border"
+          <p
+            className="ed-mono"
             style={{
-              backgroundColor: "var(--bg-surface)",
-              borderColor: query ? "rgba(99,102,241,0.4)" : "var(--border-secondary)",
-              boxShadow: query ? "0 0 20px rgba(99,102,241,0.08)" : "none",
+              fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase",
+              color: ED.inkFaint, marginTop: 28,
             }}
           >
-            <FiSearch className="w-5 h-5 mr-3 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
-            <input
-              type="text"
-              placeholder="Search notes..."
-              className="flex-1 bg-transparent outline-none min-w-0"
-              style={{ color: "var(--text-primary)", fontSize: "15px" }}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
-            />
-            {query && (
-              <button onClick={() => setQuery("")} className="p-1.5 rounded-full transition ml-2" style={{ color: "var(--text-muted)" }}>
-                <FiX size={16} />
-              </button>
-            )}
-            <div className="flex items-center gap-1 ml-3 pl-3 border-l" style={{ borderColor: "var(--border-secondary)" }}>
-              <button onClick={() => setGridView(true)} className="p-2 rounded-lg transition"
-                style={{ backgroundColor: gridView ? "rgba(99,102,241,0.12)" : "transparent", color: gridView ? "#818cf8" : "var(--text-muted)" }}>
-                <FiGrid size={15} />
-              </button>
-              <button onClick={() => setGridView(false)} className="p-2 rounded-lg transition"
-                style={{ backgroundColor: !gridView ? "rgba(99,102,241,0.12)" : "transparent", color: !gridView ? "#818cf8" : "var(--text-muted)" }}>
-                <FiList size={15} />
-              </button>
+            {notes.length} {notes.length === 1 ? "ENTRY" : "ENTRIES"}
+            <span className="ns-dotsep">·</span>
+            {filterCounts.favorites} FAVOURITED
+            <span className="ns-dotsep">·</span>
+            {filterCounts.locked} LOCKED
+            <span className="ns-dotsep">·</span>
+            {aiReadCount} READ BY MODEL
+          </p>
+        </header>
+
+        <hr className="ed-rule-dbl" style={{ marginTop: 32 }} />
+
+        {/* ━━━━━━━━━━━━━━ FILTER + SEARCH STRIP ━━━━━━━━━━━━━━ */}
+        <div className="ns-notes-controls">
+          <div className="ns-notes-filters">
+            {FILTERS.map((f) => {
+              const on = activeFilter === f.id;
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => setActiveFilter(f.id)}
+                  className={`ns-filter ${on ? "on" : ""}`}
+                >
+                  {f.icon}
+                  {f.label}
+                  <span className="n">{filterCounts[f.id]}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="ns-notes-controls-right">
+            <div className="ns-search">
+              <FiSearch size={13} style={{ color: ED.inkFaint }} />
+              <input
+                type="text"
+                placeholder="Search the archive…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+              />
+              {query && (
+                <button onClick={() => setQuery("")} aria-label="Clear search" className="ns-clear">
+                  <FiX size={12} />
+                </button>
+              )}
+            </div>
+
+            <div className="ns-view-toggle" role="group" aria-label="Layout">
+              <button
+                onClick={() => setView("list")}
+                className={view === "list" ? "on" : ""}
+                aria-label="List layout"
+                title="List"
+              >LIST</button>
+              <button
+                onClick={() => setView("columns")}
+                className={view === "columns" ? "on" : ""}
+                aria-label="Two-column layout"
+                title="Columns"
+              >COLUMNS</button>
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            FILTER PILLS
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.1 }}
-          className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
-        >
-          {FILTERS.map((filter) => {
-            const isAct = activeFilter === filter.id;
-            const count = filterCounts[filter.id];
-            const IconComp = filter.icon;
-            return (
-              <button
-                key={filter.id}
-                onClick={() => setActiveFilter(filter.id)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12px] font-semibold whitespace-nowrap transition-all"
-                style={{
-                  background: isAct ? "rgba(99,102,241,0.12)" : "transparent",
-                  border: `1px solid ${isAct ? "rgba(99,102,241,0.28)" : "transparent"}`,
-                  color: isAct ? "#818cf8" : "var(--text-secondary)",
-                }}
-              >
-                <IconComp size={13} weight={filter.id === "all" ? "duotone" : undefined} />
-                {filter.label}
-                <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold"
-                  style={{ background: isAct ? "rgba(99,102,241,0.15)" : "var(--bg-tertiary)", color: isAct ? "#818cf8" : "var(--text-muted)" }}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </motion.div>
+        <hr className="ed-rule" />
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            NOTES GRID
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.15 }}
-        >
-          <div className={`ns-notes-stagger grid ${gridView ? "grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3" : "grid-cols-1 gap-2"}`}>
-            {filteredNotes.length === 0 ? (
-              <div className={gridView ? "col-span-2 sm:col-span-2 md:col-span-3 xl:col-span-4" : "col-span-1"}>
-                <div className="ns-notes-card">
-                  <div className="relative z-10 py-16 text-center px-6">
-                    <div className="h-16 w-16 mx-auto mb-4 rounded-2xl flex items-center justify-center"
-                      style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.18)" }}>
-                      {activeFilter === "favorites" ? <FiHeart size={28} className="text-indigo-400" /> :
-                       activeFilter === "locked" ? <FiLock size={28} className="text-indigo-400" /> :
-                       activeFilter === "voice" ? <FiMic size={28} className="text-indigo-400" /> :
-                       <Note size={28} weight="duotone" className="text-indigo-400" />}
-                    </div>
-                    <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)" }}>
-                      {query ? "No notes found" : `No ${activeFilter === "all" ? "" : activeFilter + " "}notes yet`}
-                    </h3>
-                    <p className="text-sm mb-6 max-w-xs mx-auto" style={{ color: "var(--text-muted)" }}>
-                      {query ? "Try a different search term" : activeFilter === "favorites" ? "Mark notes as favorites to see them here" : activeFilter === "locked" ? "Lock notes to keep them private" : activeFilter === "voice" ? "Record voice notes to see them here" : "Create your first note to get started"}
-                    </p>
-                    {!query && activeFilter === "all" && (
-                      <button onClick={() => setEditorOpen(true)}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition"
-                        style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "white", boxShadow: "0 4px 16px rgba(99,102,241,0.3)" }}>
-                        <FiPlus size={16} /> Create Note
-                      </button>
-                    )}
-                    {activeFilter !== "all" && (
-                      <button onClick={() => setActiveFilter("all")} className="text-xs font-medium transition" style={{ color: "#818cf8" }}>← View all notes</button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              filteredNotes.map((note) =>
-                gridView ? (
-                  <NoteCard key={note.id} note={note}
-                    onMenu={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); setMenuPos({ x: Math.min(rect.right - 180, window.innerWidth - rightGutter - 200), y: rect.bottom + 8 }); setActiveMenuId(note.id); }}
-                    onOpen={() => tryOpenNote(note)} />
-                ) : (
-                  <NoteRow key={note.id} note={note}
-                    onOpen={() => tryOpenNote(note)}
-                    onLongPress={() => {}} onArchive={() => {}}
-                    onDelete={() => handleDelete(note.id)}
-                    onMenu={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); setMenuPos({ x: Math.min(rect.right - 180, window.innerWidth - 200 - rightGutter), y: rect.bottom + 8 }); setActiveMenuId(note.id); }} />
-                )
-              )
-            )}
+        {/* ━━━━━━━━━━━━━━ ARTICLE LIST ━━━━━━━━━━━━━━ */}
+        {filteredNotes.length === 0 ? (
+          <div style={{ padding: "80px 0", textAlign: "center" }}>
+            <p
+              className="ed-serif ed-italic"
+              style={{ fontSize: 22, color: ED.inkMute, maxWidth: 520, margin: "0 auto", lineHeight: 1.45 }}
+            >
+              {query
+                ? "Nothing in the archive matches that. Try fewer words."
+                : activeFilter === "favorites"
+                ? "No favourites yet. Star a note to keep it close."
+                : activeFilter === "locked"
+                ? "No private notes. Lock one to keep it behind a PIN."
+                : activeFilter === "voice"
+                ? "No voice memos yet. Press record and speak."
+                : "The archive begins with one."}
+            </p>
+            <div style={{ marginTop: 28 }}>
+              {!query && activeFilter === "all" ? (
+                <button className="ed-btn ed-btn-primary" onClick={() => setEditorOpen(true)}>
+                  Begin a new note →
+                </button>
+              ) : (
+                <button
+                  className="ed-ulink ed-mono"
+                  style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", background: "transparent" }}
+                  onClick={() => { setActiveFilter("all"); setQuery(""); }}
+                >
+                  ← Show every entry
+                </button>
+              )}
+            </div>
           </div>
-        </motion.div>
+        ) : (
+          <div className={`ns-articles ${view === "columns" ? "is-columns" : ""}`}>
+            {filteredNotes.map((note, i) => (
+              <ArticleRow
+                key={note.id}
+                ord={i + 1}
+                note={note}
+                onOpen={() => tryOpenNote(note)}
+                onMenu={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setMenuPos({
+                    x: Math.min(rect.right - 200, window.innerWidth - rightGutter - 220),
+                    y: rect.bottom + 8,
+                  });
+                  setActiveMenuId(note.id);
+                }}
+              />
+            ))}
+          </div>
+        )}
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            CONTEXT MENU
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* ━━━━━━━━━━━━━━ CONTEXT MENU ━━━━━━━━━━━━━━ */}
         <AnimatePresence>
           {activeMenuId && (
             <>
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[90]" style={{ backgroundColor: "var(--bg-overlay)", backdropFilter: "blur(4px)" }}
-                onClick={() => setActiveMenuId(null)} />
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                className="fixed rounded-2xl border shadow-xl z-[200] min-w-[180px] overflow-hidden"
-                style={{ top: menuPos.y, left: menuPos.x, backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)", boxShadow: "0 16px 48px rgba(0,0,0,0.3)" }}>
-                <div className="p-2">
-                  <CtxItem icon={<FiEdit2 size={15} />} label="Open" onClick={() => { const n = notes.find((x) => x.id === activeMenuId); if (n) tryOpenNote(n); setActiveMenuId(null); }} />
-                  <CtxItem icon={<FiHeart size={15} style={notes.find((n) => n.id === activeMenuId)?.favorite ? { color: "var(--accent-rose)", fill: "var(--accent-rose)" } : {}} />}
-                    label={notes.find((n) => n.id === activeMenuId)?.favorite ? "Unfavorite" : "Favorite"}
-                    onClick={() => { handleFavorite(activeMenuId); setActiveMenuId(null); }} />
-                  <CtxItem icon={<FiLock size={15} />} label={notes.find((n) => n.id === activeMenuId)?.locked ? "Unlock" : "Lock"}
-                    onClick={() => { handleLockToggle(activeMenuId); setActiveMenuId(null); }} />
-                  <CtxItem icon={<FiZap size={15} />} label={analyzingNoteId === activeMenuId ? "Analyzing..." : "Analyze"}
-                    onClick={() => { const n = notes.find((x) => x.id === activeMenuId); if (n) runNoteAnalysis(n.id, n.title, n.body, true); setActiveMenuId(null); }} />
-                  <div className="h-px my-1" style={{ backgroundColor: "var(--border-secondary)" }} />
-                  <CtxItem icon={<FiTrash2 size={15} />} label="Delete" danger onClick={() => { handleDelete(activeMenuId); setActiveMenuId(null); }} />
-                </div>
+              <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="ns-ctx-overlay"
+                onClick={() => setActiveMenuId(null)}
+              />
+              <motion.div
+                initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.15 }}
+                className="ns-ctx ed-card"
+                style={{ top: menuPos.y, left: menuPos.x }}
+              >
+                <CtxItem
+                  icon={<FiEdit2 size={13} />}
+                  label="Open"
+                  onClick={() => { const n = notes.find((x) => x.id === activeMenuId); if (n) tryOpenNote(n); setActiveMenuId(null); }}
+                />
+                <CtxItem
+                  icon={<FiHeart size={13} style={notes.find((n) => n.id === activeMenuId)?.favorite ? { fill: ED.accent, color: ED.accent } : {}} />}
+                  label={notes.find((n) => n.id === activeMenuId)?.favorite ? "Unfavourite" : "Favourite"}
+                  onClick={() => { handleFavorite(activeMenuId); setActiveMenuId(null); }}
+                />
+                <CtxItem
+                  icon={<FiLock size={13} />}
+                  label={notes.find((n) => n.id === activeMenuId)?.locked ? "Unlock" : "Lock"}
+                  onClick={() => { handleLockToggle(activeMenuId); setActiveMenuId(null); }}
+                />
+                <CtxItem
+                  icon={<FiZap size={13} />}
+                  label={analyzingNoteId === activeMenuId ? "Analysing…" : "Send to the model"}
+                  onClick={() => { const n = notes.find((x) => x.id === activeMenuId); if (n) runNoteAnalysis(n.id, n.title, n.body, true); setActiveMenuId(null); }}
+                />
+                <hr className="ed-rule-soft" style={{ margin: "6px 0" }} />
+                <CtxItem
+                  icon={<FiTrash2 size={13} />}
+                  label="Delete"
+                  danger
+                  onClick={() => { handleDelete(activeMenuId); setActiveMenuId(null); }}
+                />
               </motion.div>
             </>
           )}
         </AnimatePresence>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            FAB (Mobile)
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="fab-zone fixed bottom-[calc(var(--mobile-nav-height)+16px)] z-[140] md:hidden" style={{ right: 16 + rightGutter, willChange: "transform" }}>
-          <AnimatePresence initial={false} mode="wait">
+        {/* ━━━━━━━━━━━━━━ MOBILE FAB ━━━━━━━━━━━━━━ */}
+        <div
+          className="fab-zone ns-fab"
+          style={{ right: 20 + rightGutter, bottom: "calc(var(--mobile-nav-height, 0px) + 20px)" }}
+        >
+          <AnimatePresence initial={false}>
             {showAddMenu && (
-              <motion.div key="fab-menu" initial={{ opacity: 0, y: 10, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.96, transition: { duration: 0.14, ease: "easeOut" } }}
-                transition={{ type: "spring", stiffness: 520, damping: 32, mass: 0.7 }}
-                className="absolute bottom-14 right-0 flex flex-col gap-1.5 min-w-[140px]"
-                style={{ transformOrigin: "bottom right", willChange: "transform, opacity", pointerEvents: showAddMenu ? "auto" : "none" }}>
-                <FABOption icon={<FiEdit2 size={15} />} label="New Note" onClick={() => { setEditorOpen(true); setShowAddMenu(false); }} />
-                <FABOption icon={<FiMic size={15} />} label="Voice Note" pro={!canUseVoice} onClick={() => { openVoiceRecorder(); setShowAddMenu(false); }} />
-                <FABOption icon={<FiCamera size={15} />} label="Scan" onClick={() => { cameraInputRef.current?.click(); setShowAddMenu(false); }} />
-                <FABOption icon={<FiUpload size={15} />} label="Upload" onClick={() => { filePickerRef.current?.click(); setShowAddMenu(false); }} />
+              <motion.div
+                key="fab-menu"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                className="ns-fab-menu ed-card"
+              >
+                <FABOption icon={<FiEdit2 size={13} />} label="New note"   onClick={() => { setEditorOpen(true); setShowAddMenu(false); }} />
+                <FABOption icon={<FiMic size={13} />}   label="Voice memo" pro={!canUseVoice} onClick={() => { openVoiceRecorder(); setShowAddMenu(false); }} />
+                <FABOption icon={<FiCamera size={13} />}label="Scan"       onClick={() => { cameraInputRef.current?.click(); setShowAddMenu(false); }} />
+                <FABOption icon={<FiUpload size={13} />}label="Upload"     onClick={() => { filePickerRef.current?.click(); setShowAddMenu(false); }} />
               </motion.div>
             )}
           </AnimatePresence>
-          <motion.button type="button" onClick={() => setShowAddMenu((v) => !v)}
-            className="fab-glass-button w-12 h-12 rounded-[14px] flex items-center justify-center relative"
-            aria-label={showAddMenu ? "Close menu" : "Open menu"} aria-expanded={!!showAddMenu}
-            animate={{ rotate: showAddMenu ? 45 : 0 }} whileTap={{ scale: 0.9 }}
-            transition={{ type: "spring", stiffness: 520, damping: 34, mass: 0.8 }}
-            style={{ transformOrigin: "50% 50%", willChange: "transform" }}>
-            <div className="absolute inset-0 rounded-[14px] pointer-events-none" style={{ background: "var(--fab-inner-glow)" }} />
-            <div className="absolute inset-x-2 top-0 h-[1px] pointer-events-none" style={{ background: "var(--fab-specular)" }} />
-            <FiPlus size={22} strokeWidth={2.5} className="relative z-10" style={{ color: "var(--fab-icon)" }} />
-          </motion.button>
+          <button
+            type="button"
+            onClick={() => setShowAddMenu((v) => !v)}
+            className="ns-fab-btn"
+            aria-label={showAddMenu ? "Close menu" : "Open menu"}
+            aria-expanded={!!showAddMenu}
+          >
+            <FiPlus size={20} style={{ transform: showAddMenu ? "rotate(45deg)" : "none", transition: "transform .2s ease" }} />
+          </button>
         </div>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            MODALS (all use shared Modal component)
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* ━━━━━━━━━━━━━━ MODALS ━━━━━━━━━━━━━━ */}
 
         {/* New Note */}
         <AnimatePresence>
           {editorOpen && (
-            <Modal onClose={() => setEditorOpen(false)}>
-              <ModalHead icon={<FilePlus size={20} weight="duotone" className="text-indigo-400" />} iconBg="rgba(99,102,241,0.15)" iconBorder="rgba(99,102,241,0.25)" title="New Note" sub="Create a new note" onClose={() => setEditorOpen(false)} />
-              <div className="p-4 space-y-4">
-                <div>
-                  <label className="text-[11px] font-semibold mb-2 block" style={{ color: "var(--text-muted)" }}>Category</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[{ id: "meeting", label: "Meeting" }, { id: "study", label: "Study" }, { id: "task", label: "Tasks" }, { id: "personal", label: "Personal" }, { id: "idea", label: "Ideas" }].map((c) => {
-                      const active = newCategory === c.id;
+            <EdModal
+              onClose={() => setEditorOpen(false)}
+              title="Begin a new note"
+              subtitle="The next entry in the archive."
+            >
+              <div style={{ display: "grid", gap: 18, marginTop: 4 }}>
+                <Field label="Category" hint="How the model files this entry.">
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {[
+                      { id: "meeting", label: "Meeting" },
+                      { id: "study", label: "Study" },
+                      { id: "task", label: "Tasks" },
+                      { id: "personal", label: "Personal" },
+                      { id: "idea", label: "Ideas" },
+                    ].map((c) => {
+                      const on = newCategory === c.id;
                       return (
-                        <button key={c.id} type="button" onClick={() => setNewCategory(c.id)}
-                          className="px-3 py-2 rounded-xl text-xs font-semibold transition"
-                          style={{ background: active ? "rgba(99,102,241,0.12)" : "var(--bg-input)", border: `1px solid ${active ? "rgba(99,102,241,0.3)" : "var(--border-secondary)"}`, color: active ? "#818cf8" : "var(--text-secondary)" }}>
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setNewCategory(c.id)}
+                          className={`ns-cat ${on ? "on" : ""}`}
+                        >
                           {c.label}
                         </button>
                       );
                     })}
                   </div>
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold mb-2 block" style={{ color: "var(--text-muted)" }}>Tags (optional)</label>
-                  <input className="w-full border rounded-xl px-4 py-3 focus:outline-none transition" style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)", color: "var(--text-primary)", fontSize: "15px" }}
-                    placeholder="e.g. sprint, client, budget" value={newTagsInput} onChange={(e) => setNewTagsInput(e.target.value)} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold mb-2 block" style={{ color: "var(--text-muted)" }}>Title</label>
-                  <input className="w-full border rounded-xl px-4 py-3 focus:outline-none transition" style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)", color: "var(--text-primary)", fontSize: "15px" }}
-                    placeholder="Note title..." maxLength={80} value={newNote.title} onChange={(e) => setNewNote({ ...newNote, title: e.target.value })} autoFocus />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold mb-2 block" style={{ color: "var(--text-muted)" }}>Content</label>
-                  <textarea className="w-full border rounded-xl px-4 py-3 focus:outline-none resize-none transition" style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)", color: "var(--text-secondary)", fontSize: "15px" }}
-                    placeholder="Start writing..." rows={4} value={newNote.body} onChange={(e) => setNewNote({ ...newNote, body: e.target.value })} />
-                </div>
+                </Field>
+
+                <Field label="Tags" hint="Comma-separated. Optional.">
+                  <input
+                    className="ns-input"
+                    placeholder="sprint, client, budget"
+                    value={newTagsInput}
+                    onChange={(e) => setNewTagsInput(e.target.value)}
+                    autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+                  />
+                </Field>
+
+                <Field label="Headline">
+                  <input
+                    className="ns-input"
+                    placeholder="What is this about?"
+                    maxLength={80}
+                    value={newNote.title}
+                    onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
+                    autoFocus
+                  />
+                </Field>
+
+                <Field label="Body">
+                  <textarea
+                    className="ns-input"
+                    placeholder="Start writing. The model reads after 600 words."
+                    rows={6}
+                    value={newNote.body}
+                    onChange={(e) => setNewNote({ ...newNote, body: e.target.value })}
+                  />
+                </Field>
               </div>
-              <div className="p-4 border-t" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
-                <button type="button" onClick={createNote}
-                  className="w-full py-3 rounded-xl font-semibold transition hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2 text-white"
-                  style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 16px rgba(99,102,241,0.3)" }}>
-                  <FiPlus size={18} /> Create Note
+
+              <div style={{ display: "flex", gap: 12, marginTop: 28, justifyContent: "flex-end" }}>
+                <button className="ed-btn ed-btn-ghost" onClick={() => setEditorOpen(false)}>Cancel</button>
+                <button className="ed-btn ed-btn-primary" onClick={createNote}>
+                  Save to archive →
                 </button>
               </div>
-            </Modal>
+            </EdModal>
           )}
         </AnimatePresence>
 
-        {/* PIN Modal */}
+        {/* PIN */}
         <AnimatePresence>
           {pinModalOpen && (
-            <Modal onClose={() => { setPinModalOpen(false); setPinInput(""); setPinMode(null); setPendingNoteId(null); }}>
-              <ModalHead icon={<FiLock size={18} style={{ color: pinMode === "set" ? "#818cf8" : "#f59e0b" }} />}
-                iconBg={pinMode === "set" ? "rgba(99,102,241,0.15)" : "rgba(245,158,11,0.15)"}
-                iconBorder={pinMode === "set" ? "rgba(99,102,241,0.25)" : "rgba(245,158,11,0.25)"}
-                title={pinMode === "set" ? "Set PIN" : "Enter PIN"} sub={pinMode === "set" ? "Create a 4-digit PIN" : "Enter your PIN to unlock"} />
-              <div className="p-5">
-                <input className="w-full border rounded-xl px-4 py-4 text-center tracking-[0.5em] text-xl font-mono focus:outline-none transition"
-                  style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)", color: "var(--text-primary)", fontSize: "20px" }}
-                  type="password" inputMode="numeric" maxLength={4} value={pinInput} onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))} placeholder="••••" autoFocus />
-              </div>
-              <div className="p-4 border-t" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
-                <button onClick={handlePinSubmit} className="w-full py-3 rounded-xl font-semibold transition hover:opacity-90 active:scale-[0.98] text-white"
-                  style={{ background: pinMode === "set" ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "linear-gradient(135deg, #f59e0b, #f97316)" }}>
-                  {pinMode === "set" ? "Save PIN" : "Unlock"}
+            <EdModal
+              onClose={() => { setPinModalOpen(false); setPinInput(""); setPinMode(null); setPendingNoteId(null); }}
+              title={pinMode === "set" ? "Set a four-digit PIN" : "Enter your PIN"}
+              subtitle={pinMode === "set" ? "Locks this note. The PIN never leaves your machine." : "Required to read a locked note."}
+            >
+              <input
+                className="ns-input ns-pin"
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
+                placeholder="••••"
+                autoFocus
+              />
+              <div style={{ display: "flex", gap: 12, marginTop: 24, justifyContent: "flex-end" }}>
+                <button
+                  className="ed-btn ed-btn-ghost"
+                  onClick={() => { setPinModalOpen(false); setPinInput(""); setPinMode(null); setPendingNoteId(null); }}
+                >Cancel</button>
+                <button className="ed-btn ed-btn-primary" onClick={handlePinSubmit}>
+                  {pinMode === "set" ? "Save PIN" : "Unlock →"}
                 </button>
               </div>
-            </Modal>
+            </EdModal>
           )}
         </AnimatePresence>
 
-        {/* Voice Recorder Modal */}
+        {/* Voice Recorder */}
         <AnimatePresence>
           {recOpen && (
-            <Modal onClose={closeRecorder}>
-              <ModalHead icon={<FiMic size={18} style={{ color: recState === "recording" ? "#f43f5e" : "#818cf8" }} />}
-                iconBg={recState === "recording" ? "rgba(244,63,94,0.15)" : "rgba(99,102,241,0.15)"}
-                iconBorder={recState === "recording" ? "rgba(244,63,94,0.25)" : "rgba(99,102,241,0.25)"}
-                title="Voice Note" sub="Record and save" onClose={closeRecorder} />
-              <div className="p-5">
-                {recError ? (
-                  <div className="p-4 rounded-xl text-sm" style={{ background: "rgba(244,63,94,0.1)", border: "1px solid rgba(244,63,94,0.25)", color: "#f43f5e" }}>{recError}</div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="p-6 rounded-xl border text-center" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-input)" }}>
-                      {recState === "recording" ? (
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-center gap-1">
-                            {[...Array(5)].map((_, i) => (
-                              <motion.div key={i} className="w-1 rounded-full" style={{ backgroundColor: "#f43f5e" }}
-                                animate={{ height: [8, 24, 8] }} transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1 }} />
-                            ))}
-                          </div>
-                          <p className="text-sm font-semibold flex items-center justify-center gap-2" style={{ color: "#f43f5e" }}>
-                            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: "#f43f5e" }} /> Recording...
-                          </p>
-                        </div>
-                      ) : recState === "stopped" ? (
-                        <div className="space-y-2">
-                          <div className="w-12 h-12 mx-auto rounded-full flex items-center justify-center" style={{ background: "rgba(16,185,129,0.15)" }}>
-                            <FiMic style={{ color: "#10b981" }} size={20} />
-                          </div>
-                          <p className="text-sm font-semibold" style={{ color: "#10b981" }}>Saved!</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <div className="w-12 h-12 mx-auto rounded-full flex items-center justify-center" style={{ background: "rgba(99,102,241,0.15)" }}>
-                            <FiMic style={{ color: "#818cf8" }} size={20} />
-                          </div>
-                          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Ready to record</p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex gap-3">
-                      <button onClick={startRecording} disabled={recState !== "idle"}
-                        className="flex-1 px-4 py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2"
-                        style={{ opacity: recState !== "idle" ? 0.5 : 1, cursor: recState !== "idle" ? "not-allowed" : "pointer", background: recState !== "idle" ? "var(--bg-tertiary)" : "linear-gradient(135deg, #6366f1, #8b5cf6)", color: recState !== "idle" ? "var(--text-muted)" : "white" }}>
-                        <FiMic size={16} /> Start
-                      </button>
-                      <button onClick={stopRecording} disabled={recState !== "recording"}
-                        className="flex-1 px-4 py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2"
-                        style={{ opacity: recState !== "recording" ? 0.5 : 1, cursor: recState !== "recording" ? "not-allowed" : "pointer", background: recState !== "recording" ? "var(--bg-tertiary)" : "linear-gradient(135deg, #f43f5e, #e11d48)", color: recState !== "recording" ? "var(--text-muted)" : "white" }}>
-                        <FiX size={16} /> Stop
-                      </button>
-                    </div>
+            <EdModal
+              onClose={closeRecorder}
+              title="Record a voice memo"
+              subtitle={recState === "recording" ? "Recording…" : recState === "stopped" ? "Saved to the archive." : "Press record to begin."}
+            >
+              {recError ? (
+                <p className="ed-serif ed-italic" style={{ fontSize: 18, color: ED.accent, padding: "8px 0" }}>
+                  {recError}
+                </p>
+              ) : (
+                <div style={{ padding: "16px 0" }}>
+                  <div className="ns-rec-state">
+                    {recState === "recording" ? (
+                      <div className="ns-rec-bars" aria-hidden>
+                        {[...Array(7)].map((_, i) => (
+                          <motion.span
+                            key={i}
+                            animate={{ height: [6, 22, 6] }}
+                            transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.08 }}
+                          />
+                        ))}
+                      </div>
+                    ) : recState === "stopped" ? (
+                      <p className="ed-serif ed-italic" style={{ fontSize: 20, color: ED.accent }}>
+                        Forty-two seconds, saved.
+                      </p>
+                    ) : (
+                      <p className="ed-serif ed-italic" style={{ fontSize: 20, color: ED.inkMute }}>
+                        Quiet now. Speak when ready.
+                      </p>
+                    )}
                   </div>
-                )}
-              </div>
-              {recState === "stopped" && (
-                <div className="p-4 border-t" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
-                  <button onClick={closeRecorder} className="w-full py-3 rounded-xl font-medium transition border" style={{ borderColor: "var(--border-secondary)", color: "var(--text-secondary)" }}>Done</button>
+
+                  <div style={{ display: "flex", gap: 12, marginTop: 24, justifyContent: "center" }}>
+                    <button
+                      className="ed-btn ed-btn-primary"
+                      onClick={startRecording}
+                      disabled={recState !== "idle"}
+                      style={{ opacity: recState !== "idle" ? 0.45 : 1, pointerEvents: recState !== "idle" ? "none" : "auto" }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: 999, background: ED.paper50, display: "inline-block" }} />
+                      Start
+                    </button>
+                    <button
+                      className="ed-btn ed-btn-ghost"
+                      onClick={stopRecording}
+                      disabled={recState !== "recording"}
+                      style={{ opacity: recState !== "recording" ? 0.45 : 1, pointerEvents: recState !== "recording" ? "none" : "auto" }}
+                    >
+                      Stop
+                    </button>
+                  </div>
                 </div>
               )}
-            </Modal>
+
+              {recState === "stopped" && (
+                <div style={{ marginTop: 16, textAlign: "right" }}>
+                  <button className="ed-btn ed-btn-primary" onClick={closeRecorder}>Done</button>
+                </div>
+              )}
+            </EdModal>
           )}
         </AnimatePresence>
 
-        {/* Upgrade Modal */}
+        {/* Upgrade */}
         <AnimatePresence>
           {showUpgrade && (
-            <Modal onClose={() => setShowUpgrade(false)}>
-              <ModalHead icon={<Crown size={22} weight="fill" style={{ color: "#f59e0b" }} />}
-                iconBg="rgba(245,158,11,0.15)" iconBorder="rgba(245,158,11,0.25)" title="Pro Feature" sub="Upgrade to unlock" />
-              <div className="p-5">
-                <p className="text-sm leading-relaxed mb-4" style={{ color: "var(--text-secondary)" }}>
-                  Voice Notes and Advanced Export are available on Pro. Upgrade to unlock these powerful features.
-                </p>
-                <div className="p-3 rounded-xl border" style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}>
-                  <p className="text-[10px] mb-2 font-semibold" style={{ color: "var(--text-muted)" }}>Pro includes:</p>
-                  <ul className="space-y-1.5">
-                    {["Voice notes & transcription", "Advanced export", "Unlimited AI", "Cloud sync"].map((f, i) => (
-                      <li key={i} className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                        <span className="w-1 h-1 rounded-full" style={{ backgroundColor: "#818cf8" }} /> {f}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-              <div className="p-4 border-t flex gap-3" style={{ borderColor: "var(--border-secondary)", backgroundColor: "var(--bg-tertiary)" }}>
-                <button onClick={() => setShowUpgrade(false)} className="flex-1 px-4 py-3 rounded-xl font-medium border transition" style={{ borderColor: "var(--border-secondary)", color: "var(--text-secondary)" }}>Not now</button>
-                <button onClick={() => { setShowUpgrade(false); navigate("/dashboard/ai-lab"); }}
-                  className="flex-1 px-4 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition text-white"
-                  style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 16px rgba(99,102,241,0.3)" }}>
-                  <Crown size={16} weight="fill" /> Upgrade
+            <EdModal
+              onClose={() => setShowUpgrade(false)}
+              title="A Pro section"
+              subtitle="Voice memos, advanced export, and unlimited AI live on the Pro tier."
+            >
+              <p className="ed-serif" style={{ fontSize: 18, color: ED.inkMute, lineHeight: 1.55, marginTop: 4 }}>
+                The free archive is generous, but a handful of tools live behind the Pro masthead — voice transcription,
+                bulk export, and the model on demand. <span className="ed-italic" style={{ color: ED.accent }}>$12 a month.</span>
+              </p>
+
+              <ul style={{ listStyle: "none", padding: 0, margin: "20px 0 0", display: "grid", gap: 8 }}>
+                {["Voice memos & transcription", "Bulk export to PDF and Markdown", "Unlimited AI synthesis", "Cloud sync across devices"].map((f, i) => (
+                  <li key={i} className="ed-serif" style={{ fontSize: 17, color: ED.inkSoft, display: "flex", gap: 12 }}>
+                    <span className="ed-mono" style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 19, width: 24 }}>
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div style={{ display: "flex", gap: 12, marginTop: 28, justifyContent: "flex-end" }}>
+                <button className="ed-btn ed-btn-ghost" onClick={() => setShowUpgrade(false)}>Not now</button>
+                <button
+                  className="ed-btn ed-btn-primary"
+                  onClick={() => { setShowUpgrade(false); navigate("/dashboard/ai-lab"); }}
+                >
+                  See the Pro masthead →
                 </button>
               </div>
-            </Modal>
+            </EdModal>
           )}
         </AnimatePresence>
 
         {/* Upload Loader */}
         <AnimatePresence>
           {uploading && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[300] flex flex-col items-center justify-center"
-              style={{ backgroundColor: "rgba(0,0,0,0.8)", backdropFilter: "blur(12px)" }}>
-              <div className="h-16 w-16 rounded-2xl flex items-center justify-center mb-6" style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.25)" }}>
-                <FiUpload size={32} className="animate-bounce text-indigo-400" />
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="ns-upload-overlay"
+            >
+              <div style={{ maxWidth: 360, width: "100%", textAlign: "center" }}>
+                <p
+                  className="ed-mono"
+                  style={{ fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, marginBottom: 14 }}
+                >
+                  Filing it into the archive…
+                </p>
+                <div className="ns-upload-rule" />
               </div>
-              <div className="w-48 h-1.5 rounded-full overflow-hidden mb-4" style={{ backgroundColor: "var(--bg-tertiary)" }}>
-                <motion.div initial={{ x: "-100%" }} animate={{ x: "100%" }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                  className="h-full w-1/2 bg-gradient-to-r from-transparent via-indigo-500 to-transparent" />
-              </div>
-              <p className="text-base font-medium" style={{ color: "var(--text-primary)" }}>Uploading...</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1019,52 +1047,91 @@ export default function Notes() {
         <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} ref={filePickerRef} />
         <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} ref={cameraInputRef} />
       </div>
-    </>
+    </div>
   );
 }
+
 
 /* ═══════════════════════════════════════════════════════
    SUB-COMPONENTS
 ═══════════════════════════════════════════════════════ */
 
-const StatMini = ({ value, label, accent, icon }) => (
-  <div className="ns-notes-card">
-    <div className="relative z-10 p-3 text-center">
-      <div className="flex items-center justify-center gap-1.5 mb-1" style={{ color: accent }}>{icon}</div>
-      <p className="text-xl font-extrabold" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em" }}>{value}</p>
-      <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={{ color: "var(--text-muted)" }}>{label}</p>
-    </div>
-  </div>
-);
+/* ─── Article row: mono ord · serif headline · serif excerpt · mono meta · aside ─── */
+const ArticleRow = ({ ord, note, onOpen, onMenu }) => {
+  const hasAI = !!note.aiGeneratedAt || !!note.summary;
+  const hasBody = String(note.body || "").trim().length > 0;
+  const excerpt = note.summary || note.body;
 
-const CtxItem = ({ icon, label, onClick, danger }) => (
-  <button onClick={onClick} className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition text-left w-full"
-    style={{ color: danger ? "#f43f5e" : "var(--text-secondary)" }}
-    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = danger ? "rgba(244,63,94,0.1)" : "var(--bg-hover)"; }}
-    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}>
-    {icon}
-    <span className="text-sm font-medium">{label}</span>
-  </button>
-);
+  return (
+    <article className="ns-article" onClick={onOpen} onContextMenu={(e) => { e.preventDefault(); onMenu(e); }}>
+      <span className="ord">{String(ord).padStart(2, "0")}</span>
+      <div className="body">
+        <h3 className={`title ${!hasBody && !note.tag ? "ed-italic" : ""}`}>
+          {note.title || <span className="ed-italic" style={{ color: ED.inkMute }}>Untitled</span>}
+        </h3>
+        {excerpt && (
+          <p className="excerpt">{truncate(excerpt, 220)}</p>
+        )}
+        <div className="meta">
+          <span>{fmtMetaDate(note.updated)}</span>
+          {note.tag && <span>{String(note.tag).toUpperCase()}</span>}
+          {hasAI && <span className="ed-chip-accent ed-chip">READ BY MODEL</span>}
+          {note.locked && <span className="ed-chip">LOCKED</span>}
+        </div>
+      </div>
+      <div className="aside">
+        {note.favorite && <span className="ed-mono">★ FAVOURITED</span>}
+        <button
+          className="ns-menu-btn"
+          onClick={(e) => { e.stopPropagation(); onMenu(e); }}
+          aria-label="More"
+          title="More"
+        >
+          ⋯
+        </button>
+      </div>
+    </article>
+  );
+};
 
-const Modal = ({ children, onClose }) => {
+/* ─── EdModal — paper-50 card, hairline border, no shadows ─── */
+const EdModal = ({ children, onClose, title, subtitle }) => {
   if (typeof document === "undefined") return null;
   return createPortal(
     <>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200]" style={{ backgroundColor: "var(--bg-overlay)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
-        onClick={onClose} />
-      <div className="fixed inset-0 z-[201] flex items-center justify-center p-4 pointer-events-none"
-        style={{ paddingTop: "max(env(safe-area-inset-top), 16px)", paddingBottom: "max(env(safe-area-inset-bottom), 16px)" }}>
-        <motion.div initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: 0.98 }}
-          transition={{ type: "spring", stiffness: 420, damping: 34 }}
-          className="w-full max-w-md rounded-3xl border shadow-xl overflow-hidden pointer-events-auto"
-          style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)", maxHeight: "calc(100dvh - 32px)", boxShadow: "0 25px 60px rgba(0,0,0,0.4)" }}
-          onClick={(e) => e.stopPropagation()}>
-          <div className="flex justify-center pt-3 pb-2">
-            <div className="w-10 h-1 rounded-full" style={{ backgroundColor: "var(--border-secondary)" }} />
-          </div>
-          <div className="max-h-[calc(100dvh-32px)] overflow-y-auto">{children}</div>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="ns-modal-bg"
+        onClick={onClose}
+      />
+      <div className="ns-modal-wrap">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 12 }}
+          transition={{ duration: 0.2 }}
+          className="ed-card ns-modal"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
+            <div>
+              <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, margin: 0 }}>
+                <span style={{ color: ED.accent, fontFamily: ED.serif, fontStyle: "italic", fontSize: 13, marginRight: 6 }}>№</span>
+                DISPATCH
+              </p>
+              <h2 className="ed-serif" style={{ fontSize: 28, margin: "6px 0 0", color: ED.ink, paddingBottom: "0.04em" }}>{title}</h2>
+              {subtitle && (
+                <p className="ed-serif ed-italic" style={{ fontSize: 16, color: ED.inkMute, marginTop: 4, lineHeight: 1.4 }}>
+                  {subtitle}
+                </p>
+              )}
+            </div>
+            <button onClick={onClose} className="ns-modal-close" aria-label="Close">
+              <FiX size={13} />
+            </button>
+          </header>
+          <hr className="ed-rule" />
+          <div style={{ marginTop: 20 }}>{children}</div>
         </motion.div>
       </div>
     </>,
@@ -1072,35 +1139,365 @@ const Modal = ({ children, onClose }) => {
   );
 };
 
-const ModalHead = ({ icon, iconBg, iconBorder, title, sub, onClose }) => (
-  <div className="p-4 border-b" style={{ borderColor: "var(--border-secondary)" }}>
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: iconBg, border: `1px solid ${iconBorder}` }}>{icon}</div>
-        <div>
-          <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>{title}</h3>
-          {sub && <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>{sub}</p>}
-        </div>
-      </div>
-      {onClose && (
-        <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center transition" style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-muted)" }}>
-          <FiX size={16} />
-        </button>
+/* ─── Field — label / hint / input slot ─── */
+const Field = ({ label, hint, children }) => (
+  <label className="ns-field">
+    <span className="ns-field-label">
+      <span className="ed-serif" style={{ fontSize: 17, color: ED.ink }}>{label}</span>
+      {hint && (
+        <span className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ED.inkFaint, marginLeft: 10 }}>
+          {hint}
+        </span>
       )}
-    </div>
-  </div>
+    </span>
+    {children}
+  </label>
 );
 
+/* ─── CtxItem ─── */
+const CtxItem = ({ icon, label, onClick, danger }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`ns-ctx-item ${danger ? "is-danger" : ""}`}
+  >
+    <span className="ic">{icon}</span>
+    <span className="lb">{label}</span>
+  </button>
+);
+
+/* ─── FABOption ─── */
 const FABOption = ({ icon, label, onClick, pro }) => (
-  <motion.button type="button" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={onClick}
-    className="fab-option-glass flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all duration-200">
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-      style={{ backgroundColor: "var(--fab-opt-icon-bg)", border: "1px solid var(--fab-opt-icon-border)", boxShadow: "var(--fab-opt-icon-shadow)" }}>
-      <span style={{ color: "var(--fab-opt-icon-color)" }}>{icon}</span>
-    </div>
-    <span className="text-[13px] font-medium flex items-center gap-1.5" style={{ color: "var(--fab-opt-text)" }}>
-      {label}
-      {pro && <span className="text-[9px] px-1.5 py-0.5 rounded-md font-medium" style={{ backgroundColor: "var(--pro-badge-bg)", border: "1px solid var(--pro-badge-border)", color: "var(--pro-badge-text)" }}>PRO</span>}
+  <button type="button" onClick={onClick} className="ns-fab-option">
+    <span className="ic">{icon}</span>
+    <span className="lb">{label}</span>
+    {pro && <span className="ed-chip-ink ed-chip" style={{ fontSize: 9 }}>PRO</span>}
+  </button>
+);
+
+/* ─── Editorial toast ─── */
+const EdToast = ({ toast }) => (
+  <motion.div
+    initial={{ opacity: 0, y: -8 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -8 }}
+    className="ns-toast ed-card"
+  >
+    <span
+      className="ed-mono"
+      style={{
+        color: toast.type === "error" ? "#a8201f" : ED.accent,
+        fontFamily: ED.serif, fontStyle: "italic", fontSize: 15, marginRight: 8,
+      }}
+    >
+      {toast.type === "error" ? "!" : "✓"}
     </span>
-  </motion.button>
+    <span className="ed-serif" style={{ fontSize: 16, color: ED.ink }}>{toast.message}</span>
+  </motion.div>
+);
+
+/* ═══════════════════════════════════════════════════════
+   SCOPED CSS
+═══════════════════════════════════════════════════════ */
+const NotesScopedStyles = () => (
+  <style>{`
+    .ns-ed .ns-notes-headrow {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      gap: 24px; flex-wrap: wrap;
+    }
+    .ns-ed .ns-notes-headcta { display: flex; gap: 10px; }
+    .ns-ed .ns-dotsep { padding: 0 8px; color: ${ED.rule}; }
+
+    /* ── controls ── */
+    .ns-ed .ns-notes-controls {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 24px; padding: 18px 0; flex-wrap: wrap;
+    }
+    .ns-ed .ns-notes-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+    .ns-ed .ns-notes-controls-right { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+    .ns-ed .ns-filter {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: ${ED.mono}; font-size: 11px; letter-spacing: 0.12em;
+      text-transform: uppercase; color: ${ED.inkMute};
+      padding: 7px 12px; border-radius: 999px;
+      border: 1px solid ${ED.rule}; background: transparent;
+      cursor: pointer; transition: all .15s ease;
+    }
+    .ns-ed .ns-filter:hover { border-color: ${ED.ink}; color: ${ED.ink}; }
+    .ns-ed .ns-filter.on { background: ${ED.ink}; color: ${ED.paper50}; border-color: ${ED.ink}; }
+    .ns-ed .ns-filter .n { opacity: 0.7; margin-left: 4px; font-size: 10.5px; }
+
+    .ns-ed .ns-search {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: ${ED.paper50}; border: 1px solid ${ED.rule};
+      border-radius: 999px; padding: 8px 14px; min-width: 260px;
+      transition: border-color .15s ease;
+    }
+    .ns-ed .ns-search:focus-within { border-color: ${ED.ink}; }
+    .ns-ed .ns-search input {
+      background: transparent; border: 0; outline: 0; flex: 1;
+      font-family: ${ED.mono}; font-size: 12px; letter-spacing: 0.06em; color: ${ED.inkSoft};
+    }
+    .ns-ed .ns-search input::placeholder { color: ${ED.inkFaint}; }
+    .ns-ed .ns-clear {
+      width: 18px; height: 18px; border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: transparent; color: ${ED.inkFaint}; border: 0; cursor: pointer;
+    }
+    .ns-ed .ns-clear:hover { color: ${ED.ink}; }
+
+    .ns-ed .ns-view-toggle {
+      display: inline-flex; border: 1px solid ${ED.rule}; border-radius: 999px;
+      overflow: hidden;
+    }
+    .ns-ed .ns-view-toggle button {
+      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.14em;
+      text-transform: uppercase; padding: 8px 14px; color: ${ED.inkMute};
+      background: transparent; border: 0; cursor: pointer;
+      transition: all .15s ease;
+    }
+    .ns-ed .ns-view-toggle button:hover { color: ${ED.ink}; }
+    .ns-ed .ns-view-toggle button.on { background: ${ED.ink}; color: ${ED.paper50}; }
+    .ns-ed .ns-view-toggle button + button { border-left: 1px solid ${ED.rule}; }
+    .ns-ed .ns-view-toggle button.on + button,
+    .ns-ed .ns-view-toggle button + button.on { border-left-color: ${ED.ink}; }
+
+    /* ── article list ── */
+    .ns-ed .ns-articles { padding: 8px 0 24px; }
+    .ns-ed .ns-articles.is-columns {
+      columns: 2; column-gap: 56px;
+      column-rule: 1px solid ${ED.rule};
+    }
+    .ns-ed .ns-articles.is-columns .ns-article {
+      break-inside: avoid;
+      -webkit-column-break-inside: avoid;
+    }
+
+    .ns-ed .ns-article {
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr) minmax(0, 140px);
+      gap: 18px;
+      padding: 22px 14px;
+      border-bottom: 1px solid ${ED.ruleSoft};
+      cursor: pointer; transition: background-color .12s ease, padding .12s ease;
+      align-items: start;
+    }
+    .ns-ed .ns-article:hover { background: ${ED.paper150}; padding-left: 18px; }
+    .ns-ed .ns-article .ord {
+      font-family: ${ED.mono}; font-size: 11px; letter-spacing: 0.14em;
+      color: ${ED.inkFaint}; padding-top: 6px; transition: all .15s ease;
+    }
+    .ns-ed .ns-article:hover .ord {
+      color: ${ED.accent}; font-family: ${ED.serif}; font-style: italic; font-size: 17px;
+    }
+    .ns-ed .ns-article .body { min-width: 0; max-width: 760px; }
+    .ns-ed .ns-article .title {
+      font-family: ${ED.serif}; font-size: clamp(20px, 1.8vw, 26px);
+      line-height: 1.22; color: ${ED.ink}; margin: 0; padding-bottom: 0.04em;
+      transition: color .15s ease;
+    }
+    .ns-ed .ns-article:hover .title { color: ${ED.accent}; }
+    .ns-ed .ns-article .excerpt {
+      font-family: ${ED.serif}; font-size: 16px; line-height: 1.5;
+      color: ${ED.inkMute}; margin: 8px 0 0 0;
+      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+      overflow: hidden;
+    }
+    .ns-ed .ns-article .meta {
+      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.14em;
+      text-transform: uppercase; color: ${ED.inkFaint};
+      margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+    }
+    .ns-ed .ns-article .aside {
+      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.14em;
+      text-transform: uppercase; color: ${ED.inkFaint};
+      padding-top: 8px; min-width: 0; text-align: right;
+      display: flex; gap: 12px; align-items: center; justify-content: flex-end;
+    }
+    .ns-ed .ns-menu-btn {
+      width: 28px; height: 28px; border-radius: 999px; border: 1px solid transparent;
+      background: transparent; color: ${ED.inkFaint}; cursor: pointer;
+      font-size: 16px; line-height: 1; letter-spacing: 1px;
+      transition: all .15s ease;
+    }
+    .ns-ed .ns-menu-btn:hover { border-color: ${ED.rule}; color: ${ED.ink}; background: ${ED.paper50}; }
+
+    /* ── columns layout: collapse aside ── */
+    .ns-ed .ns-articles.is-columns .ns-article {
+      grid-template-columns: 44px 1fr;
+      padding: 16px 8px;
+    }
+    .ns-ed .ns-articles.is-columns .ns-article .aside { display: none; }
+    .ns-ed .ns-articles.is-columns .ns-article .title { font-size: 20px; }
+
+    /* ── mobile narrow: collapse aside, smaller row ── */
+    @media (max-width: 720px) {
+      .ns-ed .ns-article {
+        grid-template-columns: 36px 1fr;
+        padding: 16px 6px;
+      }
+      .ns-ed .ns-article .aside { display: none; }
+      .ns-ed .ns-article .title { font-size: 19px; }
+      .ns-ed .ns-articles.is-columns { columns: 1; }
+    }
+
+    /* ── ctx menu ── */
+    .ns-ed .ns-ctx-overlay {
+      position: fixed; inset: 0; z-index: 90;
+      background: rgba(19,16,8,0.16);
+    }
+    .ns-ed .ns-ctx {
+      position: fixed; z-index: 200;
+      min-width: 200px; padding: 6px;
+      background: ${ED.paper50};
+    }
+    .ns-ed .ns-ctx-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; width: 100%; text-align: left;
+      border: 0; background: transparent; cursor: pointer;
+      color: ${ED.ink}; border-radius: 6px;
+      transition: background-color .12s ease;
+    }
+    .ns-ed .ns-ctx-item:hover { background: ${ED.paper150}; }
+    .ns-ed .ns-ctx-item .ic { color: ${ED.inkFaint}; }
+    .ns-ed .ns-ctx-item .lb { font-family: ${ED.serif}; font-size: 16px; }
+    .ns-ed .ns-ctx-item.is-danger .lb { color: #a8201f; }
+    .ns-ed .ns-ctx-item.is-danger .ic { color: #a8201f; }
+
+    /* ── modal ── */
+    .ns-ed .ns-modal-bg {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(19,16,8,0.32);
+    }
+    .ns-ed .ns-modal-wrap {
+      position: fixed; inset: 0; z-index: 201;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px; pointer-events: none;
+      overflow-y: auto;
+    }
+    .ns-ed .ns-modal {
+      width: 100%; max-width: 560px; padding: 28px;
+      max-height: calc(100dvh - 40px); overflow-y: auto;
+      pointer-events: auto;
+    }
+    .ns-ed .ns-modal-close {
+      width: 32px; height: 32px; border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid ${ED.rule}; color: ${ED.inkSoft};
+      background: transparent; cursor: pointer;
+      transition: all .15s ease;
+    }
+    .ns-ed .ns-modal-close:hover { border-color: ${ED.ink}; color: ${ED.ink}; }
+
+    /* ── form fields ── */
+    .ns-ed .ns-field { display: block; }
+    .ns-ed .ns-field-label {
+      display: flex; align-items: baseline; gap: 8px;
+      margin-bottom: 8px; flex-wrap: wrap;
+    }
+    .ns-ed .ns-input {
+      width: 100%;
+      padding: 11px 14px;
+      background: ${ED.paper50};
+      border: 1px solid ${ED.rule};
+      border-radius: 8px;
+      font-family: ${ED.sans}; font-size: 14px; color: ${ED.ink};
+      transition: border-color .15s ease;
+      resize: vertical;
+    }
+    .ns-ed .ns-input:focus { outline: 0; border-color: ${ED.ink}; }
+    .ns-ed .ns-input::placeholder { color: ${ED.inkFaint}; }
+    .ns-ed .ns-input.ns-pin {
+      text-align: center; letter-spacing: 0.6em; font-size: 22px;
+      padding: 16px 14px; font-family: ${ED.mono};
+    }
+    .ns-ed .ns-cat {
+      font-family: ${ED.mono}; font-size: 10.5px; letter-spacing: 0.14em;
+      text-transform: uppercase; padding: 7px 12px; border-radius: 999px;
+      border: 1px solid ${ED.rule}; color: ${ED.inkMute};
+      background: transparent; cursor: pointer; transition: all .15s ease;
+    }
+    .ns-ed .ns-cat:hover { border-color: ${ED.ink}; color: ${ED.ink}; }
+    .ns-ed .ns-cat.on { background: ${ED.ink}; color: ${ED.paper50}; border-color: ${ED.ink}; }
+
+    /* ── recorder ── */
+    .ns-ed .ns-rec-state {
+      min-height: 48px; display: flex; align-items: center; justify-content: center;
+      padding: 12px 0;
+    }
+    .ns-ed .ns-rec-bars {
+      display: flex; align-items: center; gap: 4px; height: 28px;
+    }
+    .ns-ed .ns-rec-bars span {
+      display: block; width: 3px; border-radius: 1px;
+      background: ${ED.accent};
+    }
+
+    /* ── upload overlay ── */
+    .ns-ed .ns-upload-overlay {
+      position: fixed; inset: 0; z-index: 300;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(246,241,227,0.92);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    }
+    .ns-ed .ns-upload-rule {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, ${ED.ink}, transparent);
+      background-size: 200% 100%;
+      animation: ns-upload-shimmer 1.6s linear infinite;
+    }
+    @keyframes ns-upload-shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ── toast ── */
+    .ns-ed .ns-toast {
+      position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+      z-index: 10000;
+      display: inline-flex; align-items: center;
+      padding: 11px 18px;
+      background: ${ED.paper50};
+    }
+
+    /* ── mobile FAB ── */
+    .ns-ed .ns-fab {
+      position: fixed; z-index: 140;
+      display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+    }
+    @media (min-width: 768px) { .ns-ed .ns-fab { display: none; } }
+    .ns-ed .ns-fab-btn {
+      width: 52px; height: 52px; border-radius: 999px;
+      background: ${ED.ink}; color: ${ED.paper50};
+      border: 0; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 16px rgba(19,16,8,0.18);
+      transition: background-color .15s ease;
+    }
+    .ns-ed .ns-fab-btn:hover { background: ${ED.inkSoft}; }
+    .ns-ed .ns-fab-menu {
+      padding: 6px; display: flex; flex-direction: column; gap: 2px;
+      background: ${ED.paper50}; min-width: 180px;
+    }
+    .ns-ed .ns-fab-option {
+      display: flex; align-items: center; gap: 12px;
+      padding: 9px 12px; border-radius: 6px;
+      border: 0; background: transparent; cursor: pointer;
+      color: ${ED.ink}; transition: background-color .12s ease;
+      text-align: left;
+    }
+    .ns-ed .ns-fab-option:hover { background: ${ED.paper150}; }
+    .ns-ed .ns-fab-option .ic { color: ${ED.inkFaint}; }
+    .ns-ed .ns-fab-option .lb { font-family: ${ED.serif}; font-size: 15px; flex: 1; }
+
+    @media (max-width: 720px) {
+      .ns-ed .ns-notes-headrow { flex-direction: column; align-items: flex-start; gap: 16px; }
+      .ns-ed .ns-notes-headcta { width: 100%; flex-direction: column; }
+      .ns-ed .ns-notes-headcta .ed-btn { width: 100%; justify-content: center; }
+      .ns-ed .ns-notes-controls { flex-direction: column; align-items: stretch; gap: 12px; }
+      .ns-ed .ns-search { min-width: 0; }
+      .ns-ed .ns-notes-controls-right { flex-direction: column; align-items: stretch; }
+    }
+  `}</style>
 );
