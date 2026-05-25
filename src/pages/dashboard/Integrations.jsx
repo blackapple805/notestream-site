@@ -261,10 +261,15 @@ export default function Integrations() {
                 >
                   <span className="ord">{String(i + 1).padStart(2, "0")}</span>
                   <div className="body">
-                    <h3 className="title">
-                      <IconComponent size={16} style={{ verticalAlign: "middle", marginRight: 10, color: ED.inkFaint }} />
-                      {integration.title}{!/[.!?]$/.test(integration.title) ? "." : ""}
-                    </h3>
+                  <h3 className="title">
+                    <span className="title-inner">
+                      <IconComponent className="title-icon" size={16} />
+                      <span>
+                        {integration.title}
+                        {!/[.!?]$/.test(integration.title) ? "." : ""}
+                      </span>
+                    </span>
+                  </h3>
                     <p className="excerpt">{integration.desc}</p>
                     <div className="meta">
                       {isConnected && <span className="ed-chip ed-chip-accent">CONNECTED</span>}
@@ -493,6 +498,19 @@ const INT_STYLES = `
     line-height: 1.22; color: var(--ed-ink); margin: 0; padding-bottom: 0.04em;
     transition: color .15s ease;
   }
+   .ns-ed .ns-int-row .title-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .ns-ed .ns-int-row .title-icon {
+    color: var(--ed-ink-faint);
+    flex-shrink: 0;
+
+    position: relative;
+    top: 2px;
+    opacity: 0.82;
+  }  
   .ns-ed .ns-int-row:hover .title { color: var(--ed-accent); }
   .ns-ed .ns-int-row .excerpt {
     font-family: var(--ed-serif); font-size: 16px; line-height: 1.5;

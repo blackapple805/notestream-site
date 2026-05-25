@@ -446,31 +446,42 @@ export default function VoiceNotes() {
       <div style={{ paddingBottom: "calc(var(--mobile-nav-height, 0px) + 100px)" }}>
 
         {/* ━━━━━━━━━━━━━━ HEADER ━━━━━━━━━━━━━━ */}
-        <header className="ed-reveal ns-vn-head" style={{ paddingTop: 32 }}>
-          <div>
-            <button
-              type="button"
-              onClick={() => navigate("/dashboard/ai-lab")}
-              className="ed-ulink ed-mono"
-              style={{
-                fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase",
-                color: ED.inkMute, background: "transparent", border: 0, cursor: "pointer",
-                padding: 0, marginBottom: 18, display: "inline-flex", alignItems: "center", gap: 6,
-              }}
-            >
-              <FiArrowLeft size={12} /> BACK TO AI LAB
-            </button>
+        <header
+          className="ed-reveal ns-vn-head"
+          style={{
+            paddingTop: 32,
+            position: "relative",
+          }}
+        >
+          {/* floating back link */}
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard/ai-lab")}
+            className="ed-ulink ed-mono ns-vn-back"
+          >
+            <FiArrowLeft size={12} /> BACK TO AI LAB
+          </button>
 
-            <div className="ed-chapter" style={{ marginBottom: 18 }}>
+          <div>
+            <div className="ed-chapter ns-vn-chapter">
               <span className="num">№ 03</span>
               <span>— DISPATCHES IN YOUR OWN VOICE</span>
             </div>
 
             <h1
               className="ed-display"
-              style={{ fontSize: "clamp(40px, 5vw, 64px)", margin: 0, paddingBottom: "0.06em", maxWidth: 920 }}
+              style={{
+                fontSize: "clamp(40px, 5vw, 64px)",
+                margin: 0,
+                paddingBottom: "0.06em",
+                maxWidth: 920,
+              }}
             >
-              Spoken first, <span className="ed-italic" style={{ color: ED.accent }}>read</span> later.
+              Spoken first,{" "}
+              <span className="ed-italic" style={{ color: ED.accent }}>
+                read
+              </span>{" "}
+              later.
             </h1>
 
             <p
@@ -780,7 +791,7 @@ export default function VoiceNotes() {
 
               {/* ── RIGHT: ARCHIVE ── */}
               <aside className="ns-vn-archive">
-                <div className="ed-chapter" style={{ marginBottom: 12 }}>
+                <div className="ed-chapter ns-vn-chapter" style={{ marginBottom: 12 }}>
                   <span className="num">§ 04</span>
                   <span>— ARCHIVE</span>
                 </div>
@@ -1189,6 +1200,32 @@ const VNScopedStyles = () => (
       display: inline-block; width: 8px; height: 8px; border-radius: 999px;
       background: ${ED.paper50}; margin-right: 4px;
     }
+
+     /* ── BACK LINK ── */
+    .ns-ed .ns-vn-back {
+      position: absolute;
+      top: 34px;
+      left: 0;
+
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: ${ED.inkMute};
+    }
+
+    /* create breathing room for chapter */
+    .ns-ed .ns-vn-chapter {
+      padding-top: 34px;
+    }    
 
     /* ── RECORDER (full-width, only visible during active recording) ── */
     .ns-ed .ns-vn-recorder {
