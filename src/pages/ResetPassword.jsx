@@ -1,26 +1,41 @@
 // src/pages/ResetPassword.jsx
 // ───────────────────────────────────────────────────────────────
-// Editorial "forgot password" page. Visual layout only —
-// wire your supabase.auth.resetPasswordForEmail() in onSubmit.
+// Editorial "forgot password" page — wired to Supabase.
 // ───────────────────────────────────────────────────────────────
 
 import { useState } from "react";
 import AuthShell, { authInputStyle, AuthField } from "../components/AuthShell";
 import { ED } from "../lib/editorial";
 import { FiArrowRight } from "react-icons/fi";
+import { supabase, supabaseReady } from "../lib/supabaseClient";
 
 export default function ResetPassword() {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [err, setErr] = useState("");
 
   const onSubmit = async (e) => {
     e.preventDefault();
+    setErr("");
+
+    if (!supabaseReady) {
+      setErr("Password reset is not configured.");
+      return;
+    }
+
     setBusy(true);
-    // ─── REPLACE with your supabase.auth.resetPasswordForEmail(email) ───
-    await new Promise((r) => setTimeout(r, 600));
-    setBusy(false);
-    setSent(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/update-password`,
+      });
+      if (error) throw error;
+      setSent(true);
+    } catch (error) {
+      setErr(error?.message || "Could not send reset link. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -103,6 +118,17 @@ export default function ResetPassword() {
                 style={authInputStyle}
               />
             </AuthField>
+
+            {err && (
+              <div role="alert" style={{
+                padding: "10px 12px", marginBottom: 14, borderRadius: 8,
+                background: "#fdecea", color: "#a3261c",
+                border: "1px solid #f5c2bd",
+                fontFamily: ED.sans, fontSize: 13.5, lineHeight: 1.4,
+              }}>
+                {err}
+              </div>
+            )}
 
             <button type="submit" disabled={busy} className="ed-btn ed-btn-primary" style={{
               width: "100%", justifyContent: "center", opacity: busy ? 0.6 : 1,

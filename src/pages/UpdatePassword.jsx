@@ -1,19 +1,20 @@
 // src/pages/UpdatePassword.jsx
 // ───────────────────────────────────────────────────────────────
 // Editorial "set a new password" page (after clicking the reset link).
-// Visual layout only — wire your supabase.auth.updateUser({ password })
-// in onSubmit.
+// Wired to Supabase.
 // ───────────────────────────────────────────────────────────────
 
 import { useState } from "react";
 import AuthShell, { authInputStyle, AuthField } from "../components/AuthShell";
 import { ED } from "../lib/editorial";
 import { FiArrowRight, FiCheck } from "react-icons/fi";
+import { supabase, supabaseReady } from "../lib/supabaseClient";
 
 export default function UpdatePassword() {
   const [form, setForm] = useState({ password: "", confirm: "" });
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
 
   const mismatch = form.confirm.length > 0 && form.password !== form.confirm;
   const ok = form.password.length >= 12 && form.password === form.confirm;
@@ -21,11 +22,25 @@ export default function UpdatePassword() {
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!ok) return;
+    setErr("");
+
+    if (!supabaseReady) {
+      setErr("Password update is not configured.");
+      return;
+    }
+
     setBusy(true);
-    // ─── REPLACE with supabase.auth.updateUser({ password: form.password }) ───
-    await new Promise((r) => setTimeout(r, 600));
-    setBusy(false);
-    setDone(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: form.password,
+      });
+      if (error) throw error;
+      setDone(true);
+    } catch (error) {
+      setErr(error?.message || "Could not update password. The reset link may have expired.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -101,6 +116,17 @@ export default function UpdatePassword() {
                 }}
               />
             </AuthField>
+
+            {err && (
+              <div role="alert" style={{
+                padding: "10px 12px", marginBottom: 14, borderRadius: 8,
+                background: "#fdecea", color: "#a3261c",
+                border: "1px solid #f5c2bd",
+                fontFamily: ED.sans, fontSize: 13.5, lineHeight: 1.4,
+              }}>
+                {err}
+              </div>
+            )}
 
             <button
               type="submit"

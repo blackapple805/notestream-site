@@ -1,26 +1,65 @@
 // src/pages/Login.jsx
 // ───────────────────────────────────────────────────────────────
-// Editorial login page. Visual layout only — wire your
-// Supabase signInWithPassword() in onSubmit.
+// Editorial login page — wired to Supabase auth.
 // ───────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import AuthShell, { authInputStyle, AuthField } from "../components/AuthShell";
 import { ED } from "../lib/editorial";
 import { FiArrowRight } from "react-icons/fi";
+import { supabase, supabaseReady } from "../lib/supabaseClient";
 
 export default function Login() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = location.state?.from?.pathname || "/dashboard";
+
   const [form, setForm] = useState({ email: "", password: "" });
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
 
   const onSubmit = async (e) => {
     e.preventDefault();
+    setErr("");
+
+    if (!supabaseReady) {
+      setErr("Authentication is not configured. Please contact support.");
+      return;
+    }
+
     setBusy(true);
-    // ─── REPLACE with your supabase.auth.signInWithPassword({...}) ───
-    await new Promise((r) => setTimeout(r, 500));
-    setBusy(false);
-    console.log("login submitted:", form);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: form.email.trim(),
+        password: form.password,
+      });
+      if (error) throw error;
+      navigate(redirectTo, { replace: true });
+    } catch (error) {
+      setErr(error?.message || "Sign in failed. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onOAuth = async (provider) => {
+    setErr("");
+    if (!supabaseReady) {
+      setErr("Authentication is not configured.");
+      return;
+    }
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+      if (error) throw error;
+    } catch (error) {
+      setErr(error?.message || `Could not start ${provider} sign-in.`);
+    }
   };
 
   return (
@@ -68,6 +107,17 @@ export default function Login() {
           />
         </AuthField>
 
+        {err && (
+          <div role="alert" style={{
+            padding: "10px 12px", marginBottom: 14, borderRadius: 8,
+            background: "#fdecea", color: "#a3261c",
+            border: "1px solid #f5c2bd",
+            fontFamily: ED.sans, fontSize: 13.5, lineHeight: 1.4,
+          }}>
+            {err}
+          </div>
+        )}
+
         <div style={{
           display: "flex", justifyContent: "flex-end", marginTop: -8, marginBottom: 18,
         }}>
@@ -99,12 +149,12 @@ export default function Login() {
 
         <div style={{ display: "grid", gap: 8 }}>
           {[
-            { l: "Continue with Google", k: "g" },
-            { l: "Continue with Apple",  k: "a" },
-            { l: "Continue with SSO",    k: "s" },
+            { l: "Continue with Google", k: "google" },
+            { l: "Continue with Apple",  k: "apple" },
           ].map((b) => (
             <button
               key={b.k} type="button"
+              onClick={() => onOAuth(b.k)}
               style={{
                 padding: "11px 14px",
                 border: `1px solid ${ED.rule}`, borderRadius: 10,
