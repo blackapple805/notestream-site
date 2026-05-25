@@ -644,12 +644,16 @@ export default function Activity() {
         </section>
 
         {/* ═══ MIDDLE — Insights chart + Weekly Activity ═══ */}
-        <section style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr)",
-          gap: 40,
-          marginTop: 48,
-        }}>
+        <section
+          className="ed-mobile-stack"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1.6fr) minmax(320px, 1fr)",
+            gap: 40,
+            marginTop: 48,
+            alignItems: "start",
+          }}
+        >
           {/* Insights over time */}
           <div>
             <SectionHeader
@@ -715,11 +719,18 @@ export default function Activity() {
               </div>
 
               {/* Sparkline strip — Uploads */}
-              <div style={{
-                marginTop: 18, paddingTop: 16,
-                borderTop: `1px solid ${ED.ruleSoft}`,
-                display: "grid", gridTemplateColumns: "200px 1fr", gap: 20, alignItems: "center",
-              }}>
+                <div
+                  className="ed-mobile-stack"
+                  style={{
+                    marginTop: 18,
+                    paddingTop: 16,
+                    borderTop: `1px solid ${ED.ruleSoft}`,
+                    display: "grid",
+                    gridTemplateColumns: "200px 1fr",
+                    gap: 20,
+                    alignItems: "center",
+                  }}
+                >
                 <div>
                   <p style={{
                     fontFamily: ED.mono, fontSize: 10, letterSpacing: "0.16em",
@@ -766,13 +777,18 @@ export default function Activity() {
               title="Days on the desk."
             />
             <div className="ns-act-card" style={{ padding: 20, marginTop: 18 }}>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(7, 1fr)",
-                gap: 8,
-              }}>
+              <div
+                  className="weekly-streak-grid"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                    gap: 10,
+                    width: "100%",
+                    alignItems: "start",
+                  }}
+                >
                 {streakDays.map((d, i) => (
-                  <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div key={i} className="weekly-streak-item">
                     <div
                       className="ns-act-streak-cell"
                       style={d.active
@@ -782,11 +798,7 @@ export default function Activity() {
                     >
                       {d.active ? "●" : "·"}
                     </div>
-                    <span style={{
-                      fontFamily: ED.mono, fontSize: 9.5, letterSpacing: "0.14em",
-                      textTransform: "uppercase", color: ED.inkFaint,
-                      textAlign: "center",
-                    }}>
+                    <span className="streak-label">
                       {d.day}
                     </span>
                   </div>
