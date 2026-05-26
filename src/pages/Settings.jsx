@@ -83,7 +83,15 @@ export default function Settings() {
   }, []);
 
   const hydrateFromDb = useCallback(async () => {
-    if (!isSupabaseConfigured || !supabase) return;
+    if (!isSupabaseConfigured || !supabase) {
+      // No Supabase configured — render the page in its empty/default
+      // state instead of hanging on the loader forever. Without this,
+      // the early return below bypasses the `finally` block (which is
+      // where setPageLoading(false) lives), so locally or in any env
+      // without Supabase env vars the loader sticks.
+      setPageLoading(false);
+      return;
+    }
     const myReq = ++reqRef.current;
     setProfileLoading(true); setStatsLoading(true); setStatsError("");
     try {

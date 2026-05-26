@@ -47,11 +47,17 @@ export function useEditorialFonts() {
 // ── Hook: inject scoped editorial CSS once per page ─────────────
 export function useEditorialStyles() {
   useEffect(() => {
-    if (document.getElementById("ns-editorial-styles")) return;
-    const style = document.createElement("style");
-    style.id = "ns-editorial-styles";
+    let style = document.getElementById("ns-editorial-styles");
+    if (style && style.textContent === SCOPED_CSS) return;
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "ns-editorial-styles";
+      document.head.appendChild(style);
+    }
+    // Always sync the content — without this HMR could leave a stale
+    // <style> tag in place after the source file changes, since the
+    // original guard returned early whenever the element existed.
     style.textContent = SCOPED_CSS;
-    document.head.appendChild(style);
   }, []);
 }
 
@@ -63,7 +69,40 @@ export function useEditorial() {
 
 // ── The scoped CSS (everything lives inside .ns-ed) ─────────────
 const SCOPED_CSS = `
+/* Define variables at :root so they cascade EVERYWHERE — not just
+   inside .ns-ed. This matters because some pages have child elements
+   (style tags, recharts SVGs, portals) where the var() cascade can
+   accidentally break, and the dark-mode override only takes effect if
+   the variable is reachable on that element. With :root-level vars,
+   every element in the document can resolve var(--ed-*) reliably.
+   The .ns-ed selector below re-asserts the same values, which is
+   harmless (same values, same cascade), but keeps the original
+   contract intact for any code that relied on .ns-ed-scoped vars. */
+:root {
+  --ed-paper-50:   #fbf8f0;
+  --ed-paper-100:  #f6f1e3;
+  --ed-paper-150:  #efe9d8;
+  --ed-paper-200:  #e7e0cb;
+  --ed-paper-300:  #d6cdb2;
+  --ed-ink:        #131008;
+  --ed-ink-soft:   #2a2519;
+  --ed-ink-mute:   #4b4534;
+  --ed-ink-faint:  #8a8472;
+  --ed-rule:       #d8cfb6;
+  --ed-rule-soft:  #e5dec5;
+  --ed-accent:     #1f3aa8;
+  --ed-accent-soft:#dbe1f3;
+  --ed-hi-yellow:  #f7e84a;
+
+  --ed-serif: "Instrument Serif", Georgia, serif;
+  --ed-sans:  "Geist", -apple-system, system-ui, sans-serif;
+  --ed-mono:  "Geist Mono", ui-monospace, monospace;
+}
+
 .ns-ed {
+  /* Re-assert the same values here for backwards-compat with anything
+     that might re-set them at this level. The :root version above is
+     what actually drives dark mode propagation. */
   --ed-paper-50:   #fbf8f0;
   --ed-paper-100:  #f6f1e3;
   --ed-paper-150:  #efe9d8;
@@ -88,6 +127,63 @@ const SCOPED_CSS = `
   font-family: var(--ed-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* ── DARK MODE ────────────────────────────────────────────────
+   ThemeContext.jsx sets <html data-theme="dark"> (and also adds
+   the class .dark) when the user picks Dark in Settings. The tokens
+   below are the inverse-mood mirror of the light palette — a "midnight
+   desk" rather than a literal hex inversion. The accent blue is lifted
+   so it reads on dark, and shadows / rules are tuned for low-contrast
+   surfaces. Every component that reads var(--ed-*) gets dark mode for
+   free; we only had to touch the foundation.
+
+   :root and <html> are the SAME element, so "html.dark :root" matches
+   nothing (html can't be a descendant of itself). We just put the
+   variables on the html selectors directly — that IS the root scope. */
+html[data-theme="dark"],
+html.dark {
+  --ed-paper-50:   #1c1812;   /* lifted card surface */
+  --ed-paper-100:  #13100a;   /* page background — deepest */
+  --ed-paper-150:  #241f17;   /* hover / pressed surface */
+  --ed-paper-200:  #2d271c;   /* chips, deeper accents */
+  --ed-paper-300:  #3a3322;   /* deepest pop */
+  --ed-ink:        #f3eedd;   /* primary text — cream, not white */
+  --ed-ink-soft:   #d8d1bc;
+  --ed-ink-mute:   #9e9682;
+  --ed-ink-faint:  #6e6855;
+  --ed-rule:       #3a3322;
+  --ed-rule-soft:  #2a2519;
+  --ed-accent:     #7d92d8;   /* lifted blue so it reads on dark */
+  --ed-accent-soft:#2a3160;
+  --ed-hi-yellow:  #d4c534;
+}
+/* Also redefine on .ns-ed in dark mode so any code that re-asserts
+   light values on .ns-ed (e.g. nested .ns-ed wrappers) still gets
+   the dark values back. */
+html[data-theme="dark"] .ns-ed,
+html.dark            .ns-ed {
+  --ed-paper-50:   #1c1812;
+  --ed-paper-100:  #13100a;
+  --ed-paper-150:  #241f17;
+  --ed-paper-200:  #2d271c;
+  --ed-paper-300:  #3a3322;
+  --ed-ink:        #f3eedd;
+  --ed-ink-soft:   #d8d1bc;
+  --ed-ink-mute:   #9e9682;
+  --ed-ink-faint:  #6e6855;
+  --ed-rule:       #3a3322;
+  --ed-rule-soft:  #2a2519;
+  --ed-accent:     #7d92d8;
+  --ed-accent-soft:#2a3160;
+  --ed-hi-yellow:  #d4c534;
+}
+
+/* Highlight selection in dark mode reads better with darker text */
+html[data-theme="dark"] .ns-ed ::selection,
+html.dark            .ns-ed ::selection {
+  background: var(--ed-hi-yellow);
+  color: #13100a;
 }
 
 .ns-ed *,

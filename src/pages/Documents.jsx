@@ -439,7 +439,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
           </div>
 
           <div className="ns-doc-controls-right">
-            <div className="ns-search">
+            <div className="ns-doc-search">
               <FiSearch size={13} style={{ color: ED.inkFaint }} />
               <input
                 type="text"
@@ -449,7 +449,7 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
                 autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
               />
               {query && (
-                <button onClick={() => setQuery("")} className="ns-search-clear" aria-label="Clear">
+                <button onClick={() => setQuery("")} className="ns-doc-search-clear" aria-label="Clear">
                   <FiX size={12} />
                 </button>
               )}
@@ -986,24 +986,24 @@ const DocsScopedStyles = () => (
     .ns-ed .ns-filter.on { background: ${ED.ink}; color: ${ED.paper50}; border-color: ${ED.ink}; }
     .ns-ed .ns-filter .n { opacity: 0.7; margin-left: 4px; font-size: 10.5px; }
 
-    .ns-ed .ns-search {
+    .ns-ed .ns-doc-search {
       display: inline-flex; align-items: center; gap: 8px;
       background: ${ED.paper50}; border: 1px solid ${ED.rule};
       border-radius: 999px; padding: 8px 14px; min-width: 240px;
       transition: border-color .15s ease;
     }
-    .ns-ed .ns-search:focus-within { border-color: ${ED.ink}; }
-    .ns-ed .ns-search input {
+    .ns-ed .ns-doc-search:focus-within { border-color: ${ED.ink}; }
+    .ns-ed .ns-doc-search input {
       background: transparent; border: 0; outline: 0; flex: 1; min-width: 0;
       font-family: ${ED.mono}; font-size: 12px; letter-spacing: 0.06em; color: ${ED.inkSoft};
     }
-    .ns-ed .ns-search input::placeholder { color: ${ED.inkFaint}; }
-    .ns-ed .ns-search-clear {
+    .ns-ed .ns-doc-search input::placeholder { color: ${ED.inkFaint}; }
+    .ns-ed .ns-doc-search-clear {
       width: 18px; height: 18px; border-radius: 999px;
       display: inline-flex; align-items: center; justify-content: center;
       color: ${ED.inkFaint}; background: transparent; border: 0; cursor: pointer;
     }
-    .ns-ed .ns-search-clear:hover { color: ${ED.ink}; }
+    .ns-ed .ns-doc-search-clear:hover { color: ${ED.ink}; }
 
     /* ── sort ── */
     .ns-ed .ns-sort { position: relative; }
@@ -1249,7 +1249,7 @@ const DocsScopedStyles = () => (
       .ns-ed .ns-doc-headcta { width: 100%; flex-direction: column; }
       .ns-ed .ns-doc-headcta .ed-btn { width: 100%; justify-content: center; }
       .ns-ed .ns-doc-controls { flex-direction: column; align-items: stretch; gap: 12px; }
-      .ns-ed .ns-search { min-width: 0; }
+      .ns-ed .ns-doc-search { min-width: 0; }
       .ns-ed .ns-doc-controls-right { flex-direction: column; align-items: stretch; }
       .ns-ed .ns-doc-row { grid-template-columns: 36px 1fr; padding: 16px 6px; }
       .ns-ed .ns-doc-row .aside {

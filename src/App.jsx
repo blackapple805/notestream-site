@@ -40,6 +40,8 @@ import ProblemSection from "./components/ProblemSection";
 import SignupPage from "./pages/Signup";
 import LoginPage from "./pages/Login";
 
+import NoteView from "./pages/NoteView";
+
 // Everything below is lazy-loaded so the initial JS bundle doesn't include code
 // for pages a given visitor probably won't visit. React.lazy returns a wrapped
 // component that triggers a separate HTTP request the first time it's rendered.
@@ -330,14 +332,14 @@ export default function App() {
                   <Route path="/dashboard" element={<DashboardLayout />}>
                     <Route index element={<Dashboard />} />
 
-                    {/* NOTES */}
+                  {/* NOTES */}
                     <Route
                       path="notes"
                       element={<Notes notes={notes} setNotes={setNotes} />}
                     />
                     <Route
-                      path="notes/:noteId"
-                      element={<Notes notes={notes} setNotes={setNotes} />}
+                      path="notes/:id"
+                      element={<NoteView />}
                     />
 
                     {/* DOCUMENTS */}

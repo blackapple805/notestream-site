@@ -462,7 +462,7 @@ export default function Dashboard() {
         <section style={{ margin: "96px 0", textAlign: "center" }}>
           <button
             className="ed-btn ed-btn-primary"
-            onClick={() => navigate("/dashboard/notes")}
+            onClick={() => navigate("/dashboard/notes", { state: { quickCreate: "note", ts: Date.now() } })}
             style={{ fontSize: 15, padding: "13px 24px" }}
           >
             Begin a new note <FiArrowRight size={15} />

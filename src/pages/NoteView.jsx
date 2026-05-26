@@ -1,1726 +1,839 @@
 // src/pages/NoteView.jsx
-import {
-  FiArrowLeft,
-  FiHeart,
-  FiLock,
-  FiTrash2,
-  FiEdit2,
-  FiZap,
-  FiCheck,
-  FiCalendar,
-  FiStar,
-  FiFileText,
-  FiExternalLink,
-  FiDownload,
-  FiMic,
-  FiMoreHorizontal,
-} from "react-icons/fi";
-import { SparkleIcon as Sparkle, LightningIcon as Lightning } from "@phosphor-icons/react";
+// ═══════════════════════════════════════════════════════════════════
+// EDITORIAL — single note reader/editor (magazine spread)
+// ─────────────────────────────────────────────────────────────────
+// Layout:
+//   ≥1200  [meta rail 220] [article 1fr max 720] [tools rail 260]
+//   900–1199  [article 1fr max 720] [tools rail 260]   (meta moves
+//                                                      to a top band)
+//   640–899   single column max 640
+//   <640      single column, sticky bottom action bar
+//
+// Features wired:
+//   · Inline editable title
+//   · Drop cap on first paragraph (only if paragraph >80 chars)
+//   · Block quote + H2 with mono kicker
+//   · Save status floating pill (bottom-right)
+//   · Reading mode toggle (hides rails, adds scroll-progress bar)
+//   · Keyboard: ⌘S save, ⌘Enter publish, e edit, Esc exit reading
+//
+// REPLACE: the NOTE_STUB with your real fetch from id route param,
+// the save/publish handlers with your actual backend calls, the
+// LINKED/RELATED arrays with real queries.
+// ═══════════════════════════════════════════════════════════════════
+
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useSubscription } from "../hooks/useSubscription";
-import { supabase, supabaseReady } from "../lib/supabaseClient";
-import { logActivityEvent } from "../lib/activityEvents";
-import { toLocalYMD, parseYMDToDate, diffDaysLocal } from "../lib/formatDate";
+import { useEditorial, ED } from "../lib/editorial";
+import {
+  FiArrowLeft, FiSave, FiCheck, FiCopy, FiArchive, FiTrash2, FiShare2,
+  FiDownload, FiZap, FiEdit, FiBookOpen, FiX, FiMoreHorizontal,
+  FiTool, FiClock, FiLink, FiTag,
+} from "react-icons/fi";
 
-const USER_STATS_TABLE = "user_engagement_stats";
+/* ─── STUB ─── replace with real fetch by params.id */
+const NOTE_STUB = {
+  id: "n42",
+  number: "042",
+  status: "draft",            // "draft" | "published"
+  title: "On the discipline of writing a single sentence each morning",
+  dek: "A small daily bargain, and what it does to the architecture of a week.",
+  author: "M. CHEN",
+  writtenAt: "MAY 25, 2026",
+  updatedAt: "12 MIN AGO",
+  words: 487,
+  readMins: 3,
+  tags: ["craft", "habits", "essays"],
+  blocks: [
+    { type: "p", text: "There is a peculiar virtue in promising yourself only one sentence. The bargain is small enough to keep, even on days that contain very little. And one sentence almost always becomes more — not because you tricked yourself into it, but because writing is a kind of warmth, and warmth tends to spread once it starts." },
+    { type: "h2", text: "The shape of the bargain" },
+    { type: "p", text: "What I keep noticing is that the bargain works on the scale of weeks, not days. Any single morning's sentence is forgettable. But after a week the page has become a small structure, and the structure exerts its own pull." },
+    { type: "quote", text: "Discipline is just memory in a different posture." },
+    { type: "p", text: "I'm not sure who said that, or if anyone did, but I keep writing it down in different notebooks like a refrain." },
+    { type: "h2", text: "What it is not" },
+    { type: "p", text: "It is not productivity. It is not a system. It does not scale and it does not need to. It is closer to the practice of lighting a candle in the same place every evening — not because the room requires more light, but because the gesture is itself the point." },
+  ],
+};
 
-const AI_USES_KEY = "notestream-aiUses";
-const SMART_KEY_PREFIX = "ns-note-smart:";
+const LINKED_STUB  = [
+  { id: "n40", title: "Walking thoughts on attention" },
+  { id: "n38", title: "Reading log — May" },
+];
 
-function safeJsonParse(value) {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
+const HISTORY_STUB = [
+  { v: 14, at: "12 MIN AGO" },
+  { v: 13, at: "1 H AGO" },
+  { v: 12, at: "YESTERDAY · 18:42" },
+];
 
-// Detect if body content is raw JSON/AI brief data
-function isJsonBody(body) {
-  if (!body || typeof body !== "string") return false;
-  const trimmed = body.trim();
-  // Check if it starts with { and contains typical AI brief fields
-  if (trimmed.startsWith("{") && (
-    trimmed.includes('"id"') ||
-    trimmed.includes('"title"') ||
-    trimmed.includes('"executiveSummary"') ||
-    trimmed.includes('"keyThemes"')
-  )) {
-    return true;
-  }
-  return false;
-}
+const RELATED_STUB = [
+  { id: "n38", number: "038", title: "Reading log — May",                    preview: "Started Calvino's Six Memos and have been chewing on the chapter on lightness…" },
+  { id: "n34", number: "034", title: "On rituals that don't scale",          preview: "The most reliable habits in my life are the ones I can't justify in a meeting." },
+  { id: "n29", number: "029", title: "Notebook fragments — winter",          preview: "Three months of marginalia, collected here without much editing." },
+];
 
-// Parse and extract readable content from AI brief JSON
-function parseAiBriefBody(body) {
-  try {
-    const data = JSON.parse(body);
-    return {
-      isAiBrief: true,
-      summary: data.executiveSummary || null,
-      themes: data.keyThemes || [],
-      insights: data.consolidatedInsights || null,
-      actionPlan: data.unifiedActionPlan || null,
-      sourceCount: data.sourceCount || 0,
-      sources: data.sources || [],
-      gaps: data.gaps || [],
-      generatedAt: data.generatedAt || null,
-    };
-  } catch {
-    return { isAiBrief: false };
-  }
-}
-
-function bumpAiUses() {
-  const current = Number(localStorage.getItem(AI_USES_KEY) || 0) || 0;
-  const next = current + 1;
-  localStorage.setItem(AI_USES_KEY, String(next));
-
-  const engagement = safeJsonParse(localStorage.getItem("notestream-engagement") || "{}") || {};
-  localStorage.setItem(
-    "notestream-engagement",
-    JSON.stringify({
-      ...engagement,
-      ai_uses: next,
-      last_active_date: new Date().toISOString().slice(0, 10),
-    })
-  );
-
-  window.dispatchEvent(
-    new CustomEvent("notestream:ai_uses_updated", { detail: { aiUses: next } })
-  );
-
-  return next;
-}
-
-export default function NoteView({
-  note,
-  onBack,
-  onFavoriteToggle,
-  onEditSave,
-  onDelete,
-  onLockToggle,
-}) {
+export default function NoteView() {
+  useEditorial();
+  const { id } = useParams();
   const navigate = useNavigate();
 
-  // All useState calls MUST come before any conditional early returns to satisfy
-  // the Rules of Hooks. Defaults use optional chaining so they remain valid even
-  // when `note` is null on the first render.
-  const [showToast, setShowToast] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  /* Replace this with a real fetch */
+  const [note, setNote] = useState(NOTE_STUB);
 
-  const [title, setTitle] = useState(note?.title || "Untitled");
-  const [body, setBody] = useState(note?.body ?? "");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [editing, setEditing]         = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [savedAt, setSavedAt]         = useState("12 MIN AGO");
+  const [readingMode, setReadingMode] = useState(false);
+  const [showActions, setShowActions] = useState(false); // mobile actions sheet
+  const [progress, setProgress]       = useState(0);
 
-  const [showUpgrade, setShowUpgrade] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [voiceToast, setVoiceToast] = useState(false);
+  const titleRef = useRef(null);
 
-  const [smartData, setSmartData] = useState({
-    summary: note?.summary || null,
-    SmartTasks: note?.SmartTasks || null,
-    SmartHighlights: note?.SmartHighlights || null,
-    SmartSchedule: note?.SmartSchedule || null,
-    generatedAt: note?.aiGeneratedAt || null,
-  });
-
-  const { subscription, isFeatureUnlocked } = useSubscription();
-  const isPro = !!subscription?.plan && subscription.plan !== "free";
-  const canUseVoice =
-    typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("voice") : isPro;
-  const canUseExport =
-    typeof isFeatureUnlocked === "function" ? isFeatureUnlocked("export") : isPro;
-
-  const isUuid = (v) =>
-    typeof v === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-
-  const trackAiUseDb = async () => {
-    if (!supabaseReady || !supabase) return;
-
-    try {
-      const { data: auth } = await supabase.auth.getUser();
-      const user = auth?.user;
-      if (!user?.id) return;
-
-      await logActivityEvent({
-        userId: user.id,
-        eventType: "ai_used",
-        entityId: isUuid(note?.id) ? note.id : null,
-        metadata: { feature: "note_ai", note_id: note?.id ?? null },
-        title: "AI used on note",
-      });
-
-      const today = toLocalYMD();
-
-      const { data: row, error: rowErr } = await supabase
-        .from(USER_STATS_TABLE)
-        .select("user_id,ai_uses,active_days,streak_days,last_active_date")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (rowErr) return;
-
-      if (!row) {
-        await supabase.from(USER_STATS_TABLE).insert({
-          user_id: user.id,
-          ai_uses: 1,
-          active_days: 1,
-          streak_days: 1,
-          last_active_date: today,
-        });
-        return;
-      }
-
-      const prevYmd = row.last_active_date;
-      const delta = prevYmd ? diffDaysLocal(prevYmd, today) : null;
-
-      const nextAiUses = Number(row.ai_uses ?? 0) + 1;
-
-      const nextActiveDays =
-        delta === null
-          ? Number(row.active_days ?? 0) + 1
-          : delta >= 1
-          ? Number(row.active_days ?? 0) + 1
-          : Number(row.active_days ?? 0);
-
-      const nextStreak =
-        delta === 0
-          ? Number(row.streak_days ?? 0)
-          : delta === 1
-          ? Number(row.streak_days ?? 0) + 1
-          : 1;
-
-      await supabase
-        .from(USER_STATS_TABLE)
-        .update({
-          ai_uses: nextAiUses,
-          active_days: nextActiveDays,
-          streak_days: nextStreak,
-          last_active_date: today,
-        })
-        .eq("user_id", user.id);
-    } catch {
-      // silent fail
-    }
-  };
-
-  if (!note) return null;
-
-  const isVoiceNote = !!note?.audioUrl || note?.tag === "Voice";
-  const isLocked = !!note.locked;
-  const isFav = !!note.favorite;
-
-  const textareaRef = useRef(null);
-
+  /* Scroll progress for reading mode */
   useEffect(() => {
-    setTitle(note.title || "Untitled");
-    setBody(note.body ?? "");
-    setIsEditing(false);
-    setShowExportMenu(false);
-    setShowDeleteConfirm(false);
-    setShowMoreMenu(false);
-
-    const key = `${SMART_KEY_PREFIX}${note.id}`;
-    const stored = safeJsonParse(localStorage.getItem(key) || "null");
-
-    const nextSmart = {
-      summary: note.summary || stored?.summary || null,
-      SmartTasks: note.SmartTasks || stored?.SmartTasks || null,
-      SmartHighlights: note.SmartHighlights || stored?.SmartHighlights || null,
-      SmartSchedule: note.SmartSchedule || stored?.SmartSchedule || null,
-      generatedAt: note.aiGeneratedAt || stored?.generatedAt || null,
+    if (!readingMode) return;
+    const onScroll = () => {
+      const h = document.documentElement;
+      const pct = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100;
+      setProgress(Number.isFinite(pct) ? pct : 0);
     };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [readingMode]);
 
-    setSmartData(nextSmart);
-  }, [note?.id]);
+  /* Save (stub — wire to backend) */
+  const save = useCallback(async () => {
+    setSaving(true);
+    await new Promise(r => setTimeout(r, 600));
+    setSaving(false);
+    setSavedAt("just now");
+  }, []);
+  const publish = useCallback(async () => {
+    await save();
+    setNote(n => ({ ...n, status: "published" }));
+  }, [save]);
 
-  const hasSmartData =
-    !!smartData?.summary ||
-    (Array.isArray(smartData?.SmartTasks) && smartData.SmartTasks.length > 0) ||
-    (Array.isArray(smartData?.SmartHighlights) && smartData.SmartHighlights.length > 0) ||
-    (Array.isArray(smartData?.SmartSchedule) && smartData.SmartSchedule.length > 0);
-
-  // Parse body if it's JSON AI brief data
-  const parsedBrief = useMemo(() => {
-    if (isJsonBody(body)) {
-      return parseAiBriefBody(body);
-    }
-    return { isAiBrief: false };
-  }, [body]);
-  const showSidePanel = !isEditing && hasSmartData;
-
-  const formatRelative = (date) => {
-    const ts = new Date(date).getTime();
-    if (!ts) return "";
-    const diffMs = Date.now() - ts;
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    if (diffMins < 1) return "Just now";
-    if (diffHrs < 1) return `${diffMins}m ago`;
-    if (diffDays < 1) return `${diffHrs}h ago`;
-    return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
-  };
-
-  const formatDate = (date) => {
-    const ts = new Date(date).getTime();
-    if (!ts) return "";
-    return new Date(date).toLocaleDateString(navigator.language || "en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
-  const autoResize = () => {
-    if (!textareaRef.current) return;
-    textareaRef.current.style.height = "auto";
-    textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
-  };
-
+  /* Keyboard shortcuts */
   useEffect(() => {
-    if (isEditing) autoResize();
-  }, [body, isEditing]);
-
-  useEffect(() => {
-    if (!isEditing) return;
-    const t = setTimeout(() => textareaRef.current?.focus(), 0);
-    return () => clearTimeout(t);
-  }, [isEditing]);
-
-  const handleEditToggle = () => {
-    if (isLocked || isVoiceNote) return;
-
-    if (isEditing) {
-      onEditSave?.(note.id, title, body, new Date().toISOString());
-    }
-    setIsEditing((v) => !v);
-    setShowMoreMenu(false);
-  };
-
-  const persistSmart = (payload) => {
-    const key = `${SMART_KEY_PREFIX}${note.id}`;
-    const enriched = { ...payload, generatedAt: new Date().toISOString() };
-
-    setSmartData(enriched);
-    localStorage.setItem(key, JSON.stringify(enriched));
-
-    onEditSave?.(note.id, title, body, new Date().toISOString(), {
-      summary: enriched.summary,
-      SmartTasks: enriched.SmartTasks,
-      SmartHighlights: enriched.SmartHighlights,
-      SmartSchedule: enriched.SmartSchedule,
-      aiGeneratedAt: enriched.generatedAt,
-    });
-  };
-
-  const fakeSmartNotes = () => {
-    if (isVoiceNote) return;
-
-    setIsAnalyzing(true);
-    setShowMoreMenu(false);
-    setTimeout(() => {
-      const newSmartData = {
-        summary:
-          "Quick focus: UI components must be completed before the meeting tomorrow at 3 PM.",
-        SmartTasks: ["Finish UI components", "Request updated Figma from Sarah"],
-        SmartHighlights: ["Dashboard layout is highest priority"],
-        SmartSchedule: ["Meeting tomorrow at 3 PM"],
-      };
-
-      persistSmart(newSmartData);
-      bumpAiUses();
-      trackAiUseDb();
-
-      setIsAnalyzing(false);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-    }, 2000);
-  };
-
-  const handleLockToggle = () => {
-    if (isEditing) {
-      onEditSave?.(note.id, title, body, new Date().toISOString());
-      setIsEditing(false);
-    }
-    onLockToggle?.(note.id, true);
-    setShowMoreMenu(false);
-  };
-
-  const handleFavoriteToggle = () => {
-    onFavoriteToggle?.(note.id, true);
-  };
-
-  const downloadBlob = (filename, mime, content) => {
-    const blob = new Blob([content], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
-  const escapeHtml = (str) => {
-    return String(str || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  };
-
-  const exportBasic = () => {
-    const safeTitle = (title || "note").replace(/[^\w\s-]/g, "").trim() || "note";
-
-    let smartContent = "";
-    if (hasSmartData) {
-      smartContent += "\n\n-----------------------------------\n";
-      smartContent += "AI SMART NOTES ANALYSIS\n";
-      smartContent += "-----------------------------------\n\n";
-      if (smartData.summary) smartContent += "AI Summary:\n" + smartData.summary + "\n\n";
-      if (smartData.SmartTasks?.length > 0) {
-        smartContent +=
-          "Tasks:\n" +
-          smartData.SmartTasks.map((t, i) => `  ${i + 1}. ${t}`).join("\n") +
-          "\n\n";
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); save(); return; }
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); publish(); return; }
+      if (e.key === "Escape" && readingMode) { setReadingMode(false); return; }
+      // 'e' to edit — only when not already focused in an input
+      if (e.key === "e" && !editing) {
+        const inField = document.activeElement && /input|textarea/i.test(document.activeElement.tagName);
+        if (!inField) { setEditing(true); setTimeout(() => titleRef.current?.focus(), 30); }
       }
-      if (smartData.SmartHighlights?.length > 0) {
-        smartContent +=
-          "Key Highlights:\n" +
-          smartData.SmartHighlights.map((h) => `  • ${h}`).join("\n") +
-          "\n\n";
-      }
-      if (smartData.SmartSchedule?.length > 0) {
-        smartContent +=
-          "Schedule:\n" +
-          smartData.SmartSchedule.map((s) => `  • ${s}`).join("\n") +
-          "\n\n";
-      }
-    }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [save, publish, editing, readingMode]);
 
-    const content = `${title}\n\n${body || ""}${smartContent}\n---\nExported from NoteStream on ${new Date().toLocaleString()}\n`;
-    downloadBlob(`${safeTitle}.txt`, "text/plain;charset=utf-8", content);
-    setShowExportMenu(false);
-    setShowMoreMenu(false);
-  };
-
-  const exportAdvanced = (format) => {
-    const safeTitle = (title || "note").replace(/[^\w\s-]/g, "").trim() || "note";
-
-    if (format === "pdf") {
-      let iframe = document.getElementById("print-frame");
-      if (!iframe) {
-        iframe = document.createElement("iframe");
-        iframe.id = "print-frame";
-        iframe.style.position = "fixed";
-        iframe.style.right = "0";
-        iframe.style.bottom = "0";
-        iframe.style.width = "0";
-        iframe.style.height = "0";
-        iframe.style.border = "none";
-        document.body.appendChild(iframe);
-      }
-
-      const smartHtml = hasSmartData
-        ? `
-          <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #6366f1;">
-            <h2 style="color: #6366f1; margin-bottom: 20px;">📊 AI Smart Notes Analysis</h2>
-            ${
-              smartData.summary
-                ? `<div style="background: #f3f4f6; padding: 16px; border-radius: 8px;">
-                    <h3 style="color: #4f46e5; margin: 0 0 8px 0;">💡 AI Summary</h3>
-                    <p style="margin: 0; color: #374151;">${escapeHtml(smartData.summary)}</p>
-                  </div>`
-                : ""
-            }
-          </div>
-        `
-        : "";
-
-      const html = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>${safeTitle}</title>
-            <style>
-              body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
-              h1 { color: #1f2937; border-bottom: 2px solid #6366f1; padding-bottom: 12px; }
-              .content { white-space: pre-wrap; line-height: 1.8; color: #374151; }
-              .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; }
-              @media print { body { padding: 20px; } }
-            </style>
-          </head>
-          <body>
-            <h1>${escapeHtml(title)}</h1>
-            <div class="content">${escapeHtml(body || "")}</div>
-            ${smartHtml}
-            <div class="footer">Exported from NoteStream on ${new Date().toLocaleString()}</div>
-          </body>
-        </html>
-      `;
-
-      const iframeDoc = iframe.contentWindow || iframe.contentDocument;
-      const doc = iframeDoc.document || iframeDoc;
-      doc.open();
-      doc.write(html);
-      doc.close();
-
-      setTimeout(() => {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-      }, 250);
-
-      setShowExportMenu(false);
-      setShowMoreMenu(false);
-    }
-  };
-
-  const handleExportClick = () => {
-    if (!canUseExport) {
-      setShowUpgrade(true);
-      setShowMoreMenu(false);
-      return;
-    }
-    setShowExportMenu((v) => !v);
-  };
-
-  const handleVoiceClick = () => {
-    if (!canUseVoice) {
-      setShowUpgrade(true);
-      setShowMoreMenu(false);
-      return;
-    }
-    if (isVoiceNote) {
-      const el = document.getElementById("voice-player");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
-    setVoiceToast(true);
-    setShowMoreMenu(false);
-    setTimeout(() => setVoiceToast(false), 3000);
-  };
-
-  const noteBadge = useMemo(() => {
-  const baseCls =
-    "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0";
-  const baseStyle = { border: "1px solid transparent" };
-
-  if (note.tag === "Voice") {
-    return (
-      <span
-        className={baseCls}
-        style={{
-          ...baseStyle,
-          color: "var(--accent-purple)",
-          backgroundColor: "rgba(168, 85, 247, 0.1)",
-          border: "1px solid rgba(168, 85, 247, 0.2)",
-        }}
-      >
-        <FiMic size={9} />
-        Voice
-      </span>
-    );
-  }
-
-  if (hasSmartData || parsedBrief.isAiBrief) {
-    return (
-      <span
-        className={baseCls}
-        style={{
-          ...baseStyle,
-          color: "var(--accent-indigo)",
-          backgroundColor: "rgba(99, 102, 241, 0.1)",
-          border: "1px solid rgba(99, 102, 241, 0.2)",
-        }}
-      >
-        <Sparkle size={9} weight="fill" />
-        Smart
-      </span>
-    );
-  }
-
-  return null;
-}, [note.tag, hasSmartData, parsedBrief.isAiBrief]);
+  /* Should the first paragraph get a drop cap? */
+  const firstP = note.blocks.find(b => b.type === "p");
+  const useDropCap = firstP && firstP.text.length >= 80;
 
   return (
-    <div className="min-h-full w-full pb-[calc(var(--mobile-nav-height)+24px)]">
-      {/* HEADER - Cleaner with fewer icons */}
-      <div className="sticky top-0 z-50">
-        <div className="relative mx-auto w-full max-w-5xl px-3 sm:px-6 py-2.5">
-          <div className="flex items-center justify-between gap-2">
-            {/* Left: Back + Title */}
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <button
-                onClick={onBack}
-                className="h-10 w-10 rounded-xl flex items-center justify-center transition active:scale-95 flex-shrink-0"
-                style={{
-                  backgroundColor: "var(--bg-tertiary)",
-                  border: "1px solid var(--border-secondary)",
-                  color: "var(--text-secondary)",
-                }}
-              >
-                <FiArrowLeft size={18} />
-              </button>
+    <div className={`ns-ed ns-nv ${readingMode ? "is-reading" : ""}`}>
+      <NoteViewScopedStyles />
 
-              <div className="min-w-0 flex-1 overflow-hidden">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-[11px] flex-shrink-0" style={{ color: "var(--text-muted)" }}>
-                    {note.updated ? formatDate(note.updated) : ""}
-                    {note.updated ? ` • ${formatRelative(note.updated)}` : ""}
-                  </p>
-                  {noteBadge}
-                  {isLocked && (
-                    <span
-                      className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0"
-                      style={{
-                        color: "var(--accent-amber)",
-                        backgroundColor: "rgba(245, 158, 11, 0.1)",
-                        border: "1px solid rgba(245, 158, 11, 0.2)",
-                      }}
-                    >
-                      <FiLock size={9} />
-                      Locked
-                    </span>
-                  )}
-                </div>
-                <p
-                  className="text-sm sm:text-base font-semibold mt-0.5 truncate max-w-full"
-                  style={{ 
-                    color: "var(--text-primary)",
-                    wordBreak: "break-all",
-                  }}
-                  title={title}
-                >
-                  {title.length > 60 ? title.substring(0, 60) + "…" : title}
-                </p>
-              </div>
-            </div>
+      {/* Reading-mode progress bar */}
+      {readingMode && (
+        <div className="nv-progress" style={{ width: `${progress}%` }} />
+      )}
 
-            {/* Right: Only 3 main icons + more menu */}
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              {/* Favorite - Always visible */}
-              <ActionButton
-                icon={<FiHeart size={16} />}
-                active={isFav}
-                activeColor="var(--accent-rose)"
-                onClick={handleFavoriteToggle}
-                disabled={isAnalyzing}
-                title="Favorite"
-                filled={isFav}
-              />
-
-              {/* Edit/Save - Always visible */}
-              <ActionButton
-                icon={isEditing ? <FiCheck size={16} /> : <FiEdit2 size={16} />}
-                active={isEditing}
-                activeColor="var(--accent-emerald)"
-                onClick={handleEditToggle}
-                disabled={isAnalyzing || isLocked || isVoiceNote}
-                title={isVoiceNote ? "Voice note" : isLocked ? "Locked" : isEditing ? "Save" : "Edit"}
-              />
-
-              {/* More Menu */}
-              <div className="relative">
-                <ActionButton
-                  icon={<FiMoreHorizontal size={16} />}
-                  onClick={() => setShowMoreMenu((v) => !v)}
-                  active={showMoreMenu}
-                  activeColor="var(--accent-indigo)"
-                  title="More options"
-                />
-
-                <AnimatePresence>
-                  {showMoreMenu && (
-                    <>
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[120]"
-                        onClick={() => setShowMoreMenu(false)}
-                      />
-                      <motion.div
-                        initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                        className="absolute right-0 top-12 z-[200] w-[200px] rounded-2xl border shadow-xl overflow-hidden"
-                        style={{
-                          backgroundColor: "var(--bg-elevated)",
-                          borderColor: "var(--border-secondary)",
-                        }}
-                      >
-                        <div className="p-1.5">
-                          <MoreMenuItem
-                            icon={<FiZap size={15} />}
-                            label="AI Analysis"
-                            onClick={fakeSmartNotes}
-                            disabled={isAnalyzing || isVoiceNote}
-                          />
-                          <MoreMenuItem
-                            icon={<FiDownload size={15} />}
-                            label={canUseExport ? "Export" : "Export (Pro)"}
-                            onClick={handleExportClick}
-                            pro={!canUseExport}
-                          />
-                          <MoreMenuItem
-                            icon={<FiMic size={15} />}
-                            label={canUseVoice ? "Voice Notes" : "Voice (Pro)"}
-                            onClick={handleVoiceClick}
-                            pro={!canUseVoice}
-                          />
-
-                          <div
-                            className="h-px my-1.5"
-                            style={{ backgroundColor: "var(--border-secondary)" }}
-                          />
-
-                          <MoreMenuItem
-                            icon={<FiLock size={15} />}
-                            label={isLocked ? "Unlock" : "Lock"}
-                            onClick={handleLockToggle}
-                          />
-                          <MoreMenuItem
-                            icon={<FiTrash2 size={15} />}
-                            label="Delete"
-                            onClick={() => {
-                              setShowDeleteConfirm(true);
-                              setShowMoreMenu(false);
-                            }}
-                            danger
-                          />
-                        </div>
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
-
-                {/* Export submenu */}
-                <AnimatePresence>
-                  {showExportMenu && canUseExport && (
-                    <>
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[120]"
-                        onClick={() => setShowExportMenu(false)}
-                      />
-                      <motion.div
-                        initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                        className="absolute right-0 top-12 z-[200] w-[200px] rounded-2xl border shadow-xl p-1.5"
-                        style={{
-                          backgroundColor: "var(--bg-elevated)",
-                          borderColor: "var(--border-secondary)",
-                        }}
-                      >
-                        <MoreMenuItem
-                          icon={<FiFileText size={14} />}
-                          label="Export PDF"
-                          onClick={() => exportAdvanced("pdf")}
-                        />
-                        <MoreMenuItem
-                          icon={<FiDownload size={14} />}
-                          label="Basic (TXT)"
-                          onClick={exportBasic}
-                        />
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
-          </div>
+      {/* ═══ TOP BAND (mobile / narrow-desktop, replaces left rail) ═══ */}
+      {!readingMode && (
+        <div className="nv-band">
+          <button onClick={() => navigate(-1)} className="nv-back">
+            <FiArrowLeft size={13} />
+            <span className="ed-mono">BACK</span>
+          </button>
+          <span className="ed-mono nv-band-mid">
+            § NOTES · {note.status === "draft" ? "DRAFT" : "PUBLISHED"} · № {note.number}
+          </span>
+          <button
+            type="button"
+            onClick={() => setReadingMode(true)}
+            className="nv-reading-toggle"
+            title="Reading mode"
+            aria-label="Enter reading mode"
+          >
+            <FiBookOpen size={13} />
+          </button>
         </div>
-      </div>
+      )}
 
-      {/* Upgrade Modal */}
-      <AnimatePresence>
-        {showUpgrade && (
-          <UpgradeModal
-            onClose={() => setShowUpgrade(false)}
-            title="Pro feature"
-            body="Voice Notes and Advanced Export are available on Pro."
-            onUpgrade={() => navigate("/dashboard/ai-lab")}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Toast */}
-      <AnimatePresence>
-        {showToast && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-[400] px-4 py-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2"
-            style={{
-              backgroundColor: "rgba(16, 185, 129, 0.9)",
-              border: "1px solid rgba(16, 185, 129, 0.4)",
-              color: "white",
-            }}
-          >
-            <Sparkle size={16} weight="fill" />
-            Smart Notes analysis complete!
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Voice Toast */}
-      <AnimatePresence>
-        {voiceToast && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-[400] px-4 py-2.5 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2"
-            style={{
-              backgroundColor: "rgba(168, 85, 247, 0.9)",
-              border: "1px solid rgba(168, 85, 247, 0.4)",
-              color: "white",
-            }}
-          >
-            <FiMic size={16} />
-            Voice Notes can be created from the Notes page
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Analyzing Overlay */}
-      <AnimatePresence>
-        {isAnalyzing && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[300] flex items-center justify-center"
-            style={{
-              paddingTop: 0, // as requested
-              pointerEvents: "none",
-            }}
-          >
-            {/* 🔒 CARD — UI UNCHANGED */}
-            <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="w-[min(480px,90vw)] rounded-2xl border px-4 py-4 flex items-center gap-4 pointer-events-auto"
-              style={{
-                backgroundColor: "var(--bg-surface)",
-                borderColor: "var(--border-secondary)",
-                boxShadow: "var(--shadow-lg)",
-              }}
-            >
-              <motion.div
-                animate={{ scale: [1, 1.12, 1] }}
-                transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
-                className="w-12 h-12 rounded-2xl flex items-center justify-center"
-                style={{
-                  backgroundColor: "rgba(99, 102, 241, 0.15)",
-                  border: "1px solid rgba(99, 102, 241, 0.3)",
-                }}
-              >
-                <Lightning
-                  size={22}
-                  weight="fill"
-                  style={{ color: "var(--accent-indigo)" }}
-                />
-              </motion.div>
-
-              <div className="flex-1">
-                <p
-                  className="text-sm font-semibold"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  Analyzing note with AI…
-                </p>
-
-                <div
-                  className="w-full h-1.5 rounded-full overflow-hidden mt-2"
-                  style={{ backgroundColor: "var(--bg-tertiary)" }}
-                >
-                  <motion.div
-                    animate={{ x: ["-100%", "100%"] }}
-                    transition={{
-                      duration: 1.1,
-                      repeat: Infinity,
-                      ease: "linear",
-                    }}
-                    className="h-full w-1/3"
-                    style={{ backgroundColor: "var(--accent-indigo)" }}
-                  />
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-
-      {/* CONTENT */}
-      <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-4 sm:py-6">
-        {/* Grid wrapper (1 col when no side panel, 2 cols when smart exists) */}
-        <div
-          className={`grid gap-6 ${
-            showSidePanel ? "lg:grid-cols-[1fr,360px]" : "lg:grid-cols-1"
-          }`}
+      {/* Exit-reading affordance */}
+      {readingMode && (
+        <button
+          type="button"
+          onClick={() => setReadingMode(false)}
+          className="nv-exit-reading"
+          aria-label="Exit reading mode"
         >
-          {/* MAIN */}
-          <div
-            className={`space-y-4 ${
-              showSidePanel ? "" : "max-w-3xl mx-auto w-full"
-            }`}
-          >
-            {note.audioUrl && (
-              <div
-                id="voice-player"
-                className="p-4 rounded-2xl border"
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  borderColor: "var(--border-secondary)",
-                }}
+          <FiX size={14} />
+          <span className="ed-mono">EXIT READING</span>
+        </button>
+      )}
+
+      <div className="nv-shell">
+        {/* ═══ LEFT META RAIL (≥1200) ═══ */}
+        {!readingMode && (
+          <aside className="nv-meta">
+            <section>
+              <p className="ed-mono nv-meta-h">§ STATUS</p>
+              <p className="nv-meta-status">
+                <span className={`nv-status-dot ${note.status}`} />
+                <em>{note.status === "draft" ? "Draft" : "Published"}</em>
+              </p>
+            </section>
+            <hr className="ed-rule-soft" />
+            <section>
+              <p className="ed-mono nv-meta-h">§ TAGS</p>
+              <ul className="nv-meta-tags">
+                {note.tags.map((t) => (
+                  <li key={t}>
+                    <span className="ed-mono nv-meta-tag"><FiTag size={9} /> {t}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            <hr className="ed-rule-soft" />
+            <section>
+              <p className="ed-mono nv-meta-h">§ LINKED</p>
+              <ul className="nv-meta-linked">
+                {LINKED_STUB.map((l, i) => (
+                  <li key={l.id}>
+                    <Link to={`/dashboard/notes/${l.id}`} className="nv-meta-link">
+                      <span className="ed-mono ord">{String(i + 1).padStart(2, "0")}</span>
+                      <span className="title">{l.title}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            <hr className="ed-rule-soft" />
+            <section>
+              <p className="ed-mono nv-meta-h">§ HISTORY</p>
+              <ul className="nv-meta-history">
+                {HISTORY_STUB.map((h) => (
+                  <li key={h.v}>
+                    <span className="ed-mono v">v{h.v}</span>
+                    <span className="ed-mono at">{h.at}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </aside>
+        )}
+
+        {/* ═══ ARTICLE ═══ */}
+        <article className="nv-article">
+          {/* Headline block */}
+          <header className="nv-head">
+            <p className="ed-mono nv-kicker">
+              § NOTES · <span className={`nv-kicker-status ${note.status}`}>{note.status === "draft" ? "DRAFT" : "PUBLISHED"}</span> · № {note.number}
+            </p>
+
+            {editing ? (
+              <input
+                ref={titleRef}
+                className="nv-title nv-title-input"
+                value={note.title}
+                onChange={(e) => setNote(n => ({ ...n, title: e.target.value }))}
+                onBlur={() => setEditing(false)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); setEditing(false); save(); } }}
+              />
+            ) : (
+              <h1
+                className={`nv-title ${note.status === "draft" ? "is-draft" : ""}`}
+                onClick={() => { setEditing(true); setTimeout(() => titleRef.current?.focus(), 30); }}
+                title="Click to edit (or press e)"
               >
-                <div className="flex items-center gap-3 mb-3">
-                  <div
-                    className="h-10 w-10 rounded-2xl flex items-center justify-center"
-                    style={{
-                      backgroundColor: "rgba(168, 85, 247, 0.18)",
-                      border: "1px solid rgba(168, 85, 247, 0.28)",
-                    }}
-                  >
-                    <FiMic style={{ color: "var(--accent-purple)" }} />
-                  </div>
-                  <div className="flex-1">
-                    <p
-                      className="text-sm font-medium"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      Voice Recording
-                    </p>
-                    <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                      Tap play to listen
-                    </p>
-                  </div>
-                </div>
-                <audio controls className="w-full" style={{ height: "40px" }}>
-                  <source
-                    src={note.audioUrl}
-                    type={note.audioMime || "audio/webm"}
-                  />
-                </audio>
-              </div>
+                {note.title}
+              </h1>
             )}
 
-            {note.imageUrl && (
-              <div
-                className="rounded-2xl overflow-hidden border"
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  borderColor: "var(--border-secondary)",
-                }}
-              >
-                <img
-                  src={note.imageUrl}
-                  alt="Note upload"
-                  className="w-full max-h-[52vh] object-contain"
-                />
-              </div>
+            {note.dek && (
+              <p className="nv-dek">{note.dek}</p>
             )}
 
-            {note.pdfUrl && (
-              <div
-                className="p-4 rounded-2xl border"
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  borderColor: "var(--border-secondary)",
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="h-12 w-12 rounded-2xl flex items-center justify-center"
-                    style={{ backgroundColor: "var(--bg-tertiary)" }}
-                  >
-                    <FiFileText size={22} style={{ color: "var(--accent-indigo)" }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className="text-sm font-medium"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      PDF Document
-                    </p>
-                    <p
-                      className="text-[11px] truncate"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      Tap to view full document
-                    </p>
-                  </div>
-                  <a
-                    href={note.pdfUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="h-10 w-10 rounded-2xl flex items-center justify-center transition"
-                    style={{
-                      backgroundColor: "rgba(99, 102, 241, 0.15)",
-                      border: "1px solid rgba(99, 102, 241, 0.25)",
-                      color: "var(--accent-indigo)",
-                    }}
-                    title="Open PDF"
-                  >
-                    <FiExternalLink size={16} />
-                  </a>
-                </div>
-              </div>
-            )}
+            <p className="ed-mono nv-byline">
+              BY {note.author} · WRITTEN {note.writtenAt} · UPDATED {note.updatedAt} · {note.words} WORDS · {note.readMins} MIN READ
+            </p>
 
-            {/* Main content card */}
-            <div
-              className="rounded-2xl p-4 sm:p-5"
-              style={{
-                backgroundColor: "var(--bg-surface)",
-                border: "1px solid var(--border-secondary)",
-              }}
-            >
-              {isEditing ? (
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  maxLength={140}
-                  className="note-input w-full bg-transparent text-xl sm:text-2xl font-bold"
-                  style={{ color: "var(--text-primary)" }}
-                  placeholder="Title"
-                  disabled={isLocked}
-                />
-              ) : (
-                <h1
-                  className="text-xl sm:text-2xl font-bold leading-tight"
-                  style={{
-                    color: "var(--text-primary)",
-                    wordBreak: "break-word",
-                    overflowWrap: "anywhere",
-                  }}
-                >
-                  {title}
-                </h1>
-              )}
+            <hr className="nv-rule-thick" />
+            <hr className="nv-rule-thin" />
+          </header>
 
-              <div className="mt-3">
-                {isEditing ? (
-                  <textarea
-                    ref={textareaRef}
-                    rows={10}
-                    className="note-input w-full bg-transparent text-[15px] resize-none leading-relaxed whitespace-pre-wrap"
-                    style={{ color: "var(--text-secondary)" }}
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    placeholder={isLocked ? "This note is locked." : "Start writing…"}
-                    disabled={isLocked}
-                  />
-                ) : parsedBrief.isAiBrief ? (
-                  <AiBriefContent brief={parsedBrief} />
-                ) : body ? (
-                  <div
-                    className="text-[15px] leading-relaxed whitespace-pre-wrap break-words"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    {body}
+          {/* Body */}
+          <div className="nv-body">
+            {note.blocks.map((b, i) => {
+              if (b.type === "h2") {
+                return (
+                  <div key={i} className="nv-h2-wrap">
+                    <p className="ed-mono nv-h2-kicker">§ {String(i).padStart(2, "0")}</p>
+                    <h2 className="nv-h2">{b.text}</h2>
                   </div>
-                ) : (
-                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                    This note is empty. Tap edit to start writing.
+                );
+              }
+              if (b.type === "quote") {
+                return (
+                  <blockquote key={i} className="nv-quote">
+                    {b.text}
+                  </blockquote>
+                );
+              }
+              // paragraph
+              const isFirstP = b === firstP;
+              if (isFirstP && useDropCap) {
+                const first = b.text.charAt(0);
+                const rest  = b.text.slice(1);
+                return (
+                  <p key={i} className="nv-p nv-p-first">
+                    <span className="nv-dropcap">{first}</span>{rest}
                   </p>
-                )}
-              </div>
-            </div>
-
-            {!isEditing && note.extractedText && (
-              <div
-                className="p-4 rounded-2xl border"
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  borderColor: "var(--border-secondary)",
-                }}
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <div
-                    className="h-8 w-8 rounded-2xl flex items-center justify-center"
-                    style={{ backgroundColor: "var(--bg-tertiary)" }}
-                  >
-                    <FiFileText size={14} style={{ color: "var(--text-muted)" }} />
-                  </div>
-                  <h3
-                    className="font-semibold text-sm"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    Extracted Text
-                  </h3>
-                </div>
-                <p
-                  className="text-[13px] whitespace-pre-wrap leading-relaxed"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  {note.extractedText}
-                </p>
-              </div>
-            )}
-
-            {/* Optional: Pre-AI CTA kept in MAIN so layout stays clean */}
-            {!isEditing && !hasSmartData && !parsedBrief.isAiBrief && (
-              <div
-                className="rounded-2xl border p-4"
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  borderColor: "var(--border-secondary)",
-                }}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div
-                    className="h-9 w-9 rounded-2xl flex items-center justify-center"
-                    style={{
-                      backgroundColor: "rgba(99,102,241,0.12)",
-                      border: "1px solid rgba(99,102,241,0.22)",
-                    }}
-                  >
-                    <Sparkle
-                      size={16}
-                      weight="fill"
-                      style={{ color: "var(--accent-indigo)" }}
-                    />
-                  </div>
-                  <p
-                    className="text-sm font-semibold"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    Smart Notes
-                  </p>
-                </div>
-
-                <p
-                  className="text-[13px] leading-relaxed"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Run AI Analysis to generate a summary, tasks, highlights, and schedule.
-                </p>
-
-                <button
-                  onClick={fakeSmartNotes}
-                  disabled={isAnalyzing || isVoiceNote}
-                  className="mt-3 w-full py-2.5 rounded-xl text-sm font-medium transition active:scale-[0.99]"
-                  style={{
-                    background: "linear-gradient(90deg, var(--accent-indigo), #4f46e5)",
-                    color: "white",
-                    opacity: isAnalyzing || isVoiceNote ? 0.6 : 1,
-                  }}
-                  title={
-                    isVoiceNote ? "AI analysis not available for voice notes" : "Run AI Analysis"
-                  }
-                >
-                  {isAnalyzing ? "Analyzing…" : "Run AI Analysis"}
-                </button>
-              </div>
-            )}
+                );
+              }
+              return <p key={i} className="nv-p">{b.text}</p>;
+            })}
           </div>
 
-          {/* SMART PANEL (only when it has content) */}
-          {showSidePanel && (
-            <div className="space-y-4">
-              {smartData.summary && (
-                <SmartCard
-                  icon={<Sparkle size={16} weight="fill" />}
-                  title="AI Summary"
-                  color="indigo"
-                  delay={0}
-                >
-                  <p
-                    className="text-[13px] leading-relaxed"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    {smartData.summary}
-                  </p>
-                </SmartCard>
-              )}
+          {/* End ornament */}
+          <div className="nv-end">
+            <p className="ed-mono nv-end-line">END OF ENTRY № {note.number}</p>
+            <p className="nv-end-orn">❦</p>
+          </div>
 
-              {smartData.SmartTasks?.length > 0 && (
-                <SmartCard
-                  icon={<FiCheck size={14} />}
-                  title="Tasks"
-                  color="emerald"
-                  delay={0.04}
-                >
-                  <ul className="space-y-2">
-                    {smartData.SmartTasks.map((task, i) => (
-                      <li
-                        key={i}
-                        className="flex items-start gap-2 text-[13px]"
-                        style={{ color: "var(--text-secondary)" }}
-                      >
-                        <div
-                          className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                          style={{
-                            backgroundColor: "rgba(16, 185, 129, 0.1)",
-                            border: "1px solid rgba(16, 185, 129, 0.3)",
-                          }}
-                        >
-                          <FiCheck
-                            size={10}
-                            style={{ color: "var(--accent-emerald)" }}
-                          />
-                        </div>
-                        {task}
-                      </li>
-                    ))}
-                  </ul>
-                </SmartCard>
-              )}
-
-              {smartData.SmartHighlights?.length > 0 && (
-                <SmartCard
-                  icon={<FiStar size={14} />}
-                  title="Highlights"
-                  color="amber"
-                  delay={0.08}
-                >
-                  <ul className="space-y-2">
-                    {smartData.SmartHighlights.map((item, i) => (
-                      <li
-                        key={i}
-                        className="flex items-start gap-2 text-[13px]"
-                        style={{ color: "var(--text-secondary)" }}
-                      >
-                        <div
-                          className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                          style={{
-                            backgroundColor: "rgba(245, 158, 11, 0.1)",
-                            border: "1px solid rgba(245, 158, 11, 0.3)",
-                          }}
-                        >
-                          <FiStar
-                            size={10}
-                            style={{ color: "var(--accent-amber)" }}
-                          />
-                        </div>
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </SmartCard>
-              )}
-
-              {smartData.SmartSchedule?.length > 0 && (
-                <SmartCard
-                  icon={<FiCalendar size={14} />}
-                  title="Schedule"
-                  color="purple"
-                  delay={0.12}
-                >
-                  <ul className="space-y-2">
-                    {smartData.SmartSchedule.map((date, i) => (
-                      <li
-                        key={i}
-                        className="flex items-start gap-2 text-[13px]"
-                        style={{ color: "var(--text-secondary)" }}
-                      >
-                        <div
-                          className="h-5 w-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                          style={{
-                            backgroundColor: "rgba(168, 85, 247, 0.1)",
-                            border: "1px solid rgba(168, 85, 247, 0.3)",
-                          }}
-                        >
-                          <FiCalendar
-                            size={10}
-                            style={{ color: "var(--accent-purple)" }}
-                          />
-                        </div>
-                        {date}
-                      </li>
-                    ))}
-                  </ul>
-                </SmartCard>
-              )}
-            </div>
+          {/* Related */}
+          {!readingMode && (
+            <section className="nv-related">
+              <p className="ed-mono nv-related-h">§ ALSO IN THIS NOTEBOOK</p>
+              <hr className="ed-rule" />
+              <div className="nv-related-grid">
+                {RELATED_STUB.map((r) => (
+                  <Link key={r.id} to={`/dashboard/notes/${r.id}`} className="nv-related-card">
+                    <p className="ed-mono">№ {r.number}</p>
+                    <h3>{r.title}</h3>
+                    <p className="prev">{r.preview}</p>
+                  </Link>
+                ))}
+              </div>
+            </section>
           )}
-        </div>
+        </article>
+
+        {/* ═══ RIGHT TOOLS RAIL (≥900) ═══ */}
+        {!readingMode && (
+          <aside className="nv-tools">
+            <section className="nv-tools-section">
+              <p className="ed-mono nv-tools-h">§ ACTIONS</p>
+              <button onClick={save} className="nv-tool-row primary" disabled={saving}>
+                <FiSave size={13} />
+                <span className="lb">{saving ? "Saving…" : "Save"}</span>
+                <span className="ed-mono kbd">⌘S</span>
+              </button>
+              <button onClick={publish} className="nv-tool-row">
+                <FiCheck size={13} />
+                <span className="lb">Publish</span>
+                <span className="ed-mono kbd">⌘↵</span>
+              </button>
+              <button className="nv-tool-row">
+                <FiCopy size={13} />
+                <span className="lb">Duplicate</span>
+              </button>
+              <button className="nv-tool-row">
+                <FiArchive size={13} />
+                <span className="lb">Archive</span>
+              </button>
+              <button className="nv-tool-row danger">
+                <FiTrash2 size={13} />
+                <span className="lb">Delete</span>
+              </button>
+            </section>
+
+            <section className="nv-tools-section">
+              <p className="ed-mono nv-tools-h">§ AI</p>
+              <button className="nv-tool-row">
+                <FiZap size={13} />
+                <span className="lb">Summarize</span>
+                <span className="sub">Generate a brief abstract</span>
+              </button>
+              <button className="nv-tool-row">
+                <FiEdit size={13} />
+                <span className="lb">Rewrite</span>
+                <span className="sub">Improve flow &amp; clarity</span>
+              </button>
+              <button className="nv-tool-row">
+                <FiTool size={13} />
+                <span className="lb">Expand</span>
+                <span className="sub">Develop a section further</span>
+              </button>
+            </section>
+
+            <section className="nv-tools-section">
+              <p className="ed-mono nv-tools-h">§ EXPORT</p>
+              <button className="nv-tool-row">
+                <FiDownload size={13} />
+                <span className="lb">PDF · Markdown · DOCX</span>
+              </button>
+              <button className="nv-tool-row">
+                <FiShare2 size={13} />
+                <span className="lb">Share link</span>
+              </button>
+            </section>
+          </aside>
+        )}
       </div>
 
+      {/* ═══ Floating save status (desktop) ═══ */}
+      {!readingMode && (
+        <div className="nv-saved">
+          <span className={`nv-saved-dot ${saving ? "saving" : "ok"}`} />
+          <span className="ed-mono">
+            {saving ? "SAVING…" : `SAVED · ${note.words} WORDS`}
+          </span>
+        </div>
+      )}
 
-      {/* Delete Modal */}
-      <AnimatePresence>
-        {showDeleteConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[999] flex items-center justify-center px-6"
-            style={{ backgroundColor: "var(--bg-overlay)", backdropFilter: "blur(8px)" }}
+      {/* ═══ Mobile floating actions ═══ */}
+      {!readingMode && (
+        <>
+          <button
+            type="button"
+            className="nv-fab"
+            onClick={() => setShowActions(true)}
+            aria-label="Open actions"
           >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-[360px] p-6 rounded-2xl border shadow-xl"
-              style={{
-                backgroundColor: "var(--bg-surface)",
-                borderColor: "var(--border-secondary)",
-              }}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div
-                  className="h-10 w-10 rounded-2xl flex items-center justify-center"
-                  style={{
-                    backgroundColor: "rgba(244, 63, 94, 0.2)",
-                    border: "1px solid rgba(244, 63, 94, 0.3)",
-                  }}
-                >
-                  <FiTrash2 size={18} style={{ color: "var(--accent-rose)" }} />
-                </div>
-                <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
-                  Delete Note?
-                </h3>
-              </div>
-              <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>
-                This action cannot be undone. Are you sure you want to delete this note?
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="flex-1 px-4 py-3 rounded-xl font-medium transition"
-                  style={{
-                    backgroundColor: "var(--bg-button)",
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    onDelete?.(note.id);
-                    setShowDeleteConfirm(false);
-                  }}
-                  className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition"
-                  style={{ backgroundColor: "var(--accent-rose)" }}
-                >
-                  Delete
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <FiMoreHorizontal size={16} />
+          </button>
 
-      <style>{`
-        .note-input {
-          outline: none !important;
-          border: none !important;
-          box-shadow: none !important;
-          -webkit-appearance: none !important;
-          -moz-appearance: none !important;
-          appearance: none !important;
-          caret-color: var(--accent-indigo);
-        }
-        .note-input:focus {
-          outline: none !important;
-          border: none !important;
-          box-shadow: none !important;
-        }
-        .note-input::placeholder {
-          color: var(--text-muted);
-        }
-        .no-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-        .no-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
+          <AnimatePresence>
+            {showActions && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="nv-sheet-scrim"
+                  onClick={() => setShowActions(false)}
+                />
+                <motion.div
+                  initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+                  transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+                  className="nv-sheet"
+                  role="dialog" aria-modal="true"
+                >
+                  <header className="nv-sheet-head">
+                    <p className="ed-mono">§ ACTIONS</p>
+                    <button onClick={() => setShowActions(false)} aria-label="Close"><FiX size={14} /></button>
+                  </header>
+                  <hr className="ed-rule-soft" />
+                  <button onClick={() => { save(); setShowActions(false); }} className="nv-tool-row primary">
+                    <FiSave size={13} /><span className="lb">Save</span>
+                  </button>
+                  <button onClick={() => { publish(); setShowActions(false); }} className="nv-tool-row">
+                    <FiCheck size={13} /><span className="lb">Publish</span>
+                  </button>
+                  <button className="nv-tool-row"><FiZap size={13} /><span className="lb">AI tools</span></button>
+                  <button className="nv-tool-row"><FiDownload size={13} /><span className="lb">Export</span></button>
+                  <button className="nv-tool-row"><FiArchive size={13} /><span className="lb">Archive</span></button>
+                  <button className="nv-tool-row danger"><FiTrash2 size={13} /><span className="lb">Delete</span></button>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </>
+      )}
     </div>
   );
 }
 
-/* -----------------------------------------
-   AI Brief Content Component
-   Renders parsed JSON body nicely
------------------------------------------ */
-const AiBriefContent = ({ brief }) => {
-  if (!brief || !brief.isAiBrief) return null;
+/* ═══════════════════════════════════════════════════════
+   Scoped CSS
+═══════════════════════════════════════════════════════ */
+const NoteViewScopedStyles = () => (
+  <style>{`
+    .ns-ed.ns-nv {
+      width: 100%;
+      min-height: 100dvh;
+      position: relative;
+    }
+    /* Reading mode no longer needs to override padding — DashboardLayout
+       handles the offset and reading mode just hides chrome via .is-reading
+       on inner elements. */
 
-  return (
-    <div className="space-y-4">
-      {/* Executive Summary */}
-      {brief.summary && (
-        <div>
-          <p
-            className="text-[15px] leading-relaxed"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            {brief.summary}
-          </p>
-        </div>
-      )}
+    /* Top band (back / kicker / reading toggle) */
+    .ns-ed .nv-band {
+      padding: clamp(14px, 2vw, 22px) 0;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px;
+    }
+    .ns-ed .nv-back, .ns-ed .nv-reading-toggle {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border: 1px solid ${ED.rule};
+      border-radius: 999px; background: transparent;
+      color: ${ED.inkSoft}; cursor: pointer;
+      font-size: 10px; letter-spacing: 0.14em;
+    }
+    .ns-ed .nv-back:hover, .ns-ed .nv-reading-toggle:hover {
+      border-color: ${ED.ink}; color: ${ED.ink};
+    }
+    .ns-ed .nv-reading-toggle { padding: 6px; }
+    .ns-ed .nv-band-mid {
+      font-size: 10px; letter-spacing: 0.16em; color: ${ED.inkFaint};
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    @media (max-width: 540px) {
+      .ns-ed .nv-band-mid { display: none; }
+    }
 
-      {/* Key Themes */}
-      {brief.themes && brief.themes.length > 0 && (
-        <div
-          className="p-3 rounded-xl"
-          style={{
-            backgroundColor: "rgba(99, 102, 241, 0.05)",
-            border: "1px solid rgba(99, 102, 241, 0.15)",
-          }}
-        >
-          <p
-            className="text-xs font-medium mb-2"
-            style={{ color: "var(--accent-indigo)" }}
-          >
-            Key Themes
-          </p>
-          <div className="space-y-2">
-            {brief.themes.map((theme, i) => (
-              <div key={i} className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                <span className="font-medium" style={{ color: "var(--text-primary)" }}>
-                  {theme.theme || theme}
-                </span>
-                {theme.frequency && (
-                  <span
-                    className="ml-2 text-[10px] px-1.5 py-0.5 rounded"
-                    style={{
-                      backgroundColor: "var(--bg-tertiary)",
-                      color: "var(--text-muted)",
-                    }}
-                  >
-                    {theme.frequency}
-                  </span>
-                )}
-                {theme.insight && (
-                  <p className="mt-0.5 text-[12px]" style={{ color: "var(--text-muted)" }}>
-                    {theme.insight}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Insights */}
-      {brief.insights && (
-        <div
-          className="p-3 rounded-xl"
-          style={{
-            backgroundColor: "rgba(245, 158, 11, 0.05)",
-            border: "1px solid rgba(245, 158, 11, 0.15)",
-          }}
-        >
-          <p
-            className="text-xs font-medium mb-2"
-            style={{ color: "var(--accent-amber)" }}
-          >
-            Key Insights
-          </p>
-          <p
-            className="text-[13px] leading-relaxed"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            {brief.insights}
-          </p>
-        </div>
-      )}
-
-      {/* Action Plan */}
-      {brief.actionPlan && (
-        <div
-          className="p-3 rounded-xl"
-          style={{
-            backgroundColor: "rgba(16, 185, 129, 0.05)",
-            border: "1px solid rgba(16, 185, 129, 0.15)",
-          }}
-        >
-          <p
-            className="text-xs font-medium mb-2"
-            style={{ color: "var(--accent-emerald)" }}
-          >
-            Action Plan
-          </p>
-          {Array.isArray(brief.actionPlan) ? (
-            <ul className="space-y-1.5">
-              {brief.actionPlan.map((item, i) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-2 text-[13px]"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  <span style={{ color: "var(--accent-emerald)" }}>•</span>
-                  <span>
-                    {typeof item === "string" ? item : item.action || JSON.stringify(item)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p
-              className="text-[13px] leading-relaxed"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              {typeof brief.actionPlan === "string"
-                ? brief.actionPlan
-                : JSON.stringify(brief.actionPlan)}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Gaps */}
-      {brief.gaps && brief.gaps.length > 0 && (
-        <div
-          className="p-3 rounded-xl"
-          style={{
-            backgroundColor: "rgba(244, 63, 94, 0.05)",
-            border: "1px solid rgba(244, 63, 94, 0.15)",
-          }}
-        >
-          <p
-            className="text-xs font-medium mb-2"
-            style={{ color: "var(--accent-rose)" }}
-          >
-            Gaps & Considerations
-          </p>
-          <ul className="space-y-1">
-            {brief.gaps.map((gap, i) => (
-              <li
-                key={i}
-                className="text-[13px]"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                • {gap}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Source count */}
-      {brief.sourceCount > 0 && (
-        <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-          Synthesized from {brief.sourceCount} source{brief.sourceCount > 1 ? "s" : ""}
-          {brief.generatedAt && (
-            <>
-              {" "}
-              • Generated{" "}
-              {new Date(brief.generatedAt).toLocaleDateString(navigator.language || "en-US", {
-                month: "short",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-              })}
-            </>
-          )}
-        </p>
-      )}
-    </div>
-  );
-};
-
-/* -----------------------------------------
-   Action Button Component
------------------------------------------ */
-const ActionButton = ({
-  icon,
-  active,
-  activeColor = "var(--accent-indigo)",
-  onClick,
-  disabled,
-  title,
-  pulse,
-  filled,
-}) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    title={title}
-    className={`h-10 w-10 rounded-xl flex items-center justify-center transition active:scale-95 flex-shrink-0 ${
-      disabled ? "opacity-50 cursor-not-allowed" : ""
-    } ${pulse ? "animate-pulse" : ""}`}
-    style={{
-      backgroundColor: "var(--bg-tertiary)",
-      border: `1px solid ${active ? activeColor : "var(--border-secondary)"}`,
-      color: active ? activeColor : "var(--text-muted)",
-    }}
-  >
-    {filled && active ? <FiHeart size={16} fill="currentColor" /> : icon}
-  </button>
-);
-
-/* -----------------------------------------
-   More Menu Item Component
------------------------------------------ */
-const MoreMenuItem = ({ icon, label, onClick, danger, disabled, pro }) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition ${
-      disabled ? "opacity-50 cursor-not-allowed" : ""
-    }`}
-    style={{
-      color: danger ? "var(--accent-rose)" : "var(--text-secondary)",
-    }}
-    onMouseEnter={(e) => {
-      if (!disabled) {
-        e.currentTarget.style.backgroundColor = danger
-          ? "rgba(244, 63, 94, 0.1)"
-          : "var(--bg-hover)";
+    /* Shell grid */
+    .ns-ed .nv-shell {
+      padding: 0 0 120px;
+      display: grid; gap: clamp(20px, 3vw, 40px);
+      grid-template-columns: 220px minmax(0, 1fr) 260px;
+      justify-content: center;
+    }
+    @media (max-width: 1199px) {
+      .ns-ed .nv-shell {
+        grid-template-columns: minmax(0, 1fr) 260px;
       }
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.backgroundColor = "transparent";
-    }}
-  >
-    <span style={{ color: danger ? "var(--accent-rose)" : "var(--text-muted)" }}>{icon}</span>
-    <span className="text-sm font-medium flex-1">{label}</span>
-    {pro && (
-      <span
-        className="text-[9px] px-1.5 py-0.5 rounded-md font-medium"
-        style={{
-          backgroundColor: "rgba(245, 158, 11, 0.15)",
-          border: "1px solid rgba(245, 158, 11, 0.25)",
-          color: "var(--accent-amber)",
-        }}
-      >
-        PRO
-      </span>
-    )}
-  </button>
-);
+      .ns-ed .nv-meta { display: none; }
+    }
+    @media (max-width: 899px) {
+      .ns-ed .nv-shell {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .ns-ed .nv-tools { display: none; }
+    }
+    .ns-ed.ns-nv.is-reading .nv-shell {
+      grid-template-columns: minmax(0, 680px);
+    }
 
-/* -----------------------------------------
-   Smart Card Component
------------------------------------------ */
-const SmartCard = ({ icon, title, color, children, delay = 0 }) => {
-  const colorMap = {
-    indigo: {
-      bg: "rgba(99, 102, 241, 0.05)",
-      border: "rgba(99, 102, 241, 0.2)",
-      accent: "var(--accent-indigo)",
-    },
-    emerald: {
-      bg: "rgba(16, 185, 129, 0.05)",
-      border: "rgba(16, 185, 129, 0.2)",
-      accent: "var(--accent-emerald)",
-    },
-    amber: {
-      bg: "rgba(245, 158, 11, 0.05)",
-      border: "rgba(245, 158, 11, 0.2)",
-      accent: "var(--accent-amber)",
-    },
-    purple: {
-      bg: "rgba(168, 85, 247, 0.05)",
-      border: "rgba(168, 85, 247, 0.2)",
-      accent: "var(--accent-purple)",
-    },
-  };
+    /* ── Left meta rail ── */
+    .ns-ed .nv-meta {
+      position: sticky; top: calc(var(--app-content-top, 64px) + 80px);
+      align-self: start; padding-top: 80px;
+    }
+    .ns-ed .nv-meta section { margin: 14px 0; }
+    .ns-ed .nv-meta-h {
+      font-size: 9.5px; letter-spacing: 0.18em; color: ${ED.inkFaint};
+      margin: 0 0 8px;
+    }
+    .ns-ed .nv-meta-status {
+      font-family: ${ED.serif}; font-size: 17px; color: ${ED.ink};
+      margin: 0; display: inline-flex; align-items: center; gap: 8px;
+    }
+    .ns-ed .nv-meta-status em {
+      font-style: italic; color: ${ED.accent};
+    }
+    .ns-ed .nv-status-dot {
+      width: 8px; height: 8px; border-radius: 999px; background: ${ED.accent};
+    }
+    .ns-ed .nv-status-dot.published { background: #2a8f4f; }
 
-  const c = colorMap[color] || colorMap.indigo;
+    .ns-ed .nv-meta-tags {
+      list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 5px;
+    }
+    .ns-ed .nv-meta-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: ${ED.inkFaint}; padding: 3px 8px;
+      border: 1px solid ${ED.rule}; border-radius: 999px;
+    }
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay }}
-      className="rounded-2xl p-4"
-      style={{ backgroundColor: c.bg, border: `1px solid ${c.border}` }}
-    >
-      <div className="flex items-center gap-2 mb-3">
-        <div
-          className="h-8 w-8 rounded-xl flex items-center justify-center"
-          style={{
-            backgroundColor: c.bg,
-            border: `1px solid ${c.border}`,
-            color: c.accent,
-          }}
-        >
-          {icon}
-        </div>
-        <h3 className="font-semibold text-sm" style={{ color: c.accent }}>
-          {title}
-        </h3>
-      </div>
-      {children}
-    </motion.div>
-  );
-};
+    .ns-ed .nv-meta-linked, .ns-ed .nv-meta-history {
+      list-style: none; padding: 0; margin: 0;
+    }
+    .ns-ed .nv-meta-link {
+      display: grid; grid-template-columns: 24px 1fr; gap: 8px;
+      padding: 4px 0; align-items: baseline;
+      text-decoration: none; color: ${ED.inkSoft};
+      transition: color .12s ease;
+    }
+    .ns-ed .nv-meta-link:hover { color: ${ED.accent}; }
+    .ns-ed .nv-meta-link:hover .title { font-style: italic; }
+    .ns-ed .nv-meta-link .ord {
+      font-size: 9.5px; letter-spacing: 0.14em; color: ${ED.inkFaint};
+    }
+    .ns-ed .nv-meta-link .title {
+      font-family: ${ED.serif}; font-size: 14px;
+      transition: font-style .12s ease;
+    }
+    .ns-ed .nv-meta-history li {
+      display: flex; justify-content: space-between;
+      font-size: 10px; letter-spacing: 0.14em; color: ${ED.inkFaint};
+      padding: 3px 0;
+    }
+    .ns-ed .nv-meta-history .v { color: ${ED.ink}; }
 
-/* -----------------------------------------
-   Upgrade Modal Component
------------------------------------------ */
-const UpgradeModal = ({ onClose, title, body, onUpgrade }) => (
-  <motion.div
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
-    className="fixed inset-0 z-[999] flex items-center justify-center px-6"
-    style={{ backgroundColor: "var(--bg-overlay)", backdropFilter: "blur(8px)" }}
-    onClick={onClose}
-  >
-    <motion.div
-      initial={{ scale: 0.96, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.96, opacity: 0 }}
-      onClick={(e) => e.stopPropagation()}
-      className="w-full max-w-[380px] p-6 rounded-2xl border shadow-xl"
-      style={{
-        backgroundColor: "var(--bg-surface)",
-        borderColor: "var(--border-secondary)",
-      }}
-    >
-      <div className="flex items-center gap-3 mb-3">
-        <div
-          className="h-10 w-10 rounded-2xl flex items-center justify-center"
-          style={{
-            backgroundColor: "rgba(245, 158, 11, 0.2)",
-            border: "1px solid rgba(245, 158, 11, 0.3)",
-          }}
-        >
-          <FiLock style={{ color: "var(--accent-amber)" }} />
-        </div>
-        <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
-          {title}
-        </h3>
-      </div>
-      <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
-        {body}
-      </p>
-      <div className="flex gap-3">
-        <button
-          onClick={onClose}
-          className="flex-1 px-4 py-3 rounded-xl font-medium transition"
-          style={{
-            backgroundColor: "var(--bg-button)",
-            color: "var(--text-primary)",
-          }}
-        >
-          Not now
-        </button>
-        <button
-          onClick={() => {
-            onClose();
-            onUpgrade?.();
-          }}
-          className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition"
-          style={{ background: "linear-gradient(90deg, var(--accent-indigo), #4f46e5)" }}
-        >
-          Upgrade
-        </button>
-      </div>
-    </motion.div>
-  </motion.div>
+    /* ── Article ── */
+    /* padding-top here mirrors .nv-meta and .nv-tools (80px) so that on
+       desktop the three section starts — § NOTES kicker, § STATUS, and
+       § ACTIONS — align on the same baseline. Reading mode and mobile
+       reset this below since the rails are hidden there. */
+    .ns-ed .nv-article {
+      min-width: 0;
+      max-width: 720px;
+      padding-top: 80px;
+    }
+    @media (max-width: 899px) {
+      .ns-ed .nv-article { padding-top: clamp(10px, 2vw, 24px); }
+    }
+    .ns-ed .nv-kicker {
+      font-size: 10.5px; letter-spacing: 0.18em; color: ${ED.inkFaint};
+      margin: 0 0 18px;
+    }
+    .ns-ed .nv-kicker-status.draft     { color: ${ED.accent}; }
+    .ns-ed .nv-kicker-status.published { color: #2a8f4f; }
+
+    .ns-ed .nv-title {
+      font-family: ${ED.serif}; font-weight: 400;
+      font-size: clamp(32px, 5vw, 56px); line-height: 1.05;
+      letter-spacing: -0.02em; color: ${ED.ink};
+      margin: 0 0 16px; cursor: text;
+      transition: opacity .15s ease;
+    }
+    .ns-ed .nv-title.is-draft { font-style: italic; }
+    .ns-ed .nv-title:hover { opacity: 0.7; }
+    .ns-ed .nv-title-input {
+      width: 100%; background: transparent; border: 0;
+      border-bottom: 1px dashed ${ED.accent}; outline: 0;
+      padding: 0 0 4px; cursor: text;
+    }
+
+    .ns-ed .nv-dek {
+      font-family: ${ED.serif}; font-style: italic;
+      font-size: clamp(18px, 2vw, 22px); line-height: 1.45;
+      color: ${ED.inkSoft}; margin: 0 0 20px;
+    }
+    .ns-ed .nv-byline {
+      font-size: 10px; letter-spacing: 0.16em; color: ${ED.inkFaint};
+      margin: 0 0 18px;
+    }
+    @media (max-width: 760px) {
+      .ns-ed .nv-byline { line-height: 1.7; }
+    }
+    .ns-ed .nv-rule-thick { border: 0; height: 1px; background: ${ED.ink}; margin: 0; }
+    .ns-ed .nv-rule-thin  { border: 0; height: 1px; background: ${ED.rule}; margin: 4px 0 0; }
+
+    /* Body */
+    .ns-ed .nv-body { padding-top: clamp(20px, 3vw, 36px); }
+    .ns-ed .nv-p {
+      font-family: ${ED.serif}; font-size: 18px; line-height: 1.7;
+      color: ${ED.ink}; margin: 0 0 1.2em;
+    }
+    .ns-ed .nv-p-first { margin-top: 0; }
+
+    /* Drop cap */
+    .ns-ed .nv-dropcap {
+      float: left; font-family: ${ED.serif}; font-style: italic;
+      color: ${ED.accent};
+      font-size: clamp(56px, 7vw, 84px);
+      line-height: 0.85; padding: 6px 8px 0 0;
+      margin: 4px 4px 0 0;
+    }
+
+    /* H2 with kicker */
+    .ns-ed .nv-h2-wrap { margin: 1.8em 0 0.6em; }
+    .ns-ed .nv-h2-kicker {
+      font-size: 10px; letter-spacing: 0.18em; color: ${ED.accent};
+      font-family: ${ED.serif} !important; font-style: italic;
+      margin: 0 0 4px;
+    }
+    .ns-ed .nv-h2 {
+      font-family: ${ED.serif}; font-style: italic; font-weight: 400;
+      font-size: clamp(22px, 2.6vw, 30px); line-height: 1.2;
+      color: ${ED.ink}; margin: 0;
+    }
+
+    /* Block quote */
+    .ns-ed .nv-quote {
+      font-family: ${ED.serif}; font-style: italic;
+      font-size: clamp(20px, 2.2vw, 26px); line-height: 1.4;
+      color: ${ED.inkSoft};
+      border-left: 3px solid ${ED.accent};
+      padding-left: clamp(16px, 2vw, 24px);
+      margin: 1.4em 0 1.4em clamp(-16px, -2vw, -24px);
+    }
+    @media (max-width: 760px) {
+      .ns-ed .nv-quote { margin-left: 0; }
+    }
+
+    /* End ornament */
+    .ns-ed .nv-end {
+      text-align: center; padding: 40px 0 20px;
+    }
+    .ns-ed .nv-end-line {
+      font-size: 10px; letter-spacing: 0.2em; color: ${ED.inkFaint};
+      margin: 0 0 8px;
+    }
+    .ns-ed .nv-end-orn {
+      font-family: ${ED.serif}; font-style: italic; color: ${ED.accent};
+      font-size: 22px; margin: 0;
+    }
+
+    /* Related */
+    .ns-ed .nv-related { padding-top: 30px; }
+    .ns-ed .nv-related-h {
+      font-size: 9.5px; letter-spacing: 0.18em; color: ${ED.inkFaint};
+      margin: 0 0 12px;
+    }
+    .ns-ed .nv-related-grid {
+      display: grid; gap: 16px; margin-top: 18px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    @media (max-width: 760px) {
+      .ns-ed .nv-related-grid { grid-template-columns: 1fr; }
+    }
+    .ns-ed .nv-related-card {
+      display: block; padding: 16px;
+      background: ${ED.paper50}; border: 1px solid ${ED.rule};
+      border-radius: 4px; text-decoration: none; color: ${ED.ink};
+      transition: border-color .15s ease;
+    }
+    .ns-ed .nv-related-card:hover { border-color: ${ED.ink}; }
+    .ns-ed .nv-related-card:hover h3 { font-style: italic; color: ${ED.accent}; }
+    .ns-ed .nv-related-card p:first-child {
+      font-size: 9.5px; letter-spacing: 0.14em; color: ${ED.inkFaint};
+      margin: 0 0 6px;
+    }
+    .ns-ed .nv-related-card h3 {
+      font-family: ${ED.serif}; font-weight: 400; font-size: 17px;
+      margin: 0 0 8px; transition: color .15s ease, font-style .15s ease;
+    }
+    .ns-ed .nv-related-card .prev {
+      font-family: ${ED.serif}; font-size: 13.5px; color: ${ED.inkSoft};
+      margin: 0; line-height: 1.5;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* ── Right tools rail ── */
+    .ns-ed .nv-tools {
+      position: sticky; top: calc(var(--app-content-top, 64px) + 80px);
+      align-self: start; padding-top: 80px;
+    }
+    .ns-ed .nv-tools-section { margin-bottom: 20px; }
+    .ns-ed .nv-tools-h {
+      font-size: 9.5px; letter-spacing: 0.18em; color: ${ED.inkFaint};
+      margin: 0 0 8px;
+    }
+    .ns-ed .nv-tool-row {
+      display: grid;
+      grid-template-columns: 18px 1fr auto;
+      gap: 10px; align-items: center;
+      width: 100%; padding: 9px 10px;
+      border: 0; background: transparent; border-radius: 4px;
+      text-align: left; cursor: pointer;
+      color: ${ED.ink};
+      transition: background-color .12s ease;
+    }
+    .ns-ed .nv-tool-row:hover { background: ${ED.paper50}; }
+    .ns-ed .nv-tool-row .lb {
+      font-family: ${ED.serif}; font-size: 15px;
+    }
+    .ns-ed .nv-tool-row .sub {
+      grid-column: 2 / 4; font-family: ${ED.mono}; font-size: 9.5px;
+      letter-spacing: 0.12em; text-transform: uppercase; color: ${ED.inkFaint};
+      margin-top: 2px;
+    }
+    .ns-ed .nv-tool-row .kbd {
+      font-size: 9px; letter-spacing: 0.06em; color: ${ED.inkFaint};
+      padding: 1px 5px; border: 1px solid ${ED.rule};
+      border-radius: 3px; background: ${ED.paper50};
+    }
+    .ns-ed .nv-tool-row.primary .lb {
+      font-style: italic; color: ${ED.accent};
+    }
+    .ns-ed .nv-tool-row.danger .lb { color: #8a3a3a; }
+    .ns-ed .nv-tool-row.danger:hover { background: rgba(138, 58, 58, 0.06); }
+
+    /* ── Floating save status ── */
+    .ns-ed .nv-saved {
+      position: fixed; bottom: 18px;
+      right: 24px;
+      z-index: 60;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 7px 14px; border-radius: 999px;
+      background: ${ED.paper50}; border: 1px solid ${ED.rule};
+      font-size: 10px; letter-spacing: 0.16em; color: ${ED.inkFaint};
+    }
+    .ns-ed .nv-saved-dot {
+      width: 6px; height: 6px; border-radius: 999px; background: #2a8f4f;
+    }
+    .ns-ed .nv-saved-dot.saving {
+      background: ${ED.accent};
+      animation: nv-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes nv-pulse {
+      0%,100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    @media (max-width: 639px) {
+      .ns-ed .nv-saved { bottom: 80px; right: 16px; }
+    }
+
+    /* ── Mobile FAB + sheet ── */
+    .ns-ed .nv-fab {
+      display: none;
+      position: fixed; bottom: 18px; right: 18px; z-index: 70;
+      width: 48px; height: 48px; border-radius: 999px;
+      background: ${ED.ink}; color: ${ED.paper50};
+      border: 0; cursor: pointer; box-shadow: none;
+      align-items: center; justify-content: center;
+    }
+    @media (max-width: 899px) { .ns-ed .nv-fab { display: inline-flex; } }
+
+    .ns-ed .nv-sheet-scrim {
+      position: fixed; inset: 0; z-index: 80;
+      background: rgba(19,16,8,0.32);
+    }
+    .ns-ed .nv-sheet {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
+      background: ${ED.paper100}; border-top: 1px solid ${ED.rule};
+      border-radius: 12px 12px 0 0;
+      padding: 16px 16px max(env(safe-area-inset-bottom, 16px), 16px);
+      max-height: 80dvh; overflow-y: auto;
+    }
+    .ns-ed .nv-sheet-head {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 4px 4px 10px;
+    }
+    .ns-ed .nv-sheet-head p {
+      font-size: 10.5px; letter-spacing: 0.18em; color: ${ED.inkFaint}; margin: 0;
+    }
+    .ns-ed .nv-sheet-head button {
+      width: 30px; height: 30px; border-radius: 999px;
+      border: 1px solid ${ED.rule}; background: transparent;
+      color: ${ED.inkSoft}; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+
+    /* ── Reading mode ── */
+    .ns-ed .nv-progress {
+      position: fixed; top: 0; left: 0; height: 2px;
+      background: ${ED.accent}; z-index: 200;
+      transition: width .08s linear;
+    }
+    .ns-ed .nv-exit-reading {
+      position: fixed; top: 16px; right: 20px; z-index: 70;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 14px; border-radius: 999px;
+      background: ${ED.paper50}; border: 1px solid ${ED.rule};
+      color: ${ED.inkSoft}; cursor: pointer;
+      font-size: 10px; letter-spacing: 0.16em;
+    }
+    .ns-ed .nv-exit-reading:hover { border-color: ${ED.ink}; color: ${ED.ink}; }
+
+    .ns-ed.ns-nv.is-reading {
+      background: ${ED.paper100};
+    }
+    .ns-ed.ns-nv.is-reading .nv-article {
+      max-width: 680px; margin: 0 auto;
+      padding-top: clamp(10px, 2vw, 24px);
+    }
+  `}</style>
 );
