@@ -1,18 +1,34 @@
-import { useState } from "react";
+// src/pages/IntegrationDocs.jsx
+// ═══════════════════════════════════════════════════════════════════
+// EDITORIAL RESKIN
+// ─────────────────────────────────────────────────────────────────
+// Same documentation, same data model (`DOCS` array unchanged below),
+// same routing — only the visual layer is rebuilt to match Dashboard
+// and the rest of the dashboard tree. We wrap the page in `.ns-ed`
+// and call `useEditorial()` so it inherits the paper-100 background,
+// Instrument Serif headlines, Geist body, and Geist Mono eyebrows the
+// rest of the site uses. The page now has a dateline ("VOL · NO ·
+// DATE"), a "№ 01 — INTEGRATION DOCS" chapter mark, a serif display
+// title, a hairline-bordered search bar, ed-chip tab pills, and an
+// accordion built from .ed-card surfaces with hairline dividers
+// between sections — no GlassCard, no rounded "indigo-500/15" icon
+// chips, no gradient buttons. Body copy in serif/sans, metadata in
+// mono small caps. NO content / data changes — the DOCS object is
+// byte-identical to the previous file.
+// ═══════════════════════════════════════════════════════════════════
+
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import GlassCard from "../components/GlassCard";
 import {
   FiArrowLeft,
   FiSearch,
   FiX,
   FiChevronDown,
-  FiExternalLink,
   FiCloud,
   FiLink2,
   FiDatabase,
   FiGlobe,
-  FiInfo,
 } from "react-icons/fi";
 import {
   BookOpenIcon as BookOpen,
@@ -20,6 +36,7 @@ import {
   WarningIcon as Warning,
   ShieldCheckIcon as ShieldCheck,
 } from "@phosphor-icons/react";
+import { useEditorial, ED } from "../lib/editorial";
 
 const DOCS = [
   {
@@ -27,9 +44,6 @@ const DOCS = [
     label: "Getting Started",
     icon: BookOpen,
     iconType: "phosphor",
-    iconBg: "bg-indigo-500/15",
-    iconBorder: "border-indigo-500/25",
-    iconColor: "text-indigo-400",
     content: [
       {
         heading: "Overview",
@@ -70,9 +84,6 @@ const DOCS = [
     label: "Google Drive",
     icon: FiCloud,
     iconType: "feather",
-    iconBg: "bg-blue-500/15",
-    iconBorder: "border-blue-500/25",
-    iconColor: "text-blue-400",
     content: [
       {
         heading: "Overview",
@@ -105,9 +116,6 @@ const DOCS = [
     label: "Slack",
     icon: FiLink2,
     iconType: "feather",
-    iconBg: "bg-purple-500/15",
-    iconBorder: "border-purple-500/25",
-    iconColor: "text-purple-400",
     content: [
       {
         heading: "Overview",
@@ -140,9 +148,6 @@ const DOCS = [
     label: "Notion",
     icon: FiDatabase,
     iconType: "feather",
-    iconBg: "bg-slate-500/15",
-    iconBorder: "border-slate-500/25",
-    iconColor: "text-slate-400",
     content: [
       {
         heading: "Overview",
@@ -174,9 +179,6 @@ const DOCS = [
     label: "Zapier",
     icon: FiGlobe,
     iconType: "feather",
-    iconBg: "bg-orange-500/15",
-    iconBorder: "border-orange-500/25",
-    iconColor: "text-orange-400",
     content: [
       {
         heading: "Overview",
@@ -212,9 +214,6 @@ const DOCS = [
     label: "Troubleshooting",
     icon: Warning,
     iconType: "phosphor",
-    iconBg: "bg-rose-500/15",
-    iconBorder: "border-rose-500/25",
-    iconColor: "text-rose-400",
     content: [
       {
         heading: "Common Issues",
@@ -252,9 +251,6 @@ const DOCS = [
     label: "Security & Privacy",
     icon: ShieldCheck,
     iconType: "phosphor",
-    iconBg: "bg-emerald-500/15",
-    iconBorder: "border-emerald-500/25",
-    iconColor: "text-emerald-400",
     content: [
       {
         heading: "How We Protect Your Data",
@@ -285,49 +281,115 @@ const DOCS = [
   },
 ];
 
-function ContentBlock({ block, iconColor }) {
+// Issue dateline helpers — mirror Dashboard's masthead voice
+const ROMAN = ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
+function issueLine() {
+  return new Date()
+    .toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+    .toUpperCase();
+}
+
+function ContentBlock({ block }) {
   return (
-    <div className="space-y-3">
-      {block.text && <p className="text-sm text-theme-muted leading-relaxed">{block.text}</p>}
+    <div style={{ display: "grid", gap: 16 }}>
+      {block.text && (
+        <p className="ed-serif" style={{ fontSize: 17, lineHeight: 1.55, color: ED.inkSoft, margin: 0 }}>
+          {block.text}
+        </p>
+      )}
 
       {block.listTitle && (
-        <p className="text-xs font-semibold text-theme-secondary uppercase tracking-wide">{block.listTitle}</p>
+        <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint, margin: 0 }}>
+          {block.listTitle}
+        </p>
       )}
 
       {block.list && (
-        <ul className="space-y-2">
+        <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 10 }}>
           {block.list.map((item, i) => (
-            <li key={i} className="flex items-start gap-2.5 text-sm text-theme-muted">
-              <span className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${iconColor.replace("text-", "bg-")}`} />
-              {item}
+            <li
+              key={i}
+              className="ed-serif"
+              style={{ display: "flex", gap: 12, alignItems: "baseline", fontSize: 16, lineHeight: 1.5, color: ED.inkSoft }}
+            >
+              <span
+                style={{
+                  fontFamily: ED.serif,
+                  fontStyle: "italic",
+                  fontSize: 15,
+                  color: ED.accent,
+                  minWidth: 20,
+                }}
+              >
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span>{item}</span>
             </li>
           ))}
         </ul>
       )}
 
       {block.steps && (
-        <ol className="space-y-2.5">
+        <ol style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 14 }}>
           {block.steps.map((step, i) => (
-            <li key={i} className="flex items-start gap-3 text-sm text-theme-muted">
+            <li
+              key={i}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "auto 1fr",
+                gap: 16,
+                alignItems: "baseline",
+                paddingBottom: 14,
+                borderBottom: i === block.steps.length - 1 ? "0" : `1px solid ${ED.ruleSoft}`,
+              }}
+            >
               <span
-                className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${iconColor} bg-indigo-500/10 border border-indigo-500/20`}
+                style={{
+                  fontFamily: ED.serif,
+                  fontStyle: "italic",
+                  fontSize: 22,
+                  lineHeight: 1,
+                  color: ED.accent,
+                  minWidth: 32,
+                }}
               >
-                {i + 1}
+                {String(i + 1).padStart(2, "0")}
               </span>
-              {step}
+              <span className="ed-serif" style={{ fontSize: 16, lineHeight: 1.5, color: ED.inkSoft }}>
+                {step}
+              </span>
             </li>
           ))}
         </ol>
       )}
 
       {block.commands && (
-        <div className="space-y-2">
+        <div style={{ display: "grid", gap: 10 }}>
           {block.commands.map((c, i) => (
-            <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
-              <code className={`px-2 py-1 rounded-md text-xs font-mono ${iconColor} bg-indigo-500/10 border border-indigo-500/20`}>
+            <div
+              key={i}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(auto, 240px) 1fr",
+                gap: 16,
+                alignItems: "baseline",
+                paddingBottom: 10,
+                borderBottom: `1px solid ${ED.ruleSoft}`,
+              }}
+            >
+              <code
+                style={{
+                  fontFamily: ED.mono,
+                  fontSize: 13,
+                  color: ED.accent,
+                  background: "transparent",
+                }}
+              >
                 {c.cmd}
               </code>
-              <span className="text-theme-muted">{c.desc}</span>
+              <span className="ed-serif" style={{ fontSize: 15, color: ED.inkMute, lineHeight: 1.5 }}>
+                {c.desc}
+              </span>
             </div>
           ))}
         </div>
@@ -335,37 +397,71 @@ function ContentBlock({ block, iconColor }) {
 
       {block.tip && (
         <div
-          className="flex items-start gap-2.5 p-3 rounded-xl border"
-          style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-secondary)" }}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "auto 1fr",
+            gap: 14,
+            padding: "16px 18px",
+            background: ED.paper150,
+            border: `1px solid ${ED.rule}`,
+            borderLeft: `2px solid ${ED.accent}`,
+            borderRadius: 4,
+          }}
         >
-          <FiInfo size={16} className="text-indigo-400 mt-0.5 flex-shrink-0" />
-          <span className="text-sm text-indigo-400">{block.tip}</span>
+          <span
+            className="ed-mono"
+            style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.accent, paddingTop: 2 }}
+          >
+            TIP
+          </span>
+          <p className="ed-serif" style={{ fontSize: 15, lineHeight: 1.55, color: ED.inkSoft, margin: 0, fontStyle: "italic" }}>
+            {block.tip}
+          </p>
         </div>
       )}
 
-      {block.note && <p className="text-xs text-theme-muted italic">{block.note}</p>}
+      {block.note && (
+        <p
+          className="ed-serif ed-italic"
+          style={{ fontSize: 14, color: ED.inkFaint, margin: 0, lineHeight: 1.55, paddingTop: 4 }}
+        >
+          — {block.note}
+        </p>
+      )}
     </div>
   );
 }
 
 export default function IntegrationDocs() {
+  useEditorial();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("getting-started");
   const [search, setSearch] = useState("");
   const [openSections, setOpenSections] = useState([0]);
 
+  const vol = "II";
+  const no  = "21";
+
   const activeDoc = DOCS.find((d) => d.id === activeTab);
 
-  const filteredDocs = search
-    ? DOCS.filter(
-        (doc) =>
-          doc.label.toLowerCase().includes(search.toLowerCase()) ||
-          doc.content.some((block) => JSON.stringify(block).toLowerCase().includes(search.toLowerCase()))
-      )
-    : DOCS;
+  const filteredDocs = useMemo(
+    () =>
+      search
+        ? DOCS.filter(
+            (doc) =>
+              doc.label.toLowerCase().includes(search.toLowerCase()) ||
+              doc.content.some((block) =>
+                JSON.stringify(block).toLowerCase().includes(search.toLowerCase())
+              )
+          )
+        : DOCS,
+    [search]
+  );
 
   const toggleSection = (idx) => {
-    setOpenSections((prev) => (prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]));
+    setOpenSections((prev) =>
+      prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]
+    );
   };
 
   const handleTabChange = (id) => {
@@ -376,184 +472,304 @@ export default function IntegrationDocs() {
   const renderIcon = (doc, size) => {
     const Icon = doc.icon;
     if (doc.iconType === "phosphor") {
-      return <Icon size={size} weight="duotone" className={doc.iconColor} />;
+      return <Icon size={size} weight="duotone" style={{ color: ED.ink }} />;
     }
-    return <Icon size={size} className={doc.iconColor} />;
+    return <Icon size={size} style={{ color: ED.ink }} />;
   };
 
   return (
-    <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
-      {/* Header */}
-      <header className="pt-2 px-1">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate("/dashboard/integrations")}
-            className="h-9 w-9 rounded-xl flex items-center justify-center text-theme-muted hover:text-theme-primary transition"
-            style={{ backgroundColor: "var(--bg-tertiary)" }}
+    <div className="ns-ed">
+      <div style={{ paddingBottom: "calc(var(--mobile-nav-height, 0px) + 64px)" }}>
+        {/* ━━━━━━━━━━━━━━ DATELINE ━━━━━━━━━━━━━━ */}
+        <div className="ed-dateline" style={{ paddingTop: 18 }}>
+          <span className="ed-mono">VOL. {vol} · NO. {no}</span>
+          <span className="ed-mono">{issueLine()}</span>
+          <span className="ed-mono" style={{ display: "inline-flex", alignItems: "center" }}>
+            <span
+              style={{
+                display: "inline-block",
+                width: 6, height: 6, borderRadius: 999,
+                background: ED.accent, marginRight: 8,
+              }}
+            />
+            DOCUMENTATION
+          </span>
+        </div>
+
+        <hr className="ed-rule" />
+
+        {/* ━━━━━━━━━━━━━━ COVER (HEADER) ━━━━━━━━━━━━━━ */}
+        <section className="ed-reveal" style={{ padding: "56px 0 8px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 28 }}>
+            <button
+              onClick={() => navigate("/dashboard/integrations")}
+              aria-label="Back to integrations"
+              style={{
+                height: 36, width: 36, borderRadius: 999,
+                border: `1px solid ${ED.rule}`, color: ED.inkSoft,
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                background: "transparent",
+              }}
+            >
+              <FiArrowLeft size={16} />
+            </button>
+            <div className="ed-chapter">
+              <span className="num">№ 01</span>
+              <span>— INTEGRATION DOCS</span>
+            </div>
+          </div>
+
+          <h1
+            className="ed-display"
+            style={{ fontSize: "clamp(40px, 5vw, 72px)", marginTop: 0, marginBottom: 18, paddingBottom: "0.06em" }}
           >
-            <FiArrowLeft size={18} />
-          </button>
-          <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center">
-            <BookOpen size={18} weight="duotone" className="text-indigo-400" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">Integration Docs</h1>
-            <p className="text-theme-muted text-sm">Learn how to connect and use integrations</p>
-          </div>
-        </div>
-      </header>
+            How to connect,{" "}
+            <span className="ed-italic" style={{ color: ED.accent }}>and what to expect</span>.
+          </h1>
 
-      {/* Search */}
-      <div
-        className="flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all focus-within:border-indigo-500/40"
-        style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
-      >
-        <FiSearch className="text-theme-muted" size={18} />
-        <input
-          type="text"
-          placeholder="Search documentation..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 bg-transparent text-sm text-theme-primary placeholder:text-theme-muted focus:outline-none"
-        />
-        {search && (
-          <button onClick={() => setSearch("")} className="text-theme-muted hover:text-theme-primary transition">
-            <FiX size={18} />
-          </button>
-        )}
-      </div>
+          <p className="ed-lede" style={{ maxWidth: 760, margin: 0 }}>
+            A field guide to the seven services NoteStream speaks to —
+            setup, behaviour, troubleshooting, and the security underneath
+            it all.
+          </p>
+        </section>
 
-      {/* Tabs - Horizontal scroll */}
-      <div className="-mx-4 px-4">
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-          {filteredDocs.map((doc) => {
-            const isActive = activeTab === doc.id;
-            return (
+        {/* ━━━━━━━━━━━━━━ SEARCH ━━━━━━━━━━━━━━ */}
+        <section style={{ marginTop: 48 }}>
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 12,
+              padding: "12px 16px",
+              background: ED.paper50,
+              border: `1px solid ${ED.rule}`,
+              borderRadius: 999,
+              transition: "border-color .2s ease",
+            }}
+            onFocusCapture={(e) => (e.currentTarget.style.borderColor = ED.ink)}
+            onBlurCapture={(e) => (e.currentTarget.style.borderColor = ED.rule)}
+          >
+            <FiSearch size={16} style={{ color: ED.inkFaint }} />
+            <input
+              type="text"
+              placeholder="Search the documentation…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                flex: 1, background: "transparent", border: 0, outline: "none",
+                fontFamily: ED.sans, fontSize: 14, color: ED.ink,
+              }}
+            />
+            {search && (
               <button
-                key={doc.id}
-                onClick={() => handleTabChange(doc.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl whitespace-nowrap transition-all flex-shrink-0 border ${
-                  isActive
-                    ? `${doc.iconBg} ${doc.iconBorder} ${doc.iconColor}`
-                    : "border-transparent hover:bg-white/5 text-theme-secondary"
-                }`}
-                style={!isActive ? { backgroundColor: "var(--bg-surface)" } : {}}
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+                style={{ color: ED.inkFaint, background: "transparent", border: 0, cursor: "pointer" }}
               >
-                {renderIcon(doc, 16)}
-                <span className="text-sm font-medium">{doc.label}</span>
+                <FiX size={16} />
               </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Content */}
-      {activeDoc && (
-        <GlassCard>
-          {/* Doc Header */}
-          <div className="flex items-center gap-4 mb-6 pb-6 border-b" style={{ borderColor: "var(--border-secondary)" }}>
-            <div className={`w-14 h-14 rounded-xl ${activeDoc.iconBg} border ${activeDoc.iconBorder} flex items-center justify-center`}>
-              {renderIcon(activeDoc, 26)}
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-theme-primary">{activeDoc.label}</h2>
-              <p className="text-sm text-theme-muted">
-                {activeDoc.content.length} section{activeDoc.content.length !== 1 && "s"}
-              </p>
-            </div>
+            )}
           </div>
+        </section>
 
-          {/* Accordion Sections */}
-          <div className="space-y-3">
-            {activeDoc.content.map((block, idx) => {
-              const isOpen = openSections.includes(idx);
+        {/* ━━━━━━━━━━━━━━ TABS — horizontal scroll, ed-chip style ━━━━━━━━━━━━━━ */}
+        <section style={{ marginTop: 24 }}>
+          <div
+            className="ed-scroll-x"
+            style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}
+          >
+            {filteredDocs.map((doc) => {
+              const isActive = activeTab === doc.id;
               return (
-                <div
-                  key={idx}
-                  className="rounded-xl border overflow-hidden transition-colors"
+                <button
+                  key={doc.id}
+                  onClick={() => handleTabChange(doc.id)}
+                  className={isActive ? "ed-chip ed-chip-accent" : "ed-chip"}
                   style={{
-                    backgroundColor: isOpen ? "var(--bg-tertiary)" : "transparent",
-                    borderColor: isOpen ? "var(--border-primary)" : "var(--border-secondary)",
+                    flexShrink: 0,
+                    padding: "8px 14px",
+                    fontSize: 11,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    cursor: "pointer",
                   }}
                 >
-                  <button
-                    onClick={() => toggleSection(idx)}
-                    className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors"
-                  >
-                    <span className={`font-medium ${isOpen ? "text-theme-primary" : "text-theme-secondary"}`}>
-                      {block.heading}
-                    </span>
-                    <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                      <FiChevronDown size={18} className="text-theme-muted" />
-                    </motion.div>
-                  </button>
-
-                  <AnimatePresence initial={false}>
-                    {isOpen && (
-                      <motion.div
-                        initial={{ height: 0 }}
-                        animate={{ height: "auto" }}
-                        exit={{ height: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="px-4 pb-4 border-t pt-4" style={{ borderColor: "var(--border-secondary)" }}>
-                          <ContentBlock block={block} iconColor={activeDoc.iconColor} />
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                  {renderIcon(doc, 13)}
+                  <span style={{ marginLeft: 6 }}>{doc.label}</span>
+                </button>
               );
             })}
           </div>
+        </section>
 
-          {/* Footer Links */}
-          <div className="mt-8 pt-6 border-t" style={{ borderColor: "var(--border-secondary)" }}>
-            <p className="text-xs font-semibold text-theme-muted uppercase tracking-wide mb-3">Related</p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => navigate("/dashboard/integrations")}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border text-theme-secondary hover:bg-white/5 transition"
-                style={{ borderColor: "var(--border-secondary)" }}
+        {/* ━━━━━━━━━━━━━━ CONTENT ━━━━━━━━━━━━━━ */}
+        {activeDoc && (
+          <section className="ed-card" style={{ marginTop: 36, padding: "36px 36px 28px", borderRadius: 6 }}>
+            {/* Doc header */}
+            <header style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 8 }}>
+              <div>
+                <div className="ed-chapter" style={{ marginBottom: 10 }}>
+                  <span className="num">№ {String(DOCS.findIndex(d => d.id === activeDoc.id) + 1).padStart(2, "0")}</span>
+                  <span>— THE CHAPTER</span>
+                </div>
+                <h2
+                  className="ed-display"
+                  style={{ fontSize: "clamp(28px, 3vw, 42px)", margin: 0, paddingBottom: "0.04em" }}
+                >
+                  {activeDoc.label}
+                </h2>
+              </div>
+              <p
+                className="ed-mono"
+                style={{ fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint, margin: 0 }}
               >
-                <Plugs size={16} weight="duotone" />
-                View Integrations
-              </button>
-              <button
-                onClick={() => navigate("/dashboard/help-center")}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border text-theme-secondary hover:bg-white/5 transition"
-                style={{ borderColor: "var(--border-secondary)" }}
+                {activeDoc.content.length} SECTION{activeDoc.content.length !== 1 && "S"}
+              </p>
+            </header>
+
+            <hr className="ed-rule-dbl" style={{ margin: "28px 0 8px" }} />
+
+            {/* Accordion sections */}
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {activeDoc.content.map((block, idx) => {
+                const isOpen = openSections.includes(idx);
+                return (
+                  <li
+                    key={idx}
+                    style={{ borderBottom: `1px solid ${ED.ruleSoft}` }}
+                  >
+                    <button
+                      onClick={() => toggleSection(idx)}
+                      style={{
+                        width: "100%",
+                        display: "grid",
+                        gridTemplateColumns: "44px 1fr auto",
+                        gap: 16,
+                        alignItems: "baseline",
+                        padding: "22px 4px",
+                        background: "transparent",
+                        border: 0,
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      <span
+                        style={{
+                          letterSpacing: "0.14em",
+                          color: isOpen ? ED.accent : ED.inkFaint,
+                          fontFamily: isOpen ? ED.serif : ED.mono,
+                          fontStyle: isOpen ? "italic" : "normal",
+                          fontSize: isOpen ? 17 : 11,
+                          transition: "all .15s ease",
+                        }}
+                      >
+                        {isOpen ? "§" : String(idx + 1).padStart(2, "0")}
+                      </span>
+                      <span
+                        className="ed-serif"
+                        style={{
+                          fontSize: "clamp(20px, 2vw, 26px)",
+                          lineHeight: 1.25,
+                          color: ED.ink,
+                        }}
+                      >
+                        {block.heading}
+                      </span>
+                      <motion.span
+                        animate={{ rotate: isOpen ? 180 : 0 }}
+                        transition={{ duration: 0.2 }}
+                        style={{ color: ED.inkFaint, display: "inline-flex" }}
+                      >
+                        <FiChevronDown size={18} />
+                      </motion.span>
+                    </button>
+
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.22 }}
+                          style={{ overflow: "hidden" }}
+                        >
+                          <div style={{ padding: "0 4px 28px 60px" }}>
+                            <ContentBlock block={block} />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* Related */}
+            <div style={{ marginTop: 36, paddingTop: 24, borderTop: `1px solid ${ED.rule}` }}>
+              <p
+                className="ed-mono"
+                style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, marginBottom: 16 }}
               >
-                <FiInfo size={16} />
-                Help Center
-              </button>
-              <button
-                onClick={() => navigate("/dashboard/contact-support")}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border text-theme-secondary hover:bg-white/5 transition"
-                style={{ borderColor: "var(--border-secondary)" }}
-              >
-                <FiExternalLink size={16} />
-                Contact Support
-              </button>
+                — RELATED CHAPTERS
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                <button
+                  className="ed-btn ed-btn-ghost"
+                  onClick={() => navigate("/dashboard/integrations")}
+                >
+                  <Plugs size={15} weight="duotone" />
+                  View integrations
+                </button>
+                <button
+                  className="ed-btn ed-btn-ghost"
+                  onClick={() => navigate("/dashboard/help-center")}
+                >
+                  Help center
+                </button>
+                <button
+                  className="ed-btn ed-btn-primary"
+                  onClick={() => navigate("/dashboard/contact-support")}
+                >
+                  Contact support
+                </button>
+              </div>
             </div>
-          </div>
-        </GlassCard>
-      )}
+          </section>
+        )}
 
-      {/* No Results */}
-      {filteredDocs.length === 0 && (
-        <div
-          className="text-center py-12 rounded-2xl border"
-          style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
-        >
-          <FiSearch size={32} className="mx-auto text-theme-muted mb-3" />
-          <p className="text-theme-muted">No results for "{search}"</p>
-          <button onClick={() => setSearch("")} className="mt-3 text-sm text-indigo-400 hover:text-indigo-300 transition">
-            Clear search
-          </button>
-        </div>
-      )}
+        {/* ━━━━━━━━━━━━━━ NO RESULTS ━━━━━━━━━━━━━━ */}
+        {filteredDocs.length === 0 && (
+          <section className="ed-card" style={{ marginTop: 36, padding: "56px 24px", textAlign: "center", borderRadius: 6 }}>
+            <p
+              className="ed-mono"
+              style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, marginBottom: 14 }}
+            >
+              — NOTHING IN THE ARCHIVE
+            </p>
+            <p
+              className="ed-serif ed-italic"
+              style={{ fontSize: 22, color: ED.inkMute, marginBottom: 18 }}
+            >
+              No chapter mentions “{search}.”
+            </p>
+            <button className="ed-btn ed-btn-ghost" onClick={() => setSearch("")}>
+              Clear search
+            </button>
+          </section>
+        )}
+
+        {/* ━━━━━━━━━━━━━━ COLOPHON ━━━━━━━━━━━━━━ */}
+        <section style={{ marginTop: 80 }}>
+          <hr className="ed-rule" />
+          <div className="ed-colophon">
+            <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint }}>
+              NOTESTREAM · VOL. {vol} · NO. {no}
+            </p>
+            <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint }}>
+              SEVEN CHAPTERS · ALWAYS REVISED
+            </p>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

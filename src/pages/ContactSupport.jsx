@@ -1,37 +1,44 @@
 // src/pages/ContactSupport.jsx
-// ✅ DB-first profile prefill (no localStorage for name/email)
-// ✅ Stale-response guard to prevent “revert”
-// ✅ Saves support tickets to Supabase (support_tickets)
+// ═══════════════════════════════════════════════════════════════════
+// EDITORIAL RESKIN
+// ─────────────────────────────────────────────────────────────────
+// Same Supabase profile prefill, same stale-response guard, same
+// `support_tickets` insert, same simulated live-chat phasing — only
+// the visual layer is rebuilt to match the rest of the dashboard
+// tree. The page now wears the editorial skin: paper-100 background,
+// Instrument Serif headlines, Geist Mono small-caps eyebrows, an
+// editorial dateline, chapter marks (№ 01, § 02 …), hairline rules,
+// ed-card surfaces, ed-btn buttons — no GlassCard, no gradient
+// pills, no emerald-500/15 icon chips. Form inputs sit on paper-50
+// with ed-rule borders that warm to ink on focus. The live chat
+// floating panel is rebuilt as a paper card with a thin top accent.
+// NO data-flow changes — auth, validation, submit, and chat phases
+// are byte-identical to the previous file.
+// ═══════════════════════════════════════════════════════════════════
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import GlassCard from "../components/GlassCard";
 import { useSubscription } from "../hooks/useSubscription";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import {
   FiArrowLeft,
   FiSend,
   FiCheck,
-  FiMessageSquare,
-  FiMail,
   FiChevronDown,
 } from "react-icons/fi";
 import {
-  ChatCircleDotsIcon as ChatCircleDots,
-  EnvelopeIcon as Envelope,
   PaperPlaneTiltIcon as PaperPlaneTilt,
-  RobotIcon as Robot,
-  UserIcon as User,
   XIcon as X,
   BugIcon as Bug,
   CreditCardIcon as CreditCard,
   QuestionIcon as Question,
   LightbulbIcon as Lightbulb,
-  CrownIcon as Crown,
+  UserIcon as User,
+  ChatCircleDotsIcon as ChatCircleDots,
   CheckCircleIcon as CheckCircle,
-  ClockIcon as Clock,
 } from "@phosphor-icons/react";
+import { useEditorial, ED } from "../lib/editorial";
 
 // Tables
 const USER_STATS_TABLE = "user_engagement_stats";
@@ -39,19 +46,19 @@ const SUPPORT_TICKETS_TABLE = "support_tickets";
 
 // Support categories
 const supportCategories = [
-  { id: "general", label: "General Question", icon: Question, color: "sky" },
-  { id: "bug", label: "Bug Report", icon: Bug, color: "rose" },
-  { id: "feature", label: "Feature Request", icon: Lightbulb, color: "amber" },
-  { id: "billing", label: "Billing & Subscription", icon: CreditCard, color: "emerald" },
-  { id: "account", label: "Account Issue", icon: User, color: "purple" },
-  { id: "other", label: "Other", icon: ChatCircleDots, color: "indigo" },
+  { id: "general",  label: "General Question",       icon: Question     },
+  { id: "bug",      label: "Bug Report",             icon: Bug          },
+  { id: "feature",  label: "Feature Request",        icon: Lightbulb    },
+  { id: "billing",  label: "Billing & Subscription", icon: CreditCard   },
+  { id: "account",  label: "Account Issue",          icon: User         },
+  { id: "other",    label: "Other",                  icon: ChatCircleDots },
 ];
 
 // Priority levels
 const priorityLevels = [
-  { id: "low", label: "Low", description: "General questions, not urgent", color: "emerald" },
-  { id: "medium", label: "Medium", description: "Issues affecting workflow", color: "amber" },
-  { id: "high", label: "High", description: "Critical issues, need help ASAP", color: "rose" },
+  { id: "low",    label: "Low",    description: "General questions, not urgent"   },
+  { id: "medium", label: "Medium", description: "Issues affecting workflow"       },
+  { id: "high",   label: "High",   description: "Critical issues, need help ASAP" },
 ];
 
 // Simulated support bot responses
@@ -66,17 +73,28 @@ const liveChatResponses = {
     "**Sarah from Support** has joined the chat.\n\nHi there! I've reviewed your message. How can I help you today?",
 };
 
+// Dateline helper
+function issueLine() {
+  return new Date()
+    .toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+    .toUpperCase();
+}
+
 export default function ContactSupport() {
+  useEditorial();
   const navigate = useNavigate();
   const { subscription } = useSubscription();
   const isPro = subscription?.plan && subscription.plan !== "free";
 
-  // ✅ Profile state (DB/Auth is source of truth)
+  const vol = "II";
+  const no  = "21";
+
+  // ── Profile state (DB/Auth is source of truth) ─────────────────
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [profile, setProfile] = useState({ name: "", email: "" });
 
-  // ✅ Form state (name/email are hydrated from profile, not localStorage)
+  // ── Form state (hydrated from profile, not localStorage) ───────
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -86,7 +104,7 @@ export default function ContactSupport() {
     message: "",
   });
 
-  // Track if user has edited name/email so hydration can’t overwrite it
+  // Track if user has edited name/email so hydration can't overwrite it
   const touchedRef = useRef({ name: false, email: false });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -113,29 +131,18 @@ export default function ContactSupport() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  const colorMap = useMemo(
-    () => ({
-      sky: "bg-sky-500/15 border-sky-500/25 text-sky-400",
-      rose: "bg-rose-500/15 border-rose-500/25 text-rose-400",
-      amber: "bg-amber-500/15 border-amber-500/25 text-amber-400",
-      emerald: "bg-emerald-500/15 border-emerald-500/25 text-emerald-400",
-      purple: "bg-purple-500/15 border-purple-500/25 text-purple-400",
-      indigo: "bg-indigo-500/15 border-indigo-500/25 text-indigo-400",
-    }),
-    []
+  const selectedCategory = useMemo(
+    () => supportCategories.find((c) => c.id === formData.category),
+    [formData.category]
   );
 
-  const selectedCategory = supportCategories.find((c) => c.id === formData.category);
-
-  // ✅ Insert stats row if missing (safe)
+  // ── Insert stats row if missing (safe) ─────────────────────────
   const ensureStatsRow = async (user) => {
     if (!user?.id) return;
-
     const nameFromAuth =
       user.user_metadata?.full_name ??
       user.user_metadata?.name ??
       (user.email ? user.email.split("@")[0] : null);
-
     try {
       const { error } = await supabase.rpc("ensure_user_stats_exists", {
         p_user_id: user.id,
@@ -147,7 +154,7 @@ export default function ContactSupport() {
     }
   };
 
-  // ✅ Load profile from Auth + DB display_name (DB wins)
+  // ── Load profile from Auth + DB display_name (DB wins) ─────────
   const loadProfile = async () => {
     if (!isSupabaseConfigured || !supabase) return;
 
@@ -173,10 +180,8 @@ export default function ContactSupport() {
 
       await ensureStatsRow(user);
 
-      // Auth email is reliable
       const authEmail = user.email || "";
 
-      // DB display name (single source of truth)
       let dbName = "";
       const { data, error } = await supabase
         .from(USER_STATS_TABLE)
@@ -185,7 +190,6 @@ export default function ContactSupport() {
         .single();
 
       if (!error) dbName = data?.display_name || "";
-      // If RLS blocks read, we’ll fall back to auth metadata (but won’t overwrite user edits)
       if (error) {
         dbName =
           user.user_metadata?.full_name ??
@@ -198,7 +202,6 @@ export default function ContactSupport() {
       const nextProfile = { name: dbName, email: authEmail };
       setProfile(nextProfile);
 
-      // Prefill form fields, but do not override user edits
       setFormData((prev) => ({
         ...prev,
         name: touchedRef.current.name ? prev.name : nextProfile.name,
@@ -214,18 +217,13 @@ export default function ContactSupport() {
 
   useEffect(() => {
     loadProfile();
-
     if (!supabase) return;
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      // Re-hydrate safely (guard prevents revert)
-      loadProfile();
-    });
-
+    const { data: sub } = supabase.auth.onAuthStateChange(() => loadProfile());
     return () => sub?.subscription?.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Open live chat
+  // ── Live chat handlers (unchanged behaviour) ───────────────────
   const openLiveChat = () => {
     setShowLiveChat(true);
     if (chatMessages.length === 0) {
@@ -233,7 +231,6 @@ export default function ContactSupport() {
     }
   };
 
-  // Send chat message
   const sendChatMessage = async () => {
     if (!chatInput.trim()) return;
 
@@ -284,7 +281,7 @@ export default function ContactSupport() {
     }
   };
 
-  // Validate form
+  // ── Validation ─────────────────────────────────────────────────
   const validateForm = () => {
     const newErrors = {};
     if (!formData.name.trim()) newErrors.name = "Name is required";
@@ -300,7 +297,7 @@ export default function ContactSupport() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ Submit form -> saves to DB
+  // ── Submit → saves to DB ───────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError("");
@@ -312,7 +309,6 @@ export default function ContactSupport() {
       if (!isSupabaseConfigured || !supabase) {
         throw new Error("Supabase not configured.");
       }
-
       const { data: sessRes, error: sessErr } = await supabase.auth.getSession();
       if (sessErr) throw sessErr;
 
@@ -353,7 +349,6 @@ export default function ContactSupport() {
     }
   };
 
-  // Reset form (keep name/email)
   const resetForm = () => {
     setFormData((prev) => ({
       ...prev,
@@ -369,462 +364,690 @@ export default function ContactSupport() {
     setErrors({});
   };
 
+  // ── Shared input style ─────────────────────────────────────────
+  const inputBase = {
+    width: "100%",
+    fontFamily: ED.sans,
+    fontSize: 15,
+    color: ED.ink,
+    background: ED.paper50,
+    border: `1px solid ${ED.rule}`,
+    borderRadius: 4,
+    padding: "12px 14px",
+    outline: "none",
+    transition: "border-color .15s ease",
+  };
+  const inputError = { borderColor: "#a8324c" };
+
   return (
-    <div className="space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] animate-fadeIn">
-      {/* Header */}
-      <header className="pt-2 px-1">
-        <div className="flex items-center gap-3 mb-4">
-          <button
-            onClick={() => navigate("/dashboard/settings")}
-            className="h-8 w-8 rounded-xl flex items-center justify-center text-theme-muted hover:text-theme-primary transition"
-            style={{ backgroundColor: "var(--bg-tertiary)" }}
-          >
-            <FiArrowLeft size={18} />
-          </button>
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
-                <ChatCircleDots size={18} weight="duotone" className="text-emerald-400" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-theme-primary">
-                  Contact Support
-                </h1>
-                <p className="text-theme-muted text-sm">We're here to help</p>
-              </div>
+    <div className="ns-ed">
+      <div style={{ paddingBottom: "calc(var(--mobile-nav-height, 0px) + 96px)" }}>
+        {/* ━━━━━━━━━━━━━━ DATELINE ━━━━━━━━━━━━━━ */}
+        <div className="ed-dateline" style={{ paddingTop: 18 }}>
+          <span className="ed-mono">VOL. {vol} · NO. {no}</span>
+          <span className="ed-mono">{issueLine()}</span>
+          <span className="ed-mono" style={{ display: "inline-flex", alignItems: "center" }}>
+            <span
+              style={{
+                display: "inline-block",
+                width: 6, height: 6, borderRadius: 999,
+                background: ED.accent, marginRight: 8,
+                animation: "ed-pulse 2.4s ease-in-out infinite",
+              }}
+            />
+            CORRESPONDENCE OPEN
+          </span>
+        </div>
+        <hr className="ed-rule" />
+
+        {/* ━━━━━━━━━━━━━━ COVER ━━━━━━━━━━━━━━ */}
+        <section className="ed-reveal" style={{ padding: "56px 0 8px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 28 }}>
+            <button
+              onClick={() => navigate("/dashboard/settings")}
+              aria-label="Back to settings"
+              style={{
+                height: 36, width: 36, borderRadius: 999,
+                border: `1px solid ${ED.rule}`, color: ED.inkSoft,
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                background: "transparent",
+              }}
+            >
+              <FiArrowLeft size={16} />
+            </button>
+            <div className="ed-chapter">
+              <span className="num">№ 01</span>
+              <span>— THE LETTERS DESK</span>
             </div>
           </div>
-        </div>
-      </header>
 
-      {/* Support Options */}
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={openLiveChat}
-          className="flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all hover:border-indigo-500/30 hover:bg-indigo-500/5"
-          style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
-        >
-          <div className="w-12 h-12 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center">
-            <FiMessageSquare size={22} className="text-indigo-400" />
-          </div>
-          <div className="text-center">
-            <p className="text-sm font-medium text-theme-primary">Live Chat</p>
-            <p className="text-xs text-theme-muted">Chat with us now</p>
-          </div>
-        </button>
-
-        <button
-          onClick={() => document.getElementById("ticket-form")?.scrollIntoView({ behavior: "smooth" })}
-          className="flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all hover:border-emerald-500/30 hover:bg-emerald-500/5"
-          style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
-        >
-          <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
-            <FiMail size={22} className="text-emerald-400" />
-          </div>
-          <div className="text-center">
-            <p className="text-sm font-medium text-theme-primary">Submit Ticket</p>
-            <p className="text-xs text-theme-muted">Email response</p>
-          </div>
-        </button>
-      </div>
-
-      {/* Response Time Info */}
-      <GlassCard className="p-4">
-        <div className="flex items-center gap-3">
-          <div
-            className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-              isPro ? "bg-amber-500/15 border border-amber-500/25" : "bg-theme-tertiary"
-            }`}
+          <h1
+            className="ed-display"
+            style={{ fontSize: "clamp(40px, 5.5vw, 76px)", marginTop: 0, marginBottom: 18, paddingBottom: "0.06em" }}
           >
-            {isPro ? (
-              <Crown size={20} weight="fill" className="text-amber-400" />
-            ) : (
-              <Clock size={20} weight="duotone" className="text-theme-muted" />
+            Write to us,{" "}
+            <span className="ed-italic" style={{ color: ED.accent }}>we read every word</span>.
+          </h1>
+
+          <p className="ed-lede" style={{ maxWidth: 760, margin: 0 }}>
+            File a ticket with the editors below, or open a live conversation
+            from the corner of the page. {isPro ? "Pro members are answered within 2–4 hours." : "Standard replies arrive within 24–48 hours."}
+          </p>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 28 }}>
+            <span className="ed-chip">
+              {isPro ? "PRIORITY DESK" : "STANDARD DESK"}
+            </span>
+            <span className="ed-chip">
+              {isPro ? "2–4 HOUR REPLIES" : "24–48 HOUR REPLIES"}
+            </span>
+            {!isPro && (
+              <button
+                onClick={() => navigate("/dashboard/ai-lab")}
+                className="ed-chip ed-chip-accent"
+                style={{ cursor: "pointer" }}
+              >
+                UPGRADE TO PRIORITY →
+              </button>
             )}
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-theme-primary">
-              {isPro ? "Priority Support" : "Standard Support"}
-            </p>
-            <p className="text-xs text-theme-muted">
-              {isPro ? "Average response time: 2-4 hours" : "Average response time: 24-48 hours"}
-            </p>
+        </section>
+
+        {/* ━━━━━━━━━━━━━━ TWO OPTIONS ━━━━━━━━━━━━━━ */}
+        <section style={{ marginTop: 56 }}>
+          <div className="ed-chapter" style={{ marginBottom: 18 }}>
+            <span className="num">§ 02</span>
+            <span>— TWO WAYS TO REACH US</span>
           </div>
-          {!isPro && (
+          <hr className="ed-rule" />
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: 0,
+              borderBottom: `1px solid ${ED.rule}`,
+            }}
+          >
             <button
-              onClick={() => navigate("/dashboard/ai-lab")}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white"
+              onClick={openLiveChat}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "44px 1fr auto",
+                gap: 16,
+                alignItems: "baseline",
+                padding: "28px 4px 28px 4px",
+                borderRight: `1px solid ${ED.rule}`,
+                background: "transparent",
+                textAlign: "left",
+                cursor: "pointer",
+              }}
             >
-              Upgrade
+              <span className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.14em", color: ED.inkFaint }}>
+                01
+              </span>
+              <div>
+                <p className="ed-serif" style={{ fontSize: "clamp(22px, 2.2vw, 28px)", margin: 0, color: ED.ink, lineHeight: 1.2 }}>
+                  Live conversation
+                </p>
+                <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint, marginTop: 6 }}>
+                  AN EDITOR JOINS WITHIN MINUTES
+                </p>
+              </div>
+              <span className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.14em", color: ED.accent }}>
+                OPEN →
+              </span>
             </button>
-          )}
-        </div>
-      </GlassCard>
 
-      {/* Success / Form */}
-      <AnimatePresence mode="wait">
-        {submitSuccess ? (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <GlassCard className="p-8 text-center">
+            <button
+              onClick={() => document.getElementById("ticket-form")?.scrollIntoView({ behavior: "smooth" })}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "44px 1fr auto",
+                gap: 16,
+                alignItems: "baseline",
+                padding: "28px 4px",
+                background: "transparent",
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              <span className="ed-mono" style={{ fontSize: 11, letterSpacing: "0.14em", color: ED.inkFaint }}>
+                02
+              </span>
+              <div>
+                <p className="ed-serif" style={{ fontSize: "clamp(22px, 2.2vw, 28px)", margin: 0, color: ED.ink, lineHeight: 1.2 }}>
+                  Written correspondence
+                </p>
+                <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: ED.inkFaint, marginTop: 6 }}>
+                  REPLY DELIVERED BY EMAIL
+                </p>
+              </div>
+              <span className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.14em", color: ED.accent }}>
+                SCROLL ↓
+              </span>
+            </button>
+          </div>
+        </section>
+
+        {/* ━━━━━━━━━━━━━━ TICKET FORM / SUCCESS ━━━━━━━━━━━━━━ */}
+        <section style={{ marginTop: 80 }} id="ticket-form">
+          <AnimatePresence mode="wait">
+            {submitSuccess ? (
               <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 200, damping: 15 }}
-                className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center"
+                key="success"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                className="ed-card"
+                style={{ padding: "64px 36px", textAlign: "center", borderRadius: 6 }}
               >
-                <CheckCircle size={40} weight="fill" className="text-emerald-400" />
+                <div
+                  style={{
+                    width: 64, height: 64, margin: "0 auto 22px",
+                    border: `1px solid ${ED.accent}`,
+                    borderRadius: 999,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    color: ED.accent,
+                  }}
+                >
+                  <CheckCircle size={28} weight="duotone" />
+                </div>
+                <p
+                  className="ed-mono"
+                  style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, marginBottom: 14 }}
+                >
+                  — FILED WITH THE EDITORS
+                </p>
+                <h3 className="ed-display" style={{ fontSize: "clamp(28px, 3vw, 40px)", marginBottom: 12, paddingBottom: "0.04em" }}>
+                  Your letter is in.
+                </h3>
+                <p className="ed-serif" style={{ fontSize: 17, color: ED.inkMute, lineHeight: 1.55, maxWidth: 480, margin: "0 auto 28px" }}>
+                  We've received your message and will write back{" "}
+                  <span className="ed-italic" style={{ color: ED.accent }}>
+                    {isPro ? "within 2–4 hours" : "within 24–48 hours"}
+                  </span>
+                  . A confirmation is on its way to your inbox.
+                </p>
+                <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                  <button className="ed-btn ed-btn-ghost" onClick={resetForm}>
+                    Write another
+                  </button>
+                  <button
+                    className="ed-btn ed-btn-primary"
+                    onClick={() => navigate("/dashboard/help-center")}
+                  >
+                    Visit the Help Center
+                  </button>
+                </div>
               </motion.div>
-              <h3 className="text-xl font-semibold text-theme-primary mb-2">Ticket Submitted!</h3>
-              <p className="text-theme-muted text-sm mb-6">
-                We've received your message and will get back to you{" "}
-                {isPro ? "within 2-4 hours" : "within 24-48 hours"}. Check your email for confirmation.
-              </p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={resetForm}
-                  className="px-5 py-2.5 rounded-xl text-sm font-medium border transition hover:bg-white/5"
-                  style={{ borderColor: "var(--border-secondary)" }}
-                >
-                  Submit Another
-                </button>
-                <button
-                  onClick={() => navigate("/dashboard/help-center")}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 text-white text-sm font-medium"
-                >
-                  View Help Center
-                </button>
-              </div>
-            </GlassCard>
-          </motion.div>
-        ) : (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <GlassCard id="ticket-form">
-              <div className="flex items-center gap-2 mb-5">
-                <div className="h-8 w-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
-                  <Envelope size={16} weight="duotone" className="text-emerald-400" />
+            ) : (
+              <motion.div
+                key="form"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+              >
+                <div className="ed-chapter" style={{ marginBottom: 18 }}>
+                  <span className="num">§ 03</span>
+                  <span>— FILE A TICKET</span>
                 </div>
-                <h2 className="text-sm font-semibold text-emerald-300">Submit a Support Ticket</h2>
-              </div>
+                <hr className="ed-rule-dbl" />
 
-              {profileError && (
-                <div className="mb-4 text-[11px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
-                  {profileError}
-                </div>
-              )}
+                {profileError && (
+                  <div
+                    style={{
+                      marginTop: 20,
+                      padding: "12px 16px",
+                      border: `1px solid ${ED.rule}`,
+                      borderLeft: "2px solid #a8324c",
+                      background: ED.paper150,
+                      borderRadius: 4,
+                    }}
+                  >
+                    <p className="ed-mono" style={{ fontSize: 11, color: "#a8324c", letterSpacing: "0.06em", margin: 0 }}>
+                      {profileError}
+                    </p>
+                  </div>
+                )}
 
-              {submitError && (
-                <div className="mb-4 text-[11px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
-                  {submitError}
-                </div>
-              )}
+                {submitError && (
+                  <div
+                    style={{
+                      marginTop: 20,
+                      padding: "12px 16px",
+                      border: `1px solid ${ED.rule}`,
+                      borderLeft: "2px solid #a8324c",
+                      background: ED.paper150,
+                      borderRadius: 4,
+                    }}
+                  >
+                    <p className="ed-mono" style={{ fontSize: 11, color: "#a8324c", letterSpacing: "0.06em", margin: 0 }}>
+                      {submitError}
+                    </p>
+                  </div>
+                )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Name & Email */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <form onSubmit={handleSubmit} style={{ display: "grid", gap: 28, marginTop: 36 }}>
+                  {/* Name & Email */}
+                  <div className="ed-form-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                    <div>
+                      <label className="ed-mono" style={fieldLabel}>
+                        YOUR NAME
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => {
+                          touchedRef.current.name = true;
+                          setFormData((p) => ({ ...p, name: e.target.value }));
+                        }}
+                        onFocus={(e) => (e.target.style.borderColor = ED.ink)}
+                        onBlur={(e) => (e.target.style.borderColor = errors.name ? "#a8324c" : ED.rule)}
+                        placeholder={profileLoading ? "Loading…" : "Jane Smith"}
+                        disabled={profileLoading && !formData.name}
+                        style={{ ...inputBase, ...(errors.name ? inputError : {}) }}
+                      />
+                      {errors.name && <p style={errorText}>{errors.name}</p>}
+                    </div>
+
+                    <div>
+                      <label className="ed-mono" style={fieldLabel}>
+                        EMAIL ADDRESS
+                      </label>
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => {
+                          touchedRef.current.email = true;
+                          setFormData((p) => ({ ...p, email: e.target.value }));
+                        }}
+                        onFocus={(e) => (e.target.style.borderColor = ED.ink)}
+                        onBlur={(e) => (e.target.style.borderColor = errors.email ? "#a8324c" : ED.rule)}
+                        placeholder={profileLoading ? "Loading…" : "you@example.com"}
+                        disabled={profileLoading && !formData.email}
+                        style={{ ...inputBase, ...(errors.email ? inputError : {}) }}
+                      />
+                      {errors.email && <p style={errorText}>{errors.email}</p>}
+                    </div>
+                  </div>
+
+                  {/* Category */}
                   <div>
-                    <label className="text-xs text-theme-muted mb-1.5 block">Your Name *</label>
+                    <label className="ed-mono" style={fieldLabel}>
+                      CATEGORY
+                    </label>
+                    <div style={{ position: "relative" }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowCategoryDropdown((v) => !v)}
+                        style={{
+                          ...inputBase,
+                          ...(errors.category ? inputError : {}),
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          textAlign: "left",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {selectedCategory ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                            <selectedCategory.icon size={16} weight="duotone" style={{ color: ED.accent }} />
+                            <span style={{ color: ED.ink }}>{selectedCategory.label}</span>
+                          </span>
+                        ) : (
+                          <span style={{ color: ED.inkFaint }}>Select a category</span>
+                        )}
+                        <FiChevronDown
+                          size={16}
+                          style={{
+                            color: ED.inkFaint,
+                            transform: showCategoryDropdown ? "rotate(180deg)" : "none",
+                            transition: "transform .15s ease",
+                          }}
+                        />
+                      </button>
+
+                      <AnimatePresence>
+                        {showCategoryDropdown && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8 }}
+                            transition={{ duration: 0.15 }}
+                            style={{
+                              position: "absolute",
+                              top: "calc(100% + 6px)",
+                              left: 0, right: 0,
+                              zIndex: 20,
+                              background: ED.paper50,
+                              border: `1px solid ${ED.rule}`,
+                              borderRadius: 4,
+                              overflow: "hidden",
+                              boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+                            }}
+                          >
+                            {supportCategories.map((cat) => (
+                              <button
+                                key={cat.id}
+                                type="button"
+                                onClick={() => {
+                                  setFormData((p) => ({ ...p, category: cat.id }));
+                                  setShowCategoryDropdown(false);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  display: "grid",
+                                  gridTemplateColumns: "auto 1fr auto",
+                                  gap: 12,
+                                  alignItems: "center",
+                                  padding: "12px 16px",
+                                  background: formData.category === cat.id ? ED.paper150 : "transparent",
+                                  border: 0,
+                                  borderBottom: `1px solid ${ED.ruleSoft}`,
+                                  cursor: "pointer",
+                                  textAlign: "left",
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = ED.paper150)}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = formData.category === cat.id ? ED.paper150 : "transparent")}
+                              >
+                                <cat.icon size={16} weight="duotone" style={{ color: ED.accent }} />
+                                <span className="ed-serif" style={{ fontSize: 16, color: ED.ink }}>
+                                  {cat.label}
+                                </span>
+                                {formData.category === cat.id && (
+                                  <FiCheck size={14} style={{ color: ED.accent }} />
+                                )}
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    {errors.category && <p style={errorText}>{errors.category}</p>}
+                  </div>
+
+                  {/* Priority */}
+                  <div>
+                    <label className="ed-mono" style={fieldLabel}>
+                      PRIORITY
+                    </label>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0, border: `1px solid ${ED.rule}`, borderRadius: 4 }}>
+                      {priorityLevels.map((level, i) => {
+                        const isActive = formData.priority === level.id;
+                        return (
+                          <button
+                            key={level.id}
+                            type="button"
+                            onClick={() => setFormData((p) => ({ ...p, priority: level.id }))}
+                            style={{
+                              padding: "12px 10px",
+                              background: isActive ? ED.ink : "transparent",
+                              color: isActive ? ED.paper50 : ED.inkSoft,
+                              border: 0,
+                              borderRight: i < priorityLevels.length - 1 ? `1px solid ${ED.rule}` : 0,
+                              cursor: "pointer",
+                              fontFamily: ED.mono,
+                              fontSize: 11,
+                              letterSpacing: "0.14em",
+                              textTransform: "uppercase",
+                              transition: "background .15s ease, color .15s ease",
+                            }}
+                          >
+                            {level.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p
+                      className="ed-serif ed-italic"
+                      style={{ fontSize: 13, color: ED.inkFaint, marginTop: 8 }}
+                    >
+                      {priorityLevels.find((l) => l.id === formData.priority)?.description}
+                    </p>
+                  </div>
+
+                  {/* Subject */}
+                  <div>
+                    <label className="ed-mono" style={fieldLabel}>
+                      SUBJECT
+                    </label>
                     <input
                       type="text"
-                      value={formData.name}
-                      onChange={(e) => {
-                        touchedRef.current.name = true;
-                        setFormData((p) => ({ ...p, name: e.target.value }));
-                      }}
-                      className={`w-full border rounded-xl px-4 py-2.5 text-theme-primary text-sm placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 transition ${
-                        errors.name ? "border-rose-500/50" : ""
-                      }`}
-                      style={{
-                        backgroundColor: "var(--bg-input)",
-                        borderColor: errors.name ? undefined : "var(--border-secondary)",
-                      }}
-                      placeholder={profileLoading ? "Loading..." : "John Doe"}
-                      disabled={profileLoading && !formData.name}
+                      value={formData.subject}
+                      onChange={(e) => setFormData((p) => ({ ...p, subject: e.target.value }))}
+                      onFocus={(e) => (e.target.style.borderColor = ED.ink)}
+                      onBlur={(e) => (e.target.style.borderColor = errors.subject ? "#a8324c" : ED.rule)}
+                      placeholder="A short headline for your message"
+                      style={{ ...inputBase, ...(errors.subject ? inputError : {}) }}
                     />
-                    {errors.name && <p className="text-xs text-rose-400 mt-1">{errors.name}</p>}
+                    {errors.subject && <p style={errorText}>{errors.subject}</p>}
                   </div>
 
+                  {/* Message */}
                   <div>
-                    <label className="text-xs text-theme-muted mb-1.5 block">Email Address *</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => {
-                        touchedRef.current.email = true;
-                        setFormData((p) => ({ ...p, email: e.target.value }));
-                      }}
-                      className={`w-full border rounded-xl px-4 py-2.5 text-theme-primary text-sm placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 transition ${
-                        errors.email ? "border-rose-500/50" : ""
-                      }`}
+                    <label className="ed-mono" style={fieldLabel}>
+                      MESSAGE
+                    </label>
+                    <textarea
+                      value={formData.message}
+                      onChange={(e) => setFormData((p) => ({ ...p, message: e.target.value }))}
+                      onFocus={(e) => (e.target.style.borderColor = ED.ink)}
+                      onBlur={(e) => (e.target.style.borderColor = errors.message ? "#a8324c" : ED.rule)}
+                      rows={6}
+                      placeholder="Tell us what's happening. Steps to reproduce, error messages, screenshots if you have them — anything that helps us help you."
                       style={{
-                        backgroundColor: "var(--bg-input)",
-                        borderColor: errors.email ? undefined : "var(--border-secondary)",
+                        ...inputBase,
+                        ...(errors.message ? inputError : {}),
+                        resize: "vertical",
+                        lineHeight: 1.5,
                       }}
-                      placeholder={profileLoading ? "Loading..." : "you@example.com"}
-                      disabled={profileLoading && !formData.email}
                     />
-                    {errors.email && <p className="text-xs text-rose-400 mt-1">{errors.email}</p>}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 6 }}>
+                      {errors.message ? (
+                        <p style={errorText}>{errors.message}</p>
+                      ) : <span />}
+                      <p
+                        className="ed-mono"
+                        style={{ fontSize: 10.5, letterSpacing: "0.14em", color: ED.inkFaint, margin: 0 }}
+                      >
+                        {formData.message.length} CHARACTERS
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                {/* Category */}
-                <div>
-                  <label className="text-xs text-theme-muted mb-1.5 block">Category *</label>
-                  <div className="relative">
+                  {/* Submit */}
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
                     <button
-                      type="button"
-                      onClick={() => setShowCategoryDropdown((v) => !v)}
-                      className={`w-full flex items-center justify-between border rounded-xl px-4 py-2.5 text-sm transition ${
-                        errors.category ? "border-rose-500/50" : ""
-                      }`}
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="ed-btn ed-btn-primary"
                       style={{
-                        backgroundColor: "var(--bg-input)",
-                        borderColor: errors.category ? undefined : "var(--border-secondary)",
+                        padding: "13px 22px",
+                        opacity: isSubmitting ? 0.6 : 1,
+                        cursor: isSubmitting ? "not-allowed" : "pointer",
                       }}
                     >
-                      {selectedCategory ? (
-                        <div className="flex items-center gap-2">
-                          <selectedCategory.icon
-                            size={16}
-                            className={colorMap[selectedCategory.color].split(" ")[2]}
+                      {isSubmitting ? (
+                        <>
+                          <span
+                            style={{
+                              width: 14, height: 14, borderRadius: 999,
+                              border: `1.5px solid ${ED.paper50}`,
+                              borderTopColor: "transparent",
+                              animation: "ed-spin 0.9s linear infinite",
+                              display: "inline-block",
+                            }}
                           />
-                          <span className="text-theme-primary">{selectedCategory.label}</span>
-                        </div>
+                          Filing your letter…
+                        </>
                       ) : (
-                        <span className="text-theme-muted">Select a category</span>
+                        <>
+                          File the ticket
+                          <FiSend size={14} />
+                        </>
                       )}
-                      <FiChevronDown
-                        size={16}
-                        className={`text-theme-muted transition-transform ${showCategoryDropdown ? "rotate-180" : ""}`}
-                      />
                     </button>
-
-                    <AnimatePresence>
-                      {showCategoryDropdown && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className="absolute top-full left-0 right-0 mt-2 rounded-xl border shadow-xl z-20 overflow-hidden"
-                          style={{
-                            backgroundColor: "var(--bg-surface)",
-                            borderColor: "var(--border-secondary)",
-                          }}
-                        >
-                          {supportCategories.map((cat) => (
-                            <button
-                              key={cat.id}
-                              type="button"
-                              onClick={() => {
-                                setFormData((p) => ({ ...p, category: cat.id }));
-                                setShowCategoryDropdown(false);
-                              }}
-                              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition hover:bg-white/5 ${
-                                formData.category === cat.id ? "bg-white/5" : ""
-                              }`}
-                            >
-                              <div className={`w-8 h-8 rounded-lg border flex items-center justify-center ${colorMap[cat.color]}`}>
-                                <cat.icon size={16} />
-                              </div>
-                              <span className="text-sm text-theme-primary">{cat.label}</span>
-                              {formData.category === cat.id && <FiCheck size={16} className="ml-auto text-emerald-400" />}
-                            </button>
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
                   </div>
-                  {errors.category && <p className="text-xs text-rose-400 mt-1">{errors.category}</p>}
-                </div>
+                </form>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
 
-                {/* Priority */}
-                <div>
-                  <label className="text-xs text-theme-muted mb-1.5 block">Priority</label>
-                  <div className="flex gap-2">
-                    {priorityLevels.map((level) => (
-                      <button
-                        key={level.id}
-                        type="button"
-                        onClick={() => setFormData((p) => ({ ...p, priority: level.id }))}
-                        className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition ${
-                          formData.priority === level.id
-                            ? level.color === "emerald"
-                              ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
-                              : level.color === "amber"
-                              ? "bg-amber-500/15 border-amber-500/30 text-amber-400"
-                              : "bg-rose-500/15 border-rose-500/30 text-rose-400"
-                            : "text-theme-muted hover:text-theme-secondary"
-                        }`}
-                        style={{ borderColor: formData.priority === level.id ? undefined : "var(--border-secondary)" }}
-                      >
-                        {level.label}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-theme-muted mt-1.5">
-                    {priorityLevels.find((l) => l.id === formData.priority)?.description}
-                  </p>
-                </div>
+        {/* ━━━━━━━━━━━━━━ QUICK LINKS ━━━━━━━━━━━━━━ */}
+        <section style={{ marginTop: 96 }}>
+          <div className="ed-chapter" style={{ marginBottom: 18 }}>
+            <span className="num">§ 04</span>
+            <span>— ELSEWHERE IN THE ISSUE</span>
+          </div>
+          <hr className="ed-rule" />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, paddingTop: 24 }}>
+            <button className="ed-btn ed-btn-ghost" onClick={() => navigate("/dashboard/help-center")}>
+              Help center
+            </button>
+            <button className="ed-btn ed-btn-ghost" onClick={() => navigate("/dashboard/integration-docs")}>
+              Integration docs
+            </button>
+            <button className="ed-btn ed-btn-ghost" onClick={() => navigate("/dashboard/ai-lab")}>
+              View plans
+            </button>
+            <button className="ed-btn ed-btn-ghost" onClick={() => navigate("/dashboard/settings")}>
+              Settings
+            </button>
+          </div>
+        </section>
 
-                {/* Subject */}
-                <div>
-                  <label className="text-xs text-theme-muted mb-1.5 block">Subject *</label>
-                  <input
-                    type="text"
-                    value={formData.subject}
-                    onChange={(e) => setFormData((p) => ({ ...p, subject: e.target.value }))}
-                    className={`w-full border rounded-xl px-4 py-2.5 text-theme-primary text-sm placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 transition ${
-                      errors.subject ? "border-rose-500/50" : ""
-                    }`}
-                    style={{
-                      backgroundColor: "var(--bg-input)",
-                      borderColor: errors.subject ? undefined : "var(--border-secondary)",
-                    }}
-                    placeholder="Brief description of your issue"
-                  />
-                  {errors.subject && <p className="text-xs text-rose-400 mt-1">{errors.subject}</p>}
-                </div>
+        {/* ━━━━━━━━━━━━━━ COLOPHON ━━━━━━━━━━━━━━ */}
+        <section style={{ marginTop: 80 }}>
+          <hr className="ed-rule" />
+          <div className="ed-colophon">
+            <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint }}>
+              NOTESTREAM · VOL. {vol} · NO. {no}
+            </p>
+            <p className="ed-mono" style={{ fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: ED.inkFaint }}>
+              THE LETTERS DESK · OPEN DAILY
+            </p>
+          </div>
+        </section>
+      </div>
 
-                {/* Message */}
-                <div>
-                  <label className="text-xs text-theme-muted mb-1.5 block">Message *</label>
-                  <textarea
-                    value={formData.message}
-                    onChange={(e) => setFormData((p) => ({ ...p, message: e.target.value }))}
-                    rows={5}
-                    className={`w-full border rounded-xl px-4 py-3 text-theme-primary text-sm placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 resize-none transition ${
-                      errors.message ? "border-rose-500/50" : ""
-                    }`}
-                    style={{
-                      backgroundColor: "var(--bg-input)",
-                      borderColor: errors.message ? undefined : "var(--border-secondary)",
-                    }}
-                    placeholder="Please describe your issue in detail. Include steps to reproduce, error messages, etc."
-                  />
-                  <div className="flex justify-between mt-1">
-                    {errors.message && <p className="text-xs text-rose-400">{errors.message}</p>}
-                    <p className="text-[11px] text-theme-muted ml-auto">{formData.message.length} characters</p>
-                  </div>
-                </div>
-
-                {/* Submit */}
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-medium transition hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <FiSend size={16} />
-                      Submit Ticket
-                    </>
-                  )}
-                </button>
-              </form>
-            </GlassCard>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Quick Links */}
-      <GlassCard className="p-4">
-        <p className="text-xs text-theme-muted mb-3">Quick Links</p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => navigate("/dashboard/help-center")}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border transition hover:bg-white/5"
-            style={{ borderColor: "var(--border-secondary)" }}
-          >
-            Help Center
-          </button>
-          <button
-            onClick={() => navigate("/dashboard/ai-lab")}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border transition hover:bg-white/5"
-            style={{ borderColor: "var(--border-secondary)" }}
-          >
-            View Plans
-          </button>
-          <button
-            onClick={() => navigate("/dashboard/settings")}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border transition hover:bg-white/5"
-            style={{ borderColor: "var(--border-secondary)" }}
-          >
-            Settings
-          </button>
-        </div>
-      </GlassCard>
-
-      {/* Live Chat Widget */}
+      {/* ━━━━━━━━━━━━━━ LIVE CHAT PANEL ━━━━━━━━━━━━━━ */}
       <AnimatePresence>
         {showLiveChat && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+var(--mobile-nav-height)+16px)] right-4 left-4 sm:left-auto sm:w-[380px] z-[100] rounded-2xl border shadow-2xl overflow-hidden"
-            style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-secondary)" }}
+            exit={{ opacity: 0, y: 24, scale: 0.96 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            style={{
+              position: "fixed",
+              bottom: "calc(env(safe-area-inset-bottom) + var(--mobile-nav-height, 0px) + 16px)",
+              right: 16, left: 16,
+              maxWidth: 380,
+              marginLeft: "auto",
+              zIndex: 100,
+              background: ED.paper50,
+              border: `1px solid ${ED.rule}`,
+              borderTop: `3px solid ${ED.accent}`,
+              borderRadius: 6,
+              overflow: "hidden",
+              boxShadow: "0 12px 36px rgba(0,0,0,0.12)",
+            }}
           >
             <div
-              className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-emerald-500/10 to-teal-500/10"
-              style={{ borderColor: "var(--border-secondary)" }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "14px 18px",
+                borderBottom: `1px solid ${ED.rule}`,
+                background: ED.paper100,
+              }}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-                  <ChatCircleDots size={22} weight="fill" className="text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-theme-primary">Live Support</p>
-                  <p className="text-xs text-emerald-400 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    {chatPhase >= 3 ? "Sarah is here" : "Connected"}
-                  </p>
-                </div>
+              <div>
+                <p
+                  className="ed-mono"
+                  style={{ fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: ED.inkFaint, margin: 0 }}
+                >
+                  LIVE TRANSMISSION
+                </p>
+                <p className="ed-serif" style={{ fontSize: 18, color: ED.ink, margin: 0, lineHeight: 1.2 }}>
+                  {chatPhase >= 3 ? (
+                    <>Sarah, <span className="ed-italic" style={{ color: ED.accent }}>editor on duty</span></>
+                  ) : (
+                    <>The desk is <span className="ed-italic" style={{ color: ED.accent }}>listening</span></>
+                  )}
+                </p>
               </div>
               <button
                 onClick={() => setShowLiveChat(false)}
-                className="h-8 w-8 rounded-lg flex items-center justify-center text-theme-muted hover:text-theme-primary transition"
-                style={{ backgroundColor: "var(--bg-tertiary)" }}
+                aria-label="Close chat"
+                style={{
+                  height: 30, width: 30, borderRadius: 999,
+                  border: `1px solid ${ED.rule}`, color: ED.inkSoft,
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  background: "transparent", cursor: "pointer",
+                }}
               >
-                <X size={18} weight="bold" />
+                <X size={14} weight="bold" />
               </button>
             </div>
 
-            <div className="h-[300px] overflow-y-auto p-4 space-y-3">
+            <div
+              style={{
+                height: 300,
+                overflowY: "auto",
+                padding: 16,
+                display: "flex", flexDirection: "column", gap: 12,
+                background: ED.paper50,
+              }}
+            >
               {chatMessages.map((msg, idx) => (
                 <motion.div
                   key={idx}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${msg.type === "user" ? "justify-end" : "justify-start"}`}
+                  style={{
+                    display: "flex",
+                    justifyContent: msg.type === "user" ? "flex-end" : "flex-start",
+                  }}
                 >
-                  <div className={`flex items-end gap-2 max-w-[85%] ${msg.type === "user" ? "flex-row-reverse" : ""}`}>
+                  <div
+                    style={{
+                      maxWidth: "85%",
+                      display: "flex",
+                      flexDirection: msg.type === "user" ? "row-reverse" : "row",
+                      alignItems: "flex-end",
+                      gap: 8,
+                    }}
+                  >
                     <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        msg.type === "user"
-                          ? "bg-indigo-500/20 border border-indigo-500/30"
-                          : msg.type === "agent"
-                          ? "bg-gradient-to-br from-emerald-500 to-teal-600"
-                          : "bg-gradient-to-br from-indigo-500 to-purple-600"
-                      }`}
+                      style={{
+                        width: 24, height: 24, borderRadius: 999,
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        background: msg.type === "user" ? ED.paper200 : msg.type === "agent" ? ED.accent : ED.paper200,
+                        color: msg.type === "agent" ? ED.paper50 : ED.ink,
+                        fontFamily: ED.serif,
+                        fontStyle: "italic",
+                        fontSize: 13,
+                        flexShrink: 0,
+                      }}
                     >
-                      {msg.type === "user" ? (
-                        <User size={14} className="text-indigo-400" />
-                      ) : msg.type === "agent" ? (
-                        <span className="text-[10px] font-bold text-white">S</span>
-                      ) : (
-                        <Robot size={14} weight="fill" className="text-white" />
-                      )}
+                      {msg.type === "user" ? "y" : msg.type === "agent" ? "S" : "n"}
                     </div>
                     <div
-                      className={`px-4 py-2.5 rounded-2xl text-sm ${
-                        msg.type === "user"
-                          ? "bg-indigo-500/15 border border-indigo-500/25 text-theme-primary rounded-br-md"
-                          : "bg-theme-tertiary text-theme-secondary rounded-bl-md"
-                      }`}
+                      className="ed-serif"
+                      style={{
+                        fontSize: 15,
+                        lineHeight: 1.5,
+                        padding: "10px 14px",
+                        color: ED.ink,
+                        background: msg.type === "user" ? ED.paper150 : "transparent",
+                        border: `1px solid ${ED.rule}`,
+                        borderRadius: 4,
+                      }}
                     >
                       <ChatMessage text={msg.text} />
                     </div>
@@ -833,16 +1056,29 @@ export default function ContactSupport() {
               ))}
 
               {isTyping && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-end gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-                    <ChatCircleDots size={14} weight="fill" className="text-white" />
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+                  <div
+                    style={{
+                      width: 24, height: 24, borderRadius: 999,
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      background: ED.paper200, color: ED.ink,
+                      fontFamily: ED.serif, fontStyle: "italic", fontSize: 13,
+                    }}
+                  >
+                    n
                   </div>
-                  <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-theme-tertiary">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-theme-muted rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <span className="w-2 h-2 bg-theme-muted rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <span className="w-2 h-2 bg-theme-muted rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                    </div>
+                  <div
+                    style={{
+                      padding: "10px 14px",
+                      border: `1px solid ${ED.rule}`,
+                      borderRadius: 4,
+                      display: "flex",
+                      gap: 4,
+                    }}
+                  >
+                    <span style={{ width: 5, height: 5, borderRadius: 999, background: ED.inkFaint, animation: "ed-bounce 1.2s infinite", animationDelay: "0ms" }} />
+                    <span style={{ width: 5, height: 5, borderRadius: 999, background: ED.inkFaint, animation: "ed-bounce 1.2s infinite", animationDelay: "150ms" }} />
+                    <span style={{ width: 5, height: 5, borderRadius: 999, background: ED.inkFaint, animation: "ed-bounce 1.2s infinite", animationDelay: "300ms" }} />
                   </div>
                 </motion.div>
               )}
@@ -850,28 +1086,46 @@ export default function ContactSupport() {
               <div ref={chatEndRef} />
             </div>
 
-            <div className="p-4 border-t" style={{ borderColor: "var(--border-secondary)" }}>
+            <div style={{ padding: 14, borderTop: `1px solid ${ED.rule}`, background: ED.paper100 }}>
               <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  sendChatMessage();
-                }}
-                className="flex items-center gap-2"
+                onSubmit={(e) => { e.preventDefault(); sendChatMessage(); }}
+                style={{ display: "flex", gap: 8 }}
               >
                 <input
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Type your message..."
-                  className="flex-1 px-4 py-2.5 rounded-xl border text-sm text-theme-primary placeholder:text-theme-muted focus:outline-none focus:border-emerald-500/50 transition"
-                  style={{ backgroundColor: "var(--bg-input)", borderColor: "var(--border-secondary)" }}
+                  placeholder="Type your message…"
+                  onFocus={(e) => (e.target.style.borderColor = ED.ink)}
+                  onBlur={(e) => (e.target.style.borderColor = ED.rule)}
+                  style={{
+                    flex: 1,
+                    fontFamily: ED.sans,
+                    fontSize: 14,
+                    color: ED.ink,
+                    background: ED.paper50,
+                    border: `1px solid ${ED.rule}`,
+                    borderRadius: 4,
+                    padding: "10px 12px",
+                    outline: "none",
+                    transition: "border-color .15s ease",
+                  }}
                 />
                 <button
                   type="submit"
                   disabled={!chatInput.trim()}
-                  className="h-10 w-10 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white flex items-center justify-center disabled:opacity-50 transition"
+                  aria-label="Send"
+                  style={{
+                    height: 38, width: 38, borderRadius: 4,
+                    background: chatInput.trim() ? ED.ink : ED.paper200,
+                    color: ED.paper50,
+                    border: 0,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    cursor: chatInput.trim() ? "pointer" : "not-allowed",
+                    transition: "background .15s ease",
+                  }}
                 >
-                  <PaperPlaneTilt size={18} weight="fill" />
+                  <PaperPlaneTilt size={16} weight="fill" />
                 </button>
               </form>
             </div>
@@ -879,27 +1133,74 @@ export default function ContactSupport() {
         )}
       </AnimatePresence>
 
+      {/* Floating launcher */}
       {!showLiveChat && (
         <motion.button
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
           onClick={openLiveChat}
-          className="fixed bottom-[calc(env(safe-area-inset-bottom)+var(--mobile-nav-height)+16px)] right-4 w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30 flex items-center justify-center z-[100]"
+          aria-label="Open live chat"
+          style={{
+            position: "fixed",
+            bottom: "calc(env(safe-area-inset-bottom) + var(--mobile-nav-height, 0px) + 16px)",
+            right: 16,
+            width: 54, height: 54,
+            borderRadius: 999,
+            background: ED.ink,
+            color: ED.paper50,
+            border: `1px solid ${ED.ink}`,
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+            zIndex: 100,
+          }}
         >
-          <ChatCircleDots size={26} weight="fill" />
+          <ChatCircleDots size={22} weight="duotone" />
         </motion.button>
       )}
+
+      {/* Page-scoped keyframes (don't override editorial system) */}
+      <style>{`
+        @keyframes ed-spin { to { transform: rotate(360deg); } }
+        @keyframes ed-bounce {
+          0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+          40% { transform: translateY(-3px); opacity: 1; }
+        }
+        @media (max-width: 720px) {
+          .ed-form-row { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }
 
-// Chat message renderer with markdown-like formatting
+// ── Small style constants used across the form ───────────────────
+const fieldLabel = {
+  display: "block",
+  fontSize: 10.5,
+  letterSpacing: "0.18em",
+  textTransform: "uppercase",
+  color: "var(--ed-ink-faint)",
+  marginBottom: 8,
+};
+
+const errorText = {
+  fontFamily: "var(--ed-mono)",
+  fontSize: 11,
+  color: "#a8324c",
+  marginTop: 6,
+  letterSpacing: "0.04em",
+  margin: 0,
+  paddingTop: 6,
+};
+
+// Chat message renderer with bold (**...**) and line breaks
 function ChatMessage({ text }) {
   const lines = text.split("\n");
   return (
-    <span className="whitespace-pre-wrap">
+    <span style={{ whiteSpace: "pre-wrap" }}>
       {lines.map((line, lineIdx) => {
         const parts = line.split(/(\*\*[^*]+\*\*)/g);
         return (
@@ -907,7 +1208,7 @@ function ChatMessage({ text }) {
             {parts.map((part, idx) => {
               if (part.startsWith("**") && part.endsWith("**")) {
                 return (
-                  <strong key={idx} className="font-semibold text-theme-primary">
+                  <strong key={idx} style={{ fontFamily: "var(--ed-serif)", fontStyle: "italic", color: "var(--ed-accent)", fontWeight: 400 }}>
                     {part.slice(2, -2)}
                   </strong>
                 );
