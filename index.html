@@ -49,8 +49,24 @@
       })();
     </script>
 
-    <!-- Belt-and-braces: hide the body until the stylesheet has applied,
-         then reveal. Prevents any residual flash of unstyled text. -->
+    <!-- FONT LOADING
+         Loaded here in <head> (not via @import inside index.css) so the
+         browser starts the font download in parallel with the main CSS
+         bundle, instead of waiting for the bundle to download + parse
+         before discovering the font URL. This is the main fix for the
+         "letters flashing / layout shifting" on first load. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+
+    <!-- Hide the body until BOTH the stylesheet has applied AND the web
+         fonts have loaded, then reveal. Prevents flash of unstyled text
+         and the layout shift that follows when fallback fonts swap to
+         Fraunces/Inter. main.jsx adds .theme-ready once fonts are ready
+         (with a safety timeout so we never hang). -->
     <style>
       html:not(.theme-ready) body { visibility: hidden; }
       html.theme-ready body { visibility: visible; }
