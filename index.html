@@ -8,12 +8,19 @@
     <title>NoteStream</title>
 
   
-  <!-- FAVICONS -->
-  <link rel="icon" href="/assets/favicon.ico" sizes="any" />
+  <!-- FAVICONS
+       The .svg is the canonical favicon — modern browsers (Chrome, Firefox,
+       Safari) pick it up first and respect the embedded prefers-color-scheme
+       media query, so the § mark shifts from ink-blue to lifted blue when the
+       user's browser chrome is in dark mode. The .ico and .png files are
+       fallbacks for older browsers and platform-specific surfaces (iOS home
+       screen, Android, Windows tiles). -->
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-  <link rel="icon" type="image/png" href="/assets/favicon-32x32.png" sizes="32x32" />
-  <link rel="icon" type="image/png" href="/assets/favicon-16x16.png" sizes="16x16" />
-  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192x192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png" />
+  <link rel="icon" href="/assets/favicon.ico" sizes="any" />
 
 
     <!-- THEME FLASH PREVENTION
