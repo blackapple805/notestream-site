@@ -132,8 +132,13 @@ export default function Pricing() {
               <article key={p.name} style={{
                 padding: "40px 32px 36px",
                 borderRight: i < plans.length - 1 ? `1px solid ${ED.rule}` : "none",
-                background: p.featured ? ED.ink : "transparent",
-                color: p.featured ? ED.paper50 : ED.ink,
+                // Featured card is pinned to literal hex (an inverted band) so
+                // the "most chosen" emphasis reads as a dark card on a cream
+                // page in light mode AND a dark card on a dark page in dark
+                // mode. Using ED.ink here would flip the surface to cream in
+                // dark mode and the #fff text below would vanish.
+                background: p.featured ? "#131008" : "transparent",
+                color: p.featured ? "#fbf8f0" : ED.ink,
                 position: "relative",
               }}>
                 {p.featured && (
@@ -186,7 +191,7 @@ export default function Pricing() {
                   {p.perks.map((k, j) => (
                     <li key={j} style={{
                       display: "flex", alignItems: "center", gap: 10,
-                      fontSize: 14, color: p.featured ? ED.paper50 : ED.inkSoft,
+                      fontSize: 14, color: p.featured ? "#fbf8f0" : ED.inkSoft,
                     }}>
                       <span style={{
                         width: 18, height: 18, borderRadius: "50%",
@@ -205,7 +210,7 @@ export default function Pricing() {
                 <a href="/signup" className={p.featured ? "ed-btn" : "ed-btn ed-btn-ghost"} style={{
                   marginTop: 28, width: "100%", justifyContent: "center",
                   ...(p.featured
-                    ? { background: ED.accent, color: "#fff", borderColor: ED.accent }
+                    ? { background: ED.accent, color: ED.paper50, borderColor: ED.accent }
                     : { borderColor: ED.ink, color: ED.ink }),
                 }}>
                   {p.cta} <FiArrowRight size={13} />

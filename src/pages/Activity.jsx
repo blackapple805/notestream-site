@@ -1261,7 +1261,7 @@ function EdGhostButton({ children, onClick, type = "button" }) {
         background: "transparent", color: ED.ink,
         cursor: "pointer", transition: "border-color .18s ease",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.borderColor = INK_HEX)}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--ed-ink, #131008)")}
       onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--ed-rule, #d8cfb6)")}
     >
       {children}

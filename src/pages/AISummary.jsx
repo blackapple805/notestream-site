@@ -150,8 +150,11 @@ export default function AISummary() {
         `}</style>
       </section>
 
-      {/* On citation */}
-      <section style={{ padding: "96px 0", background: ED.ink, color: ED.paper100 }}>
+      {/* On citation — intentional dark mood band. Pinned to literal hex so
+          it stays dark in both light and dark themes (an inverted band; if
+          this used ED.ink it would flip to a cream surface in dark mode and
+          the child #fff text would become invisible). */}
+      <section style={{ padding: "96px 0", background: "#131008", color: "#f6f1e3" }}>
         <div className="ed-page">
           <div className="cite-grid" style={{
             display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 64, alignItems: "start",
@@ -241,7 +244,7 @@ function SummaryMock() {
   return (
     <div style={{ maxWidth: 460, marginLeft: "auto" }}>
       <div style={{
-        padding: 22, background: ED.ink, color: ED.paper50, borderRadius: 14, position: "relative",
+        padding: 22, background: "#131008", color: "#fbf8f0", borderRadius: 14, position: "relative",
       }}>
         <div style={{
           position: "absolute", top: -1, left: 22, right: 22, height: 2,
@@ -260,7 +263,7 @@ function SummaryMock() {
           </span>
         </div>
         <p className="ed-serif" style={{
-          fontSize: 17, lineHeight: 1.55, margin: 0, color: ED.paper50,
+          fontSize: 17, lineHeight: 1.55, margin: 0, color: "#fbf8f0",
         }}>
           v3 shipping date moved{" "}
           <span style={{ color: "#fff", fontWeight: 500 }}>two weeks earlier</span> to

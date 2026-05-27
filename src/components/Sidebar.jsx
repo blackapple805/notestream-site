@@ -441,9 +441,31 @@ export default function Sidebar() {
       bodyBg: body.style.backgroundColor,
       bodyColor: body.style.color,
     };
-    root.style.backgroundColor = "#f6f1e3";
-    body.style.backgroundColor = "#f6f1e3";
-    body.style.color = "#131008";
+    // Read the live editorial tokens so we follow the active theme.
+    // In light mode these resolve to #f6f1e3 / #131008; in dark mode
+    // ThemeContext flips them to #13100a / #f3eedd via the CSS variables
+    // defined in editorial.js. Previously these were hardcoded to the
+    // light values, which forced light-mode chrome onto every dashboard
+    // page regardless of the user's theme choice.
+    const applyThemeColors = () => {
+      const cs = getComputedStyle(root);
+      const paperBg = cs.getPropertyValue("--ed-paper-100").trim() || "#f6f1e3";
+      const inkFg   = cs.getPropertyValue("--ed-ink").trim()       || "#131008";
+      root.style.backgroundColor = paperBg;
+      body.style.backgroundColor = paperBg;
+      body.style.color = inkFg;
+    };
+    applyThemeColors();
+
+    // Re-apply when ThemeContext toggles `data-theme` (or the `dark` class)
+    // on <html>. Without this the inline styles stay frozen at whatever the
+    // theme was when Sidebar mounted, so toggling theme mid-session leaves
+    // a stale background behind.
+    const themeObserver = new MutationObserver(applyThemeColors);
+    themeObserver.observe(root, {
+      attributes: true,
+      attributeFilter: ["data-theme", "class"],
+    });
 
     return () => {
       if (mqTablet.removeEventListener) {
@@ -453,6 +475,7 @@ export default function Sidebar() {
         mqTablet.removeListener(onChange);
         mqDesk.removeListener(onChange);
       }
+      themeObserver.disconnect();
       root.style.removeProperty("--ns-desktop-header-h");
       root.style.removeProperty("--mobile-nav-height");
       root.style.removeProperty("--ns-mobile-header-h");

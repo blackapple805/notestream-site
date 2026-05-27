@@ -16,6 +16,17 @@ export default function Footer() {
   // Defensive: don't show footer on dashboard routes
   if (location.pathname.startsWith("/dashboard")) return null;
 
+  /* The footer is intentionally an "inverted band" — dark stripe with
+     cream type, an editorial colophon convention. In dark mode the
+     editorial tokens flip, which would make var(--ed-ink) cream and
+     var(--ed-paper-100) ink — that produced the cream-footer bug.
+     The fix is to use literal hex values (matching the light-mode
+     resolved values for ink and paper-100) so the band stays dark in
+     BOTH themes. Pure-black is avoided in favour of the warm near-
+     black ink tone so it still feels like ink on paper. */
+  const FOOTER_BG   = "#131008"; // light-mode --ed-ink
+  const FOOTER_TYPE = "#f6f1e3"; // light-mode --ed-paper-100
+
   const today = (() => {
     const d = new Date();
     return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -24,7 +35,7 @@ export default function Footer() {
   return (
     <footer id="colophon" className="ns-ed" style={{
       paddingTop: 96, paddingBottom: 48,
-      background: ED.ink, color: ED.paper100,
+      background: FOOTER_BG, color: FOOTER_TYPE,
       position: "relative",
     }}>
       <div className="ed-page">

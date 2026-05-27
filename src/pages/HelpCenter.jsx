@@ -242,7 +242,7 @@ export default function HelpCenter() {
             </div>
 
             <div style={{
-              padding: 28, background: ED.ink, color: ED.paper50,
+              padding: 28, background: "#131008", color: "#fbf8f0",
               borderRadius: 14, position: "relative",
             }}>
               <div style={{
@@ -262,7 +262,7 @@ export default function HelpCenter() {
                 Our support is small but careful. Real people, replying within a day.
               </p>
               <Link to="/support" className="ed-btn" style={{
-                marginTop: 18, background: ED.accent, color: "#fff", borderColor: ED.accent,
+                marginTop: 18, background: ED.accent, color: ED.paper50, borderColor: ED.accent,
               }}>
                 Contact support <FiArrowUpRight size={13} />
               </Link>

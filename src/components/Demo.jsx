@@ -278,7 +278,7 @@ function FindView() {
 
       <div style={{
         marginTop: 18, padding: 22, position: "relative",
-        background: ED.ink, color: ED.paper50, borderRadius: 10,
+        background: "#131008", color: "#fbf8f0", borderRadius: 10,
       }}>
         <div style={{
           position: "absolute", top: -1, left: 22, right: 22, height: 2,
@@ -291,7 +291,7 @@ function FindView() {
             color: "#c8b988",
           }}>The answer · synthesized in 1.2s</span>
         </div>
-        <p className="ed-serif" style={{ fontSize: 17, lineHeight: 1.55, margin: 0, color: ED.paper50 }}>
+        <p className="ed-serif" style={{ fontSize: 17, lineHeight: 1.55, margin: 0, color: "#fbf8f0" }}>
           Three tiers, settled on Aug 14:{" "}
           <span style={{ color: "#fff", fontWeight: 500 }}>Free</span> (5 notes/day),{" "}
           <span style={{ color: "#fff", fontWeight: 500 }}>Pro $12/mo</span> (unlimited + voice),{" "}

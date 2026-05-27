@@ -343,8 +343,10 @@ export default function VoiceNotesMarketing() {
         `}</style>
       </section>
 
-      {/* ── Privacy on voice ──────────────── */}
-      <section style={{ padding: "96px 0", background: ED.ink, color: ED.paper100 }}>
+      {/* ── Privacy on voice — intentional dark mood band. Pinned to literal
+          hex so it stays dark in both themes; if it used ED.ink it would
+          flip to cream in dark mode and the child #fff text would vanish. */}
+      <section style={{ padding: "96px 0", background: "#131008", color: "#f6f1e3" }}>
         <div className="ed-page">
           <div className="vn-priv-grid" style={{
             display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 64, alignItems: "start",
@@ -438,7 +440,21 @@ export default function VoiceNotesMarketing() {
   );
 }
 
-/* ── Animated phone mock ── */
+/* ── Animated phone mock ──
+   This is a frozen marketing illustration: an iPhone with a NoteStream
+   screen on it. It must look identical in light and dark mode (a phone
+   frame is always near-black; the on-screen content is always the
+   light-mode editorial UI). To pin it, we copy the editorial tokens to
+   literal hex inside the component. Don't swap these back to ED.* unless
+   you also want the phone frame to flip to cream in dark mode. */
+const PHONE = {
+  paper50:  "#fbf8f0",
+  ink:      "#131008",
+  inkSoft:  "#2a2519",
+  inkFaint: "#8a8472",
+  accent:   "#1f3aa8",
+  accentSoft: "#dbe1f3",
+};
 function PhoneMock() {
   const [t, setT] = useState(0);
   useEffect(() => {
@@ -448,23 +464,23 @@ function PhoneMock() {
   return (
     <div style={{
       width: 280, height: 480,
-      background: ED.ink, borderRadius: 38, padding: 8,
+      background: PHONE.ink, borderRadius: 38, padding: 8,
       boxShadow: "0 30px 60px -20px rgba(19,16,8,0.4), 0 0 0 8px rgba(0,0,0,0.05)",
       position: "relative",
     }}>
       <div style={{
-        background: ED.paper50, height: "100%", borderRadius: 30,
+        background: PHONE.paper50, height: "100%", borderRadius: 30,
         overflow: "hidden", display: "flex", flexDirection: "column",
         position: "relative",
       }}>
         <div style={{
           position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
-          width: 90, height: 24, background: ED.ink, borderRadius: 14, zIndex: 2,
+          width: 90, height: 24, background: PHONE.ink, borderRadius: 14, zIndex: 2,
         }} />
 
         <div style={{
           display: "flex", justifyContent: "space-between", padding: "14px 22px 0",
-          fontFamily: ED.mono, fontSize: 11, color: ED.ink, letterSpacing: 0.02,
+          fontFamily: ED.mono, fontSize: 11, color: PHONE.ink, letterSpacing: 0.02,
         }}>
           <span>6:14</span>
           <span>5G</span>
@@ -473,24 +489,24 @@ function PhoneMock() {
         <div style={{ flex: 1, padding: "44px 22px 22px", display: "flex", flexDirection: "column" }}>
           <div className="ed-mono" style={{
             fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase",
-            color: ED.inkFaint, marginBottom: 8,
+            color: PHONE.inkFaint, marginBottom: 8,
           }}>
             Voice note · capturing
           </div>
           <div className="ed-serif" style={{
-            fontSize: 24, lineHeight: 1.15, color: ED.ink, letterSpacing: "-0.01em",
+            fontSize: 24, lineHeight: 1.15, color: PHONE.ink, letterSpacing: "-0.01em",
             marginBottom: 18,
           }}>
             Morning walk,<br />
-            <span className="ed-italic" style={{ color: ED.accent }}>thinking aloud.</span>
+            <span className="ed-italic" style={{ color: PHONE.accent }}>thinking aloud.</span>
           </div>
 
           <p className="ed-serif" style={{
-            fontSize: 13, lineHeight: 1.5, color: ED.inkSoft, margin: 0, marginBottom: "auto",
+            fontSize: 13, lineHeight: 1.5, color: PHONE.inkSoft, margin: 0, marginBottom: "auto",
           }}>
             "...also ask Maya if she's free for coffee Thursday
             <span style={{
-              display: "inline-block", width: 1.5, height: 12, background: ED.accent,
+              display: "inline-block", width: 1.5, height: 12, background: PHONE.accent,
               verticalAlign: "middle", marginLeft: 2, animation: "ed-blink 1s steps(2) infinite",
             }} />"
           </p>
@@ -504,7 +520,7 @@ function PhoneMock() {
               return (
                 <span key={i} style={{
                   width: 2.5, height: `${h}px`,
-                  background: i % 7 === 0 ? ED.accent : ED.ink,
+                  background: i % 7 === 0 ? PHONE.accent : PHONE.ink,
                   borderRadius: 2, transition: "height .15s",
                 }} />
               );
@@ -516,8 +532,8 @@ function PhoneMock() {
           }}>
             <div style={{
               width: 64, height: 64, borderRadius: "50%",
-              background: ED.accent, display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: `0 0 0 4px ${ED.accentSoft}`,
+              background: PHONE.accent, display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: `0 0 0 4px ${PHONE.accentSoft}`,
               position: "relative",
             }}>
               <span style={{
@@ -526,7 +542,7 @@ function PhoneMock() {
             </div>
             <div className="ed-mono" style={{
               fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase",
-              color: ED.inkFaint,
+              color: PHONE.inkFaint,
             }}>
               Release to file
             </div>
