@@ -100,6 +100,27 @@ export default function DashboardLayout() {
             padding-left: 0 !important;
           }
         }
+
+        /* ── Dark-mode rectangle fix ─────────────────────────────────
+           editorial.js sets ".ns-ed { background: var(--ed-paper-100) }"
+           so any page wrapped in <div className="ns-ed"> paints itself.
+           In light mode paper-100 (#f6f1e3) is visually identical to the
+           body's paper-100, so the seam is invisible. In dark mode the
+           same paper-100 (#13100a) sits next to the chrome's paper-100,
+           and even though they're the same hex, subpixel rendering and
+           the hard rectangle edge make a visible "darker panel" appear.
+           Activity.jsx fixes this by manually setting background:
+           transparent on its outer wrapper. Apply the same fix to every
+           dashboard page automatically — let the .ns-ed wrapper be a
+           transparent layer that inherits the body's paper-100. Cards
+           inside (paper-50, paper-150) still sit on the same surface
+           they always did. Public/marketing pages outside the dashboard
+           aren't affected — this selector is scoped to the dashboard
+           content area only. */
+        .ns-dashboard-content > .ns-ed,
+        .ns-dashboard-content .ns-ed {
+          background: transparent;
+        }
       `}</style>
     </div>
   );
