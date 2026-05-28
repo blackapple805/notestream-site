@@ -165,3 +165,137 @@ function generateLocalAnalysis({ title, body }) {
     model: "notestream-local-v1",
   };
 }
+// ═══════════════════════════════════════════════════════════════════
+// REWRITE — calls the rewrite-note Edge Function
+// ═══════════════════════════════════════════════════════════════════
+//
+// Modes: "tighten" | "clarify" | "polish"
+//
+// Returns on success:
+//   { rewritten: string, mode, model, generatedAt }
+// Returns on failure:
+//   { error: true, message, limitReached? }
+//
+// Unlike analyzeNote(), this does NOT persist to the DB. The frontend
+// shows the rewrite in a diff modal and only commits if the user clicks
+// Apply — at which point the regular updateNote() path takes over.
+// Persisting unconditionally would commit suggestions the user never
+// accepted.
+export async function rewriteNote({ userId, title, body, mode = "polish" }) {
+  if (!body || body.trim().length < 20) {
+    return {
+      error: true,
+      message: "Add at least 20 characters of content before rewriting.",
+    };
+  }
+
+  // Usage check — same bucket as document-level synthesis since rewrites
+  // are comparable in cost / cadence to document operations.
+  if (supabaseReady && supabase && userId) {
+    try {
+      const usageRes = await consumeAiUsage(userId, "document_synth", 1);
+      if (!usageRes?.success) {
+        return {
+          error: true,
+          limitReached: true,
+          message: "Daily AI limit reached. Upgrade to continue.",
+        };
+      }
+    } catch (err) {
+      console.warn("Usage check failed (continuing):", err);
+    }
+  }
+
+  let raw;
+  try {
+    raw = await callEdgeFunction("rewrite-note", {
+      title: title || "Untitled",
+      body: body || "",
+      mode,
+    });
+  } catch (err) {
+    console.warn("rewrite-note edge unavailable:", err);
+    return { error: true, message: err?.message || "AI rewrite failed." };
+  }
+
+  if (!raw || raw.error || !raw.rewritten) {
+    return {
+      error: true,
+      message: raw?.error
+        ? `Rewrite failed: ${raw.error}`
+        : "Empty AI response.",
+    };
+  }
+
+  return {
+    rewritten: String(raw.rewritten),
+    mode: raw.mode || mode,
+    model: raw.model || "unknown",
+    generatedAt: raw.generatedAt || new Date().toISOString(),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// EXPAND — calls the expand-note Edge Function
+// ═══════════════════════════════════════════════════════════════════
+//
+// Modes: "detail" | "examples" | "context"
+//
+// Returns on success:
+//   { expanded: string, mode, model, generatedAt }
+// Returns on failure:
+//   { error: true, message, limitReached? }
+//
+// Same non-persisting contract as rewriteNote — the user reviews in a
+// diff modal and chooses whether to commit.
+export async function expandNote({ userId, title, body, mode = "detail" }) {
+  if (!body || body.trim().length < 20) {
+    return {
+      error: true,
+      message: "Add at least 20 characters of content before expanding.",
+    };
+  }
+
+  if (supabaseReady && supabase && userId) {
+    try {
+      const usageRes = await consumeAiUsage(userId, "document_synth", 1);
+      if (!usageRes?.success) {
+        return {
+          error: true,
+          limitReached: true,
+          message: "Daily AI limit reached. Upgrade to continue.",
+        };
+      }
+    } catch (err) {
+      console.warn("Usage check failed (continuing):", err);
+    }
+  }
+
+  let raw;
+  try {
+    raw = await callEdgeFunction("expand-note", {
+      title: title || "Untitled",
+      body: body || "",
+      mode,
+    });
+  } catch (err) {
+    console.warn("expand-note edge unavailable:", err);
+    return { error: true, message: err?.message || "AI expand failed." };
+  }
+
+  if (!raw || raw.error || !raw.expanded) {
+    return {
+      error: true,
+      message: raw?.error
+        ? `Expand failed: ${raw.error}`
+        : "Empty AI response.",
+    };
+  }
+
+  return {
+    expanded: String(raw.expanded),
+    mode: raw.mode || mode,
+    model: raw.model || "unknown",
+    generatedAt: raw.generatedAt || new Date().toISOString(),
+  };
+}

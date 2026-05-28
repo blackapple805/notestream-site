@@ -393,3 +393,19 @@ entrypoint = "./functions/analyze-note/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/analyze-note/*.html" ]
+
+# Required so `supabase functions deploy` (or `supabase start`)
+# picks up the two new edge functions. Mirrors the existing
+# [functions.analyze-note] block.
+
+[functions.rewrite-note]
+enabled = true
+verify_jwt = true
+import_map = "./functions/rewrite-note/deno.json"
+entrypoint = "./functions/rewrite-note/index.ts"
+
+[functions.expand-note]
+enabled = true
+verify_jwt = true
+import_map = "./functions/expand-note/deno.json"
+entrypoint = "./functions/expand-note/index.ts"

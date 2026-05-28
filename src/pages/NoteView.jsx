@@ -36,11 +36,12 @@ import { useEditorial, ED } from "../lib/editorial";
 // every direct-link note fetch.
 import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { useAuth } from "../hooks/useAuth";
-import { analyzeNote } from "../lib/noteAI";
+import { analyzeNote, rewriteNote, expandNote } from "../lib/noteAI";
 import {
   FiArrowLeft, FiSave, FiCheck, FiCopy, FiArchive, FiTrash2, FiShare2,
   FiDownload, FiZap, FiEdit, FiBookOpen, FiX, FiMoreHorizontal,
   FiTool, FiClock, FiLink, FiTag, FiAlertCircle, FiLoader,
+  FiChevronDown, FiRefreshCw,
 } from "react-icons/fi";
 
 /* ─── STUB ─── replace with real fetch by params.id */
@@ -230,18 +231,29 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
 
   // ─── AI state ─────────────────────────────────────────────────
   // `aiLoading` is the in-flight indicator for Summarize/Rewrite/Expand.
+  //   Used to disable the buttons and show the spinner. One flag covers
+  //   all three flows because they're mutually exclusive — you can't
+  //   start a Rewrite while a Summarize is still going.
   // `aiError` shows any error returned by the edge function (rate limit,
   //   provider down, etc). Auto-clears when a new request starts.
   // `aiBanner` controls whether the result banner is collapsed/expanded.
   //   Starts open after a fresh summarize so the user sees the result; can
   //   be re-opened from the AI tools menu anytime if a payload exists.
-  // `comingSoonToast` is a tiny ephemeral message for the unbuilt Rewrite
-  //   and Expand actions — replaces the old no-op buttons with explicit
-  //   feedback so users know the click registered.
+  // `aiMenu` is which mode picker is open: null | "rewrite" | "expand".
+  //   When non-null, the popover shows below the corresponding button.
+  // `diffModal` holds the result of a rewrite/expand call:
+  //   { kind: "rewrite" | "expand", mode, original, result, model } | null
+  //   When set, the side-by-side review modal is open.
+  // `lastAiClickRef` is a small client-side debounce for manual AI clicks
+  //   — fixes the "1 click, 2 POSTs" bug seen in the supabase logs.
+  //   The lib's existing 30s cooldown only gates auto-analyze; manual
+  //   clicks bypass it, so we add a 5s minimum here.
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
   const [aiBanner, setAiBanner] = useState(true);
-  const [comingSoonToast, setComingSoonToast] = useState(null);
+  const [aiMenu, setAiMenu] = useState(null);          // null | "rewrite" | "expand"
+  const [diffModal, setDiffModal] = useState(null);    // see shape above
+  const lastAiClickRef = useRef(0);
 
   const titleRef = useRef(null);
 
@@ -343,6 +355,13 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
   // so the banner shows the new summary without a page reload.
   const handleSummarize = useCallback(async () => {
     if (aiLoading) return;
+    // Client-side double-click swallow — see lastAiClickRef definition.
+    // 5s is long enough to absorb HMR re-fires and accidental
+    // double-clicks while staying short enough that an intentional
+    // re-run isn't annoying.
+    if (Date.now() - lastAiClickRef.current < 5000) return;
+    lastAiClickRef.current = Date.now();
+
     if (!note?.id || !authUser?.id) {
       setAiError("Sign in required to use AI features.");
       return;
@@ -403,18 +422,190 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
     }
   }, [aiLoading, note, authUser]);
 
-  // ─── AI: Rewrite & Expand (coming soon) ─────────────────────────
-  // The frontend buttons fire, but the backing edge functions
-  // (rewrite-note / expand-note) don't exist yet. Show a small toast so
-  // users get explicit feedback instead of clicking a dead button. When
-  // the edge functions ship, replace this with a real call.
-  const showComingSoon = useCallback((label) => {
-    setComingSoonToast(`${label} is coming soon — we're building it now.`);
-    setTimeout(() => setComingSoonToast(null), 2800);
-  }, []);
+  // ─── AI: Rewrite & Expand ───────────────────────────────────────
+  // Both flows share the same shape:
+  //   1. User clicks the Rewrite/Expand button → mode-picker popover opens.
+  //   2. User picks a mode (tighten/clarify/polish or detail/examples/context).
+  //   3. We call the edge function via lib/noteAI.js helper.
+  //   4. Result lands in `diffModal` state → the side-by-side review modal opens.
+  //   5. On Apply: we update local `note.blocks`, persist via updateNote(),
+  //      and close the modal. On Discard: just close the modal.
+  //
+  // Unlike Summarize, the edge functions do NOT persist anything — they
+  // return plain text. The persistence happens here only when the user
+  // explicitly accepts the change.
 
-  const handleRewrite = useCallback(() => showComingSoon("Rewrite"), [showComingSoon]);
-  const handleExpand = useCallback(() => showComingSoon("Expand"), [showComingSoon]);
+  const runRewriteOrExpand = useCallback(
+    async (kind, mode) => {
+      if (aiLoading) return;
+      if (Date.now() - lastAiClickRef.current < 5000) return;
+      lastAiClickRef.current = Date.now();
+
+      setAiMenu(null); // close the picker
+
+      if (!note?.id || !authUser?.id) {
+        setAiError("Sign in required to use AI features.");
+        return;
+      }
+
+      const bodyText = Array.isArray(note.blocks)
+        ? note.blocks
+            .map((b) =>
+              b.type === "h2"
+                ? `## ${b.text}`
+                : b.type === "quote"
+                ? `> ${b.text}`
+                : b.text,
+            )
+            .join("\n\n")
+        : note.body || "";
+
+      if (!bodyText || bodyText.trim().length < 20) {
+        setAiError(
+          `Add at least 20 characters of content before ${kind === "rewrite" ? "rewriting" : "expanding"}.`,
+        );
+        return;
+      }
+
+      setAiLoading(true);
+      setAiError(null);
+      try {
+        const result =
+          kind === "rewrite"
+            ? await rewriteNote({
+                userId: authUser.id,
+                title: note.title,
+                body: bodyText,
+                mode,
+              })
+            : await expandNote({
+                userId: authUser.id,
+                title: note.title,
+                body: bodyText,
+                mode,
+              });
+
+        if (!result || result.error) {
+          setAiError(result?.message || `AI ${kind} failed.`);
+          return;
+        }
+
+        const newText =
+          kind === "rewrite" ? result.rewritten : result.expanded;
+
+        // Open the diff modal. We keep the original bodyText so the
+        // user can compare both versions side-by-side, and stash the
+        // rest of the result for the activity log we write on Apply.
+        setDiffModal({
+          kind,
+          mode: result.mode,
+          original: bodyText,
+          result: newText,
+          model: result.model,
+          generatedAt: result.generatedAt,
+        });
+      } catch (err) {
+        console.error(`[NoteView] ${kind} failed:`, err);
+        setAiError(err?.message || `AI ${kind} failed.`);
+      } finally {
+        setAiLoading(false);
+      }
+    },
+    [aiLoading, note, authUser],
+  );
+
+  // The buttons themselves just toggle the picker. The actual call
+  // happens when a mode is chosen inside the picker.
+  const handleRewrite = useCallback(() => {
+    if (aiLoading) return;
+    setAiMenu((m) => (m === "rewrite" ? null : "rewrite"));
+  }, [aiLoading]);
+
+  const handleExpand = useCallback(() => {
+    if (aiLoading) return;
+    setAiMenu((m) => (m === "expand" ? null : "expand"));
+  }, [aiLoading]);
+
+  // Close the mode picker on outside-click / Escape. Mounted only while
+  // a picker is open so we're not adding listeners to every NoteView.
+  useEffect(() => {
+    if (!aiMenu) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setAiMenu(null);
+    };
+    const onClick = (e) => {
+      // Anything inside a [data-ai-menu] container is "in" — clicks on
+      // the picker itself or its trigger button shouldn't close it.
+      if (e.target.closest?.("[data-ai-menu]")) return;
+      setAiMenu(null);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onClick);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onClick);
+    };
+  }, [aiMenu]);
+
+  // Apply the diff: replace the note body with the AI's result, save
+  // immediately, and close the modal. We rebuild `blocks` from the new
+  // plain text using the same lightweight rules the rest of the editor
+  // uses: ## heading → h2 block, > quote → quote block, anything else
+  // → paragraph. Blocks are split on blank lines.
+  const applyDiff = useCallback(async () => {
+    if (!diffModal || !note?.id) return;
+    const text = String(diffModal.result || "").trim();
+    if (!text) {
+      setDiffModal(null);
+      return;
+    }
+
+    const newBlocks = text
+      .split(/\n{2,}/)
+      .map((chunk) => chunk.trim())
+      .filter(Boolean)
+      .map((chunk) => {
+        if (chunk.startsWith("## ")) {
+          return { type: "h2", text: chunk.slice(3).trim() };
+        }
+        if (chunk.startsWith("> ")) {
+          return { type: "quote", text: chunk.slice(2).trim() };
+        }
+        return { type: "p", text: chunk };
+      });
+
+    // Update local state immediately so the article body re-renders
+    // with the new content while the save round-trips.
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    setNote((n) => (n ? { ...n, blocks: newBlocks, words: wordCount } : n));
+    setDiffModal(null);
+
+    // Persist. Mirrors what save() does, but inlined because we want
+    // to use the newly-constructed body, not whatever's still in state
+    // from the previous render.
+    const looksLikeUuid =
+      typeof note?.id === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(note.id);
+    if (!looksLikeUuid || typeof updateNote !== "function") {
+      setSavedAt("just now");
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateNote(note.id, {
+        title: note.title,
+        body: text,
+        tags: note.tags,
+        pinned: Boolean(note.pinned || note.is_favorite),
+      });
+      setSavedAt("just now");
+    } catch (err) {
+      console.error("[NoteView] apply diff save failed:", err);
+      setAiError("Couldn't save the new version. Your changes are still in the editor.");
+    } finally {
+      setSaving(false);
+    }
+  }, [diffModal, note, updateNote]);
 
 
   /* Keyboard shortcuts */
@@ -585,18 +776,11 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
           {/* ─── AI summary banner ──────────────────────────────
               Renders when a note has an ai_payload (from a successful
               Summarize). Collapsible so the reader can fold it away.
-              Also surfaces error messages and the "coming soon" toast
-              for Rewrite/Expand inline rather than as a floating popup. */}
-          {(note.ai_payload || aiError || comingSoonToast) && (
+              Also surfaces error messages inline rather than as a
+              floating popup. Rewrite/Expand results render in a
+              dedicated modal, not here. */}
+          {(note.ai_payload || aiError) && (
             <div className="nv-ai-banner" role="region" aria-label="AI summary">
-              {/* Coming-soon and error rows take priority — they're
-                  ephemeral and matter most right now. */}
-              {comingSoonToast && (
-                <div className="nv-ai-toast nv-ai-toast--info">
-                  <FiAlertCircle size={13} />
-                  <span>{comingSoonToast}</span>
-                </div>
-              )}
               {aiError && (
                 <div className="nv-ai-toast nv-ai-toast--error">
                   <FiAlertCircle size={13} />
@@ -782,24 +966,101 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
                 </span>
                 <span className="sub">Generate a brief abstract</span>
               </button>
-              <button
-                type="button"
-                onClick={handleRewrite}
-                className="nv-tool-row"
-              >
-                <FiEdit size={13} />
-                <span className="lb">Rewrite</span>
-                <span className="sub">Improve flow &amp; clarity</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleExpand}
-                className="nv-tool-row"
-              >
-                <FiTool size={13} />
-                <span className="lb">Expand</span>
-                <span className="sub">Develop a section further</span>
-              </button>
+              <div className="nv-ai-anchor" data-ai-menu>
+                <button
+                  type="button"
+                  onClick={handleRewrite}
+                  disabled={aiLoading}
+                  className="nv-tool-row"
+                  aria-haspopup="menu"
+                  aria-expanded={aiMenu === "rewrite"}
+                >
+                  <FiEdit size={13} />
+                  <span className="lb">Rewrite</span>
+                  <span className="sub">Improve flow &amp; clarity</span>
+                  <FiChevronDown size={11} className="nv-tool-chev" />
+                </button>
+                {aiMenu === "rewrite" && (
+                  <div className="nv-ai-pop" role="menu" data-ai-menu>
+                    <p className="ed-mono nv-ai-pop-h">§ MODE</p>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="nv-ai-pop-row"
+                      onClick={() => runRewriteOrExpand("rewrite", "tighten")}
+                    >
+                      <span className="lb">Tighten</span>
+                      <span className="sub">Shorter, denser, fewer filler words</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="nv-ai-pop-row"
+                      onClick={() => runRewriteOrExpand("rewrite", "clarify")}
+                    >
+                      <span className="lb">Clarify</span>
+                      <span className="sub">Easier to parse on first read</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="nv-ai-pop-row"
+                      onClick={() => runRewriteOrExpand("rewrite", "polish")}
+                    >
+                      <span className="lb">Polish</span>
+                      <span className="sub">Smooth flow, light grammar pass</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="nv-ai-anchor" data-ai-menu>
+                <button
+                  type="button"
+                  onClick={handleExpand}
+                  disabled={aiLoading}
+                  className="nv-tool-row"
+                  aria-haspopup="menu"
+                  aria-expanded={aiMenu === "expand"}
+                >
+                  <FiTool size={13} />
+                  <span className="lb">Expand</span>
+                  <span className="sub">Develop a section further</span>
+                  <FiChevronDown size={11} className="nv-tool-chev" />
+                </button>
+                {aiMenu === "expand" && (
+                  <div className="nv-ai-pop" role="menu" data-ai-menu>
+                    <p className="ed-mono nv-ai-pop-h">§ MODE</p>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="nv-ai-pop-row"
+                      onClick={() => runRewriteOrExpand("expand", "detail")}
+                    >
+                      <span className="lb">Add detail</span>
+                      <span className="sub">Flesh out the thinnest passages</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="nv-ai-pop-row"
+                      onClick={() => runRewriteOrExpand("expand", "examples")}
+                    >
+                      <span className="lb">Add examples</span>
+                      <span className="sub">Illustrate general claims with cases</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="nv-ai-pop-row"
+                      onClick={() => runRewriteOrExpand("expand", "context")}
+                    >
+                      <span className="lb">Add context</span>
+                      <span className="sub">Setup for a first-time reader</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </section>
 
             <section className="nv-tools-section">
@@ -874,6 +1135,120 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
           </AnimatePresence>
         </>
       )}
+
+      {/* ═══ AI Rewrite/Expand diff modal ═══
+          Renders when `diffModal` is set. Shows the original on the left
+          and the AI's result on the right (side-by-side on desktop,
+          stacked on mobile). Apply replaces the note body and saves
+          immediately; Discard just closes. */}
+      <AnimatePresence>
+        {diffModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="nv-diff-scrim"
+              onClick={() => setDiffModal(null)}
+              aria-hidden="true"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 14, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 14, scale: 0.98 }}
+              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              className="nv-diff-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="nv-diff-title"
+            >
+              <header className="nv-diff-head">
+                <div className="nv-diff-eyebrow">
+                  <FiZap size={11} />
+                  <span className="ed-mono">
+                    AI {diffModal.kind.toUpperCase()} · {String(diffModal.mode).toUpperCase()}
+                  </span>
+                  {diffModal.model && (
+                    <span className="nv-diff-model">· {diffModal.model}</span>
+                  )}
+                </div>
+                <h2 id="nv-diff-title" className="nv-diff-title">
+                  Review the {diffModal.kind === "rewrite" ? "rewrite" : "expansion"}
+                </h2>
+                <button
+                  type="button"
+                  className="nv-diff-close"
+                  onClick={() => setDiffModal(null)}
+                  aria-label="Close"
+                >
+                  <FiX size={14} />
+                </button>
+              </header>
+
+              <div className="nv-diff-panes">
+                <section className="nv-diff-pane">
+                  <p className="ed-mono nv-diff-pane-h">§ ORIGINAL</p>
+                  <div className="nv-diff-text">
+                    {diffModal.original.split(/\n{2,}/).map((para, i) => (
+                      <p key={`o-${i}`} className="nv-diff-p">
+                        {para.trim()}
+                      </p>
+                    ))}
+                  </div>
+                </section>
+                <section className="nv-diff-pane nv-diff-pane--new">
+                  <p className="ed-mono nv-diff-pane-h">§ NEW</p>
+                  <div className="nv-diff-text">
+                    {diffModal.result.split(/\n{2,}/).map((para, i) => (
+                      <p key={`n-${i}`} className="nv-diff-p">
+                        {para.trim()}
+                      </p>
+                    ))}
+                  </div>
+                </section>
+              </div>
+
+              <footer className="nv-diff-foot">
+                <button
+                  type="button"
+                  className="nv-diff-btn"
+                  onClick={() => {
+                    // Re-run with the same mode — useful when the first
+                    // pass isn't quite right and the user wants another
+                    // sample without re-opening the picker.
+                    const { kind, mode } = diffModal;
+                    setDiffModal(null);
+                    setTimeout(() => runRewriteOrExpand(kind, mode), 0);
+                  }}
+                  disabled={aiLoading}
+                >
+                  <FiRefreshCw size={12} />
+                  <span>Try again</span>
+                </button>
+                <div className="nv-diff-foot-right">
+                  <button
+                    type="button"
+                    className="nv-diff-btn"
+                    onClick={() => setDiffModal(null)}
+                  >
+                    Discard
+                  </button>
+                  <button
+                    type="button"
+                    className="nv-diff-btn nv-diff-btn--primary"
+                    onClick={applyDiff}
+                    disabled={saving}
+                  >
+                    <FiCheck size={12} />
+                    <span>{saving ? "Saving…" : "Apply & save"}</span>
+                  </button>
+                </div>
+              </footer>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1145,6 +1520,230 @@ const NoteViewScopedStyles = () => (
     }
     @media (prefers-reduced-motion: reduce) {
       .ns-ed .nv-spin { animation: none; }
+    }
+
+    /* ─── AI mode picker (Rewrite / Expand) ──────────────────────
+       Anchored popover that drops below the trigger row. On the
+       narrow mobile breakpoint the rail collapses and the picker
+       just falls inline below the button. */
+    .ns-ed .nv-ai-anchor {
+      position: relative;
+    }
+    .ns-ed .nv-tool-chev {
+      margin-left: auto;
+      color: ${ED.inkFaint};
+      flex-shrink: 0;
+    }
+    .ns-ed .nv-ai-pop {
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      left: 0;
+      z-index: 12;
+      background: ${ED.paper50};
+      border: 1px solid ${ED.rule};
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      box-shadow: 0 12px 28px -16px rgba(19, 16, 8, 0.25);
+    }
+    .ns-ed .nv-ai-pop-h {
+      font-size: 9.5px; letter-spacing: 0.18em; color: ${ED.inkFaint};
+      margin: 2px 6px 4px;
+    }
+    .ns-ed .nv-ai-pop-row {
+      display: flex; flex-direction: column; align-items: flex-start;
+      text-align: left;
+      gap: 1px;
+      padding: 7px 10px;
+      background: transparent; border: 0; cursor: pointer;
+      border-radius: 6px;
+      width: 100%;
+      transition: background-color .12s ease;
+    }
+    .ns-ed .nv-ai-pop-row:hover,
+    .ns-ed .nv-ai-pop-row:focus-visible {
+      background: ${ED.paper100};
+      outline: none;
+    }
+    .ns-ed .nv-ai-pop-row .lb {
+      font-family: ${ED.sans}; font-size: 13px; color: ${ED.ink};
+      font-weight: 500;
+    }
+    .ns-ed .nv-ai-pop-row .sub {
+      font-family: ${ED.mono}; font-size: 9.5px; letter-spacing: 0.1em;
+      text-transform: uppercase; color: ${ED.inkFaint};
+    }
+
+    /* ─── AI diff modal (Rewrite / Expand review) ────────────────
+       Centered card on desktop; near-full-screen sheet on mobile.
+       Two panes side-by-side on desktop, stacked on mobile. */
+    .ns-ed .nv-diff-scrim {
+      position: fixed; inset: 0; z-index: 80;
+      background: rgba(19, 16, 8, 0.42);
+      backdrop-filter: blur(2px);
+    }
+    .ns-ed .nv-diff-modal {
+      position: fixed;
+      z-index: 81;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(1100px, calc(100vw - 32px));
+      max-height: calc(100dvh - 32px);
+      background: ${ED.paper50};
+      border: 1px solid ${ED.rule};
+      border-radius: 10px;
+      box-shadow: 0 40px 80px -20px rgba(19, 16, 8, 0.35);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .ns-ed .nv-diff-head {
+      position: relative;
+      padding: 16px 48px 14px 20px;
+      border-bottom: 1px solid ${ED.rule};
+      background: ${ED.paper100};
+    }
+    .ns-ed .nv-diff-eyebrow {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 10px; letter-spacing: 0.18em; color: ${ED.accent};
+      margin-bottom: 4px;
+    }
+    .ns-ed .nv-diff-model {
+      color: ${ED.inkFaint}; letter-spacing: 0.12em;
+      text-transform: none;
+    }
+    .ns-ed .nv-diff-title {
+      font-family: ${ED.serif}; font-style: italic; font-weight: 400;
+      font-size: clamp(18px, 2.2vw, 22px); line-height: 1.2;
+      color: ${ED.ink}; margin: 0;
+    }
+    .ns-ed .nv-diff-close {
+      position: absolute; top: 12px; right: 12px;
+      background: transparent; border: 0; cursor: pointer;
+      color: ${ED.inkSoft};
+      padding: 6px; border-radius: 6px;
+      display: inline-flex; align-items: center;
+      transition: background-color .12s ease, color .12s ease;
+    }
+    .ns-ed .nv-diff-close:hover {
+      background: ${ED.paper50}; color: ${ED.ink};
+    }
+    .ns-ed .nv-diff-panes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .ns-ed .nv-diff-pane {
+      display: flex; flex-direction: column;
+      padding: 14px 20px 18px;
+      overflow-y: auto;
+      min-height: 0;
+    }
+    .ns-ed .nv-diff-pane + .nv-diff-pane {
+      border-left: 1px solid ${ED.rule};
+    }
+    .ns-ed .nv-diff-pane--new {
+      background: ${ED.paper100};
+    }
+    .ns-ed .nv-diff-pane-h {
+      font-size: 9.5px; letter-spacing: 0.18em; color: ${ED.accent};
+      margin: 0 0 10px;
+      position: sticky; top: 0;
+      background: inherit;
+      padding: 4px 0;
+      z-index: 1;
+    }
+    .ns-ed .nv-diff-text {
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .ns-ed .nv-diff-p {
+      font-family: ${ED.serif}; font-size: 15px; line-height: 1.6;
+      color: ${ED.ink}; margin: 0;
+    }
+    .ns-ed .nv-diff-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px;
+      padding: 12px 16px;
+      border-top: 1px solid ${ED.rule};
+      background: ${ED.paper100};
+      flex-wrap: wrap;
+    }
+    .ns-ed .nv-diff-foot-right {
+      display: inline-flex; gap: 8px; margin-left: auto;
+    }
+    .ns-ed .nv-diff-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: ${ED.sans}; font-size: 13px; font-weight: 500;
+      color: ${ED.ink};
+      background: ${ED.paper50};
+      border: 1px solid ${ED.rule};
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color .12s ease, border-color .12s ease,
+                  color .12s ease, transform .12s ease;
+    }
+    .ns-ed .nv-diff-btn:hover:not(:disabled) {
+      background: ${ED.paper100};
+      border-color: ${ED.ink};
+    }
+    .ns-ed .nv-diff-btn:disabled {
+      opacity: 0.5; cursor: not-allowed;
+    }
+    .ns-ed .nv-diff-btn--primary {
+      background: ${ED.ink};
+      color: ${ED.paper50};
+      border-color: ${ED.ink};
+    }
+    .ns-ed .nv-diff-btn--primary:hover:not(:disabled) {
+      background: ${ED.accent};
+      border-color: ${ED.accent};
+      color: #fff;
+    }
+
+    /* ─── Mobile: stack the diff panes, full-bleed modal ──────── */
+    @media (max-width: 720px) {
+      .ns-ed .nv-diff-modal {
+        width: 100vw;
+        max-height: 100dvh;
+        height: 100dvh;
+        top: 0; left: 0;
+        transform: none;
+        border-radius: 0;
+        border-left: 0; border-right: 0;
+      }
+      .ns-ed .nv-diff-panes {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+      }
+      .ns-ed .nv-diff-pane + .nv-diff-pane {
+        border-left: 0;
+        border-top: 1px solid ${ED.rule};
+      }
+      .ns-ed .nv-diff-foot {
+        padding: 10px 12px;
+      }
+      .ns-ed .nv-diff-btn {
+        padding: 9px 12px;
+        font-size: 12.5px;
+      }
+      .ns-ed .nv-diff-foot-right {
+        flex: 1;
+        justify-content: flex-end;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ns-ed .nv-diff-modal,
+      .ns-ed .nv-diff-scrim,
+      .ns-ed .nv-ai-pop {
+        transition: none;
+      }
     }
 
     /* Body */
