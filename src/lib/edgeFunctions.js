@@ -91,7 +91,38 @@ export async function callEdgeFunction(endpoint, payload) {
 
   const data = await response.json();
   if (!data) throw new Error("Empty response from Edge Function");
-  if (data.fallback) throw new Error(data.error || "AI unavailable");
+
+  // If the edge function signaled fallback, preserve the structured
+  // error info (status code + provider details) so the caller can
+  // distinguish rate-limit / quota / blocked vs generic failure.
+  // Without this, every AI failure surfaces as the same opaque
+  // "Gemini API request failed" message regardless of cause.
+  if (data.fallback) {
+    const status = Number(data.status) || 0;
+    const details = typeof data.details === "string" ? data.details : "";
+
+    // Detect rate-limit / quota issues. Gemini returns 429 with
+    // RESOURCE_EXHAUSTED in the body; Anthropic returns 429 too.
+    // We craft a user-readable message rather than dumping the raw
+    // provider JSON into the UI.
+    const isQuota =
+      status === 429 ||
+      /RESOURCE_EXHAUSTED|quota|rate.?limit/i.test(details);
+
+    if (isQuota) {
+      const err = new Error(
+        "The AI service is rate-limited right now. Free Gemini accounts get a limited number of requests per day. Try again in a few minutes, or switch the GEMINI_MODEL env var to gemini-2.0-flash (higher quota) on your Supabase project.",
+      );
+      err.code = "RATE_LIMIT";
+      err.status = status;
+      throw err;
+    }
+
+    // Generic fallback — include the first ~200 chars of provider
+    // details so we can see what actually went wrong in the toast.
+    const detailSnippet = details ? ` (${details.slice(0, 200)})` : "";
+    throw new Error(`${data.error || "AI unavailable"}${detailSnippet}`);
+  }
 
   return data;
 }
