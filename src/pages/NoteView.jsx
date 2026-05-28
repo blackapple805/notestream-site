@@ -152,12 +152,29 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
       setNotFound(false);
       return;
     }
+
+    // If the URL id isn't a real Supabase uuid (e.g. someone bookmarked
+    // an old local `n_xxx` placeholder), there's nothing to fetch.
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        String(id),
+      );
+    if (!isUuid) {
+      setNotFound(true);
+      setNote(null);
+      return;
+    }
+
     // Fall back to direct Supabase fetch — handles hard refresh on a deep link
     let cancelled = false;
     (async () => {
       try {
-        const { supabase } = await import("../lib/supabaseClient");
-        if (!supabase) {
+        const { supabase, supabaseReady } = await import("../lib/supabaseClient");
+        if (!supabaseReady || !supabase) {
+          // Only show the editorial demo stub if Supabase isn't configured
+          // at all (e.g. dev preview with no env vars). With Supabase wired
+          // up, missing notes get a real "not found" state instead of the
+          // confusing M. Chen essay.
           if (!cancelled) setNote(NOTE_STUB);
           return;
         }
@@ -169,14 +186,17 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
         if (cancelled) return;
         if (error || !data) {
           setNotFound(true);
-          setNote(NOTE_STUB);
+          setNote(null);
         } else {
           setNote(hydrateForViewer(rowToViewerNote(data)));
           setNotFound(false);
         }
       } catch (err) {
         console.error("[NoteView] fetch failed:", err);
-        if (!cancelled) setNote(NOTE_STUB);
+        if (!cancelled) {
+          setNotFound(true);
+          setNote(null);
+        }
       }
     })();
     return () => {

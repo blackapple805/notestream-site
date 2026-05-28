@@ -29,6 +29,7 @@ import {
   FiEdit3, FiMic, FiFileText, FiArchive,
 } from "react-icons/fi";
 import QuickCreateModal from "../components/QuickCreateModal";
+import { supabaseReady } from "../lib/supabaseClient";
 
 /* ─── STUB DATA — replace with real query ───
    Each note: { id, title, preview, type, words, updatedAt, tags, pinned, status }
@@ -91,10 +92,16 @@ export default function Notes({ notes, setNotes } = {}) {
   const [qcOpen, setQcOpen]   = useState(false);
   const [qcType, setQcType]   = useState("note");
 
-  /* Use the live notes list if the parent passed one in; otherwise
-     fall back to the editorial stub so the page still renders in
-     isolation (e.g. when wiring up backends later). */
-  const sourceNotes = (Array.isArray(notes) && notes.length > 0) ? notes : NOTES_STUB;
+  /* ✅ Real notes from useNotes() come in as the `notes` prop. The
+     NOTES_STUB demo data is ONLY used when Supabase isn't configured
+     (e.g. a developer running the site without env vars). With Supabase
+     active, an empty array is the truth — show the empty state instead
+     of "demo notes" that would confuse the user about what's real.
+     Previously the stubs replaced the user's actual data every time
+     this page mounted before the async load finished. */
+  const sourceNotes = supabaseReady
+    ? (Array.isArray(notes) ? notes : [])
+    : ((Array.isArray(notes) && notes.length > 0) ? notes : NOTES_STUB);
 
   /* Filter + sort */
   const filtered = useMemo(() => {
