@@ -35,10 +35,12 @@ import { useEditorial, ED } from "../lib/editorial";
 // import here both silences the warning and saves one micro-await on
 // every direct-link note fetch.
 import { supabase, supabaseReady } from "../lib/supabaseClient";
+import { useAuth } from "../hooks/useAuth";
+import { analyzeNote } from "../lib/noteAI";
 import {
   FiArrowLeft, FiSave, FiCheck, FiCopy, FiArchive, FiTrash2, FiShare2,
   FiDownload, FiZap, FiEdit, FiBookOpen, FiX, FiMoreHorizontal,
-  FiTool, FiClock, FiLink, FiTag,
+  FiTool, FiClock, FiLink, FiTag, FiAlertCircle, FiLoader,
 } from "react-icons/fi";
 
 /* ─── STUB ─── replace with real fetch by params.id */
@@ -142,6 +144,8 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
   useEditorial();
   const { id } = useParams();
   const navigate = useNavigate();
+  // ✅ Shared auth state — needed by analyzeNote() for user_id + usage tracking.
+  const { user: authUser } = useAuth();
 
   /* ✅ Real fetch: try the parent-supplied list first (fastest, already
      loaded), then fall back to a Supabase round-trip via lazy import so
@@ -223,6 +227,21 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
   const [readingMode, setReadingMode] = useState(false);
   const [showActions, setShowActions] = useState(false); // mobile actions sheet
   const [progress, setProgress]       = useState(0);
+
+  // ─── AI state ─────────────────────────────────────────────────
+  // `aiLoading` is the in-flight indicator for Summarize/Rewrite/Expand.
+  // `aiError` shows any error returned by the edge function (rate limit,
+  //   provider down, etc). Auto-clears when a new request starts.
+  // `aiBanner` controls whether the result banner is collapsed/expanded.
+  //   Starts open after a fresh summarize so the user sees the result; can
+  //   be re-opened from the AI tools menu anytime if a payload exists.
+  // `comingSoonToast` is a tiny ephemeral message for the unbuilt Rewrite
+  //   and Expand actions — replaces the old no-op buttons with explicit
+  //   feedback so users know the click registered.
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  const [aiBanner, setAiBanner] = useState(true);
+  const [comingSoonToast, setComingSoonToast] = useState(null);
 
   const titleRef = useRef(null);
 
@@ -314,6 +333,89 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
     }
     setNote((n) => (n ? { ...n, status: "published" } : n));
   }, [save, note, updateNote]);
+
+  // ─── AI: Summarize ──────────────────────────────────────────────
+  // Calls the `analyze-note` edge function via lib/noteAI.js. That helper
+  // already handles usage limits (consumeAiUsage), invokes the edge
+  // function with title+body, persists the resulting ai_payload to the
+  // notes row, and falls back to a local heuristic if the LLM is down.
+  // We just need to surface its result in the UI and refresh local state
+  // so the banner shows the new summary without a page reload.
+  const handleSummarize = useCallback(async () => {
+    if (aiLoading) return;
+    if (!note?.id || !authUser?.id) {
+      setAiError("Sign in required to use AI features.");
+      return;
+    }
+    // Don't try to summarize content we know is too short — lib/noteAI.js
+    // would reject this anyway, but checking here avoids the round-trip
+    // and gives a clearer error message.
+    const bodyText = Array.isArray(note.blocks)
+      ? note.blocks.map((b) => b.text || "").join(" ")
+      : note.body || "";
+    if (!bodyText || bodyText.trim().length < 20) {
+      setAiError("Add at least 20 characters of content before summarizing.");
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const payload = await analyzeNote({
+        noteId: note.id,
+        userId: authUser.id,
+        title: note.title,
+        body: bodyText,
+        isManual: true,
+      });
+
+      if (!payload) {
+        setAiError("Couldn't generate a summary right now.");
+        return;
+      }
+      if (payload.error) {
+        setAiError(payload.message || "AI summary failed.");
+        return;
+      }
+
+      // Update local note state so the banner reflects the new summary
+      // without waiting for the parent useNotes refetch. Mirror the same
+      // shape rowToNote produces so the dek/preview helpers stay happy.
+      setNote((n) =>
+        n
+          ? {
+              ...n,
+              ai_payload: payload,
+              ai_generated_at: payload.generatedAt,
+              ai_model: payload.model,
+              dek: payload.summary
+                ? String(payload.summary).slice(0, 180)
+                : n.dek,
+            }
+          : n,
+      );
+      setAiBanner(true); // make sure the banner is open after a fresh summary
+    } catch (err) {
+      console.error("[NoteView] summarize failed:", err);
+      setAiError(err?.message || "AI summary failed.");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiLoading, note, authUser]);
+
+  // ─── AI: Rewrite & Expand (coming soon) ─────────────────────────
+  // The frontend buttons fire, but the backing edge functions
+  // (rewrite-note / expand-note) don't exist yet. Show a small toast so
+  // users get explicit feedback instead of clicking a dead button. When
+  // the edge functions ship, replace this with a real call.
+  const showComingSoon = useCallback((label) => {
+    setComingSoonToast(`${label} is coming soon — we're building it now.`);
+    setTimeout(() => setComingSoonToast(null), 2800);
+  }, []);
+
+  const handleRewrite = useCallback(() => showComingSoon("Rewrite"), [showComingSoon]);
+  const handleExpand = useCallback(() => showComingSoon("Expand"), [showComingSoon]);
+
 
   /* Keyboard shortcuts */
   useEffect(() => {
@@ -480,6 +582,102 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
             <hr className="nv-rule-thin" />
           </header>
 
+          {/* ─── AI summary banner ──────────────────────────────
+              Renders when a note has an ai_payload (from a successful
+              Summarize). Collapsible so the reader can fold it away.
+              Also surfaces error messages and the "coming soon" toast
+              for Rewrite/Expand inline rather than as a floating popup. */}
+          {(note.ai_payload || aiError || comingSoonToast) && (
+            <div className="nv-ai-banner" role="region" aria-label="AI summary">
+              {/* Coming-soon and error rows take priority — they're
+                  ephemeral and matter most right now. */}
+              {comingSoonToast && (
+                <div className="nv-ai-toast nv-ai-toast--info">
+                  <FiAlertCircle size={13} />
+                  <span>{comingSoonToast}</span>
+                </div>
+              )}
+              {aiError && (
+                <div className="nv-ai-toast nv-ai-toast--error">
+                  <FiAlertCircle size={13} />
+                  <span>{aiError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAiError(null)}
+                    className="nv-ai-dismiss"
+                    aria-label="Dismiss"
+                  >
+                    <FiX size={11} />
+                  </button>
+                </div>
+              )}
+
+              {note.ai_payload && (
+                <>
+                  <div className="nv-ai-banner-head">
+                    <p className="ed-mono nv-ai-eyebrow">
+                      <FiZap size={11} /> AI SUMMARY
+                      {note.ai_model && (
+                        <span className="nv-ai-model">· {note.ai_model}</span>
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setAiBanner((v) => !v)}
+                      className="nv-ai-toggle"
+                      aria-expanded={aiBanner}
+                    >
+                      {aiBanner ? "Hide" : "Show"}
+                    </button>
+                  </div>
+
+                  {aiBanner && (
+                    <div className="nv-ai-content">
+                      {note.ai_payload.summary && (
+                        <p className="nv-ai-summary">{note.ai_payload.summary}</p>
+                      )}
+
+                      {Array.isArray(note.ai_payload.keyPoints) &&
+                        note.ai_payload.keyPoints.length > 0 && (
+                          <div className="nv-ai-block">
+                            <p className="ed-mono nv-ai-sub">KEY POINTS</p>
+                            <ul className="nv-ai-list">
+                              {note.ai_payload.keyPoints.slice(0, 5).map((p, i) => (
+                                <li key={`kp-${i}`}>{p}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                      {Array.isArray(note.ai_payload.actionItems) &&
+                        note.ai_payload.actionItems.length > 0 && (
+                          <div className="nv-ai-block">
+                            <p className="ed-mono nv-ai-sub">ACTION ITEMS</p>
+                            <ul className="nv-ai-list nv-ai-list--checks">
+                              {note.ai_payload.actionItems.slice(0, 5).map((p, i) => (
+                                <li key={`ai-${i}`}>{typeof p === "string" ? p : p?.text}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                      {Array.isArray(note.ai_payload.topics) &&
+                        note.ai_payload.topics.length > 0 && (
+                          <div className="nv-ai-tags">
+                            {note.ai_payload.topics.slice(0, 6).map((t, i) => (
+                              <span key={`t-${i}`} className="nv-ai-tag">
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           {/* Body */}
           <div className="nv-body">
             {note.blocks.map((b, i) => {
@@ -568,17 +766,36 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
 
             <section className="nv-tools-section">
               <p className="ed-mono nv-tools-h">§ AI</p>
-              <button className="nv-tool-row">
-                <FiZap size={13} />
-                <span className="lb">Summarize</span>
+              <button
+                type="button"
+                onClick={handleSummarize}
+                disabled={aiLoading}
+                className="nv-tool-row"
+              >
+                {aiLoading ? (
+                  <FiLoader size={13} className="nv-spin" />
+                ) : (
+                  <FiZap size={13} />
+                )}
+                <span className="lb">
+                  {aiLoading ? "Summarizing…" : "Summarize"}
+                </span>
                 <span className="sub">Generate a brief abstract</span>
               </button>
-              <button className="nv-tool-row">
+              <button
+                type="button"
+                onClick={handleRewrite}
+                className="nv-tool-row"
+              >
                 <FiEdit size={13} />
                 <span className="lb">Rewrite</span>
                 <span className="sub">Improve flow &amp; clarity</span>
               </button>
-              <button className="nv-tool-row">
+              <button
+                type="button"
+                onClick={handleExpand}
+                className="nv-tool-row"
+              >
                 <FiTool size={13} />
                 <span className="lb">Expand</span>
                 <span className="sub">Develop a section further</span>
@@ -829,6 +1046,106 @@ const NoteViewScopedStyles = () => (
     }
     .ns-ed .nv-rule-thick { border: 0; height: 1px; background: ${ED.ink}; margin: 0; }
     .ns-ed .nv-rule-thin  { border: 0; height: 1px; background: ${ED.rule}; margin: 4px 0 0; }
+
+    /* ─── AI summary banner ──────────────────────────────────────
+       Paper-50 card with accent-blue eyebrow and editorial typography
+       so it reads as part of the article rather than a popup overlay. */
+    .ns-ed .nv-ai-banner {
+      margin: clamp(18px, 2.5vw, 28px) 0 0;
+      padding: 14px 18px 16px;
+      background: ${ED.paper50};
+      border: 1px solid ${ED.rule};
+      border-radius: 8px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .ns-ed .nv-ai-banner-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px;
+    }
+    .ns-ed .nv-ai-eyebrow {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 10.5px; letter-spacing: 0.18em; color: ${ED.accent};
+      margin: 0;
+    }
+    .ns-ed .nv-ai-model {
+      color: ${ED.inkFaint}; letter-spacing: 0.12em; font-size: 10px;
+      text-transform: none;
+    }
+    .ns-ed .nv-ai-toggle {
+      font-family: ${ED.mono};
+      font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+      color: ${ED.inkSoft};
+      background: transparent; border: 0; padding: 4px 8px; cursor: pointer;
+      border-radius: 999px;
+      transition: color .12s ease, background-color .12s ease;
+    }
+    .ns-ed .nv-ai-toggle:hover {
+      color: ${ED.ink}; background: ${ED.paper100};
+    }
+    .ns-ed .nv-ai-content {
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .ns-ed .nv-ai-summary {
+      font-family: ${ED.serif}; font-size: 16px; line-height: 1.6;
+      color: ${ED.ink}; margin: 0;
+      font-style: italic;
+    }
+    .ns-ed .nv-ai-block { display: flex; flex-direction: column; gap: 6px; }
+    .ns-ed .nv-ai-sub {
+      font-size: 9.5px; letter-spacing: 0.18em; color: ${ED.inkFaint};
+      margin: 0;
+    }
+    .ns-ed .nv-ai-list {
+      list-style: none; padding: 0; margin: 0;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .ns-ed .nv-ai-list li {
+      font-family: ${ED.serif}; font-size: 14.5px; line-height: 1.55;
+      color: ${ED.ink}; padding-left: 14px; position: relative;
+    }
+    .ns-ed .nv-ai-list li::before {
+      content: "·"; color: ${ED.accent};
+      position: absolute; left: 4px; top: -1px;
+      font-size: 18px; line-height: 1;
+    }
+    .ns-ed .nv-ai-list--checks li::before { content: "□"; font-size: 12px; top: 2px; }
+    .ns-ed .nv-ai-tags { display: inline-flex; flex-wrap: wrap; gap: 5px; }
+    .ns-ed .nv-ai-tag {
+      font-family: ${ED.mono}; font-size: 9.5px; letter-spacing: 0.14em;
+      text-transform: uppercase; color: ${ED.inkFaint};
+      padding: 2px 7px; border: 1px solid ${ED.rule}; border-radius: 999px;
+    }
+
+    /* AI inline toasts (errors + coming-soon notices) */
+    .ns-ed .nv-ai-toast {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border-radius: 6px;
+      font-family: ${ED.sans}; font-size: 13px; line-height: 1.4;
+      border: 1px solid ${ED.rule}; background: ${ED.paper100};
+      color: ${ED.ink};
+    }
+    .ns-ed .nv-ai-toast--info { color: ${ED.inkSoft}; }
+    .ns-ed .nv-ai-toast--error {
+      border-color: #e6c2bd; background: #fdf0ee; color: #8a2a1f;
+    }
+    .ns-ed .nv-ai-dismiss {
+      margin-left: auto;
+      background: transparent; border: 0; cursor: pointer;
+      color: inherit; opacity: 0.6; padding: 2px;
+      display: inline-flex; align-items: center;
+    }
+    .ns-ed .nv-ai-dismiss:hover { opacity: 1; }
+
+    /* Spinner used inside the Summarize button while in flight */
+    .ns-ed .nv-spin {
+      animation: nv-spin 0.9s linear infinite;
+    }
+    @keyframes nv-spin {
+      to { transform: rotate(360deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ns-ed .nv-spin { animation: none; }
+    }
 
     /* Body */
     .ns-ed .nv-body { padding-top: clamp(20px, 3vw, 36px); }
