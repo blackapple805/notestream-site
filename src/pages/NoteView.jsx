@@ -1165,16 +1165,16 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
                   onClick={() => setDiffModal(null)}
                   aria-hidden="true"
                 />
-            <motion.div
-              initial={{ opacity: 0, y: 14, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 14, scale: 0.98 }}
-              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
-              className="nv-diff-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="nv-diff-title"
-            >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.97 }}
+                  transition={{ duration: 0.18, ease: [0.32, 0.72, 0, 1] }}
+                  className="nv-diff-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="nv-diff-title"
+                >
               <header className="nv-diff-head">
                 <div className="nv-diff-eyebrow">
                   <FiZap size={11} />
@@ -1603,14 +1603,23 @@ const NoteViewScopedStyles = () => (
     .ns-ed .nv-diff-modal {
       position: fixed;
       z-index: 81;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
+      /* Centering technique: 'inset: 0' + 'margin: auto' centers a
+         fixed-size element inside its containing block. Unlike
+         'top:50% left:50% transform:translate(-50%,-50%)',
+         this works whether the containing block is the viewport OR
+         a transformed ancestor (framer-motion adds transforms during
+         page transitions, which can re-anchor position:fixed elements
+         to motion.main instead of the viewport). The portal in the
+         JSX puts this in document.body so neither case should hit,
+         but this centering is defensive belt-and-suspenders. */
+      inset: 0;
+      margin: auto;
       /* Hard ceiling on width + height so the modal never escapes the
-         viewport. The min() picks whichever is smaller: our preferred
-         1100px ceiling, or 92% of the viewport. The 92vw is what keeps
-         it from kissing the screen edges on narrower desktops. */
+         viewport. min() picks whichever is smaller: our preferred
+         1100px ceiling, or 92% of the viewport. */
       width: min(1100px, 92vw);
       max-width: 92vw;
+      height: fit-content;
       max-height: calc(100dvh - 32px);
       box-sizing: border-box;
       background: ${ED.paper50};
