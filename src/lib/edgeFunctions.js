@@ -110,10 +110,35 @@ export async function callEdgeFunction(endpoint, payload) {
       /RESOURCE_EXHAUSTED|quota|rate.?limit/i.test(details);
 
     if (isQuota) {
+      // Try to extract the "retry in N seconds" hint Gemini includes
+      // in its 429 body — gives the user a concrete wait time rather
+      // than an open-ended "try later."
+      const retryMatch = /retry in (\d+(?:\.\d+)?)s/i.exec(details);
+      const retryHint = retryMatch
+        ? ` Try again in about ${Math.ceil(Number(retryMatch[1]))} seconds.`
+        : " Please try again in a minute.";
+
       const err = new Error(
-        "The AI service is rate-limited right now. Free Gemini accounts get a limited number of requests per day. Try again in a few minutes, or switch the GEMINI_MODEL env var to gemini-2.0-flash (higher quota) on your Supabase project.",
+        `AI is temporarily unavailable — daily request limit reached.${retryHint}`,
       );
       err.code = "RATE_LIMIT";
+      err.status = status;
+      throw err;
+    }
+
+    // Detect overload (503 / "high demand") — surface a calmer message
+    // than dumping the raw provider error. The shared aiProvider already
+    // retries with a fallback model chain, so reaching here means EVERY
+    // model in the chain was overloaded — rare.
+    const isOverload =
+      status === 503 ||
+      /UNAVAILABLE|high demand|overload/i.test(details);
+
+    if (isOverload) {
+      const err = new Error(
+        "AI is experiencing high demand right now. Please try again in a moment.",
+      );
+      err.code = "OVERLOADED";
       err.status = status;
       throw err;
     }
