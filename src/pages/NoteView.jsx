@@ -73,13 +73,116 @@ const RELATED_STUB = [
   { id: "n29", number: "029", title: "Notebook fragments — winter",          preview: "Three months of marginalia, collected here without much editing." },
 ];
 
-export default function NoteView() {
+/* ─── Helpers for converting DB-shaped notes into the editorial viewer
+   shape. The viewer renders `blocks: [{type, text}]`, but we store a
+   plain `body` string in Supabase. Split on double-newlines and treat
+   lines starting with `# ` as h2, `> ` as quote, everything else as p. */
+function bodyToBlocks(body) {
+  if (!body || typeof body !== "string") return [];
+  const chunks = body.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+  return chunks.map((chunk) => {
+    if (chunk.startsWith("## ")) return { type: "h2", text: chunk.slice(3).trim() };
+    if (chunk.startsWith("# "))  return { type: "h2", text: chunk.slice(2).trim() };
+    if (chunk.startsWith("> "))  return { type: "quote", text: chunk.slice(2).trim() };
+    return { type: "p", text: chunk };
+  });
+}
+
+function hydrateForViewer(note) {
+  if (!note) return null;
+  const body = note.body || note._body || "";
+  const blocks = note.blocks?.length ? note.blocks : bodyToBlocks(body);
+  return {
+    ...note,
+    body,
+    blocks,
+    number: note.number || (note.id ? String(note.id).slice(-3).toUpperCase() : "—"),
+    status: note.status || (note.ai_payload ? "published" : "draft"),
+    author: note.author || "YOU",
+    dek: note.dek || (note.ai_payload?.summary ? String(note.ai_payload.summary).slice(0, 180) : ""),
+    writtenAt: note.writtenAt || (note.createdAt ? new Date(note.createdAt).toLocaleDateString().toUpperCase() : ""),
+    readMins: note.readMins || Math.max(1, Math.round((note.words || 0) / 200)),
+  };
+}
+
+function rowToViewerNote(row) {
+  const body = row.body || "";
+  const words = body.trim() ? body.trim().split(/\s+/).length : 0;
+  return {
+    id: row.id,
+    title: row.title || "Untitled entry",
+    body,
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    pinned: Boolean(row.is_favorite),
+    is_favorite: Boolean(row.is_favorite),
+    words,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
+    ai_payload: row.ai_payload || null,
+    ai_generated_at: row.ai_generated_at || null,
+    ai_model: row.ai_model || null,
+  };
+}
+
+export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
   useEditorial();
   const { id } = useParams();
   const navigate = useNavigate();
 
-  /* Replace this with a real fetch */
-  const [note, setNote] = useState(NOTE_STUB);
+  /* ✅ Real fetch: try the parent-supplied list first (fastest, already
+     loaded), then fall back to a Supabase round-trip via lazy import so
+     deep-linking to /dashboard/notes/<uuid> still works on hard refresh.
+     The hardcoded NOTE_STUB now only renders if the id genuinely cannot
+     be resolved (offline / not signed in / wrong workspace). */
+  const [note, setNote] = useState(() => {
+    if (id) {
+      const found = notes.find((n) => n.id === id);
+      if (found) return hydrateForViewer(found);
+    }
+    return null; // null until we attempt a fetch
+  });
+  const [notFound, setNotFound] = useState(false);
+
+  // Re-resolve whenever the URL id or the parent notes list changes
+  useEffect(() => {
+    if (!id) return;
+    const fromList = notes.find((n) => n.id === id);
+    if (fromList) {
+      setNote(hydrateForViewer(fromList));
+      setNotFound(false);
+      return;
+    }
+    // Fall back to direct Supabase fetch — handles hard refresh on a deep link
+    let cancelled = false;
+    (async () => {
+      try {
+        const { supabase } = await import("../lib/supabaseClient");
+        if (!supabase) {
+          if (!cancelled) setNote(NOTE_STUB);
+          return;
+        }
+        const { data, error } = await supabase
+          .from("notes")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
+        if (cancelled) return;
+        if (error || !data) {
+          setNotFound(true);
+          setNote(NOTE_STUB);
+        } else {
+          setNote(hydrateForViewer(rowToViewerNote(data)));
+          setNotFound(false);
+        }
+      } catch (err) {
+        console.error("[NoteView] fetch failed:", err);
+        if (!cancelled) setNote(NOTE_STUB);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, notes]);
 
   const [editing, setEditing]         = useState(false);
   const [saving, setSaving]           = useState(false);
@@ -103,16 +206,49 @@ export default function NoteView() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [readingMode]);
 
-  /* Save (stub — wire to backend) */
+  /* ✅ Save now persists to Supabase via the updateNote prop. Reconstructs
+     a body string from the blocks the editor mutates, so what gets written
+     back to the DB matches what the user sees. */
   const save = useCallback(async () => {
+    if (!note?.id || !updateNote) {
+      // No backend wiring — keep the old stub behavior so the UI still feels
+      // responsive even when not signed in.
+      setSaving(true);
+      await new Promise((r) => setTimeout(r, 600));
+      setSaving(false);
+      setSavedAt("just now");
+      return;
+    }
     setSaving(true);
-    await new Promise(r => setTimeout(r, 600));
-    setSaving(false);
-    setSavedAt("just now");
-  }, []);
+    try {
+      const bodyStr = Array.isArray(note.blocks)
+        ? note.blocks
+            .map((b) =>
+              b.type === "h2"
+                ? `## ${b.text}`
+                : b.type === "quote"
+                ? `> ${b.text}`
+                : b.text,
+            )
+            .join("\n\n")
+        : note.body || "";
+      await updateNote(note.id, {
+        title: note.title,
+        body: bodyStr,
+        tags: note.tags,
+        pinned: Boolean(note.pinned || note.is_favorite),
+      });
+      setSavedAt("just now");
+    } catch (err) {
+      console.error("[NoteView] save failed:", err);
+    } finally {
+      setSaving(false);
+    }
+  }, [note, updateNote]);
+
   const publish = useCallback(async () => {
     await save();
-    setNote(n => ({ ...n, status: "published" }));
+    setNote((n) => (n ? { ...n, status: "published" } : n));
   }, [save]);
 
   /* Keyboard shortcuts */
@@ -131,8 +267,19 @@ export default function NoteView() {
     return () => window.removeEventListener("keydown", onKey);
   }, [save, publish, editing, readingMode]);
 
+  /* ✅ Loading guard — note is null until the fetch resolves. Without this
+     the next line (`note.blocks.find`) crashes on every fresh page load
+     before the in-memory cache catches up. */
+  if (!note) {
+    return (
+      <div className="ns-ed ns-nv" style={{ padding: "4rem 2rem", textAlign: "center", opacity: 0.6 }}>
+        <span className="ed-mono">{notFound ? "NOTE NOT FOUND" : "LOADING…"}</span>
+      </div>
+    );
+  }
+
   /* Should the first paragraph get a drop cap? */
-  const firstP = note.blocks.find(b => b.type === "p");
+  const firstP = (note.blocks || []).find(b => b.type === "p");
   const useDropCap = firstP && firstP.text.length >= 80;
 
   return (

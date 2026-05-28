@@ -38,6 +38,7 @@ import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import { showMobileNav } from "../hooks/useMobileNav";
 import { useEditorial, ED } from "../lib/editorial";
 import QuickCreateModal from "./QuickCreateModal";
+import { useNotes } from "../hooks/useNotes";
 import {
   FiSearch, FiArrowRight,
   FiHome, FiEdit3, FiFolder, FiZap, FiActivity, FiCpu, FiMic,
@@ -204,6 +205,33 @@ export default function Sidebar() {
      modal itself handles those redirects). */
   const [qcModalOpen, setQcModalOpen] = useState(false);
   const [qcModalType, setQcModalType] = useState("note");
+
+  /* ✅ Notes CRUD — provides onCreate to the QuickCreateModal so the
+     + button actually persists to Supabase. Previously onCreate was
+     undefined, the optimistic in-memory note was lost on the navigate(),
+     and NoteView fell through to its hardcoded essay stub. */
+  const { createNote } = useNotes();
+  const handleQuickCreate = useCallback(
+    async (draftNote) => {
+      try {
+        const created = await createNote({
+          title: draftNote.title,
+          body: draftNote._body || draftNote.body || "",
+          tags: draftNote.tags || [],
+          pinned: Boolean(draftNote.pinned),
+        });
+        if (created?.id) {
+          // The modal navigates to its own locally-generated `n_xxxx` id
+          // right after onCreate returns. Bounce to the real Supabase
+          // uuid so NoteView can actually load it.
+          setTimeout(() => navigate(`/dashboard/notes/${created.id}`), 0);
+        }
+      } catch (err) {
+        console.error("[Sidebar] createNote failed:", err);
+      }
+    },
+    [createNote, navigate],
+  );
 
   /* Search */
   const [searchQuery, setSearchQuery] = useState("");
@@ -1004,6 +1032,7 @@ export default function Sidebar() {
         open={qcModalOpen}
         type={qcModalType}
         onClose={() => setQcModalOpen(false)}
+        onCreate={handleQuickCreate}
       />
     </div>
   );

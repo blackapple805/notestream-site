@@ -25,6 +25,9 @@ import { WorkspaceProvider } from "./hooks/useWorkspaceSettings";
 import { logActivityEvent } from "./lib/activityEvents";
 import { supabase } from "./lib/supabaseClient";
 
+// ✅ Notes CRUD hook (Supabase-backed, replaces hardcoded stub data)
+import { useNotes } from "./hooks/useNotes";
+
 // Global Components — eager: needed on every public page render
 import Navbar from "./components/Navbar";
 import ScrollToTop from "./components/ScrollToTop";
@@ -309,7 +312,18 @@ export default function App() {
     },
   ]);
 
-  const [notes, setNotes] = useState([]);
+  // ✅ Notes are now loaded from Supabase via useNotes() instead of the
+  // empty array stub. This hook also exposes createNote / updateNote /
+  // deleteNote, which we pass into the Notes page and through to
+  // QuickCreateModal so the + button actually persists.
+  const {
+    notes,
+    setNotes,
+    createNote,
+    updateNote,
+    deleteNote,
+    refetch: refetchNotes,
+  } = useNotes();
 
   return (
     <ThemeProvider>
@@ -335,11 +349,26 @@ export default function App() {
                   {/* NOTES */}
                     <Route
                       path="notes"
-                      element={<Notes notes={notes} setNotes={setNotes} />}
+                      element={
+                        <Notes
+                          notes={notes}
+                          setNotes={setNotes}
+                          createNote={createNote}
+                          updateNote={updateNote}
+                          deleteNote={deleteNote}
+                          refetchNotes={refetchNotes}
+                        />
+                      }
                     />
                     <Route
                       path="notes/:id"
-                      element={<NoteView />}
+                      element={
+                        <NoteView
+                          notes={notes}
+                          updateNote={updateNote}
+                          deleteNote={deleteNote}
+                        />
+                      }
                     />
 
                     {/* DOCUMENTS */}
