@@ -33,6 +33,7 @@ import {
   ImageIcon,
 } from "@phosphor-icons/react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { useAuth } from "../hooks/useAuth";
 import { consumeAiUsage } from "../lib/usage";
 
 const DOCS_TABLE = "documents";
@@ -189,6 +190,8 @@ export default function DocumentViewer({ docs = [] }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  // ✅ Shared auth.
+  const { user: authUser, ready: authReady } = useAuth();
 
 
   const docFromProps = useMemo(
@@ -222,10 +225,9 @@ export default function DocumentViewer({ docs = [] }) {
   const [isRewriting, setIsRewriting] = useState(false);
 
   const getAuthedUser = useCallback(async () => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error) return null;
-    return data?.user || null;
-  }, []);
+    if (!authReady) return null;
+    return authUser || null;
+  }, [authReady, authUser?.id]);
 
   // Keep doc in sync when parent provides docs later
   useEffect(() => {

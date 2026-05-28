@@ -1,23 +1,37 @@
-// src/hooks/useNotes.js
+// src/hooks/useNotes.jsx
 // ═══════════════════════════════════════════════════════════════════
 // Single source of truth for notes CRUD against Supabase.
 //
-// Why this exists:
-//   App.jsx had `useState([])` for notes that never loaded anything,
-//   QuickCreateModal called an undefined `onCreate`, and NoteView.jsx
-//   ignored params.id and rendered a hardcoded essay. This hook ties
-//   all three together by:
-//     · loading notes for the current user on mount
-//     · exposing createNote / updateNote / deleteNote
-//     · refetching on auth changes
+// ARCHITECTURE NOTE (2026-05-28):
+//   Previously this file exported a plain hook (useNotes()) and the
+//   pattern was "call useNotes() from wherever you need notes." That
+//   meant App.jsx had one mount and Sidebar.jsx had another, each
+//   spinning up its own auth listener, its own getUser() call, and
+//   its own copy of `notes` state. Two consequences:
+//     · every auth event triggered two parallel refetches
+//     · the sidebar's `createNote` prepended to the sidebar's local
+//       state, but the Notes page's `notes` prop came from App's
+//       copy — so a sidebar-created note was invisible to the page
+//       until the page-level hook independently refetched
+//   The fix is the same pattern useSubscription uses: a Provider
+//   does the work once at the top of the app, and useNotes() reads
+//   from React Context. Mounting it twice would be a runtime error
+//   (one Provider only), so the "two copies" bug becomes impossible.
 //
 // Schema columns used (from the public.notes table):
 //   id, user_id, title, body, tags, is_favorite, is_highlight, status,
 //   created_at, updated_at, ai_payload, ai_generated_at, ai_model
 // ═══════════════════════════════════════════════════════════════════
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
+import { useAuth } from "./useAuth";
 
 const TABLE = "notes";
 
@@ -42,10 +56,7 @@ function rowToNote(row) {
     pinned: Boolean(row.is_favorite),
     is_favorite: Boolean(row.is_favorite),
     is_highlight: Boolean(row.is_highlight),
-    // ✅ Real `status` column (added 2026-05-27). Falls back to the old
-    // derived behavior so the UI still works against a database that
-    // hasn't run the migration yet. After the migration runs, every row
-    // has a non-null status and the fallback never fires.
+    // Real `status` column with a safe fallback for pre-migration rows.
     status: row.status || (row.ai_payload ? "published" : "draft"),
     type: "note",
     words: wordCount,
@@ -73,39 +84,33 @@ function humanizeTimestamp(iso) {
   return new Date(iso).toLocaleDateString();
 }
 
-export function useNotes() {
+const NotesContext = createContext(null);
+
+export function NotesProvider({ children }) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [userId, setUserId] = useState(null);
 
-  /* ─── Track auth state ─── */
-  useEffect(() => {
-    if (!supabaseReady || !supabase) {
-      setLoading(false);
-      return;
-    }
-
-    let mounted = true;
-
-    supabase.auth.getUser().then(({ data }) => {
-      if (mounted) setUserId(data?.user?.id ?? null);
-    });
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) setUserId(session?.user?.id ?? null);
-    });
-
-    return () => {
-      mounted = false;
-      sub?.subscription?.unsubscribe();
-    };
-  }, []);
+  // ✅ Source of truth for auth lives in AuthProvider. We just read it
+  // here instead of running our own getUser() + onAuthStateChange
+  // subscription. Previously this hook had its own listener, which
+  // meant TWO listeners total (this + AuthProvider) — fine semantically
+  // but a wasted refresh attempt during token-renewal storms. Reading
+  // from context is also cheaper and means the notes list reacts to
+  // auth state changes in the same tick the rest of the app does.
+  const { userId, ready: authReady } = useAuth();
 
   /* ─── Load notes whenever the user changes ─── */
   const refetch = useCallback(async () => {
     if (!supabaseReady || !supabase) {
       setLoading(false);
+      return;
+    }
+    // Wait for the auth provider to settle before deciding the user is
+    // signed-out. Without this guard the very first render (where
+    // userId is briefly null while the SDK validates the cached token)
+    // would clear `notes` to [] and the UI would flash an empty state.
+    if (!authReady) {
       return;
     }
     if (!userId) {
@@ -132,7 +137,7 @@ export function useNotes() {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, authReady]);
 
   useEffect(() => {
     refetch();
@@ -177,7 +182,6 @@ export function useNotes() {
   const getNote = useCallback(
     async (id) => {
       if (!id) return null;
-      // Try cache first
       const cached = notes.find((n) => n.id === id);
       if (cached) return cached;
 
@@ -203,11 +207,6 @@ export function useNotes() {
     async (id, patch) => {
       if (!supabaseReady || !supabase || !id) return null;
 
-      // Defense in depth: refuse to PATCH unless the id is a valid uuid.
-      // The QuickCreateModal generates local `n_xxx` placeholder ids that
-      // would otherwise hit Postgres error 22P02 ("invalid input syntax
-      // for type uuid"). The real uuid is set after Supabase insert, so
-      // a placeholder slipping in here means something upstream is stale.
       const looksLikeUuid =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
           String(id),
@@ -224,10 +223,9 @@ export function useNotes() {
       if ("pinned" in patch) dbPatch.is_favorite = Boolean(patch.pinned);
       if ("is_favorite" in patch) dbPatch.is_favorite = Boolean(patch.is_favorite);
       if ("is_highlight" in patch) dbPatch.is_highlight = Boolean(patch.is_highlight);
-      // ✅ Publish/unpublish writes the real `status` column. The CHECK
-      // constraint in Postgres only allows draft / published / archived,
-      // so we whitelist here too — anything else gets dropped silently
-      // rather than throwing a 23514 in the user's face.
+      // Publish/unpublish writes the real `status` column. Whitelist matches
+      // the Postgres CHECK so a bad value short-circuits with a console
+      // warning instead of a 23514 error.
       if ("status" in patch && ["draft", "published", "archived"].includes(patch.status)) {
         dbPatch.status = patch.status;
       }
@@ -269,9 +267,9 @@ export function useNotes() {
     return true;
   }, []);
 
-  return {
+  const value = {
     notes,
-    setNotes, // exposed for Notes.jsx compatibility
+    setNotes,
     loading,
     error,
     userId,
@@ -281,4 +279,18 @@ export function useNotes() {
     updateNote,
     deleteNote,
   };
+
+  return (
+    <NotesContext.Provider value={value}>{children}</NotesContext.Provider>
+  );
+}
+
+export function useNotes() {
+  const ctx = useContext(NotesContext);
+  if (!ctx) {
+    // Fail loudly during development so the missing-Provider mistake
+    // doesn't silently produce empty notes everywhere.
+    throw new Error("useNotes must be used inside <NotesProvider>");
+  }
+  return ctx;
 }

@@ -3,12 +3,15 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useMemo, useState, useCallback } from "react";
 import { FiArrowLeft } from "react-icons/fi";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
+import { useAuth } from "../hooks/useAuth";
 import { consumeAiUsage } from "../lib/usage";
 import { logActivityEvent } from "../lib/activityEvents";
 
 export default function RewriteDocument({ docs = [] }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  // ✅ Shared auth.
+  const { user: authUser, ready: authReady } = useAuth();
 
   const doc = useMemo(() => docs.find((d) => d.id === id) || null, [docs, id]);
 
@@ -19,10 +22,9 @@ export default function RewriteDocument({ docs = [] }) {
 
   const getAuthedUser = useCallback(async () => {
     if (!supabaseReady || !supabase) return null;
-    const { data, error } = await supabase.auth.getUser();
-    if (error) return null;
-    return data?.user ?? null;
-  }, []);
+    if (!authReady) return null;
+    return authUser ?? null;
+  }, [authReady, authUser?.id]);
 
   const handleRewrite = async (nextMode) => {
     if (!doc) return;

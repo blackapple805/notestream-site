@@ -33,6 +33,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
 import { useSubscription } from "../hooks/useSubscription";
+import { useAuth } from "../hooks/useAuth";
 import { useMobileNav } from "../hooks/useMobileNav";
 import { smartSummarizeDocument, synthesizeDocuments } from "../lib/documentAI";
 import { useEditorial, ED } from "../lib/editorial";
@@ -74,6 +75,8 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
   const navigate = useNavigate();
   const { settings } = useWorkspaceSettings();
   const { incrementUsage } = useSubscription();
+  // ✅ Shared auth state — no more per-page getUser calls.
+  const { user: authUser, ready: authReady } = useAuth();
 
   const [localDocs, setLocalDocs] = useState([]);
   const docs = docsProp ?? localDocs;
@@ -106,13 +109,14 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
   const showToast = (message, type = "success") => { setToast({ message, type }); setTimeout(() => setToast(null), 3000); };
   const requireSupabase = () => { if (!isSupabaseConfigured) { showToast("Supabase is not configured.", "error"); return false; } return true; };
 
-  /* ─── ALL CALLBACKS (UNCHANGED) ─── */
+  /* ─── ALL CALLBACKS ─── */
+  // Reads from the shared AuthProvider rather than calling
+  // supabase.auth.getUser() — eliminates parallel refresh attempts.
   const getUser = useCallback(async () => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error) throw error;
-    if (!data?.user) throw new Error("Not authenticated");
-    return data.user;
-  }, []);
+    if (!authReady) throw new Error("Auth not ready");
+    if (!authUser?.id) throw new Error("Not authenticated");
+    return authUser;
+  }, [authReady, authUser?.id]);
 
   const ensureUserStatsRow = useCallback(async (user) => {
     if (!user?.id) return;
@@ -166,7 +170,14 @@ export default function Documents({ docs: docsProp = null, setDocs: setDocsProp 
     finally { setFilesLoading(false); }
   }, [ensureUserStatsRow, getUser, mapDocRowToUi, setDocs]);
 
-  useEffect(() => { loadDocsAndAiArtifacts(); }, [loadDocsAndAiArtifacts]);
+  // Only fire once auth has settled so getUser() doesn't throw on
+  // first render. Previously this used a hardcoded loadDocsAndAiArtifacts
+  // dependency that ran immediately on mount, before useAuth's listener
+  // had time to populate authUser.
+  useEffect(() => {
+    if (!authReady || !authUser?.id) return;
+    loadDocsAndAiArtifacts();
+  }, [loadDocsAndAiArtifacts, authReady, authUser?.id]);
 
   const handlePreview = (doc) => navigate(`/dashboard/documents/view/${doc.id}`);
   const handleUploadButton = () => { if (fileInputRef.current) { fileInputRef.current.value = ""; fileInputRef.current.click(); } };

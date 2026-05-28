@@ -20,6 +20,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSubscription } from "../hooks/useSubscription";
+import { useAuth } from "../hooks/useAuth";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import {
   FiArrowLeft,
@@ -84,6 +85,8 @@ export default function ContactSupport() {
   useEditorial();
   const navigate = useNavigate();
   const { subscription } = useSubscription();
+  // ✅ Shared auth — replaces both getSession() call sites in this file.
+  const { user: authUser, ready: authReady } = useAuth();
   const isPro = subscription?.plan && subscription.plan !== "free";
 
   const vol = "II";
@@ -163,10 +166,13 @@ export default function ContactSupport() {
     setProfileLoading(true);
 
     try {
-      const { data: sessRes, error: sessErr } = await supabase.auth.getSession();
-      if (sessErr) throw sessErr;
-
-      const user = sessRes?.session?.user;
+      // Wait for auth provider to settle so we don't render an empty
+      // profile during the brief startup window.
+      if (!authReady) {
+        if (reqId !== loadReqIdRef.current) return;
+        return;
+      }
+      const user = authUser;
       if (!user?.id) {
         if (reqId !== loadReqIdRef.current) return;
         setProfile({ name: "", email: "" });
@@ -215,13 +221,13 @@ export default function ContactSupport() {
     }
   };
 
+  // Re-load profile when auth changes. The shared AuthProvider's
+  // listener already covers SIGNED_IN/OUT/TOKEN_REFRESHED, so we
+  // don't need our own subscription.
   useEffect(() => {
     loadProfile();
-    if (!supabase) return;
-    const { data: sub } = supabase.auth.onAuthStateChange(() => loadProfile());
-    return () => sub?.subscription?.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authReady, authUser?.id]);
 
   // ── Live chat handlers (unchanged behaviour) ───────────────────
   const openLiveChat = () => {
@@ -309,10 +315,8 @@ export default function ContactSupport() {
       if (!isSupabaseConfigured || !supabase) {
         throw new Error("Supabase not configured.");
       }
-      const { data: sessRes, error: sessErr } = await supabase.auth.getSession();
-      if (sessErr) throw sessErr;
-
-      const user = sessRes?.session?.user;
+      if (!authReady) throw new Error("Please wait — still signing you in.");
+      const user = authUser;
       if (!user?.id) throw new Error("You must be signed in to submit a ticket.");
 
       const payload = {

@@ -35,6 +35,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { FiArrowRight, FiX } from "react-icons/fi";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
+import { useAuth } from "../hooks/useAuth";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
 import { toLocalYMD, parseYMDToDate, diffDaysLocal } from "../lib/formatDate";
 import { useEditorial, ED } from "../lib/editorial";
@@ -67,6 +68,23 @@ const getGreeting = () => {
 
 const ensureUserStatsRow = async (userId, fallbackName = null) => {
   if (!supabase || !userId) return;
+
+  // Check first — if the row already exists we don't need to write
+  // anything, and we avoid the noisy "RLS policy violation" warning
+  // that the upsert path produces when an auth refresh is mid-flight.
+  // ignoreDuplicates: true on the original upsert was supposed to
+  // handle this, but PostgREST translates the upsert into an INSERT
+  // that's still subject to RLS evaluation before the conflict
+  // resolver runs — so a row that already exists would still hit
+  // RLS-with-no-session and emit a 42501.
+  const { data: existing } = await supabase
+    .from(USER_STATS_TABLE)
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existing) return; // nothing to do, the row is already there
+
   const today = toLocalYMD();
   const payload = {
     user_id: userId,
@@ -79,8 +97,15 @@ const ensureUserStatsRow = async (userId, fallbackName = null) => {
   };
   const { error } = await supabase
     .from(USER_STATS_TABLE)
-    .upsert(payload, { onConflict: "user_id", ignoreDuplicates: true });
-  if (error) console.warn("ensureUserStatsRow failed:", error);
+    .insert(payload);
+
+  // 23505 = unique_violation — someone else just raced us, fine.
+  // 42501 = RLS violation — almost always means auth was momentarily
+  //         null during a token refresh; the next refetch will retry.
+  //         Don't pollute the console with these.
+  if (error && error.code !== "23505" && error.code !== "42501") {
+    console.warn("ensureUserStatsRow failed:", error);
+  }
 };
 
 const formatShortDate = (d) => {
@@ -172,6 +197,12 @@ const volAndNo = (d = new Date()) => {
 export default function Dashboard() {
   useEditorial();
   const navigate = useNavigate();
+  // ✅ Centralized auth — one listener app-wide. `ready` flips true
+  // once the SDK has either confirmed a session or confirmed there
+  // isn't one. We wait for ready=true before deciding to kick to
+  // /login, which prevents the stale-token race that was showing
+  // up as 429 on /token and 401s on data queries.
+  const { user, ready: authReady, isAuthenticated } = useAuth();
   const {
     settings,
     notifications,
@@ -217,13 +248,18 @@ export default function Dashboard() {
   // STATS
   useEffect(() => {
     if (!supabaseReady || !supabase) { setStatsLoading(false); return; }
+    // Wait for the AuthProvider to settle before deciding what to do.
+    // If it's still loading the cached session we'd otherwise kick to
+    // /login on the very first render.
+    if (!authReady) return;
+    if (!isAuthenticated || !user?.id) {
+      setStatsLoading(false);
+      navigate("/login");
+      return;
+    }
     let alive = true;
     (async () => {
       setStatsLoading(true);
-      const { data: sessRes, error: sessErr } = await supabase.auth.getSession();
-      if (sessErr) console.error("getSession error:", sessErr);
-      const user = sessRes?.session?.user;
-      if (!user?.id) { if (alive) { setStatsLoading(false); navigate("/login"); } return; }
       const fallbackName = user.user_metadata?.full_name ?? user.user_metadata?.name ?? (user.email ? user.email.split("@")[0] : null);
       await ensureUserStatsRow(user.id, fallbackName);
       const { data: rowMaybe, error: fetchErr } = await supabase.from(USER_STATS_TABLE).select("*").eq("user_id", user.id).maybeSingle();
@@ -244,17 +280,15 @@ export default function Dashboard() {
       setStatsLoading(false);
     })();
     return () => { alive = false; };
-  }, [navigate]);
+  }, [navigate, authReady, isAuthenticated, user?.id]);
 
   // AI USES
   useEffect(() => {
     if (!supabaseReady || !supabase) return;
+    if (!authReady || !user?.id) return;
     let alive = true;
     const fetchTodayUsage = async () => {
       setAiUsesLoading(true);
-      const { data: sessRes } = await supabase.auth.getSession();
-      const user = sessRes?.session?.user;
-      if (!user?.id) { setAiUsesLoading(false); return; }
       const today = toLocalYMD();
       const { data, error } = await supabase.from("daily_usage").select("ai_summaries,document_synth,insight_queries,voice_transcriptions").eq("user_id", user.id).eq("usage_date", today).maybeSingle();
       if (!alive) return;
@@ -267,17 +301,20 @@ export default function Dashboard() {
     const onUsageChanged = () => fetchTodayUsage();
     window.addEventListener("notestream:daily_usage_changed", onUsageChanged);
     return () => { alive = false; window.removeEventListener("notestream:daily_usage_changed", onUsageChanged); };
-  }, []);
+  }, [authReady, user?.id]);
 
   // NOTES + DOCS
   useEffect(() => {
     if (!supabaseReady || !supabase) { setNotes([]); setDocs([]); setDataLoading(false); return; }
+    if (!authReady) return;
+    if (!isAuthenticated || !user?.id) {
+      setDataLoading(false);
+      navigate("/login");
+      return;
+    }
     let alive = true;
     (async () => {
       setDataLoading(true);
-      const { data: sessRes } = await supabase.auth.getSession();
-      const user = sessRes?.session?.user;
-      if (!user?.id) { if (alive) { setDataLoading(false); navigate("/login"); } return; }
       const since = new Date();
       since.setDate(since.getDate() - 7);
       const sinceIso = since.toISOString();
@@ -291,7 +328,7 @@ export default function Dashboard() {
       setDataLoading(false);
     })();
     return () => { alive = false; };
-  }, [navigate]);
+  }, [navigate, authReady, isAuthenticated, user?.id]);
 
   // SMART NOTIFICATIONS
   useEffect(() => {

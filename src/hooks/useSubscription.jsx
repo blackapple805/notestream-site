@@ -8,6 +8,7 @@ import {
   useRef,
 } from "react";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { useAuth } from "./useAuth";
 
 // ============================================================
 // Plan definitions (DO NOT export from this file to keep Vite Fast Refresh happy)
@@ -131,6 +132,13 @@ function computeAccess(sub) {
 // Provider Component
 // ============================================================
 export function SubscriptionProvider({ children }) {
+  // ✅ Read shared auth — replaces the 5 getSession() calls scattered
+  // through this provider and lets us drop our own onAuthStateChange
+  // listener at the bottom. The AuthProvider's single listener already
+  // emits the SIGNED_IN / TOKEN_REFRESHED / SIGNED_OUT events that this
+  // provider used to react to independently.
+  const { user: authUser, userId: authUserId, ready: authReady } = useAuth();
+
   const [subscription, setSubscription] = useState({
     id: null, // subscriptions.id
     plan: "free",
@@ -208,18 +216,8 @@ export function SubscriptionProvider({ children }) {
       setIsLoading(true);
       setError(null);
 
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        console.error("Session fetch error:", sessionError);
-        loadFromCache();
-        return;
-      }
-
-      const user = session?.user;
+      // ✅ Read user from useAuth instead of calling getSession.
+      const user = authUser;
       if (!user?.id) {
         loadFromCache();
         return;
@@ -297,7 +295,7 @@ export function SubscriptionProvider({ children }) {
       setIsLoading(false);
       loadingRef.current = false; // ✅ unlock
     }
-  }, [fetchSubscriptionRow, loadFromCache]);
+  }, [fetchSubscriptionRow, loadFromCache, authUser?.id]);
 
   // ----------------------------------------------------------
   // Subscribe
@@ -312,11 +310,7 @@ export function SubscriptionProvider({ children }) {
           return { success: false, error: "supabase-not-configured" };
         }
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        const user = session?.user;
+        const user = authUser;
 
         if (!user?.id) {
           const newSubscription = {
@@ -358,7 +352,7 @@ export function SubscriptionProvider({ children }) {
         return { success: false, error: err?.message || String(err) };
       }
     },
-    [loadSubscription]
+    [loadSubscription, authUser?.id]
   );
 
   // ----------------------------------------------------------
@@ -390,17 +384,7 @@ export function SubscriptionProvider({ children }) {
         status: prev.status === "active" ? "canceling" : prev.status,
       }));
 
-      const {
-        data: { session },
-        error: sessionErr,
-      } = await supabase.auth.getSession();
-
-      if (sessionErr) {
-        rollback();
-        return { success: false, error: sessionErr.message };
-      }
-
-      const user = session?.user;
+      const user = authUser;
       if (!user?.id) {
         return { success: true, demo: true };
       }
@@ -438,7 +422,7 @@ export function SubscriptionProvider({ children }) {
     } finally {
       setCancelInFlight(false);
     }
-  }, [loadSubscription]);
+  }, [loadSubscription, authUser?.id]);
 
   // ----------------------------------------------------------
   // Reactivate
@@ -454,10 +438,7 @@ export function SubscriptionProvider({ children }) {
         return { success: false, error: "supabase-not-configured" };
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const user = session?.user;
+      const user = authUser;
 
       if (!user?.id) {
         setSubscription((prev) => ({
@@ -495,7 +476,7 @@ export function SubscriptionProvider({ children }) {
     } finally {
       setReactivateInFlight(false);
     }
-  }, [loadSubscription]);
+  }, [loadSubscription, authUser?.id]);
 
   // ----------------------------------------------------------
   // Increment usage
@@ -520,10 +501,7 @@ export function SubscriptionProvider({ children }) {
         return { success: true, limitReached: false };
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const user = session?.user;
+      const user = authUser;
 
       if (!user?.id) {
         setUsage((prev) => ({
@@ -564,7 +542,7 @@ export function SubscriptionProvider({ children }) {
       }));
       return { success: false, error: err?.message || String(err) };
     }
-  }, []);
+  }, [authUser?.id]);
 
   // ----------------------------------------------------------
   // Helper functions
@@ -618,48 +596,35 @@ export function SubscriptionProvider({ children }) {
   // ----------------------------------------------------------
   // Load on mount and auth changes
   // ----------------------------------------------------------
+  // React to auth state changes via the shared AuthProvider.
+  // Previously this provider had its own onAuthStateChange listener
+  // that reacted to SIGNED_IN / SIGNED_OUT / USER_UPDATED. Now we
+  // depend on authReady + authUserId from useAuth — when either
+  // changes we reload, and when the user goes null we reset.
+  // ----------------------------------------------------------
   useEffect(() => {
-    loadSubscription();
-
-    // If supabase isn't configured we still need loadSubscription to run
-    // (it falls back to cache), but we skip the auth listener since there's
-    // no client to listen to.
-    if (!isSupabaseConfigured || !supabase) {
-      return undefined;
+    if (!authReady) return; // wait for AuthProvider to settle on first paint
+    if (authUserId) {
+      loadSubscription();
+    } else {
+      // Signed out — reset to free defaults and clear usage.
+      setSubscription({
+        id: null,
+        plan: "free",
+        status: "active",
+        expiresAt: null,
+        cancelAtPeriodEnd: false,
+        paymentMethod: null,
+      });
+      setUsage({
+        aiSummaries: 0,
+        documentSynth: 0,
+        insightQueries: 0,
+        voiceTranscriptions: 0,
+      });
+      setIsLoading(false);
     }
-
-    const inFlight = { current: false };
-
-    const {
-      data: { subscription: authSub },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "USER_UPDATED") {
-        if (inFlight.current) return;
-        inFlight.current = true;
-
-        Promise.resolve(loadSubscription()).finally(() => {
-          inFlight.current = false;
-        });
-      } else if (event === "SIGNED_OUT") {
-        setSubscription({
-          id: null,
-          plan: "free",
-          status: "active",
-          expiresAt: null,
-          cancelAtPeriodEnd: false,
-          paymentMethod: null,
-        });
-        setUsage({
-          aiSummaries: 0,
-          documentSynth: 0,
-          insightQueries: 0,
-          voiceTranscriptions: 0,
-        });
-      }
-    });
-
-    return () => authSub?.unsubscribe();
-  }, [loadSubscription]);
+  }, [authReady, authUserId, loadSubscription]);
 
 
   // ----------------------------------------------------------

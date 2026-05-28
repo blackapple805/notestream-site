@@ -35,6 +35,7 @@ import {
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
+import { useAuth } from "../hooks/useAuth";
 import { consumeAiUsage } from "../lib/usage";
 import { queryInsight } from "../lib/insightAI";
 import { logActivityEvent } from "../lib/activityEvents";
@@ -121,6 +122,9 @@ function RichText({ text, className = "", style = {} }) {
 
 export default function Summaries() {
   useEditorial();
+  // ✅ Shared auth state — replaces the local getAuthedUser that
+  // called supabase.auth.getSession() on its own.
+  const { user: authUser, ready: authReady } = useAuth();
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [conversations, setConversations] = useState([]);
@@ -149,10 +153,9 @@ export default function Summaries() {
 
   const getAuthedUser = useCallback(async () => {
     if (!supabaseReady || !supabase) return null;
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    return session?.user ?? null;
-  }, []);
+    if (!authReady) return null;
+    return authUser ?? null;
+  }, [authReady, authUser?.id]);
 
   const logActivity = useCallback(async (userId, metadata = {}) => {
     if (!userId) return;

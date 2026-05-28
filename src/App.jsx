@@ -25,8 +25,16 @@ import { WorkspaceProvider } from "./hooks/useWorkspaceSettings";
 import { logActivityEvent } from "./lib/activityEvents";
 import { supabase } from "./lib/supabaseClient";
 
-// ✅ Notes CRUD hook (Supabase-backed, replaces hardcoded stub data)
-import { useNotes } from "./hooks/useNotes";
+// ✅ Notes CRUD hook — backed by a Context provider so the whole app
+// shares ONE auth listener and ONE notes state. Previously App.jsx
+// and Sidebar.jsx both called useNotes() independently which caused
+// divergent state and duplicated network traffic on every auth event.
+import { NotesProvider, useNotes } from "./hooks/useNotes";
+
+// ✅ Single shared auth state — replaces the 18 scattered getSession()
+// call sites that all could independently trigger refresh_token and
+// cause 429s under load.
+import { AuthProvider, useAuth } from "./hooks/useAuth";
 
 // Global Components — eager: needed on every public page render
 import Navbar from "./components/Navbar";
@@ -138,24 +146,21 @@ function RouteTitle() {
 
 // ----------------------------------------------------------------
 // ✅ Route-change activity logging (page views)
+// Reads userId from the shared AuthProvider — previously this fired
+// a fresh getSession() on every navigation, which contributed to
+// the refresh_token storm when the cached JWT was expired.
 // ----------------------------------------------------------------
 function RouteActivityLogger() {
   const { pathname } = useLocation();
+  const { userId } = useAuth();
 
   useEffect(() => {
+    if (!userId) return undefined;
     let alive = true;
 
     (async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
         if (!alive) return;
-
-        const userId = session?.user?.id;
-        if (!userId) return;
-
         await logActivityEvent({
           userId,
           eventType: "page_view",
@@ -171,7 +176,7 @@ function RouteActivityLogger() {
     return () => {
       alive = false;
     };
-  }, [pathname]);
+  }, [pathname, userId]);
 
   return null;
 }
@@ -295,11 +300,11 @@ function PublicSiteWrapper() {
 }
 
 // ----------------------------------------------------------------
-// ROOT APP - Wrapped with all Providers
+// ROUTE TREE — needs notes from context, so it lives inside
+// NotesProvider. Extracted from App() so the useNotes() call can
+// resolve against the Provider we mount one level up.
 // ----------------------------------------------------------------
-export default function App() {
-  const routerBasename = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-
+function AppRoutes() {
   const [docs, setDocs] = useState([
     {
       id: "1",
@@ -312,10 +317,6 @@ export default function App() {
     },
   ]);
 
-  // ✅ Notes are now loaded from Supabase via useNotes() instead of the
-  // empty array stub. This hook also exposes createNote / updateNote /
-  // deleteNote, which we pass into the Notes page and through to
-  // QuickCreateModal so the + button actually persists.
   const {
     notes,
     setNotes,
@@ -326,112 +327,127 @@ export default function App() {
   } = useNotes();
 
   return (
+    <>
+      <ScrollToTop />
+      <RouteTitle />
+      <RouteActivityLogger />
+
+      <Suspense fallback={<PageLoader isVisible />}>
+        <Routes>
+          {/* PUBLIC SITE */}
+          <Route path="/*" element={<PublicSiteWrapper />} />
+
+          {/* DASHBOARD PAGES */}
+          <Route path="/dashboard" element={<DashboardLayout />}>
+            <Route index element={<Dashboard />} />
+
+            {/* NOTES */}
+            <Route
+              path="notes"
+              element={
+                <Notes
+                  notes={notes}
+                  setNotes={setNotes}
+                  createNote={createNote}
+                  updateNote={updateNote}
+                  deleteNote={deleteNote}
+                  refetchNotes={refetchNotes}
+                />
+              }
+            />
+            <Route
+              path="notes/:id"
+              element={
+                <NoteView
+                  notes={notes}
+                  updateNote={updateNote}
+                  deleteNote={deleteNote}
+                />
+              }
+            />
+
+            {/* DOCUMENTS */}
+            <Route
+              path="documents"
+              element={<Documents docs={docs} setDocs={setDocs} />}
+            />
+            <Route
+              path="documents/:id"
+              element={<DocumentViewer docs={docs} />}
+            />
+            <Route
+              path="documents/view/:id"
+              element={<DocumentViewer docs={docs} />}
+            />
+            <Route
+              path="documents/rewrite/:id"
+              element={<RewriteDocument docs={docs} setDocs={setDocs} />}
+            />
+
+            {/* INTEGRATIONS */}
+            <Route
+              path="integrations"
+              element={<DashboardIntegrations />}
+            />
+            <Route
+              path="integrations/connect/:integrationId"
+              element={<IntegrationConnect />}
+            />
+
+            {/* OTHER SECTIONS */}
+            <Route path="summaries" element={<Summaries />} />
+            <Route path="activity" element={<Activity />} />
+
+            {/* SUPPORT */}
+            <Route path="help-center" element={<HelpCenter />} />
+            <Route path="contact-support" element={<ContactSupport />} />
+
+            {/* Integration Docs */}
+            <Route
+              path="integration-docs"
+              element={<IntegrationDocs />}
+            />
+
+            {/* AI LAB */}
+            <Route path="ai-lab" element={<AiLab />} />
+            <Route path="ai-lab/training" element={<CustomTraining />} />
+            <Route path="ai-lab/cloud-sync" element={<CloudSync />} />
+            <Route path="ai-lab/voice-notes" element={<VoiceNotes />} />
+            <Route
+              path="ai-lab/team-collaboration"
+              element={<TeamCollaboration />}
+            />
+
+            {/* SETTINGS */}
+            <Route path="settings" element={<Settings />} />
+          </Route>
+        </Routes>
+      </Suspense>
+    </>
+  );
+}
+
+// ----------------------------------------------------------------
+// ROOT APP - Wrapped with all Providers
+// ----------------------------------------------------------------
+export default function App() {
+  const routerBasename = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+
+  return (
     <ThemeProvider>
-      <IntegrationsProvider>
-        <SubscriptionProvider>
-          <WorkspaceProvider>
-            <Router basename={routerBasename}>
-              <ScrollToTop />
-              <RouteTitle />
-
-              {/* ✅ matches what I provided: logs page_view events */}
-              <RouteActivityLogger />
-
-              <Suspense fallback={<PageLoader isVisible />}>
-                <Routes>
-                  {/* PUBLIC SITE */}
-                  <Route path="/*" element={<PublicSiteWrapper />} />
-
-                  {/* DASHBOARD PAGES */}
-                  <Route path="/dashboard" element={<DashboardLayout />}>
-                    <Route index element={<Dashboard />} />
-
-                  {/* NOTES */}
-                    <Route
-                      path="notes"
-                      element={
-                        <Notes
-                          notes={notes}
-                          setNotes={setNotes}
-                          createNote={createNote}
-                          updateNote={updateNote}
-                          deleteNote={deleteNote}
-                          refetchNotes={refetchNotes}
-                        />
-                      }
-                    />
-                    <Route
-                      path="notes/:id"
-                      element={
-                        <NoteView
-                          notes={notes}
-                          updateNote={updateNote}
-                          deleteNote={deleteNote}
-                        />
-                      }
-                    />
-
-                    {/* DOCUMENTS */}
-                    <Route
-                      path="documents"
-                      element={<Documents docs={docs} setDocs={setDocs} />}
-                    />
-                    <Route
-                      path="documents/:id"
-                      element={<DocumentViewer docs={docs} />}
-                    />
-                    <Route
-                      path="documents/view/:id"
-                      element={<DocumentViewer docs={docs} />}
-                    />
-                    <Route
-                      path="documents/rewrite/:id"
-                      element={<RewriteDocument docs={docs} setDocs={setDocs} />}
-                    />
-
-                    {/* INTEGRATIONS */}
-                    <Route
-                      path="integrations"
-                      element={<DashboardIntegrations />}
-                    />
-                    <Route
-                      path="integrations/connect/:integrationId"
-                      element={<IntegrationConnect />}
-                    />
-
-                    {/* OTHER SECTIONS */}
-                    <Route path="summaries" element={<Summaries />} />
-                    <Route path="activity" element={<Activity />} />
-
-                    {/* SUPPORT */}
-                    <Route path="help-center" element={<HelpCenter />} />
-                    <Route path="contact-support" element={<ContactSupport />} />
-
-                    {/* Integration Docs */}
-                    <Route
-                      path="integration-docs"
-                      element={<IntegrationDocs />}
-                    />
-
-                    {/* AI LAB */}
-                    <Route path="ai-lab" element={<AiLab />} />
-                    <Route path="ai-lab/training" element={<CustomTraining />} />
-                    <Route path="ai-lab/cloud-sync" element={<CloudSync />} />
-                    <Route path="ai-lab/voice-notes" element={<VoiceNotes />} />
-                    <Route
-                      path="ai-lab/team-collaboration"
-                      element={<TeamCollaboration />}
-                    />
-
-                    {/* SETTINGS */}
-                    <Route path="settings" element={<Settings />} />
-                  </Route>
-                </Routes>
-              </Suspense>
-            </Router>
-          </WorkspaceProvider>
-        </SubscriptionProvider>
-      </IntegrationsProvider>
+      <AuthProvider>
+        <IntegrationsProvider>
+          <SubscriptionProvider>
+            <WorkspaceProvider>
+              <NotesProvider>
+                <Router basename={routerBasename}>
+                  <AppRoutes />
+                </Router>
+              </NotesProvider>
+            </WorkspaceProvider>
+          </SubscriptionProvider>
+        </IntegrationsProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

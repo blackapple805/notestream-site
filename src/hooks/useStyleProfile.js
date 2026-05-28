@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
+import { useAuth } from "./useAuth";
 import {
   loadStoredProfile,
   saveProfile as dbSaveProfile,
@@ -125,12 +126,15 @@ function mapAiProfileToUi(aiData, existingOverrides, existingSettings) {
 // ─── Hook ──────────────────────────────────────────────────────
 
 export function useStyleProfile() {
+  // ✅ Use shared auth instead of an independent getSession() call.
+  const { userId: authUserId, ready: authReady } = useAuth();
+  const userId = authUserId; // keep the existing variable name in the rest of this file
+
   const [profile, setProfile] = useState(getDefaultProfile());
   const [samples, setSamples] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isTraining, setIsTraining] = useState(false);
   const [error, setError] = useState(null);
-  const [userId, setUserId] = useState(null);
 
   // ─── Persist helper ──────────────────────────────────────────
 
@@ -156,19 +160,16 @@ export function useStyleProfile() {
       setIsLoading(false);
       return;
     }
+    if (!authReady) return;
 
     try {
       setIsLoading(true);
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const uid = session?.user?.id;
+      const uid = userId;
       if (!uid) {
         setIsLoading(false);
         return;
       }
-      setUserId(uid);
 
       const row = await loadStoredProfile(uid);
 
@@ -201,7 +202,7 @@ export function useStyleProfile() {
     } finally {
       setIsLoading(false);
     }
-  }, [supabaseReady]);
+  }, [authReady, userId]);
 
   useEffect(() => {
     loadProfile();

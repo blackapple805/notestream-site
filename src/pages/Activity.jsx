@@ -31,6 +31,7 @@ import {
   FiChevronDown, FiRefreshCw, FiAlertCircle, FiDownload,
 } from "react-icons/fi";
 import { supabase, supabaseReady } from "../lib/supabaseClient";
+import { useAuth } from "../hooks/useAuth";
 import { useEditorial } from "../lib/editorial";
 
 /* ═══════════════════════════════════════════════════════
@@ -346,6 +347,12 @@ export default function Activity() {
   // Sidebar first. No-op if already loaded.
   useEditorial();
 
+  // ✅ Shared auth — replaces the local getUser that called
+  // supabase.auth.getUser() on every load. Pages that consume useAuth
+  // don't trigger their own token refresh attempts; they read from
+  // the single AuthProvider listener at the root of the app.
+  const { user: authUser, ready: authReady } = useAuth();
+
   const [timelineRange, setTimelineRange] = useState(7);
   const [chartRange, setChartRange] = useState("week");
   const chartDays = chartRange === "month" ? 30 : 7;
@@ -369,7 +376,14 @@ export default function Activity() {
 
   useEffect(() => { const t = setTimeout(() => setChartsReady(true), 100); return () => clearTimeout(t); }, []);
 
-  const getUser = useCallback(async () => { const { data, error } = await supabase.auth.getUser(); if (error) throw error; if (!data?.user) throw new Error("Not authenticated"); return data.user; }, []);
+  // Returns the current user without triggering its own session probe.
+  // Throws like the old version if auth hasn't settled or user is absent,
+  // so existing call sites still work.
+  const getUser = useCallback(async () => {
+    if (!authReady) throw new Error("Auth not ready");
+    if (!authUser?.id) throw new Error("Not authenticated");
+    return authUser;
+  }, [authReady, authUser?.id]);
   const firstRow = (data) => (Array.isArray(data) ? data[0] : data);
   const fmtPct = useCallback((pct) => { const n = toNum(pct); if (n === null) return null; return `${n > 0 ? "+" : ""}${Math.round(n)}%`; }, []);
   const isUp = useCallback((pct) => { const n = toNum(pct); return n === null ? true : n >= 0; }, []);
@@ -452,8 +466,11 @@ export default function Activity() {
   }, [getUser, timelineRange, typeFilter]);
 
   const handleRefresh = useCallback(() => { loadActivityData(); loadTimeline(); }, [loadActivityData, loadTimeline]);
-  useEffect(() => { loadActivityData(); }, [loadActivityData]);
-  useEffect(() => { loadTimeline(); }, [loadTimeline]);
+  // Only fire loaders once auth has settled. Otherwise getUser() would
+  // throw "Auth not ready" and the page would render empty until the
+  // next manual refresh.
+  useEffect(() => { if (authReady && authUser?.id) loadActivityData(); }, [loadActivityData, authReady, authUser?.id]);
+  useEffect(() => { if (authReady && authUser?.id) loadTimeline(); }, [loadTimeline, authReady, authUser?.id]);
 
   const groupedEvents = useMemo(() => {
     const byDay = new Map();

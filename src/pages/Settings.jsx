@@ -20,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "../context/ThemeContext";
 import { useWorkspaceSettings } from "../hooks/useWorkspaceSettings";
+import { useAuth } from "../hooks/useAuth";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import { useEditorial, ED } from "../lib/editorial";
 import {
@@ -43,6 +44,8 @@ export default function Settings() {
   const navigate = useNavigate();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { settings, updateSetting } = useWorkspaceSettings();
+  // ✅ Shared auth state — no more per-page getSession calls.
+  const { user: authUser, ready: authReady } = useAuth();
 
   /* ── State (UNCHANGED) ── */
   const [pageLoading, setPageLoading] = useState(true);
@@ -65,13 +68,15 @@ export default function Settings() {
 
   const showToast = (message) => { setToast(message); setTimeout(() => setToast(null), 3000); };
 
-  /* ── Auth + DB helpers (UNCHANGED) ── */
+  /* ── Auth + DB helpers ── */
+  // Reads from the shared AuthProvider instead of calling
+  // supabase.auth.getSession() — eliminates one of the parallel
+  // refresh-token attempts during dashboard mount.
   const getUser = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) return null;
-    const { data, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    return data?.session?.user ?? null;
-  }, []);
+    if (!authReady) return null;
+    return authUser ?? null;
+  }, [authReady, authUser?.id]);
 
   const ensureStatsRow = useCallback(async (user) => {
     if (!user?.id) return;
@@ -109,13 +114,17 @@ export default function Settings() {
     finally { if (myReq === reqRef.current) { setProfileLoading(false); setStatsLoading(false); setPageLoading(false); } }
   }, [ensureStatsRow, getUser]);
 
+  // Refetch when auth becomes ready or the user changes. The
+  // AuthProvider's single listener fires on SIGNED_IN, SIGNED_OUT and
+  // TOKEN_REFRESHED — depending on authUser?.id gives us the same
+  // behavior the old onAuthStateChange listener provided without a
+  // duplicate auth subscription.
   useEffect(() => {
+    if (!authReady) return;
+    reqRef.current += 1;
     hydrateFromDb();
-    if (!supabase) return;
-    const { data: sub } = supabase.auth.onAuthStateChange(() => { reqRef.current += 1; hydrateFromDb(); });
-    return () => sub?.subscription?.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authReady, authUser?.id]);
 
   /* ── Profile save (UNCHANGED) ── */
   const handleSaveProfile = async () => {

@@ -26,6 +26,15 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEditorial, ED } from "../lib/editorial";
+// ✅ Static import (was previously a dynamic `await import()` inside an
+// effect). The build warning was "module is statically imported by 25
+// files AND dynamically imported by this one — dynamic import won't
+// move it into another chunk." Since NoteView itself is already lazy-
+// loaded by App.jsx's route splitting, loading supabaseClient lazily
+// inside it added zero benefit and only triggered the warning. Static
+// import here both silences the warning and saves one micro-await on
+// every direct-link note fetch.
+import { supabase, supabaseReady } from "../lib/supabaseClient";
 import {
   FiArrowLeft, FiSave, FiCheck, FiCopy, FiArchive, FiTrash2, FiShare2,
   FiDownload, FiZap, FiEdit, FiBookOpen, FiX, FiMoreHorizontal,
@@ -174,7 +183,6 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
     let cancelled = false;
     (async () => {
       try {
-        const { supabase, supabaseReady } = await import("../lib/supabaseClient");
         if (!supabaseReady || !supabase) {
           // Only show the editorial demo stub if Supabase isn't configured
           // at all (e.g. dev preview with no env vars). With Supabase wired

@@ -62,6 +62,7 @@ import {
   FiVolume2, FiX, FiAlertTriangle, FiArrowRight,
 } from "react-icons/fi";
 import { useSubscription } from "../hooks/useSubscription";
+import { useAuth } from "../hooks/useAuth";
 
 const RECORDINGS_TABLE = "voice_recordings";
 const STORAGE_BUCKET   = "voice-recordings";
@@ -71,6 +72,8 @@ export default function VoiceNotes() {
 
   const navigate = useNavigate();
   const { subscription, isFeatureUnlocked, incrementUsage } = useSubscription();
+  // ✅ Shared auth.
+  const { user: authUser, ready: authReady } = useAuth();
 
   // Voice notes is available to all logged-in users. The previous gate
   // that redirected free users to AI Lab has been removed.
@@ -128,11 +131,9 @@ export default function VoiceNotes() {
 
   const getUser = useCallback(async () => {
     if (!supabaseReady || !supabase) return null;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      return session?.user || null;
-    } catch { return null; }
-  }, [supabaseReady]);
+    if (!authReady) return null;
+    return authUser || null;
+  }, [authReady, authUser?.id]);
 
   /* ─── Load recordings (UNCHANGED) ─── */
   useEffect(() => {
@@ -1354,4 +1355,3 @@ const VNScopedStyles = () => (
     .ns-ed .ns-vn-audio { width: 100%; max-width: none; }
   `}</style>
 );
-

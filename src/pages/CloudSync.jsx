@@ -33,6 +33,7 @@ import {
 } from "@phosphor-icons/react";
 import { FiX, FiTrash2, FiCheck } from "react-icons/fi";
 import { useSubscription } from "../hooks/useSubscription";
+import { useAuth } from "../hooks/useAuth";
 
 const DEVICES_TABLE = "user_devices";
 
@@ -122,6 +123,8 @@ function QRCode({ value, size = 180 }) {
 export default function CloudSync() {
   const navigate = useNavigate();
   const { subscription, isFeatureUnlocked, isLoading } = useSubscription();
+  // ✅ Shared auth.
+  const { user: authUser, ready: authReady } = useAuth();
   const isPro = subscription?.plan !== "free";
   const isUnlocked = isFeatureUnlocked?.("cloud");
   useEffect(() => {
@@ -150,13 +153,13 @@ export default function CloudSync() {
   const heartbeatRef = useRef(null);
 
   // ─── Auth helper ────────────────────────────────────────────
+  // Reads from the shared AuthProvider rather than calling
+  // supabase.auth.getSession() — see /src/hooks/useAuth.jsx.
   const getUser = useCallback(async () => {
     if (!supabaseReady || !supabase) return null;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      return session?.user || null;
-    } catch { return null; }
-  }, [supabaseReady]);
+    if (!authReady) return null;
+    return authUser || null;
+  }, [authReady, authUser?.id]);
 
   // ─── Register current device on mount ──────────────────────
   useEffect(() => {
