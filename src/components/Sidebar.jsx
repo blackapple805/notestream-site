@@ -207,9 +207,9 @@ export default function Sidebar() {
   const [qcModalType, setQcModalType] = useState("note");
 
   /* ✅ Notes CRUD — provides onCreate to the QuickCreateModal so the
-     + button actually persists to Supabase. Previously onCreate was
-     undefined, the optimistic in-memory note was lost on the navigate(),
-     and NoteView fell through to its hardcoded essay stub. */
+     + button actually persists to Supabase. Returns the real created
+     note so the modal can navigate to the real UUID (not the local
+     `n_xxx` placeholder it generated optimistically). */
   const { createNote } = useNotes();
   const handleQuickCreate = useCallback(
     async (draftNote) => {
@@ -220,17 +220,13 @@ export default function Sidebar() {
           tags: draftNote.tags || [],
           pinned: Boolean(draftNote.pinned),
         });
-        if (created?.id) {
-          // The modal navigates to its own locally-generated `n_xxxx` id
-          // right after onCreate returns. Bounce to the real Supabase
-          // uuid so NoteView can actually load it.
-          setTimeout(() => navigate(`/dashboard/notes/${created.id}`), 0);
-        }
+        return created; // QuickCreateModal uses .id to navigate
       } catch (err) {
         console.error("[Sidebar] createNote failed:", err);
+        return null;
       }
     },
-    [createNote, navigate],
+    [createNote],
   );
 
   /* Search */

@@ -121,12 +121,14 @@ export default function QuickCreateModal({ open, type = "note", onClose, onCreat
     const cleanTitle = title.trim() || "Untitled entry";
     setSaving(true);
 
-    // Build a note that matches the shape Notes.jsx expects.
+    // Build a note that matches the shape Notes.jsx expects. The `id`
+    // here is a local placeholder used only if the parent's onCreate
+    // doesn't return a real one (offline / not wired up).
     const now = new Date();
     const wordCount = body.trim() ? body.trim().split(/\s+/).length : 0;
-    const id = `n_${now.getTime().toString(36)}`;
+    const localId = `n_${now.getTime().toString(36)}`;
     const newNote = {
-      id,
+      id: localId,
       title: cleanTitle,
       preview: body.trim().slice(0, 180) || "—",
       type: "note",
@@ -137,26 +139,30 @@ export default function QuickCreateModal({ open, type = "note", onClose, onCreat
       status: "draft",
       // Keep the full body around for the viewer when wiring real storage.
       _body: body,
+      body,
     };
 
+    // ✅ Capture whatever onCreate returns so we can navigate to the REAL
+    // (Supabase UUID) id instead of the local `n_xxx` placeholder. If the
+    // parent isn't wired up yet, this just falls back to localId — same
+    // behavior as before.
+    let createdId = localId;
     try {
-      // Let the parent persist / update its in-memory list. Parents may
-      // be async (e.g. Supabase insert); await if a promise comes back.
       const maybePromise = onCreate?.(newNote);
-      if (maybePromise && typeof maybePromise.then === "function") {
-        await maybePromise;
+      const result =
+        maybePromise && typeof maybePromise.then === "function"
+          ? await maybePromise
+          : maybePromise;
+      if (result && typeof result === "object" && typeof result.id === "string") {
+        createdId = result.id;
       }
     } catch (err) {
-      // We still close + navigate optimistically; surface the error in
-      // dev so it's not silent.
       // eslint-disable-next-line no-console
       console.error("[QuickCreateModal] onCreate failed:", err);
     }
 
     onClose?.();
-    // Land in the note viewer. If onCreate is not wired up yet the
-    // viewer falls back to its stub data, which is fine.
-    navigate(`/dashboard/notes/${id}`);
+    navigate(`/dashboard/notes/${createdId}`);
   }, [saving, title, body, tags, onCreate, onClose, navigate]);
 
   if (!open) return null;

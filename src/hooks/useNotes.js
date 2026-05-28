@@ -199,6 +199,20 @@ export function useNotes() {
     async (id, patch) => {
       if (!supabaseReady || !supabase || !id) return null;
 
+      // Defense in depth: refuse to PATCH unless the id is a valid uuid.
+      // The QuickCreateModal generates local `n_xxx` placeholder ids that
+      // would otherwise hit Postgres error 22P02 ("invalid input syntax
+      // for type uuid"). The real uuid is set after Supabase insert, so
+      // a placeholder slipping in here means something upstream is stale.
+      const looksLikeUuid =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          String(id),
+        );
+      if (!looksLikeUuid) {
+        console.warn("[useNotes] update skipped — non-uuid id:", id);
+        return null;
+      }
+
       const dbPatch = {};
       if ("title" in patch) dbPatch.title = patch.title;
       if ("body" in patch) dbPatch.body = patch.body;

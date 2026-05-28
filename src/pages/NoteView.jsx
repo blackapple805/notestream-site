@@ -210,11 +210,19 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
      a body string from the blocks the editor mutates, so what gets written
      back to the DB matches what the user sees. */
   const save = useCallback(async () => {
-    if (!note?.id || !updateNote) {
-      // No backend wiring — keep the old stub behavior so the UI still feels
-      // responsive even when not signed in.
+    // Skip the DB round-trip if we don't have a real Supabase UUID. The
+    // QuickCreateModal generates local placeholder ids like `n_mpoyc8gw`
+    // that aren't valid uuids — trying to PATCH with one throws Postgres
+    // error 22P02. The created note's real uuid is what we want; if we
+    // somehow ended up with a placeholder, just no-op the save instead
+    // of crashing.
+    const looksLikeUuid =
+      typeof note?.id === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(note.id);
+
+    if (!looksLikeUuid || !updateNote) {
       setSaving(true);
-      await new Promise((r) => setTimeout(r, 600));
+      await new Promise((r) => setTimeout(r, 400));
       setSaving(false);
       setSavedAt("just now");
       return;
