@@ -115,6 +115,11 @@ function rowToViewerNote(row) {
     tags: Array.isArray(row.tags) ? row.tags : [],
     pinned: Boolean(row.is_favorite),
     is_favorite: Boolean(row.is_favorite),
+    // ✅ Carry status through from the DB row. hydrateForViewer below
+    // falls back to ai_payload-derived status only when this is absent
+    // (pre-migration rows). Without this line, direct-URL note loads
+    // would always show "draft" regardless of what's in Supabase.
+    status: row.status || null,
     words,
     createdAt: row.created_at,
     updatedAt: row.updated_at || row.created_at,
@@ -274,10 +279,33 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
     }
   }, [note, updateNote]);
 
+  /* ✅ Publish now actually persists the status flip to Supabase. Before
+     this fix `publish()` only mutated local component state — the next
+     refetch from useNotes() would re-derive status from `ai_payload`
+     (which was the old approximation of "published") and the note would
+     snap back to draft. With the new `status` column in place, we PATCH
+     it directly and only update local state after the write succeeds.
+
+     We still call save() first so the latest title/body/tags go up in
+     the same round-trip context, then patch status. (Two requests, but
+     small ones — and it keeps the save path unchanged for ⌘S.) */
   const publish = useCallback(async () => {
     await save();
+
+    const looksLikeUuid =
+      typeof note?.id === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(note.id);
+
+    if (looksLikeUuid && typeof updateNote === "function") {
+      try {
+        await updateNote(note.id, { status: "published" });
+      } catch (err) {
+        console.error("[NoteView] publish failed:", err);
+        return; // keep the badge as draft so the user knows it didn't stick
+      }
+    }
     setNote((n) => (n ? { ...n, status: "published" } : n));
-  }, [save]);
+  }, [save, note, updateNote]);
 
   /* Keyboard shortcuts */
   useEffect(() => {

@@ -12,7 +12,7 @@
 //     · refetching on auth changes
 //
 // Schema columns used (from the public.notes table):
-//   id, user_id, title, body, tags, is_favorite, is_highlight,
+//   id, user_id, title, body, tags, is_favorite, is_highlight, status,
 //   created_at, updated_at, ai_payload, ai_generated_at, ai_model
 // ═══════════════════════════════════════════════════════════════════
 
@@ -42,7 +42,11 @@ function rowToNote(row) {
     pinned: Boolean(row.is_favorite),
     is_favorite: Boolean(row.is_favorite),
     is_highlight: Boolean(row.is_highlight),
-    status: row.ai_payload ? "published" : "draft",
+    // ✅ Real `status` column (added 2026-05-27). Falls back to the old
+    // derived behavior so the UI still works against a database that
+    // hasn't run the migration yet. After the migration runs, every row
+    // has a non-null status and the fallback never fires.
+    status: row.status || (row.ai_payload ? "published" : "draft"),
     type: "note",
     words: wordCount,
     createdAt: row.created_at,
@@ -220,6 +224,13 @@ export function useNotes() {
       if ("pinned" in patch) dbPatch.is_favorite = Boolean(patch.pinned);
       if ("is_favorite" in patch) dbPatch.is_favorite = Boolean(patch.is_favorite);
       if ("is_highlight" in patch) dbPatch.is_highlight = Boolean(patch.is_highlight);
+      // ✅ Publish/unpublish writes the real `status` column. The CHECK
+      // constraint in Postgres only allows draft / published / archived,
+      // so we whitelist here too — anything else gets dropped silently
+      // rather than throwing a 23514 in the user's face.
+      if ("status" in patch && ["draft", "published", "archived"].includes(patch.status)) {
+        dbPatch.status = patch.status;
+      }
       if ("ai_payload" in patch) {
         dbPatch.ai_payload = patch.ai_payload;
         dbPatch.ai_generated_at = new Date().toISOString();

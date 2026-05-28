@@ -75,7 +75,7 @@ const SORTS = [
 const TYPE_ICON = { note: FiEdit3, voice: FiMic, doc: FiFileText };
 const TYPE_LABEL = { note: "NOTE", voice: "VOICE", doc: "DOC" };
 
-export default function Notes({ notes, setNotes } = {}) {
+export default function Notes({ notes, setNotes, createNote, refetchNotes } = {}) {
   useEditorial();
   const navigate = useNavigate();
   const location = useLocation();
@@ -147,11 +147,34 @@ export default function Notes({ notes, setNotes } = {}) {
     navigate(location.pathname, { replace: true, state: {} });
   }, [location.state, location.pathname, navigate]);
 
-  /* Persist a new note to the parent's in-memory list if it owns one. */
-  const handleCreate = (newNote) => {
+  /* Persist a new note. The real path is `createNote` (Supabase-backed,
+     comes from useNotes() up in App.jsx) — that hook prepends the saved
+     row (with a real UUID) onto its own `notes` state, which is the same
+     array we receive as the `notes` prop. So once Supabase is wired up
+     we don't need to touch `setNotes` ourselves; doing so would create
+     a duplicate `n_xxx` placeholder that then disappears on the next
+     refetch (which is what the user was seeing).
+
+     We still keep a `setNotes` fallback for the offline / no-supabase
+     dev case so the stub UI keeps behaving as before.
+
+     IMPORTANT: this is async and RETURNS the persisted note so that
+     QuickCreateModal can read `result.id` (the real UUID) and navigate
+     to /dashboard/notes/<uuid> instead of /dashboard/notes/n_xxx. */
+  const handleCreate = async (newNote) => {
+    if (typeof createNote === "function") {
+      try {
+        const saved = await createNote(newNote);
+        return saved;
+      } catch (err) {
+        console.error("[Notes] createNote failed:", err);
+        // Fall through to local-only so the user at least sees their draft.
+      }
+    }
     if (typeof setNotes === "function") {
       setNotes((prev) => [newNote, ...(Array.isArray(prev) ? prev : [])]);
     }
+    return newNote;
   };
 
   return (
