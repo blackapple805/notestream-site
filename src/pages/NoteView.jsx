@@ -23,6 +23,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEditorial, ED } from "../lib/editorial";
@@ -1140,19 +1141,30 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
           Renders when `diffModal` is set. Shows the original on the left
           and the AI's result on the right (side-by-side on desktop,
           stacked on mobile). Apply replaces the note body and saves
-          immediately; Discard just closes. */}
-      <AnimatePresence>
-        {diffModal && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              className="nv-diff-scrim"
-              onClick={() => setDiffModal(null)}
-              aria-hidden="true"
-            />
+          immediately; Discard just closes.
+
+          Rendered via createPortal to document.body. Without the portal,
+          the modal lives inside DashboardLayout's content area, and any
+          ancestor with `transform`, `filter`, or `will-change` becomes
+          the containing block for position:fixed — pinning the modal to
+          the article column instead of the viewport. The portal sidesteps
+          that entirely. The wrapping <div className="ns-ed"> is needed
+          so the scoped `.ns-ed .nv-diff-*` selectors keep matching after
+          the move out of the layout tree. */}
+      {createPortal(
+        <div className="ns-ed">
+          <AnimatePresence>
+            {diffModal && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="nv-diff-scrim"
+                  onClick={() => setDiffModal(null)}
+                  aria-hidden="true"
+                />
             <motion.div
               initial={{ opacity: 0, y: 14, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1245,10 +1257,13 @@ export default function NoteView({ notes = [], updateNote, deleteNote } = {}) {
                   </button>
                 </div>
               </footer>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
@@ -1590,8 +1605,14 @@ const NoteViewScopedStyles = () => (
       z-index: 81;
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
-      width: min(1100px, calc(100vw - 32px));
+      /* Hard ceiling on width + height so the modal never escapes the
+         viewport. The min() picks whichever is smaller: our preferred
+         1100px ceiling, or 92% of the viewport. The 92vw is what keeps
+         it from kissing the screen edges on narrower desktops. */
+      width: min(1100px, 92vw);
+      max-width: 92vw;
       max-height: calc(100dvh - 32px);
+      box-sizing: border-box;
       background: ${ED.paper50};
       border: 1px solid ${ED.rule};
       border-radius: 10px;
@@ -1599,6 +1620,13 @@ const NoteViewScopedStyles = () => (
       display: flex;
       flex-direction: column;
       overflow: hidden;
+    }
+    /* Every descendant inherits border-box so padding doesn't push
+       footer buttons past the modal's right edge. */
+    .ns-ed .nv-diff-modal *,
+    .ns-ed .nv-diff-modal *::before,
+    .ns-ed .nv-diff-modal *::after {
+      box-sizing: border-box;
     }
     .ns-ed .nv-diff-head {
       position: relative;
@@ -1673,9 +1701,11 @@ const NoteViewScopedStyles = () => (
       border-top: 1px solid ${ED.rule};
       background: ${ED.paper100};
       flex-wrap: wrap;
+      min-width: 0;
     }
     .ns-ed .nv-diff-foot-right {
       display: inline-flex; gap: 8px; margin-left: auto;
+      flex-wrap: wrap;
     }
     .ns-ed .nv-diff-btn {
       display: inline-flex; align-items: center; gap: 6px;
@@ -1686,6 +1716,7 @@ const NoteViewScopedStyles = () => (
       padding: 8px 14px;
       border-radius: 6px;
       cursor: pointer;
+      white-space: nowrap;
       transition: background-color .12s ease, border-color .12s ease,
                   color .12s ease, transform .12s ease;
     }
