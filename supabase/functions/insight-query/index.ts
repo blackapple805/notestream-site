@@ -2,9 +2,13 @@
 // ✅ Edge function for Insight Explorer — workspace-aware AI Q&A
 // ✅ Same CORS pattern as analyze-note & summarize-document
 import "jsr:@supabase/functions-js@^2/edge-runtime.d.ts";
+import {
+  activeModelName,
+  callLLM,
+  hasApiKey,
+  providerLabel,
+} from "../_shared/aiProvider.ts";
 
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-const MODEL = "claude-sonnet-4-20250514";
 const MAX_CONTEXT_CHARS = 10000;
 
 const corsHeaders: Record<string, string> = {
@@ -59,8 +63,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    if (!ANTHROPIC_API_KEY) {
-      return jsonResponse({ error: "ANTHROPIC_API_KEY not configured", fallback: true });
+    if (!hasApiKey()) {
+      return jsonResponse({
+        error: `${providerLabel()} API key not configured`,
+        fallback: true,
+      });
     }
 
     const payload: QueryPayload = await req.json().catch(() => ({}));
@@ -116,33 +123,22 @@ Deno.serve(async (req: Request) => {
       { role: "user" as const, content: userMessage },
     ];
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 1536,
-        system: SYSTEM_PROMPT,
-        messages,
-      }),
+    const llm = await callLLM({
+      max_tokens: 1536,
+      system: SYSTEM_PROMPT,
+      messages,
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Anthropic API error:", response.status, errText);
+    if (!llm.ok) {
       return jsonResponse({
-        error: "Anthropic API request failed",
-        status: response.status,
-        details: errText.slice(0, 1200),
+        error: `${providerLabel()} API request failed`,
+        status: llm.status,
+        details: llm.details,
         fallback: true,
       });
     }
 
-    const data = (await response.json()) as { content?: AnthropicBlock[] };
+    const data = { content: llm.content };
 
     const text = (data.content ?? [])
       .map((b) => (b.type === "text" ? (b as AnthropicTextBlock).text : ""))
@@ -166,7 +162,7 @@ Deno.serve(async (req: Request) => {
         answer: cleaned,
         sources: [],
         followUp: [],
-        model: MODEL,
+        model: activeModelName(),
       });
     }
 
@@ -178,7 +174,7 @@ Deno.serve(async (req: Request) => {
       followUp: Array.isArray(parsed.followUp)
         ? parsed.followUp.filter((s: unknown) => typeof s === "string").slice(0, 3)
         : [],
-      model: MODEL,
+      model: activeModelName(),
     };
 
     return jsonResponse(result);

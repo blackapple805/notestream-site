@@ -1,11 +1,14 @@
 // supabase/functions/transcribe-voice/index.ts
 // ✅ Edge function for voice note transcription
 // ✅ Accepts base64-encoded audio, returns transcription + AI analysis
-// ✅ Falls back gracefully when Anthropic API is unavailable
+// ✅ Falls back gracefully when AI provider is unavailable
 import "jsr:@supabase/functions-js@^2/edge-runtime.d.ts";
-
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-const MODEL = "claude-sonnet-4-20250514";
+import {
+  activeModelName,
+  callLLM,
+  hasApiKey,
+  providerLabel,
+} from "../_shared/aiProvider.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -57,8 +60,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    if (!ANTHROPIC_API_KEY) {
-      return jsonResponse({ error: "ANTHROPIC_API_KEY not configured", fallback: true });
+    if (!hasApiKey()) {
+      return jsonResponse({
+        error: `${providerLabel()} API key not configured`,
+        fallback: true,
+      });
     }
 
     const payload: TranscribePayload = await req.json().catch(() => ({}));
@@ -74,33 +80,22 @@ Deno.serve(async (req: Request) => {
       ? `Title hint: ${titleHint}\n\nRaw voice transcription:\n${rawText.slice(0, 8000)}`
       : `Raw voice transcription:\n${rawText.slice(0, 8000)}`;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 1024,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userMessage }],
-      }),
+    const llm = await callLLM({
+      max_tokens: 1024,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userMessage }],
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Anthropic API error:", response.status, errText);
+    if (!llm.ok) {
       return jsonResponse({
-        error: "Anthropic API request failed",
-        status: response.status,
-        details: errText.slice(0, 1200),
+        error: `${providerLabel()} API request failed`,
+        status: llm.status,
+        details: llm.details,
         fallback: true,
       });
     }
 
-    const data = (await response.json()) as { content?: AnthropicBlock[] };
+    const data = { content: llm.content };
 
     const text = (data.content ?? [])
       .map((b) => (b.type === "text" ? (b as AnthropicTextBlock).text : ""))
@@ -131,7 +126,7 @@ Deno.serve(async (req: Request) => {
       category: typeof parsed.category === "string" ? parsed.category : "general",
       summary: typeof parsed.summary === "string" ? parsed.summary : "",
       sentiment: typeof parsed.sentiment === "string" ? parsed.sentiment : "neutral",
-      model: MODEL,
+      model: activeModelName(),
       processedAt: new Date().toISOString(),
     };
 

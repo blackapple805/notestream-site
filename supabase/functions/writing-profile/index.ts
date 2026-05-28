@@ -4,9 +4,13 @@
 //    - "analyze": Analyze a batch of notes to build/update a writing profile
 //    - "suggest": Given a profile + prompt, generate text in the user's style
 import "jsr:@supabase/functions-js@^2/edge-runtime.d.ts";
+import {
+  activeModelName,
+  callLLM,
+  hasApiKey,
+  providerLabel,
+} from "../_shared/aiProvider.ts";
 
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-const MODEL = "claude-sonnet-4-20250514";
 const MAX_INPUT_CHARS = 12000;
 
 const corsHeaders: Record<string, string> = {
@@ -77,8 +81,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    if (!ANTHROPIC_API_KEY) {
-      return jsonResponse({ error: "ANTHROPIC_API_KEY not configured", fallback: true });
+    if (!hasApiKey()) {
+      return jsonResponse({
+        error: `${providerLabel()} API key not configured`,
+        fallback: true,
+      });
     }
 
     const payload: ProfilePayload = await req.json().catch(() => ({}));
@@ -112,33 +119,25 @@ Deno.serve(async (req: Request) => {
         userMessage += `\n\n--- Existing Profile (update/refine this) ---\n${JSON.stringify(payload.existingProfile)}`;
       }
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: 2048,
-          system: ANALYZE_SYSTEM,
-          messages: [{ role: "user", content: userMessage }],
-        }),
+      const llm = await callLLM({
+        // 4096 (was 2048) — Gemini is more verbose than Claude on this large
+        // nested schema (toneProfile, vocabularyStats, structurePatterns, etc.)
+        // and was truncating mid-object at 2048, producing invalid JSON.
+        max_tokens: 4096,
+        system: ANALYZE_SYSTEM,
+        messages: [{ role: "user", content: userMessage }],
       });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error("Anthropic API error:", response.status, errText);
+      if (!llm.ok) {
         return jsonResponse({
-          error: "Anthropic API request failed",
-          status: response.status,
-          details: errText.slice(0, 1200),
+          error: `${providerLabel()} API request failed`,
+          status: llm.status,
+          details: llm.details,
           fallback: true,
         });
       }
 
-      const data = (await response.json()) as { content?: AnthropicBlock[] };
+      const data = { content: llm.content };
       const text = (data.content ?? [])
         .map((b) => (b.type === "text" ? (b as AnthropicTextBlock).text : ""))
         .filter(Boolean)
@@ -161,7 +160,7 @@ Deno.serve(async (req: Request) => {
 
       const result = {
         ...parsed,
-        model: MODEL,
+        model: activeModelName(),
         analyzedAt: new Date().toISOString(),
       };
 
@@ -185,33 +184,24 @@ Deno.serve(async (req: Request) => {
 
       const userMessage = `User's writing style profile:\n${JSON.stringify(profile)}\n\nWrite this in the user's style:\n${prompt.slice(0, 2000)}`;
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: 1536,
-          system: SUGGEST_SYSTEM,
-          messages: [{ role: "user", content: userMessage }],
-        }),
+      const llm = await callLLM({
+        // 2048 (was 1536) — give Gemini room for both the generated text
+        // and the styleMatchScore + styleNotes JSON envelope.
+        max_tokens: 2048,
+        system: SUGGEST_SYSTEM,
+        messages: [{ role: "user", content: userMessage }],
       });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error("Anthropic API error:", response.status, errText);
+      if (!llm.ok) {
         return jsonResponse({
-          error: "Anthropic API request failed",
-          status: response.status,
-          details: errText.slice(0, 1200),
+          error: `${providerLabel()} API request failed`,
+          status: llm.status,
+          details: llm.details,
           fallback: true,
         });
       }
 
-      const data = (await response.json()) as { content?: AnthropicBlock[] };
+      const data = { content: llm.content };
       const text = (data.content ?? [])
         .map((b) => (b.type === "text" ? (b as AnthropicTextBlock).text : ""))
         .filter(Boolean)
@@ -232,7 +222,7 @@ Deno.serve(async (req: Request) => {
           generatedText: cleaned,
           styleMatchScore: 0,
           styleNotes: ["Could not parse structured response"],
-          model: MODEL,
+          model: activeModelName(),
         });
       }
 
@@ -240,7 +230,7 @@ Deno.serve(async (req: Request) => {
         generatedText: typeof parsed.generatedText === "string" ? parsed.generatedText : cleaned,
         styleMatchScore: typeof parsed.styleMatchScore === "number" ? parsed.styleMatchScore : 0,
         styleNotes: Array.isArray(parsed.styleNotes) ? parsed.styleNotes : [],
-        model: MODEL,
+        model: activeModelName(),
       });
     }
 

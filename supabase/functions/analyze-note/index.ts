@@ -1,9 +1,13 @@
 // supabase/functions/analyze-note/index.ts
 // deno-lint-ignore no-import-prefix
 import "jsr:@supabase/functions-js@^2/edge-runtime.d.ts";
+import {
+  activeModelName,
+  callLLM,
+  hasApiKey,
+  providerLabel,
+} from "../_shared/aiProvider.ts";
 
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-const MODEL = "claude-sonnet-4-20250514";
 const MAX_INPUT_CHARS = 8000;
 
 // ✅ CORS: allow Supabase JS added headers + preflight
@@ -42,10 +46,10 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    if (!ANTHROPIC_API_KEY) {
+    if (!hasApiKey()) {
       return new Response(
         JSON.stringify({
-          error: "ANTHROPIC_API_KEY not configured",
+          error: `${providerLabel()} API key not configured`,
           fallback: true,
         }),
         {
@@ -89,30 +93,18 @@ No markdown. No backticks. No explanations.`;
 Note Content:
 ${truncatedBody}`;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userMessage }],
-      }),
+    const llm = await callLLM({
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }],
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Anthropic API error:", response.status, errText);
-
+    if (!llm.ok) {
       return new Response(
         JSON.stringify({
-          error: "Anthropic API request failed",
-          status: response.status,
-          details: errText.slice(0, 1200),
+          error: `${providerLabel()} API request failed`,
+          status: llm.status,
+          details: llm.details,
           fallback: true,
         }),
         {
@@ -122,7 +114,7 @@ ${truncatedBody}`;
       );
     }
 
-    const data = (await response.json()) as { content?: AnthropicBlock[] };
+    const data = { content: llm.content };
 
     const text = (data.content ?? [])
       .map((b) => (b.type === "text" ? (b as AnthropicTextBlock).text : ""))
@@ -179,7 +171,7 @@ ${truncatedBody}`;
       sentiment,
       topics: toStringArray(parsed.topics),
       generatedAt: typeof parsed.generatedAt === "string" ? parsed.generatedAt : now,
-      model: MODEL,
+      model: activeModelName(),
     };
 
     return new Response(JSON.stringify(result), {
