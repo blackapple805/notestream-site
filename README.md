@@ -1,16 +1,53 @@
-# React + Vite
+# NoteStream
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**An archive that reasons.** A private notes library for the way you actually think — voice memos at 6 a.m., a half-formed argument in the margin of a PDF, the meeting you'd rather not transcribe by hand. NoteStream keeps your notes in their original form, then lets a model read across all of them whenever you ask a question.
 
-Currently, two official plugins are available:
+🔗 **Live:** [notestream.dev](https://www.notestream.dev/)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+> Capture is the easy part. The trick is what happens after — when a year of half-thoughts needs to behave like a single mind.
 
-## React Compiler
+## What it does
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+NoteStream was built to fix three things most notes apps get wrong:
 
-## Expanding the ESLint configuration
+- **Capture without recall** — most apps optimize for storage and forget the point of writing things down is reading them back. NoteStream is built around retrieval: ask a question, get an answer drawn from everything you've kept.
+- **You become the librarian** — folders, tags, backlinks, daily notes. The "second brain" methodology asks you to do a librarian's job on top of your real one. NoteStream does that work in the background — transcribes, tags, and files automatically.
+- **Untrustworthy AI** — an answer that can't be traced to a specific note is a risk, not a feature. NoteStream's answers **cite the exact passages they came from, with timestamps**. If you didn't write it, the model doesn't pretend you did.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Features
+
+- **Voice capture** — hold, speak, release. Audio is transcribed, cleaned by the model (fillers removed), auto-tagged, and filed — without opening another app. Tasks are extracted automatically.
+- **Cited AI answers** — ask across your whole library; every answer links back to the source notes and timestamps.
+- **Multi-format ingest** — voice memos, PDFs, and text notes read together as one corpus.
+- **Auth + persistence** — accounts and stored notes via Supabase.
+- **AI fallback layer** — graceful degradation when the primary model path is unavailable.
+- **Dark / light mode**, responsive mobile navigation, and an editorial-publication UI.
+- **Free 14-day pro trial**, no card required.
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Framework | React + Vite |
+| Styling | Tailwind CSS |
+| Backend / Auth | Supabase |
+| AI | LLM integration with a fallback provider layer |
+| Hosting | Vercel |
+
+## Running locally
+
+```bash
+npm install
+cp .env.example .env     # add your Supabase + AI keys
+npm run dev
+```
+
+Open the local URL Vite prints (default `http://localhost:5173`).
+
+## Status
+
+Live in production at [notestream.dev](https://www.notestream.dev/) with continuous deployment via Vercel. See `CHANGES.md`, `FIXES.md`, and `CLEANUP_CHANGES.md` for the engineering log — dependency cleanup, code splitting, Supabase guards, and the Phosphor icon migration.
+
+---
+
+Built by Eric Del Angel.
